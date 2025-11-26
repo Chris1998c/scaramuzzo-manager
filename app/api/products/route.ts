@@ -1,33 +1,23 @@
-import { createServerSupabase } from "@/lib/supabaseServer";
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function GET() {
-  const supabase = createServerSupabase();
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
-  // prende ruolo e salone dal JWT custom claims
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return Response.json({ error: "Non autenticato" }, { status: 401 });
+    return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
   }
 
-  const { role, salon_id } = user.user_metadata;
+  const { data, error } = await supabase.from("products").select("*");
 
-  // Coordinatore → vede tutto
-  if (role === "Coordinator") {
-    const { data, error } = await supabase
-      .from("product_stock")
-      .select("*");
-
-    return Response.json({ data, error });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Reception → solo il proprio salone
-  const { data, error } = await supabase
-    .from("product_stock")
-    .select("*")
-    .eq("salon_id", salon_id);
-
-  return Response.json({ data, error });
+  return NextResponse.json(data);
 }
