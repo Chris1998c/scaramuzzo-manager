@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient"; // ✅ IMPORT GIUSTO
 
 interface Props {
   isOpen: boolean;
@@ -13,7 +13,7 @@ interface Props {
 export default function CalendarModal({ isOpen, close, onSelectDate }: Props) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [appointmentsByDay, setAppointmentsByDay] = useState<Record<string, number>>({});
-
+    const supabase = createClient(); // ✅ ORA FUNZIONA
   useEffect(() => {
     if (isOpen) loadAppointmentsForMonth(currentMonth);
   }, [isOpen, currentMonth]);

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState, useRef } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient"; // ✅ IMPORT GIUSTO
 
 interface Props {
   appointment: any;
@@ -14,7 +14,7 @@ export default function AppointmentBox({ appointment, hours, onClick }: Props) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
-
+    const supabase = createClient(); // ✅ ORA FUNZIONA
   const startIndex = hours.indexOf(appointment.time);
   const top = startIndex * 40; // ogni slot = 40px
   const height = (appointment.duration / 30) * 40; // durata → altezza

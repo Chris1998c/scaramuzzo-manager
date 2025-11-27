@@ -6,11 +6,12 @@ import { useState, useEffect } from "react";
 import AgendaGrid from "@/components/agenda/AgendaGrid";
 import SearchPalette from "@/components/SearchPalette";
 import CalendarModal from "@/components/agenda/CalendarModal";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient";
 
 export default function AgendaPage() {
   const [currentDate, setCurrentDate] = useState<string>("");
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const supabase = createClient();
 
   async function loadToday() {
     const { data } = await supabase.rpc("get_server_date");

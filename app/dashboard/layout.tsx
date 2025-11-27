@@ -5,33 +5,33 @@ import Header from "@/components/header";
 import { useUI } from "@/lib/ui-store";
 import { motion } from "framer-motion";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { sidebarOpen } = useUI();
 
   return (
     <div className="min-h-screen flex bg-scz-darker">
-
       {/* SIDEBAR */}
       <Sidebar />
 
-      {/* MAIN CONTENT */}
+      {/* MAIN */}
       <motion.div
         animate={{
-          marginLeft: sidebarOpen ? 0 : "0",
-          // Desktop: se sidebar aperta, lascia 16rem = 64 tailwind
-          // Mobile: overlay, nessun margine
-          ...(typeof window !== "undefined" && window.innerWidth > 768
-            ? { marginLeft: sidebarOpen ? "16rem" : "0rem" }
-            : {}),
+          marginLeft:
+            typeof window !== "undefined" && window.innerWidth > 768
+              ? sidebarOpen
+                ? "16rem"
+                : "0rem"
+              : "0",
         }}
         transition={{ type: "spring", stiffness: 260, damping: 28 }}
         className="flex flex-col flex-1"
       >
         <Header title="Dashboard" />
-
-        <main className="p-8">
-          {children}
-        </main>
+        <main className="p-8">{children}</main>
       </motion.div>
     </div>
   );

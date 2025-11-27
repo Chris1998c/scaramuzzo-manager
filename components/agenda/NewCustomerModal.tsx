@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient"; // ✅ IMPORT GIUSTO
 import { motion } from "framer-motion";
 
 interface Props {
@@ -15,7 +15,7 @@ export default function NewCustomerModal({ isOpen, close, onCreated }: Props) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
-
+    const supabase = createClient(); // ✅ ORA FUNZIONA
   if (!isOpen) return null;
 
   async function saveCustomer() {

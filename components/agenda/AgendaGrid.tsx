@@ -1,7 +1,9 @@
 "use client";
+export const dynamic = "force-dynamic";
+
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient"; // ✅ IMPORT GIUSTO
 import AgendaModal from "./AgendaModal";
 import EditAppointmentModal from "./EditAppointmentModal";
 import AppointmentBox from "./AppointmentBox";
@@ -12,7 +14,7 @@ import AppointmentBox from "./AppointmentBox";
 
 export default function AgendaGrid({ currentDate }: { currentDate: string }) {
   const [view, setView] = useState<"day" | "week">("day");
-
+    const supabase = createClient(); // ✅ ORA FUNZIONA
   const [staff, setStaff] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);

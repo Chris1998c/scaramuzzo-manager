@@ -15,20 +15,32 @@ export async function POST(req: Request) {
     password,
   });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error || !data.session) {
+    return NextResponse.json(
+      { error: error?.message || "Credenziali non valide" },
+      { status: 400 }
+    );
   }
+
+  const { access_token, refresh_token } = data.session;
 
   const res = NextResponse.json({ success: true });
 
-  res.cookies.set("sb-access-token", data.session!.access_token, {
+  // Cookie compatibili con middleware e server
+  res.cookies.set("sb-access-token", access_token, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
     path: "/",
+    maxAge: 60 * 60 * 24 * 7, // 7 giorni
   });
 
-  res.cookies.set("sb-refresh-token", data.session!.refresh_token, {
+  res.cookies.set("sb-refresh-token", refresh_token, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
     path: "/",
+    maxAge: 60 * 60 * 24 * 30, // ~30 giorni
   });
 
   return res;

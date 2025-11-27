@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient"; // ✅ IMPORT GIUSTO
 import { motion } from "framer-motion";
 
 interface Props {
@@ -15,7 +15,7 @@ export default function EditAppointmentModal({ isOpen, close, appointment }: Pro
   const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
-
+    const supabase = createClient(); // ✅ ORA FUNZIONA
   const [customer, setCustomer] = useState<string>("");
   const [service, setService] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
