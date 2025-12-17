@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { createClient } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -12,16 +13,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-const res = await fetch("/api/auth/login", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ email, password }),
-});
+    const supabase = createClient();
 
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    if (!res.ok) {
-      const { error } = await res.json();
-      setError(error);
+    if (error) {
+      setError(error.message);
       return;
     }
 
@@ -30,11 +30,8 @@ const res = await fetch("/api/auth/login", {
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center px-6 bg-[var(--bg)] overflow-hidden">
-
-      {/* Radial Glow */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.10),transparent_70%)] opacity-30" />
 
-      {/* TITLE */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -46,7 +43,6 @@ const res = await fetch("/api/auth/login", {
         </h1>
       </motion.div>
 
-      {/* LOGO */}
       <motion.img
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
@@ -55,7 +51,6 @@ const res = await fetch("/api/auth/login", {
         className="w-28 mb-10 opacity-95 drop-shadow-[0_0_25px_rgba(0,0,0,0.4)]"
       />
 
-      {/* CARD */}
       <motion.div
         initial={{ opacity: 0, y: 35 }}
         animate={{ opacity: 1, y: 0 }}
@@ -70,8 +65,6 @@ const res = await fetch("/api/auth/login", {
         {error && <p className="text-red-400 text-center">{error}</p>}
 
         <form onSubmit={handleLogin} className="flex flex-col space-y-8">
-          
-          {/* EMAIL */}
           <div className="flex flex-col space-y-2">
             <label className="text-[var(--accent)] text-sm">Email</label>
             <input
@@ -88,7 +81,6 @@ const res = await fetch("/api/auth/login", {
             />
           </div>
 
-          {/* PASSWORD */}
           <div className="flex flex-col space-y-2">
             <label className="text-[var(--accent)] text-sm">Password</label>
             <input

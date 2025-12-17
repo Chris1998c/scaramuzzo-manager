@@ -1,34 +1,90 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
     const body = await req.json();
 
-    const { salon, items } = body;
+    const name = String(body.name ?? "").trim();
+    const category = String(body.category ?? "").trim();
+    const barcode = body.barcode ? String(body.barcode).trim() : null;
+    const cost = Number(body.cost) || 0;
+    const type = body.type ? String(body.type) : null;
+    const description = body.description ? String(body.description) : null;
+    const initialQty = Number(body.initialQty) || 0;
 
-    if (!salon || !items) {
-      return NextResponse.json({ error: "Dati mancanti" }, { status: 400 });
+    if (!name || !category) {
+      return NextResponse.json(
+        { error: "Nome e categoria sono obbligatori" },
+        { status: 400 }
+      );
     }
 
-    for (const item of items) {
-      await supabase.rpc("stock_decrease", {
-        p_salon: salon,
-        p_product: item.id,
-        p_qty: item.qty,
-      });
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-      await supabase.from("stock_movements").insert({
-        salon_id: salon,
-        product_id: item.id,
-        qty: item.qty,
-        type: "scarico",
-      });
+    if (authError || !user) {
+      return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    return NextResponse.json({ ok: true });
+    const role = user.user_metadata?.role ?? "salone";
+    if (role !== "magazzino" && role !== "coordinator") {
+      return NextResponse.json(
+        { error: "Permessi insufficienti" },
+        { status: 403 }
+      );
+    }
+
+    const { data: product, error: insertError } = await supabaseAdmin
+      .from("products")
+      .insert({
+        name,
+        category,
+        barcode,
+        cost,
+        type,
+        description,
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !product) {
+      return NextResponse.json(
+        { error: insertError?.message ?? "Errore creazione prodotto" },
+        { status: 500 }
+      );
+    }
+
+    const MAGAZZINO_CENTRALE_ID = 5;
+
+    if (initialQty > 0) {
+      const { error: stockError } = await supabaseAdmin.rpc("stock_move", {
+        p_product: product.id,
+        p_qty: initialQty,
+        p_to_salon: MAGAZZINO_CENTRALE_ID,
+        p_reason: "initial_stock",
+      });
+
+      if (stockError) {
+        return NextResponse.json(
+          { error: stockError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    return NextResponse.json(
+      { ok: true, productId: product.id },
+      { status: 200 }
+    );
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message ?? "Errore interno" },
+      { status: 500 }
+    );
   }
 }

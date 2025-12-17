@@ -4,114 +4,127 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 
 interface Product {
-  id: number;
+  product_id: number;
   name: string;
   quantity: number;
 }
 
 export default function RapidaPage() {
   const supabase = createClient();
-  const [salon, setSalon] = useState<string>("");
-  const [query, setQuery] = useState<string>("");
+
+  const [salonId, setSalonId] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // ============================
-  // USER → SALONE
+  // USER → SALON_ID (NUMBER)
   // ============================
   useEffect(() => {
-    const load = async () => {
+    async function loadUser() {
       const { data } = await supabase.auth.getUser();
-      const s = data.user?.user_metadata?.salon_id ?? "";
-      setSalon(s);
-    };
-    load();
+      const s = data.user?.user_metadata?.salon_id ?? null;
+      setSalonId(typeof s === "number" ? s : Number(s));
+    }
+    loadUser();
   }, []);
 
   // ============================
-  // CERCA PRODOTTI
+  // SEARCH PRODUCTS
   // ============================
   async function search() {
-    if (!salon) return;
+    if (!salonId || !query.trim()) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
 
     const { data } = await supabase
       .from("products_with_stock")
-      .select("*")
-      .ilike("name", `%${query}%`)
-      .eq("salon_id", salon);
+      .select("product_id, name, quantity")
+      .eq("salon_id", salonId)
+      .ilike("name", `%${query.trim()}%`)
+      .order("name");
 
     setResults((data as Product[]) || []);
+    setLoading(false);
   }
 
   // ============================
-  // SCARICO -1
+  // QUICK DECREASE -1
   // ============================
-  async function scarica(id: number) {
-    if (!salon) return;
+  async function scarica(productId: number) {
+    if (!salonId) return;
 
     await supabase.rpc("stock_decrease", {
-      p_salon: salon,
-      p_product: id,
+      p_salon: salonId,
+      p_product: productId,
       p_qty: 1,
     });
 
-    search();
+    // refresh results
+    await search();
   }
 
   return (
     <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3]">
-
       <h1 className="text-3xl font-bold mb-6 text-[#B88A54]">
         Gestione Rapida
       </h1>
 
-      {/* BOX RICERCA */}
+      {/* SEARCH */}
       <div className="bg-[#FDF8F3] text-[#341A09] p-6 rounded-2xl shadow-lg space-y-4">
-
         <input
-          className="w-full p-4 rounded-xl bg-white border border-[#341A09]/30 text-[#341A09]"
+          className="w-full p-4 rounded-xl bg-white border border-[#341A09]/30"
           placeholder="Cerca prodotto…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && search()}
         />
 
         <button
           onClick={search}
-          className="w-full py-3 bg-[#341A09] text-[#FDF8F3] rounded-xl font-semibold shadow hover:scale-105 transition"
+          className="w-full py-3 bg-[#341A09] text-white rounded-xl font-semibold shadow hover:scale-105 transition"
         >
           Cerca
         </button>
       </div>
 
-      {/* RISULTATI */}
-      <div className="mt-8 bg-[#FDF8F3] text-[#341A09] p-6 rounded-2xl shadow-lg space-y-4">
+      {/* RESULTS */}
+      <div className="mt-8 bg-[#FDF8F3] text-[#341A09] p-6 rounded-2xl shadow-lg space-y-2">
+        {loading && (
+          <p className="text-center opacity-60 py-4">Ricerca in corso…</p>
+        )}
 
-        {results.map((p) => (
-          <div
-            key={p.id}
-            className="flex justify-between items-center border-b border-[#341A09]/15 py-3 hover:bg-[#F3E9DD] transition"
-          >
-            <div>
-              <p className="font-semibold">{p.name}</p>
-              <p className="text-xs opacity-70">
-                {p.quantity} disponibili
-              </p>
-            </div>
-
-            <button
-              className="px-4 py-2 bg-[#D63031] text-white rounded-lg font-semibold shadow hover:scale-105 transition"
-              onClick={() => scarica(p.id)}
+        {!loading &&
+          results.map((p) => (
+            <div
+              key={p.product_id}
+              className="flex justify-between items-center border-b py-3"
             >
-              -1 Scarica
-            </button>
-          </div>
-        ))}
+              <div>
+                <p className="font-semibold">{p.name}</p>
+                <p className="text-xs opacity-70">
+                  {p.quantity} disponibili
+                </p>
+              </div>
 
-        {results.length === 0 && (
-          <p className="text-center opacity-70 py-6">
+              <button
+                disabled={p.quantity <= 0}
+                onClick={() => scarica(p.product_id)}
+                className="px-4 py-2 bg-[#D63031] text-white rounded-lg font-semibold shadow disabled:opacity-40 hover:scale-105 transition"
+              >
+                −1
+              </button>
+            </div>
+          ))}
+
+        {!loading && results.length === 0 && (
+          <p className="text-center opacity-60 py-6">
             Nessun prodotto trovato
           </p>
         )}
-
       </div>
     </div>
   );

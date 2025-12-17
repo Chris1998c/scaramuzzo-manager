@@ -9,8 +9,8 @@ interface Movement {
   product_id: number;
   product_name: string;
   category: string | null;
-  qty: number;
-  type: string; // "carico" | "scarico" | "trasferimento" ...
+  quantity: number;
+  movement_type: string;
   from_salon: number | null;
   to_salon: number | null;
 }
@@ -24,37 +24,28 @@ const SALONI_LABEL = [
 ];
 
 export default function MovimentiPage() {
-   const supabase = createClient();
-  const [role, setRole] = useState<string>("salone");
+  const supabase = createClient();
+
+  const [role, setRole] = useState("salone");
   const [salon, setSalon] = useState<number | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
 
-  // ============================
-  // LOAD USER + MOVIMENTI
-  // ============================
   useEffect(() => {
     async function init() {
       const { data } = await supabase.auth.getUser();
-      const user = data.user;
-      if (!user) return;
+      const user = data?.user;
 
-      const r = user.user_metadata?.role ?? "salone";
-      const s = user.user_metadata?.salon_id ?? 0;
+      if (!user?.user_metadata?.salon_id) return;
 
-      setRole(r);
-      setSalon(s);
-
-      fetchMovements(s, "", "");
+      setRole(user.user_metadata.role ?? "salone");
+      setSalon(user.user_metadata.salon_id);
     }
 
     init();
   }, []);
 
-  // ============================
-  // FETCH MOVIMENTI per salone attivo
-  // ============================
   async function fetchMovements(
     salonId: number,
     searchText: string,
@@ -71,22 +62,18 @@ export default function MovimentiPage() {
     }
 
     if (type) {
-      query = query.eq("type", type);
+      query = query.eq("movement_type", type);
     }
 
     const { data } = await query;
     setMovements((data as Movement[]) || []);
   }
 
-  // ============================
-  // EFFETTI FILTRI
-  // ============================
   useEffect(() => {
     if (salon !== null) {
       fetchMovements(salon, search, typeFilter);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, typeFilter]);
+  }, [salon, search, typeFilter]);
 
   if (salon === null) return null;
 
@@ -101,36 +88,33 @@ export default function MovimentiPage() {
     });
   }
 
-function formatDirection(m: Movement, activeSalon: number): string {
-  const safeFrom = m.from_salon !== null ? m.from_salon : activeSalon;
-  const safeTo = m.to_salon !== null ? m.to_salon : activeSalon;
+  function formatDirection(m: Movement, activeSalon: number): string {
+    const from = m.from_salon ?? activeSalon;
+    const to = m.to_salon ?? activeSalon;
 
-  if (m.type === "carico") {
-    return `Carico su ${SALONI_LABEL[safeTo]}`;
-  }
-  if (m.type === "scarico") {
-    return `Scarico da ${SALONI_LABEL[safeFrom]}`;
-  }
-  if (m.type === "trasferimento") {
-    return `${SALONI_LABEL[safeFrom]} → ${SALONI_LABEL[safeTo]}`;
-  }
+    if (m.movement_type === "carico") {
+      return `Carico su ${SALONI_LABEL[to]}`;
+    }
+    if (m.movement_type === "scarico") {
+      return `Scarico da ${SALONI_LABEL[from]}`;
+    }
+    if (m.movement_type === "trasferimento") {
+      return `${SALONI_LABEL[from]} → ${SALONI_LABEL[to]}`;
+    }
 
-  return m.type;
-}
-
+    return m.movement_type;
+  }
 
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
-      <h1 className="text-3xl font-bold mb-3 text-white">
+      <h1 className="text-3xl font-bold mb-3">
         Movimenti — {SALONI_LABEL[salon]}
       </h1>
 
       <p className="text-white/60 mb-6">
-        Storico di carichi, scarichi e trasferimenti, sincronizzato con il
-        selettore salone in alto.
+        Storico movimenti sincronizzato con il salone attivo.
       </p>
 
-      {/* FILTRI */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <input
           className="p-4 rounded-xl bg-[#FFF9F4] text-[#341A09] shadow"
@@ -158,7 +142,6 @@ function formatDirection(m: Movement, activeSalon: number): string {
         </button>
       </div>
 
-      {/* TABELLA MOVIMENTI */}
       <div className="bg-[#FFF9F4] text-[#341A09] p-6 rounded-xl shadow">
         <table className="w-full text-sm">
           <thead>
@@ -178,31 +161,22 @@ function formatDirection(m: Movement, activeSalon: number): string {
                 <td className="p-3">{formatDate(m.created_at)}</td>
                 <td className="p-3">{m.product_name}</td>
                 <td className="p-3">{m.category}</td>
-                <td className="p-3 capitalize">{m.type}</td>
-                <td className="p-3">{m.qty}</td>
+                <td className="p-3 capitalize">{m.movement_type}</td>
+                <td className="p-3">{m.quantity}</td>
                 <td className="p-3">{formatDirection(m, salon)}</td>
               </tr>
             ))}
 
             {movements.length === 0 && (
               <tr>
-                <td className="p-4 text-center text-sm text-[#00000080]" colSpan={6}>
-                  Nessun movimento registrato per questo salone con i filtri
-                  applicati.
+                <td colSpan={6} className="p-4 text-center text-[#00000080]">
+                  Nessun movimento trovato.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-
-      {/* Info privilegi */}
-      {(role === "magazzino" || role === "coordinator") && (
-        <p className="mt-4 text-xs text-white/40">
-          Come utente {role}, puoi cambiare salone dal selettore in alto per
-          consultare i movimenti degli altri punti vendita.
-        </p>
-      )}
     </div>
   );
 }

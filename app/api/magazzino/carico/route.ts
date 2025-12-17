@@ -1,36 +1,28 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabaseServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createServerSupabase();
-    const body = await req.json();
+    const { salonId, productId, qty } = await req.json();
 
-    const { salon, items } = body;
-
-    if (!salon || !items) {
-      return NextResponse.json({ error: "Dati mancanti" }, { status: 400 });
+    if (!salonId || !productId || qty <= 0) {
+      return NextResponse.json({ error: "Dati non validi" }, { status: 400 });
     }
 
-    for (const item of items) {
-      // AUMENTA STOCK
-      await supabase.rpc("stock_increase", {
-        p_salon: salon,
-        p_product: item.id,
-        p_qty: item.qty,
-      });
+    const { error } = await supabaseAdmin.rpc("stock_move", {
+      p_product: Number(productId),
+      p_qty: Number(qty),
+      p_from_salon: null,
+      p_to_salon: Number(salonId),
+      p_reason: "carico_app",
+    });
 
-      // REGISTRA MOVIMENTO
-      await supabase.from("stock_movements").insert({
-        salon_id: salon,
-        product_id: item.id,
-        qty: item.qty,
-        type: "carico",
-      });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Errore carico" }, { status: 500 });
   }
 }

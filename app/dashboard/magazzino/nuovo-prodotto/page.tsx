@@ -18,72 +18,40 @@ export default function NuovoProdottoPage() {
   const [initialQty, setInitialQty] = useState("0");
   const [description, setDescription] = useState("");
 
-  // ============================
-  // USER + RUOLO
-  // ============================
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/api/auth/me");
-        if (!res.ok) {
-          setRole("salone");
-          return;
-        }
-        const json = await res.json();
-        const r: Role = json.user?.user_metadata?.role ?? "salone";
-        setRole(r);
-      } catch (e) {
-        console.error("Errore /api/auth/me", e);
-        setRole("salone");
-      } finally {
-        setLoadingUser(false);
-      }
-    }
-
+    const load = async () => {
+      const res = await fetch("/api/auth/me");
+      const json = await res.json();
+      setRole(json?.user?.user_metadata?.role ?? "salone");
+      setLoadingUser(false);
+    };
     load();
   }, []);
 
-  // ============================
-  // CREA PRODOTTO (via API)
-  // ============================
   async function creaProdotto() {
-    if (!name || !category) {
-      alert("Nome e categoria sono obbligatori");
+    if (!name || !category) return;
+
+    const res = await fetch("/api/magazzino/nuovo-prodotto", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: name.trim(),
+        category: category.trim(),
+        barcode: barcode || null,
+        cost: Number(cost) || 0,
+        type,
+        description: description || null,
+        initialQty: Number(initialQty) || 0,
+      }),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      alert(json.error || "Errore creazione prodotto");
       return;
     }
 
-    try {
-      const res = await fetch("/api/magazzino/nuovo-prodotto", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          category,
-          barcode,
-          cost,
-          type,
-          description,
-          initialQty,
-        }),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok || json.error) {
-        console.error("Errore creazione prodotto", json);
-        alert(json.error || "Errore durante la creazione");
-        return;
-      }
-
-      alert("Prodotto creato con successo!");
-      resetForm();
-    } catch (e) {
-      console.error(e);
-      alert("Errore di rete durante la creazione");
-    }
-  }
-
-  function resetForm() {
     setName("");
     setCategory("");
     setBarcode("");
@@ -91,34 +59,22 @@ export default function NuovoProdottoPage() {
     setType("rivendita");
     setInitialQty("0");
     setDescription("");
+
+    alert("Prodotto creato");
   }
 
-  // ============================
-  // RENDER
-  // ============================
-  // Attendi caricamento utente
   if (loadingUser) {
     return (
       <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-white">
-        Verifica permessi…
+        Caricamento…
       </div>
     );
   }
 
-  // SE /api/auth/me non ha trovato user → non autenticato
-  if (!role) {
+  if (role !== "magazzino" && role !== "coordinator") {
     return (
       <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-red-500">
-        Utente non autenticato.
-      </div>
-    );
-  }
-
-  // SE NON È coordinator O magazzino
-  if (role !== "coordinator" && role !== "magazzino") {
-    return (
-      <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-red-500">
-        Non hai i permessi per creare nuovi prodotti.
+        Non hai i permessi.
       </div>
     );
   }
@@ -127,94 +83,64 @@ export default function NuovoProdottoPage() {
     <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-white">
       <h1 className="text-3xl font-bold mb-8">Nuovo Prodotto</h1>
 
-      <div className="bg-[#FFF9F4] p-8 rounded-2xl shadow-xl text-[#341A09] space-y-6">
-        {/* Nome */}
-        <div>
-          <label className="font-semibold">Nome prodotto *</label>
-          <input
-            className="mt-2 p-4 w-full rounded-xl border"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Es: Shampoo Purificante"
-          />
-        </div>
+      <div className="bg-[#FFF9F4] p-8 rounded-2xl text-[#341A09] space-y-6 max-w-xl">
+        <input
+          className="p-4 w-full rounded-xl border"
+          placeholder="Nome prodotto"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
 
-        {/* Categoria */}
-        <div>
-          <label className="font-semibold">Categoria *</label>
-          <input
-            className="mt-2 p-4 w-full rounded-xl border"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            placeholder="Es: Shampoo / Maschera / Trattamento"
-          />
-        </div>
+        <input
+          className="p-4 w-full rounded-xl border"
+          placeholder="Categoria"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        />
 
-        {/* Barcode */}
-        <div>
-          <label className="font-semibold">Barcode</label>
-          <input
-            className="mt-2 p-4 w-full rounded-xl border"
-            value={barcode}
-            onChange={(e) => setBarcode(e.target.value)}
-            placeholder="Codice a barre (opzionale)"
-          />
-        </div>
+        <input
+          className="p-4 w-full rounded-xl border"
+          placeholder="Barcode"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+        />
 
-        {/* Costo */}
-        <div>
-          <label className="font-semibold">Costo medio (€)</label>
-          <input
-            type="number"
-            className="mt-2 p-4 w-full rounded-xl border"
-            value={cost}
-            onChange={(e) => setCost(e.target.value)}
-            placeholder="Es: 4.50"
-          />
-        </div>
+        <input
+          type="number"
+          className="p-4 w-full rounded-xl border"
+          placeholder="Costo"
+          value={cost}
+          onChange={(e) => setCost(e.target.value)}
+        />
 
-        {/* Tipo */}
-        <div>
-          <label className="font-semibold">Tipo prodotto</label>
-          <select
-            className="mt-2 p-4 w-full rounded-xl border bg-white"
-            value={type}
-            onChange={(e) => setType(e.target.value as any)}
-          >
-            <option value="rivendita">Rivendita</option>
-            <option value="uso-interno">Uso interno</option>
-            <option value="store">Store</option>
-          </select>
-        </div>
+        <select
+          className="p-4 w-full rounded-xl border bg-white"
+          value={type}
+          onChange={(e) => setType(e.target.value as any)}
+        >
+          <option value="rivendita">Rivendita</option>
+          <option value="uso-interno">Uso interno</option>
+          <option value="store">Store</option>
+        </select>
 
-        {/* Quantità iniziale */}
-        <div>
-          <label className="font-semibold">
-            Quantità iniziale (Magazzino centrale)
-          </label>
-          <input
-            type="number"
-            className="mt-2 p-4 w-full rounded-xl border"
-            value={initialQty}
-            onChange={(e) => setInitialQty(e.target.value)}
-          />
-        </div>
+        <input
+          type="number"
+          className="p-4 w-full rounded-xl border"
+          placeholder="Quantità iniziale"
+          value={initialQty}
+          onChange={(e) => setInitialQty(e.target.value)}
+        />
 
-        {/* Descrizione */}
-        <div>
-          <label className="font-semibold">Descrizione / Note</label>
-          <textarea
-            className="mt-2 p-4 w-full rounded-xl border min-h-[120px]"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Informazioni aggiuntive..."
-          />
-        </div>
+        <textarea
+          className="p-4 w-full rounded-xl border min-h-[120px]"
+          placeholder="Descrizione"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
 
-        {/* Bottone */}
         <button
           onClick={creaProdotto}
-          className="mt-6 w-full bg-[#0FA958] text-white p-4 rounded-2xl text-xl font-bold shadow-lg hover:scale-105 transition"
+          className="w-full bg-[#0FA958] text-white p-4 rounded-2xl text-xl font-bold"
         >
           Crea Prodotto
         </button>
