@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -39,7 +39,16 @@ function formatPretty(ymd: string) {
   });
 }
 
+/** ✅ Wrapper required by Next.js when using useSearchParams() */
 export default function AgendaPage() {
+  return (
+    <Suspense fallback={<AgendaPageSkeleton />}>
+      <AgendaPageInner />
+    </Suspense>
+  );
+}
+
+function AgendaPageInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -78,7 +87,7 @@ export default function AgendaPage() {
                   Agenda
                 </h1>
                 <p className="text-[#c9b299] mt-2 max-w-2xl">
-                  Week view, creazione/modifica e chiusura. Veloce per reception e staff, con UX moderna 2026.
+                  Week view, creazione/modifica e chiusura. Veloce per reception e staff, UX moderna.
                 </p>
 
                 <div className="mt-4 text-sm text-[#c9b299]">
@@ -183,28 +192,6 @@ export default function AgendaPage() {
         <div className="rounded-2xl bg-black/15 border border-[#5c3a21]/50 p-2 md:p-3 overflow-hidden">
           <AgendaGrid currentDate={currentDate} />
         </div>
-
-        {/* quick hints */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-4">
-            <div className="text-[#f3d8b6] font-bold">Creazione</div>
-            <div className="text-[#c9b299] text-sm mt-1">
-              Click sugli slot per creare. Cliente e servizi guidati.
-            </div>
-          </div>
-          <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-4">
-            <div className="text-[#f3d8b6] font-bold">Modifica rapida</div>
-            <div className="text-[#c9b299] text-sm mt-1">
-              Drag & drop / resize / cambio staff senza perdere tempo.
-            </div>
-          </div>
-          <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-4">
-            <div className="text-[#f3d8b6] font-bold">Chiusura</div>
-            <div className="text-[#c9b299] text-sm mt-1">
-              Chiudi appuntamento → status done + incasso + IVA + righe vendita.
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* CALENDAR MODAL */}
@@ -213,6 +200,22 @@ export default function AgendaPage() {
         close={() => setCalendarOpen(false)}
         onSelectDate={(d) => setCurrentDate(d)}
       />
+    </div>
+  );
+}
+
+function AgendaPageSkeleton() {
+  return (
+    <div className="w-full space-y-6">
+      <div className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7">
+        <div className="h-6 w-40 bg-black/20 rounded-xl" />
+        <div className="mt-3 h-4 w-72 bg-black/20 rounded-xl" />
+        <div className="mt-5 h-10 w-full bg-black/15 rounded-2xl" />
+      </div>
+
+      <div className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/40 p-4 md:p-6">
+        <div className="h-[520px] w-full bg-black/15 rounded-2xl border border-[#5c3a21]/40" />
+      </div>
     </div>
   );
 }
