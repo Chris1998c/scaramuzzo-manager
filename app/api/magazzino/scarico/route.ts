@@ -2,88 +2,87 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+const MAGAZZINO_CENTRALE_ID = 0;
+
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
 
-    const name = String(body.name ?? "").trim();
-    const category = String(body.category ?? "").trim();
-    const barcode = body.barcode ? String(body.barcode).trim() : null;
-    const cost = Number(body.cost) || 0;
-    const type = body.type ? String(body.type) : null;
-    const description = body.description ? String(body.description) : null;
-    const initialQty = Number(body.initialQty) || 0;
+    const salonId = Number(body?.salonId);
+    const productId = Number(body?.productId);
+    const qty = Number(body?.qty);
+    const reason =
+      body?.reason && String(body.reason).trim()
+        ? String(body.reason).trim()
+        : "scarico_app";
 
-    if (!name || !category) {
-      return NextResponse.json(
-        { error: "Nome e categoria sono obbligatori" },
-        { status: 400 }
-      );
+    // VALIDAZIONI COERENTI COL DB
+    if (!Number.isFinite(salonId) || salonId < MAGAZZINO_CENTRALE_ID) {
+      return NextResponse.json({ error: "salonId non valido" }, { status: 400 });
+    }
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return NextResponse.json({ error: "productId non valido" }, { status: 400 });
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return NextResponse.json({ error: "qty non valida" }, { status: 400 });
     }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    // AUTH
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const role = user.user_metadata?.role ?? "salone";
-    if (role !== "magazzino" && role !== "coordinator") {
-      return NextResponse.json(
-        { error: "Permessi insufficienti" },
-        { status: 403 }
-      );
+    const role = String(userData.user.user_metadata?.role ?? "");
+    const allowed =
+      role === "coordinator" ||
+      role === "magazzino" ||
+      role === "reception";
+
+    if (!allowed) {
+      return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }
 
-    const { data: product, error: insertError } = await supabaseAdmin
-      .from("products")
-      .insert({
-        name,
-        category,
-        barcode,
-        cost,
-        type,
-        description,
-      })
-      .select("id")
-      .single();
+    // RECEPTION: può scaricare SOLO dal proprio salone
+    if (role === "reception") {
+      const { data: us, error: usErr } = await supabase
+        .from("user_salons")
+        .select("salon_id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
 
-    if (insertError || !product) {
-      return NextResponse.json(
-        { error: insertError?.message ?? "Errore creazione prodotto" },
-        { status: 500 }
-      );
-    }
-
-    const MAGAZZINO_CENTRALE_ID = 5;
-
-    if (initialQty > 0) {
-      const { error: stockError } = await supabaseAdmin.rpc("stock_move", {
-        p_product: product.id,
-        p_qty: initialQty,
-        p_to_salon: MAGAZZINO_CENTRALE_ID,
-        p_reason: "initial_stock",
-      });
-
-      if (stockError) {
+      if (usErr || us?.salon_id == null) {
         return NextResponse.json(
-          { error: stockError.message },
-          { status: 500 }
+          { error: "Salone utente non trovato" },
+          { status: 403 }
+        );
+      }
+
+      if (Number(us.salon_id) !== salonId) {
+        return NextResponse.json(
+          { error: "Non puoi scaricare su un altro salone" },
+          { status: 403 }
         );
       }
     }
 
-    return NextResponse.json(
-      { ok: true, productId: product.id },
-      { status: 200 }
-    );
+    // RPC DEFINITIVA
+    const { error } = await supabaseAdmin.rpc("stock_decrease", {
+      p_salon: salonId,
+      p_product: productId,
+      p_qty: qty,
+      p_reason: reason,
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json(
-      { error: e?.message ?? "Errore interno" },
+      { error: e?.message ?? "Errore scarico" },
       { status: 500 }
     );
   }

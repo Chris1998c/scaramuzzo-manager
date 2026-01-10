@@ -1,19 +1,22 @@
+// app/api/magazzino/nuovo-prodotto/route.ts
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+const MAGAZZINO_CENTRALE_ID = Number(process.env.MAGAZZINO_CENTRALE_ID ?? 0);
+
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
 
-    const name = String(body.name ?? "").trim();
-    const category = String(body.category ?? "").trim();
-    const barcode = body.barcode ? String(body.barcode).trim() : null;
-    const cost = Number(body.cost) || 0;
-    const type = body.type ? String(body.type) : null;
-    const description = body.description ? String(body.description) : null;
-    const initialQty = Number(body.initialQty) || 0;
+    const name = String(body?.name ?? "").trim();
+    const category = String(body?.category ?? "").trim();
+    const barcode = body?.barcode ? String(body.barcode).trim() : null;
+    const cost = Number(body?.cost) || 0;
+    const type = body?.type ? String(body.type).trim() : null;
+    const description = body?.description ? String(body.description).trim() : null;
+    const initialQty = Number(body?.initialQty) || 0;
 
     if (!name || !category) {
       return NextResponse.json(
@@ -21,18 +24,32 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    if (!Number.isFinite(cost) || cost < 0) {
+      return NextResponse.json({ error: "Costo non valido" }, { status: 400 });
+    }
+    if (!Number.isFinite(initialQty) || initialQty < 0) {
+      return NextResponse.json(
+        { error: "Quantità iniziale non valida" },
+        { status: 400 }
+      );
+    }
 
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData?.user;
-    if (!user) {
+    // auth
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const role = (user.user_metadata as any)?.role ?? "salone";
+    const role = String(userData.user.user_metadata?.role ?? "");
     if (role !== "magazzino" && role !== "coordinator") {
+      return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
+    }
+
+    // magazzino centrale può essere 0 (standard)
+    if (!Number.isFinite(MAGAZZINO_CENTRALE_ID) || MAGAZZINO_CENTRALE_ID < 0) {
       return NextResponse.json(
-        { error: "Permessi insufficienti" },
-        { status: 403 }
+        { error: "MAGAZZINO_CENTRALE_ID non valido" },
+        { status: 500 }
       );
     }
 
@@ -45,6 +62,7 @@ export async function POST(req: Request) {
         cost,
         type,
         description,
+        active: true,
       })
       .select("id")
       .single();
@@ -56,28 +74,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const MAGAZZINO_CENTRALE_ID = 5;
-
+    // Stock iniziale: usa la RPC che mantiene coerenza (product_stock + movimento)
     if (initialQty > 0) {
-      const { error: stockError } = await supabaseAdmin.rpc("stock_move", {
-        p_product: product.id,
+      const { error: moveErr } = await supabaseAdmin.rpc("stock_move", {
+        p_product: Number(product.id),
         p_qty: initialQty,
+        p_from_salon: null, // carico in magazzino
         p_to_salon: MAGAZZINO_CENTRALE_ID,
         p_reason: "initial_stock",
       });
 
-      if (stockError) {
-        return NextResponse.json(
-          { error: stockError.message },
-          { status: 500 }
-        );
+      if (moveErr) {
+        return NextResponse.json({ error: moveErr.message }, { status: 500 });
       }
     }
 
-    return NextResponse.json(
-      { ok: true, productId: product.id },
-      { status: 200 }
-    );
+    return NextResponse.json({ ok: true, productId: product.id }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message ?? "Errore interno" },

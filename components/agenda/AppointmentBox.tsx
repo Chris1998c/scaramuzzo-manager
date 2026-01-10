@@ -1,65 +1,125 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState, useRef } from "react";
-import { createClient } from "@/lib/supabaseClient"; // ✅ IMPORT GIUSTO
+import { useMemo, useRef, useState } from "react";
+import { createClient } from "@/lib/supabaseClient";
+import { timeFromTs } from "@/lib/appointmentTime";
 
 interface Props {
   appointment: any;
   hours: string[];
   onClick: () => void;
+  onUpdated?: () => void; // ✅ refresh grid
 }
 
-export default function AppointmentBox({ appointment, hours, onClick }: Props) {
+export default function AppointmentBox({
+  appointment,
+  hours,
+  onClick,
+  onUpdated,
+}: Props) {
+  const supabase = useMemo(() => createClient(), []);
   const boxRef = useRef<HTMLDivElement | null>(null);
+
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
-    const supabase = createClient(); // ✅ ORA FUNZIONA
-  const startIndex = hours.indexOf(appointment.time);
-  const top = startIndex * 40; // ogni slot = 40px
-  const height = (appointment.duration / 30) * 40; // durata → altezza
+  const [saving, setSaving] = useState(false);
 
-  const onDragStart = () => setDragging(true);
-  const onDragEnd = async (_: any, info: any) => {
-    setDragging(false);
+  // ===== POSIZIONE =====
+  const startTime = timeFromTs(appointment.start_time);
+  const startIndex = hours.indexOf(startTime);
+  const top = Math.max(0, startIndex) * 40;
 
-    if (!boxRef.current) return;
+  // ===== DURATA =====
+  const durationMin = appointment.end_time
+    ? (new Date(appointment.end_time).getTime() -
+        new Date(appointment.start_time).getTime()) / 60000
+    : 30;
 
-    const deltaY = info.delta.y;
-    const slotsMoved = Math.round(deltaY / 40);
+  const height = (durationMin / 30) * 40;
 
-    if (slotsMoved === 0) return;
+  // ===== COLORE =====
+  const color =
+    appointment?.appointment_services?.[0]?.service?.color_code || "#a8754f";
 
-    const newIndex = startIndex + slotsMoved;
+  // ===== DATI UI =====
+  const customerName = appointment.customers
+    ? `${appointment.customers.first_name} ${appointment.customers.last_name}`.trim()
+    : "Cliente";
 
-    if (newIndex < 0 || newIndex >= hours.length) return;
+  const services =
+    (appointment.appointment_services || [])
+      .map((r: any) => r.service?.name)
+      .filter(Boolean)
+      .join(", ") || "Servizi";
 
-    const newTime = hours[newIndex];
+  // ===== DRAG (spostamento) =====
+  async function shiftAppointmentBySlots(slotsMoved: number) {
+    if (saving) return;
+    setSaving(true);
 
-    await supabase
+    const start = new Date(appointment.start_time);
+    const end = appointment.end_time ? new Date(appointment.end_time) : null;
+
+    const deltaMin = slotsMoved * 30;
+
+    const newStart = new Date(start.getTime() + deltaMin * 60_000);
+    const newEnd = end ? new Date(end.getTime() + deltaMin * 60_000) : null;
+
+    const { error } = await supabase
       .from("appointments")
-      .update({ time: newTime })
+      .update({
+        start_time: newStart.toISOString().replace("Z", ""),
+        ...(newEnd ? { end_time: newEnd.toISOString().replace("Z", "") } : {}),
+      })
       .eq("id", appointment.id);
-  };
 
-  /* ---------------- RESIZE ---------------- */
+    if (error) {
+      alert("Errore spostamento: " + error.message);
+      setSaving(false);
+      return;
+    }
 
-  const onResizeStart = () => setResizing(true);
-  const onResizeEnd = async (_: any, info: any) => {
-    setResizing(false);
+    setSaving(false);
+    onUpdated?.();
+  }
 
-    const deltaY = info.delta.y;
-    const slotsChanged = Math.round(deltaY / 40);
+  // ===== RESIZE (durata) =====
+  async function resizeAppointmentBySlots(slotsChanged: number) {
+    if (saving) return;
+    setSaving(true);
 
-    const newDuration = appointment.duration + slotsChanged * 30;
+    const start = new Date(appointment.start_time);
+    const end = appointment.end_time
+      ? new Date(appointment.end_time)
+      : new Date(start.getTime() + 30 * 60_000);
 
-    if (newDuration < 30) return;
+    const currentDuration = (end.getTime() - start.getTime()) / 60000;
+    const newDuration = currentDuration + slotsChanged * 30;
 
-    await supabase
+    if (newDuration < 30) {
+      setSaving(false);
+      return;
+    }
+
+    const newEnd = new Date(start.getTime() + newDuration * 60_000);
+
+    const { error } = await supabase
       .from("appointments")
-      .update({ duration: newDuration })
+      .update({
+        end_time: newEnd.toISOString().replace("Z", ""),
+      })
       .eq("id", appointment.id);
-  };
+
+    if (error) {
+      alert("Errore resize: " + error.message);
+      setSaving(false);
+      return;
+    }
+
+    setSaving(false);
+    onUpdated?.();
+  }
 
   return (
     <motion.div
@@ -68,43 +128,52 @@ export default function AppointmentBox({ appointment, hours, onClick }: Props) {
       style={{
         top,
         height,
-        backgroundColor: appointment.service_color || "#a8754f",
+        backgroundColor: color,
         border: "2px solid rgba(0,0,0,0.25)",
         opacity: dragging ? 0.7 : 1,
       }}
       drag="y"
       dragConstraints={{ top: -1000, bottom: 1000 }}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onClick={() => !dragging && !resizing && onClick()}
+      onDragStart={() => {
+        if (saving) return;
+        setDragging(true);
+      }}
+      onDragEnd={async (_: any, info: any) => {
+        setDragging(false);
+        if (!boxRef.current) return;
+
+        const slotsMoved = Math.round(info.delta.y / 40);
+        if (slotsMoved === 0) return;
+
+        const newIndex = startIndex + slotsMoved;
+        if (newIndex < 0 || newIndex >= hours.length) return;
+
+        await shiftAppointmentBySlots(slotsMoved);
+      }}
+      onClick={() => !dragging && !resizing && !saving && onClick()}
     >
-      {/* CONTENUTO */}
       <div className="p-2 text-black font-semibold text-sm">
-        <div>{appointment.customers?.name || "Cliente"}</div>
-
-        {/* SERVIZI MULTIPLI */}
-        {appointment.services_multi ? (
-          <div className="text-xs opacity-80">
-            {appointment.services_multi.map((s: any) => s.name).join(", ")}
-          </div>
-        ) : (
-          <div className="text-xs opacity-80">
-            {appointment.services?.name || "Servizio"}
-          </div>
-        )}
-
+        <div>{customerName}</div>
+        <div className="text-xs opacity-80">{services}</div>
         {appointment.notes && (
           <div className="text-xs opacity-60 mt-1">{appointment.notes}</div>
         )}
       </div>
 
-      {/* RESIZE HANDLE */}
       <motion.div
         className="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize bg-black/20"
         drag="y"
         dragConstraints={{ top: 0, bottom: 40 }}
-        onDragStart={onResizeStart}
-        onDragEnd={onResizeEnd}
+        onDragStart={() => {
+          if (saving) return;
+          setResizing(true);
+        }}
+        onDragEnd={async (_: any, info: any) => {
+          setResizing(false);
+          const slotsChanged = Math.round(info.delta.y / 40);
+          if (slotsChanged === 0) return;
+          await resizeAppointmentBySlots(slotsChanged);
+        }}
       />
     </motion.div>
   );

@@ -1,20 +1,53 @@
+// app/api/magazzino/carico/route.ts
 import { NextResponse } from "next/server";
+import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+const MAGAZZINO_CENTRALE_ID = 0;
 
 export async function POST(req: Request) {
   try {
-    const { salonId, productId, qty } = await req.json();
+    const supabase = await createServerSupabase();
+    const body = await req.json().catch(() => null);
 
-    if (!salonId || !productId || qty <= 0) {
-      return NextResponse.json({ error: "Dati non validi" }, { status: 400 });
+    const salonId = Number(body?.salonId);
+    const productId = Number(body?.productId);
+    const qty = Number(body?.qty);
+
+    const reason =
+      body?.reason && String(body.reason).trim()
+        ? String(body.reason).trim()
+        : "carico_app";
+
+    // destinazione: deve essere un salone vero (>= 1)
+    if (!Number.isFinite(salonId) || salonId < 1) {
+      return NextResponse.json({ error: "salonId non valido" }, { status: 400 });
+    }
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return NextResponse.json({ error: "productId non valido" }, { status: 400 });
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return NextResponse.json({ error: "qty non valida" }, { status: 400 });
     }
 
+    // auth
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
+    }
+
+    const role = String(userData.user.user_metadata?.role ?? "");
+    if (role !== "magazzino" && role !== "coordinator") {
+      return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
+    }
+
+    // RPC: centrale -> salone
     const { error } = await supabaseAdmin.rpc("stock_move", {
-      p_product: Number(productId),
-      p_qty: Number(qty),
-      p_from_salon: null,
-      p_to_salon: Number(salonId),
-      p_reason: "carico_app",
+      p_product: productId,
+      p_qty: qty,
+      p_from_salon: MAGAZZINO_CENTRALE_ID,
+      p_to_salon: salonId,
+      p_reason: reason,
     });
 
     if (error) {
@@ -22,7 +55,10 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Errore carico" }, { status: 500 });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "Errore carico" },
+      { status: 500 }
+    );
   }
 }

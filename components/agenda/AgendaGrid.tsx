@@ -1,98 +1,130 @@
 "use client";
-export const dynamic = "force-dynamic";
 
-
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabaseClient"; // ✅ IMPORT GIUSTO
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabaseClient";
 import AgendaModal from "./AgendaModal";
 import EditAppointmentModal from "./EditAppointmentModal";
 import AppointmentBox from "./AppointmentBox";
-
-/* ============================================================
-   AGENDA GRID — VERSIONE CORRETTA E AGGIORNATA
-   ============================================================ */
+import { generateHours, generateWeekDaysFromDate } from "./utils";
 
 export default function AgendaGrid({ currentDate }: { currentDate: string }) {
+  const supabase = useMemo(() => createClient(), []);
   const [view, setView] = useState<"day" | "week">("day");
-    const supabase = createClient(); // ✅ ORA FUNZIONA
+
   const [staff, setStaff] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
-
   const [loading, setLoading] = useState(true);
-  const [selectedSlot, setSelectedSlot] = useState<any>(null);
+
+  const [selectedSlot, setSelectedSlot] = useState<{
+    time: string;
+    staffId: number | null;
+  } | null>(null);
+
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
   const hours = generateHours("08:00", "20:00", 30);
 
-  /* ============================================================
-     LOAD STATIC DATA (STAFF + SERVICES)
-     ============================================================ */
   useEffect(() => {
-    loadStaff();
-    loadServices();
+    void loadStaff();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    void loadAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate, view]);
+
+  async function getCurrentSalonId(): Promise<number | null> {
+    const { data } = await supabase.auth.getUser();
+    const meta: any = data?.user?.user_metadata || {};
+    const sid = meta?.current_salon_id ?? meta?.salon_id ?? null;
+    return sid == null ? null : Number(sid);
+  }
+
   async function loadStaff() {
-    const { data } = await supabase
+    const salonId = await getCurrentSalonId();
+
+    let q = supabase
       .from("staff")
       .select("*")
       .eq("active", true)
       .order("name");
 
-    // Disponibile come primo collaboratore
+    if (salonId != null) q = q.eq("salon_id", salonId);
+
+    const { data } = await q;
+
     const available = [{ id: null, name: "Disponibile", color: "#a8754f" }];
     setStaff(available.concat(data || []));
   }
 
-  async function loadServices() {
-    const { data } = await supabase.from("services").select("*");
-    setServices(data || []);
-  }
+  function getRangeForView(dateString: string) {
+    if (view === "day") {
+      return {
+        start: `${dateString}T00:00:00`,
+        end: `${dateString}T23:59:59`,
+      };
+    }
 
-  /* ============================================================
-     LOAD APPOINTMENTS PER DATA SELEZIONATA
-     ============================================================ */
-  useEffect(() => {
-    loadAppointments();
-  }, [currentDate]);
+    // week: lun -> dom
+    const base = new Date(dateString);
+    const day = base.getDay() || 7; // lun=1..dom=7
+
+    const weekStart = new Date(base);
+    weekStart.setDate(base.getDate() - (day - 1));
+    weekStart.setHours(0, 0, 0, 0);
+
+    const weekEnd = new Date(base);
+    weekEnd.setDate(base.getDate() + (7 - day));
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const toNoZ = (d: Date) => d.toISOString().replace("Z", "");
+    return { start: toNoZ(weekStart), end: toNoZ(weekEnd) };
+  }
 
   async function loadAppointments() {
     if (!currentDate) return;
+    setLoading(true);
 
-    const { data } = await supabase
+    const salonId = await getCurrentSalonId();
+    const range = getRangeForView(currentDate);
+
+    let q = supabase
       .from("appointments")
-      .select("*, customers(*), services(*)")
-      .eq("date", currentDate); // ← FILTRO PER DATA
+      .select(
+        `
+        *,
+        customers:customer_id ( id, first_name, last_name, phone ),
+        staff:staff_id ( id, name ),
+        appointment_services (
+          id,
+          duration_minutes,
+          service:service_id ( id, name, color_code )
+        )
+      `
+      )
+      .gte("start_time", range.start)
+      .lte("start_time", range.end)
+      .order("start_time", { ascending: true });
 
-    const mapped = (data || []).map((a: any) => ({
-      ...a,
-      service_color: a.services?.color || "#8c6239",
-      duration: a.duration || a.services?.duration || 30,
-    }));
+    if (salonId != null) q = q.eq("salon_id", salonId);
 
-    setAppointments(mapped);
+    const { data } = await q;
+
+    setAppointments(data || []);
     setLoading(false);
   }
 
-  /* ============================================================
-     CLICK SLOT
-     ============================================================ */
-  function handleSlotClick(time: string, collaborator: string | null) {
-    setSelectedSlot({ time, collaborator });
+  function handleSlotClick(time: string, staffId: number | null) {
+    setSelectedSlot({ time, staffId });
   }
 
-  /* ============================================================
-     CLICK SU APPUNTAMENTO
-     ============================================================ */
   function handleAppointmentClick(a: any) {
     setEditingAppointment(a);
   }
 
   return (
     <div className="w-full">
-
-      {/* NAV VIEW */}
       <div className="flex justify-between mb-6 px-4">
         <h1 className="text-3xl font-semibold text-[#d8a471]">
           {formatDateItalian(currentDate)}
@@ -109,7 +141,6 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
           >
             Giorno
           </button>
-
           <button
             onClick={() => setView("week")}
             className={`px-4 py-2 rounded-xl ${
@@ -123,32 +154,35 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
         </div>
       </div>
 
-      {/* GRID */}
-      {view === "day" ? (
+      {loading ? (
+        <div className="px-4 text-white/70">Caricamento...</div>
+      ) : view === "day" ? (
         <DayView
           staff={staff}
           hours={hours}
           appointments={appointments}
           onSlotClick={handleSlotClick}
           onAppointmentClick={handleAppointmentClick}
+          onAppointmentsChanged={() => void loadAppointments()}
         />
       ) : (
         <WeekView
-          staff={staff}
           hours={hours}
           appointments={appointments}
           onSlotClick={handleSlotClick}
           onAppointmentClick={handleAppointmentClick}
           currentDate={currentDate}
+          onAppointmentsChanged={() => void loadAppointments()}
         />
       )}
 
-      {/* MODALI */}
       {selectedSlot && (
         <AgendaModal
           isOpen={true}
           selectedSlot={selectedSlot}
+          currentDate={currentDate}
           close={() => setSelectedSlot(null)}
+          onCreated={() => void loadAppointments()}
         />
       )}
 
@@ -156,25 +190,29 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
         <EditAppointmentModal
           isOpen={true}
           appointment={editingAppointment}
+          selectedDay={currentDate}
           close={() => setEditingAppointment(null)}
+          onUpdated={() => void loadAppointments()}
         />
       )}
     </div>
   );
 }
 
-/* ============================================================
-   DAY VIEW
-   ============================================================ */
-
-function DayView({ staff, hours, appointments, onSlotClick, onAppointmentClick }: any) {
+function DayView({
+  staff,
+  hours,
+  appointments,
+  onSlotClick,
+  onAppointmentClick,
+  onAppointmentsChanged,
+}: any) {
   return (
     <div className="overflow-x-auto">
       <div
         className="grid"
         style={{ gridTemplateColumns: `120px repeat(${staff.length}, 1fr)` }}
       >
-        {/* ORARI */}
         <div className="flex flex-col">
           {hours.map((h: string) => (
             <div
@@ -186,32 +224,34 @@ function DayView({ staff, hours, appointments, onSlotClick, onAppointmentClick }
           ))}
         </div>
 
-        {/* COLLABORATORI */}
         {staff.map((s: any) => (
-          <div key={s.id} className="relative border-l border-[#442f25] bg-[#1c0f0a]">
-            {/* Sticky header */}
+          <div
+            key={String(s.id)}
+            className="relative border-l border-[#442f25] bg-[#1c0f0a]"
+          >
             <div className="sticky top-0 bg-[#1c0f0a] text-center py-3 border-b border-[#3a251a] text-[#d8a471] font-medium">
               {s.name}
             </div>
 
-            {/* Slot orari */}
             {hours.map((h: string) => (
               <div
                 key={h}
                 className="h-10 border-b border-[#3a251a] cursor-pointer hover:bg-[#3a251a]/40"
-                onClick={() => onSlotClick(h, s.id)}
+                onClick={() => onSlotClick(h, s.id ?? null)}
               />
             ))}
 
-            {/* Appuntamenti */}
             {appointments
-              .filter((a: any) => a.collaborator_id === s.id)
+              .filter((a: any) =>
+                s.id == null ? a.staff_id == null : a.staff_id === s.id
+              )
               .map((a: any) => (
                 <AppointmentBox
                   key={a.id}
                   appointment={a}
                   hours={hours}
                   onClick={() => onAppointmentClick(a)}
+                  onUpdated={onAppointmentsChanged}
                 />
               ))}
           </div>
@@ -221,28 +261,38 @@ function DayView({ staff, hours, appointments, onSlotClick, onAppointmentClick }
   );
 }
 
-/* ============================================================
-   WEEK VIEW
-   ============================================================ */
-
-function WeekView({ staff, hours, appointments, onSlotClick, onAppointmentClick, currentDate }: any) {
+function WeekView({
+  hours,
+  appointments,
+  onSlotClick,
+  onAppointmentClick,
+  currentDate,
+  onAppointmentsChanged,
+}: any) {
   const days = generateWeekDaysFromDate(currentDate);
 
   return (
     <div className="overflow-x-auto">
-      <div className="grid" style={{ gridTemplateColumns: `120px repeat(7, 1fr)` }}>
-        
-        {/* ORARI */}
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: `120px repeat(7, 1fr)` }}
+      >
         <div className="flex flex-col">
           {hours.map((h: string) => (
-            <div key={h} className="h-10 flex items-center justify-end pr-3 text-[#d8a471]">
+            <div
+              key={h}
+              className="h-10 flex items-center justify-end pr-3 text-[#d8a471]"
+            >
               {h}
             </div>
           ))}
         </div>
 
         {days.map((d: any) => (
-          <div key={d.date} className="relative border-l border-[#442f25] bg-[#1c0f0a]">
+          <div
+            key={d.date}
+            className="relative border-l border-[#442f25] bg-[#1c0f0a]"
+          >
             <div className="sticky top-0 bg-[#1c0f0a] text-center py-3 border-b border-[#3a251a] text-[#d8a471] font-medium">
               {d.label}
             </div>
@@ -256,13 +306,14 @@ function WeekView({ staff, hours, appointments, onSlotClick, onAppointmentClick,
             ))}
 
             {appointments
-              .filter((a: any) => a.date === d.date)
+              .filter((a: any) => String(a.start_time).startsWith(d.date))
               .map((a: any) => (
                 <AppointmentBox
                   key={a.id}
                   appointment={a}
                   hours={hours}
                   onClick={() => onAppointmentClick(a)}
+                  onUpdated={onAppointmentsChanged}
                 />
               ))}
           </div>
@@ -270,48 +321,6 @@ function WeekView({ staff, hours, appointments, onSlotClick, onAppointmentClick,
       </div>
     </div>
   );
-}
-
-/* ============================================================
-   UTILITY FUNZIONI
-   ============================================================ */
-
-function generateHours(start: string, end: string, step: number) {
-  const res = [];
-  let [h, m] = start.split(":").map(Number);
-  const [endH, endM] = end.split(":").map(Number);
-
-  while (h < endH || (h === endH && m <= endM)) {
-    res.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    m += step;
-    if (m >= 60) {
-      m -= 60;
-      h++;
-    }
-  }
-  return res;
-}
-
-function generateWeekDaysFromDate(dateString: string) {
-  const base = new Date(dateString);
-  const day = base.getDay() || 7; // Lunedì = 1, Domenica = 7
-
-  const days = [];
-
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date(base);
-    d.setDate(base.getDate() - (day - i));
-
-    days.push({
-      date: d.toISOString().split("T")[0],
-      label: d.toLocaleDateString("it-IT", {
-        weekday: "short",
-        day: "numeric",
-      }),
-    });
-  }
-
-  return days;
 }
 
 function formatDateItalian(stringDate: string) {

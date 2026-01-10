@@ -1,185 +1,166 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
 import { useParams } from "next/navigation";
+import { createClient } from "@/lib/supabaseClient";
 
-interface ProductRow {
+interface Movement {
+  id: number;
+  created_at: string;
   product_id: number;
-  name: string;
+  product_name: string;
   quantity: number;
+  movement_type: string;
+  from_salon: number | null;
+  to_salon: number | null;
+  reason: string | null;
 }
 
-const SALONI = [
-  { id: 5, name: "Magazzino" }, // ✅ magazzino centrale = 5 (come nel tuo backend)
-  { id: 1, name: "Corigliano" },
-  { id: 2, name: "Cosenza" },
-  { id: 3, name: "Castrovillari" },
-  { id: 4, name: "Roma" },
-];
+const SALONI_LABEL: Record<number, string> = {
+  0: "Magazzino Centrale",
+  1: "Corigliano",
+  2: "Cosenza",
+  3: "Castrovillari",
+  4: "Roma",
+};
 
-export default function TrasferimentoPage() {
+function salonLabel(id: number | null) {
+  if (id === null) return "-";
+  return SALONI_LABEL[id] ?? `Salone ${id}`;
+}
+
+function formatDate(dateString: string): string {
+  const d = new Date(dateString);
+  return d.toLocaleString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export default function TrasferimentoDetailPage() {
   const params = useParams<{ id: string }>();
   const productId = Number(params?.id);
 
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
-  const [product, setProduct] = useState<ProductRow | null>(null);
-  const [qty, setQty] = useState<number>(1);
-  const [fromSalon, setFromSalon] = useState<number | null>(null);
-  const [dest, setDest] = useState<number>(1);
   const [loading, setLoading] = useState(true);
-
-  const destOptions = useMemo(() => {
-    if (fromSalon === null) return SALONI;
-    return SALONI.filter((s) => s.id !== fromSalon);
-  }, [fromSalon]);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [rows, setRows] = useState<Movement[]>([]);
 
   useEffect(() => {
-    const init = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    let cancelled = false;
 
-      if (!user) {
-        setLoading(false);
-        return;
+    async function load() {
+      try {
+        setLoading(true);
+        setErrMsg(null);
+
+        if (!Number.isFinite(productId) || productId <= 0) {
+          setErrMsg("ID prodotto non valido.");
+          return;
+        }
+
+        // Auth check (solo per evitare pagine vuote anonime)
+        const { data, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        if (!data.user) {
+          setErrMsg("Non autenticato.");
+          return;
+        }
+
+        const { data: movs, error: movErr } = await supabase
+          .from("movimenti_view")
+          .select(
+            "id,created_at,product_id,product_name,quantity,movement_type,from_salon,to_salon,reason"
+          )
+          .eq("product_id", productId)
+          .order("created_at", { ascending: false });
+
+        if (cancelled) return;
+
+        if (movErr) {
+          console.error(movErr);
+          setErrMsg("Errore nel recupero movimenti.");
+          return;
+        }
+
+        setRows((movs as Movement[]) ?? []);
+      } catch (e: any) {
+        console.error(e);
+        if (!cancelled) setErrMsg("Errore pagina dettaglio.");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
+    }
 
-      const s = user.user_metadata?.salon_id;
-      const salon = typeof s === "number" ? s : Number(s);
-
-      if (!salon || !productId) {
-        setLoading(false);
-        return;
-      }
-
-      setFromSalon(salon);
-
-      // default destinazione: prima disponibile diversa dal fromSalon
-      const firstDest = SALONI.find((x) => x.id !== salon)?.id ?? 1;
-      setDest(firstDest);
-
-      const { data: prod } = await supabase
-        .from("products_with_stock")
-        .select("product_id,name,quantity")
-        .eq("salon_id", salon)
-        .eq("product_id", productId)
-        .maybeSingle();
-
-      setProduct((prod as ProductRow) ?? null);
-      setLoading(false);
+    load();
+    return () => {
+      cancelled = true;
     };
-
-    init();
   }, [productId, supabase]);
 
-  const handleTransfer = async () => {
-    if (!product || fromSalon === null) return;
-    if (qty <= 0) return;
+  const title = rows[0]?.product_name ?? `Prodotto #${productId}`;
 
-    if (qty > product.quantity) {
-      alert("Quantità superiore alla giacenza disponibile");
-      return;
-    }
-
-    // 1) decrease from fromSalon
-    const dec = await supabase.rpc("stock_decrease", {
-      p_salon: fromSalon,
-      p_product: product.product_id,
-      p_qty: qty,
-    });
-    if (dec.error) {
-      console.error(dec.error);
-      alert("Errore scarico (da salone origine)");
-      return;
-    }
-
-    // 2) increase on dest
-    const inc = await supabase.rpc("stock_increase", {
-      p_salon: dest,
-      p_product: product.product_id,
-      p_qty: qty,
-    });
-    if (inc.error) {
-      console.error(inc.error);
-      alert("Errore carico (su salone destinazione)");
-      return;
-    }
-
-    // 3) log movement (usa i nomi colonna reali del tuo schema: qty + movement_type)
-    const ins = await supabase.from("stock_movements").insert({
-      product_id: product.product_id,
-      from_salon: fromSalon,
-      to_salon: dest,
-      qty: qty, // ✅ non "quantity"
-      movement_type: "transfer", // ✅ coerente con lo screenshot (transfer/increase/...)
-    });
-
-    if (ins.error) {
-      console.error(ins.error);
-      // non blocchiamo: stock già aggiornato
-    }
-
-    window.history.back();
-  };
-
-  if (loading || fromSalon === null) {
+  if (loading) {
     return (
-      <div className="px-6 py-10 bg-[#1A0F0A] text-white min-h-screen">
+      <div className="px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3] min-h-screen">
         Caricamento…
       </div>
     );
   }
 
-  if (!product) {
+  if (errMsg) {
     return (
-      <div className="px-6 py-10 bg-[#1A0F0A] text-white min-h-screen">
-        <h1 className="text-3xl font-bold mb-6">Trasferimento</h1>
-        <p className="text-white/60">Prodotto non trovato o senza giacenza.</p>
+      <div className="px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3] min-h-screen">
+        <h1 className="text-3xl font-bold mb-4">Dettaglio trasferimenti</h1>
+        <p className="opacity-70">{errMsg}</p>
       </div>
     );
   }
 
   return (
-    <div className="px-6 py-10 bg-[#1A0F0A] text-white min-h-screen">
-      <h1 className="text-3xl font-bold mb-6">
-        Trasferimento — {product.name}
-      </h1>
+    <div className="px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3] min-h-screen">
+      <h1 className="text-3xl font-bold mb-2">Dettaglio — {title}</h1>
+      <p className="opacity-70 mb-8">
+        Storico movimenti per questo prodotto (read-only).
+      </p>
 
-      <div className="bg-[#FFF9F4] p-6 rounded-xl text-[#341A09] max-w-lg">
-        <p className="text-sm opacity-70 mb-4">Disponibili: {product.quantity}</p>
+      <div className="bg-[#FFF9F4] text-[#341A09] p-6 rounded-xl shadow">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b font-semibold">
+              <th className="p-3 text-left">Data</th>
+              <th className="p-3 text-left">Tipo</th>
+              <th className="p-3 text-left">Qty</th>
+              <th className="p-3 text-left">Da</th>
+              <th className="p-3 text-left">A</th>
+              <th className="p-3 text-left">Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((m) => (
+              <tr key={m.id} className="border-b">
+                <td className="p-3">{formatDate(m.created_at)}</td>
+                <td className="p-3 capitalize">{m.movement_type}</td>
+                <td className="p-3">{m.quantity}</td>
+                <td className="p-3">{salonLabel(m.from_salon)}</td>
+                <td className="p-3">{salonLabel(m.to_salon)}</td>
+                <td className="p-3">{m.reason ?? "-"}</td>
+              </tr>
+            ))}
 
-        <label className="font-semibold block mb-2">Quantità</label>
-        <input
-          type="number"
-          min={1}
-          max={product.quantity}
-          value={qty}
-          onChange={(e) => setQty(Number(e.target.value))}
-          className="w-full p-3 rounded-xl bg-white border"
-        />
-
-        <label className="font-semibold block mt-4 mb-2">Destinazione</label>
-        <select
-          className="w-full p-3 rounded-xl bg-white border"
-          value={dest}
-          onChange={(e) => setDest(Number(e.target.value))}
-        >
-          {destOptions.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-
-        <button
-          onClick={handleTransfer}
-          disabled={qty <= 0 || qty > product.quantity || dest === fromSalon}
-          className="mt-6 px-6 py-3 bg-[#341A09] text-white rounded-xl disabled:opacity-40"
-        >
-          Conferma Trasferimento
-        </button>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-4 text-center text-[#00000080]">
+                  Nessun movimento trovato per questo prodotto.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

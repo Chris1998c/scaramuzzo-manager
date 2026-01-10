@@ -1,66 +1,217 @@
 "use client";
-export const dynamic = "force-dynamic";
 
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  CalendarDays,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 
-import { useState, useEffect } from "react";
 import AgendaGrid from "@/components/agenda/AgendaGrid";
-import SearchPalette from "@/components/SearchPalette";
 import CalendarModal from "@/components/agenda/CalendarModal";
-import { createClient } from "@/lib/supabaseClient";
+
+function toYmd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(ymd: string, delta: number) {
+  const base = new Date(`${ymd}T00:00:00`);
+  base.setDate(base.getDate() + delta);
+  return toYmd(base);
+}
+
+function formatPretty(ymd: string) {
+  const d = new Date(`${ymd}T00:00:00`);
+  return d.toLocaleDateString("it-IT", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
 
 export default function AgendaPage() {
-  const [currentDate, setCurrentDate] = useState<string>("");
+  const router = useRouter();
+  const sp = useSearchParams();
+
+  const initialDate = useMemo(() => {
+    const q = sp.get("date");
+    if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) return q;
+    return toYmd(new Date());
+  }, [sp]);
+
+  const [currentDate, setCurrentDate] = useState<string>(initialDate);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const supabase = createClient();
 
-  async function loadToday() {
-    const { data } = await supabase.rpc("get_server_date");
-    setCurrentDate(data);
-  }
-
+  // URL always in sync (refresh/share safe)
   useEffect(() => {
-    loadToday();
-  }, []);
-
-  if (!currentDate) {
-    return (
-      <div className="text-white p-6">
-        Caricamento data…
-      </div>
-    );
-  }
+    router.replace(`/dashboard/agenda?date=${encodeURIComponent(currentDate)}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate]);
 
   return (
-    <div className="w-full min-h-screen bg-[#110904] text-white p-4">
-      
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-semibold text-[#d8a471]">
-          Agenda 
-        </h1>
+    <div className="w-full space-y-6">
+      {/* HERO */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7 backdrop-blur-md shadow-[0_0_60px_rgba(0,0,0,0.25)]"
+      >
+        <div className="flex items-start gap-4">
+          <div className="shrink-0 rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
+            <CalendarDays className="text-[#f3d8b6]" size={26} strokeWidth={1.7} />
+          </div>
 
-        <button
-          onClick={() => setCalendarOpen(true)}
-          className="px-4 py-3 bg-[#3a251a] text-[#d8a471] 
-          rounded-xl border border-[#9b6b43]/40 hover:bg-[#4a2f22]"
-        >
-          📅 Vai alla data
-        </button>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
+                  Agenda
+                </h1>
+                <p className="text-[#c9b299] mt-2 max-w-2xl">
+                  Week view, creazione/modifica e chiusura. Veloce per reception e staff, con UX moderna 2026.
+                </p>
+
+                <div className="mt-4 text-sm text-[#c9b299]">
+                  Data selezionata:{" "}
+                  <span className="text-[#f3d8b6] font-semibold capitalize">
+                    {formatPretty(currentDate)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 lg:justify-end">
+                <button
+                  onClick={() => setCalendarOpen(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
+                    bg-[#0FA958] text-white font-semibold
+                    shadow-[0_10px_35px_rgba(15,169,88,0.25)]
+                    hover:scale-[1.02] transition"
+                >
+                  Calendario <ArrowRight size={18} />
+                </button>
+
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
+                    bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
+                    hover:border-[var(--accent)] transition"
+                >
+                  Dashboard
+                </Link>
+              </div>
+            </div>
+
+            {/* TOOLBAR */}
+            <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setCurrentDate(toYmd(new Date()))}
+                  className="rounded-2xl px-4 py-2 bg-black/25 border border-[#5c3a21]/60 text-[#f3d8b6]
+                    hover:bg-black/30 transition"
+                >
+                  Oggi
+                </button>
+
+                <button
+                  onClick={() => setCalendarOpen(true)}
+                  className="rounded-2xl px-4 py-2 bg-[#f3d8b6] text-[#1A0F0A] font-extrabold
+                    hover:opacity-90 transition inline-flex items-center gap-2"
+                >
+                  <CalendarDays size={18} />
+                  Seleziona data
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* prev/next day */}
+                <div className="flex items-center rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-1">
+                  <button
+                    onClick={() => setCurrentDate(addDays(currentDate, -1))}
+                    className="p-2 rounded-xl hover:bg-black/25 transition text-[#f3d8b6]"
+                    aria-label="Giorno precedente"
+                    title="Giorno precedente"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentDate(addDays(currentDate, 1))}
+                    className="p-2 rounded-xl hover:bg-black/25 transition text-[#f3d8b6]"
+                    aria-label="Giorno successivo"
+                    title="Giorno successivo"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+
+                {/* prev/next week */}
+                <div className="flex items-center rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-1">
+                  <button
+                    onClick={() => setCurrentDate(addDays(currentDate, -7))}
+                    className="p-2 rounded-xl hover:bg-black/25 transition text-[#f3d8b6]"
+                    aria-label="Settimana precedente"
+                    title="Settimana precedente"
+                  >
+                    <ChevronsLeft size={18} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentDate(addDays(currentDate, 7))}
+                    className="p-2 rounded-xl hover:bg-black/25 transition text-[#f3d8b6]"
+                    aria-label="Settimana successiva"
+                    title="Settimana successiva"
+                  >
+                    <ChevronsRight size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* GRID */}
+      <div className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/40 p-4 md:p-6 backdrop-blur-md">
+        <div className="rounded-2xl bg-black/15 border border-[#5c3a21]/50 p-2 md:p-3 overflow-hidden">
+          <AgendaGrid currentDate={currentDate} />
+        </div>
+
+        {/* quick hints */}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-4">
+            <div className="text-[#f3d8b6] font-bold">Creazione</div>
+            <div className="text-[#c9b299] text-sm mt-1">
+              Click sugli slot per creare. Cliente e servizi guidati.
+            </div>
+          </div>
+          <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-4">
+            <div className="text-[#f3d8b6] font-bold">Modifica rapida</div>
+            <div className="text-[#c9b299] text-sm mt-1">
+              Drag & drop / resize / cambio staff senza perdere tempo.
+            </div>
+          </div>
+          <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-4">
+            <div className="text-[#f3d8b6] font-bold">Chiusura</div>
+            <div className="text-[#c9b299] text-sm mt-1">
+              Chiudi appuntamento → status done + incasso + IVA + righe vendita.
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* AGENDA GRID PER DATA */}
-      <AgendaGrid currentDate={currentDate} />
-
-      {/* SEARCH */}
-      <SearchPalette />
-
-      {/* CALENDARIO */}
+      {/* CALENDAR MODAL */}
       <CalendarModal
         isOpen={calendarOpen}
         close={() => setCalendarOpen(false)}
-        onSelectDate={(d) => {
-          setCurrentDate(d);
-        }}
+        onSelectDate={(d) => setCurrentDate(d)}
       />
     </div>
   );

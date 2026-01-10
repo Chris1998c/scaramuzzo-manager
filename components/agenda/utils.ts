@@ -1,21 +1,36 @@
 // components/agenda/utils.ts
 
 /* ----------------------------------------- */
+/*      FORMAT / PARSE TIMESTAMP (DB)        */
+/* ----------------------------------------- */
+
+export function dayFromTs(ts: string) {
+  return String(ts).split("T")[0];
+}
+
+export function timeFromTs(ts: string) {
+  const t = String(ts).split("T")[1] || "";
+  return t.slice(0, 5);
+}
+
+/* ----------------------------------------- */
 /*           GENERA ORE GIORNALIERE          */
 /* ----------------------------------------- */
 
-export function generateHours(start: string, end: string, step: number): string[] {
-  const res: string[] = [];
-  let [h, m] = start.split(":").map(Number);
-  const [endH, endM] = end.split(":").map(Number);
+export function generateHours(start: string, end: string, stepMin: number): string[] {
+  const step = Math.max(1, Number(stepMin || 30));
 
-  while (h < endH || (h === endH && m <= endM)) {
-    res.push(`${pad(h)}:${pad(m)}`);
-    m += step;
-    if (m >= 60) {
-      m -= 60;
-      h++;
-    }
+  const startM = timeToMinutesSafe(start);
+  const endM = timeToMinutesSafe(end);
+
+  if (startM == null || endM == null) return [];
+
+  // se end < start, ritorna vuoto (input errato)
+  if (endM < startM) return [];
+
+  const res: string[] = [];
+  for (let m = startM; m <= endM; m += step) {
+    res.push(minutesToTime(m));
   }
   return res;
 }
@@ -25,7 +40,21 @@ export function generateHours(start: string, end: string, step: number): string[
 /* ----------------------------------------- */
 
 export function timeToMinutes(t: string): number {
-  const [h, m] = t.split(":").map(Number);
+  const parsed = timeToMinutesSafe(t);
+  return parsed ?? 0;
+}
+
+function timeToMinutesSafe(t: string): number | null {
+  const parts = String(t).split(":");
+  if (parts.length < 2) return null;
+
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  if (h < 0 || h > 23) return null;
+  if (m < 0 || m > 59) return null;
+
   return h * 60 + m;
 }
 
@@ -34,74 +63,110 @@ export function timeToMinutes(t: string): number {
 /* ----------------------------------------- */
 
 export function minutesToTime(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
+  const total = Math.max(0, Math.floor(Number(mins) || 0));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
   return `${pad(h)}:${pad(m)}`;
 }
 
 /* ----------------------------------------- */
-/*      POSIZIONE BOX IN PIXEL                */
+/*      POSIZIONE BOX IN PIXEL               */
 /* ----------------------------------------- */
 
 export function getBoxTop(time: string, hours: string[], slotPx = 40) {
   const index = hours.indexOf(time);
-  return index * slotPx;
+  return index < 0 ? 0 : index * slotPx;
 }
 
 /* ----------------------------------------- */
-/*      ALTEZZA BOX IN PIXEL                  */
+/*      ALTEZZA BOX IN PIXEL                 */
 /* ----------------------------------------- */
 
-export function getBoxHeight(duration: number, step = 30, slotPx = 40) {
-  return (duration / step) * slotPx;
+export function getBoxHeight(durationMin: number, step = 30, slotPx = 40) {
+  const dur = Math.max(0, Number(durationMin) || 0);
+  const s = Math.max(1, Number(step) || 30);
+  return (dur / s) * slotPx;
 }
 
 /* ----------------------------------------- */
-/*      SOMMA DURATE DI PIÙ SERVIZI           */
+/*      DURATA (min) DA start/end_time       */
+/*  - clamp min 30                           */
+/*  - arrotonda a 1 decimale (stabile)       */
 /* ----------------------------------------- */
 
-export function sumDurations(services: any[]) {
-  return services
-    .map((s) => s?.duration || 0)
+export function durationFromTimestamps(start_time: string, end_time?: string | null) {
+  if (!end_time) return 30;
+
+  const start = new Date(start_time).getTime();
+  const end = new Date(end_time).getTime();
+
+  const mins = (end - start) / 60000;
+
+  if (!Number.isFinite(mins) || mins <= 0) return 30;
+
+  // evita valori strani (es 29.999999)
+  const rounded = Math.round(mins * 10) / 10;
+  return Math.max(30, rounded);
+}
+
+/* ----------------------------------------- */
+/*      SOMMA DURATE appointment_services     */
+/*  usa duration_minutes                     */
+/*  - se somma 0 => 30                       */
+/* ----------------------------------------- */
+
+export function sumServiceDurationsMinutes(appointment_services: any[]) {
+  const sum = (appointment_services || [])
+    .map((r) => Number(r?.duration_minutes ?? 0))
     .reduce((a, b) => a + b, 0);
+
+  return sum > 0 ? sum : 30;
 }
 
 /* ----------------------------------------- */
-/*      GENERA I 7 GIORNI DELLA SETTIMANA     */
+/*      GENERA 7 GIORNI SETTIMANA (lun-dom)   */
+/*  dalla data base passata (yyyy-mm-dd)     */
+/*  FIX: domenica corretta                   */
 /* ----------------------------------------- */
 
-export function generateWeekDays(): { label: string; date: string }[] {
-  const today = new Date();
-  const res: any[] = [];
+export function generateWeekDaysFromDate(dateString: string): { label: string; date: string }[] {
+  const base = new Date(dateString);
+  const day = base.getDay() || 7; // lun=1..dom=7
 
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - today.getDay() + i + 1);
+  const days: { label: string; date: string }[] = [];
 
-    res.push({
-      label: d.toLocaleDateString("it-IT", {
-        weekday: "short",
-        day: "numeric",
-      }),
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() - (day - i));
+
+    days.push({
       date: d.toISOString().split("T")[0],
+      label: d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" }),
     });
   }
 
-  return res;
+  return days;
 }
 
 /* ----------------------------------------- */
-/*      PROSSIMA ORA LIBERA PER STAFF         */
+/*  PROSSIMO SLOT LIBERO (usa start_time)     */
+/*  day: yyyy-mm-dd                          */
 /* ----------------------------------------- */
 
 export function findNextAvailable(
   appointments: any[],
   hours: string[],
-  stepMin = 30
+  day: string // yyyy-mm-dd
 ): string | null {
-  const bookedTimes = appointments.map((a) => a.time);
-  for (let h of hours) {
-    if (!bookedTimes.includes(h)) return h;
+  const booked = new Set(
+    (appointments || [])
+      .map((a) => String(a?.start_time || ""))
+      .filter((s) => s.startsWith(day))
+      .map((ts) => (ts.split("T")[1] || "").slice(0, 5))
+  );
+
+  for (const h of hours) {
+    if (!booked.has(h)) return h;
   }
   return null;
 }
