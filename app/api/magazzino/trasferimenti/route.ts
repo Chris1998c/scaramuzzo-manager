@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type TransferItem = { id: number | string; qty: number | string };
 
-const MAGAZZINO_CENTRALE_ID = 0;
+const MAGAZZINO_CENTRALE_ID = 5;
 
 export async function POST(req: Request) {
   try {

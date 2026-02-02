@@ -1,42 +1,23 @@
-"use client";
+import { DashboardShell } from "@/components/DashboardShell";
 
-import Sidebar from "@/components/sidebar";
-import Header from "@/components/header";
-import { useUI } from "@/lib/ui-store";
-import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { ActiveSalonProvider } from "@/app/providers/ActiveSalonProvider";
+import { getUserAccess } from "@/lib/getUserAccess";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { sidebarOpen } = useUI();
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsDesktop(window.innerWidth > 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  const access = await getUserAccess();
 
   return (
-    <div className="min-h-screen flex bg-scz-darker">
-      {/* SIDEBAR */}
-      <Sidebar />
-
-      {/* MAIN */}
-      <motion.div
-        animate={{
-          marginLeft: isDesktop ? (sidebarOpen ? "16rem" : "0rem") : "0rem",
-        }}
-        transition={{ type: "spring", stiffness: 260, damping: 28 }}
-        className="flex flex-col flex-1"
-      >
-        <Header />
-        <main className="p-8">{children}</main>
-      </motion.div>
-    </div>
+    <ActiveSalonProvider
+     role={access.role}
+      allowedSalonIds={access.allowedSalonIds}
+      allowedSalons={access.allowedSalons}
+      defaultSalonId={access.defaultSalonId}
+    >
+      <DashboardShell>{children}</DashboardShell>
+    </ActiveSalonProvider>
   );
 }

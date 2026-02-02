@@ -1,4 +1,9 @@
-export const MAGAZZINO_CENTRALE_ID = 0 as const;
+export const MAGAZZINO_CENTRALE_ID = 5;
+
+export const REAL_SALON_IDS = [1, 2, 3, 4] as const;
+
+export const isRealSalonId = (id: unknown): id is number =>
+  typeof id === "number" && REAL_SALON_IDS.includes(id as any);
 
 export const ROLES = {
   COORDINATOR: "coordinator",

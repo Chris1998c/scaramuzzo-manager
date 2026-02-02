@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import AgendaModal from "./AgendaModal";
 import EditAppointmentModal from "./EditAppointmentModal";
 import AppointmentBox from "./AppointmentBox";
@@ -9,6 +10,8 @@ import { generateHours, generateWeekDaysFromDate } from "./utils";
 
 export default function AgendaGrid({ currentDate }: { currentDate: string }) {
   const supabase = useMemo(() => createClient(), []);
+  const { activeSalonId, isReady, role } = useActiveSalon();
+
   const [view, setView] = useState<"day" | "week">("day");
 
   const [staff, setStaff] = useState<any[]>([]);
@@ -24,35 +27,33 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
 
   const hours = generateHours("08:00", "20:00", 30);
 
+  // ✅ staff: ricarica quando cambia salone
   useEffect(() => {
-    void loadStaff();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!isReady) return;
+    if (role === "magazzino") return; // magazzino non usa agenda
+    if (activeSalonId == null) return;
 
+    void loadStaff(activeSalonId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, role, activeSalonId]);
+
+  // ✅ appointments: ricarica quando cambia data/view/salone
   useEffect(() => {
-    void loadAppointments();
+    if (!isReady) return;
+    if (role === "magazzino") return;
+    if (activeSalonId == null) return;
+
+    void loadAppointments(activeSalonId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, view]);
+  }, [currentDate, view, isReady, role, activeSalonId]);
 
-  async function getCurrentSalonId(): Promise<number | null> {
-    const { data } = await supabase.auth.getUser();
-    const meta: any = data?.user?.user_metadata || {};
-    const sid = meta?.current_salon_id ?? meta?.salon_id ?? null;
-    return sid == null ? null : Number(sid);
-  }
-
-  async function loadStaff() {
-    const salonId = await getCurrentSalonId();
-
-    let q = supabase
+  async function loadStaff(salonId: number) {
+    const { data } = await supabase
       .from("staff")
       .select("*")
       .eq("active", true)
+      .eq("salon_id", salonId)
       .order("name");
-
-    if (salonId != null) q = q.eq("salon_id", salonId);
-
-    const { data } = await q;
 
     const available = [{ id: null, name: "Disponibile", color: "#a8754f" }];
     setStaff(available.concat(data || []));
@@ -68,7 +69,7 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
 
     // week: lun -> dom
     const base = new Date(dateString);
-    const day = base.getDay() || 7; // lun=1..dom=7
+    const day = base.getDay() || 7;
 
     const weekStart = new Date(base);
     weekStart.setDate(base.getDate() - (day - 1));
@@ -82,14 +83,13 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
     return { start: toNoZ(weekStart), end: toNoZ(weekEnd) };
   }
 
-  async function loadAppointments() {
+  async function loadAppointments(salonId: number) {
     if (!currentDate) return;
     setLoading(true);
 
-    const salonId = await getCurrentSalonId();
     const range = getRangeForView(currentDate);
 
-    let q = supabase
+    const { data } = await supabase
       .from("appointments")
       .select(
         `
@@ -103,13 +103,10 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
         )
       `
       )
+      .eq("salon_id", salonId) // ✅ SEMPRE
       .gte("start_time", range.start)
       .lte("start_time", range.end)
       .order("start_time", { ascending: true });
-
-    if (salonId != null) q = q.eq("salon_id", salonId);
-
-    const { data } = await q;
 
     setAppointments(data || []);
     setLoading(false);
@@ -121,6 +118,18 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
 
   function handleAppointmentClick(a: any) {
     setEditingAppointment(a);
+  }
+
+  if (!isReady) {
+    return <div className="px-4 text-white/70">Caricamento...</div>;
+  }
+
+  if (role === "magazzino") {
+    return <div className="px-4 text-white/70">Agenda non disponibile per Magazzino.</div>;
+  }
+
+  if (activeSalonId == null) {
+    return <div className="px-4 text-white/70">Nessun salone selezionato.</div>;
   }
 
   return (
@@ -163,7 +172,7 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
           appointments={appointments}
           onSlotClick={handleSlotClick}
           onAppointmentClick={handleAppointmentClick}
-          onAppointmentsChanged={() => void loadAppointments()}
+          onAppointmentsChanged={() => void loadAppointments(activeSalonId)}
         />
       ) : (
         <WeekView
@@ -172,7 +181,7 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
           onSlotClick={handleSlotClick}
           onAppointmentClick={handleAppointmentClick}
           currentDate={currentDate}
-          onAppointmentsChanged={() => void loadAppointments()}
+          onAppointmentsChanged={() => void loadAppointments(activeSalonId)}
         />
       )}
 
@@ -182,7 +191,7 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
           selectedSlot={selectedSlot}
           currentDate={currentDate}
           close={() => setSelectedSlot(null)}
-          onCreated={() => void loadAppointments()}
+          onCreated={() => void loadAppointments(activeSalonId)}
         />
       )}
 
@@ -192,12 +201,13 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
           appointment={editingAppointment}
           selectedDay={currentDate}
           close={() => setEditingAppointment(null)}
-          onUpdated={() => void loadAppointments()}
+          onUpdated={() => void loadAppointments(activeSalonId)}
         />
       )}
     </div>
   );
 }
+
 
 function DayView({
   staff,

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const MAGAZZINO_CENTRALE_ID = Number(process.env.MAGAZZINO_CENTRALE_ID ?? 0);
+const MAGAZZINO_CENTRALE_ID = Number(process.env.MAGAZZINO_CENTRALE_ID ?? 5);
 
 export async function POST(req: Request) {
   try {
@@ -14,24 +14,18 @@ export async function POST(req: Request) {
     const category = String(body?.category ?? "").trim();
     const barcode = body?.barcode ? String(body.barcode).trim() : null;
     const cost = Number(body?.cost) || 0;
-    const type = body?.type ? String(body.type).trim() : null;
+    const type = body?.type ? String(body.type).trim() : "rivendita";
     const description = body?.description ? String(body.description).trim() : null;
     const initialQty = Number(body?.initialQty) || 0;
 
     if (!name || !category) {
-      return NextResponse.json(
-        { error: "Nome e categoria sono obbligatori" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Nome e categoria sono obbligatori" }, { status: 400 });
     }
     if (!Number.isFinite(cost) || cost < 0) {
       return NextResponse.json({ error: "Costo non valido" }, { status: 400 });
     }
     if (!Number.isFinite(initialQty) || initialQty < 0) {
-      return NextResponse.json(
-        { error: "Quantità iniziale non valida" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Quantità iniziale non valida" }, { status: 400 });
     }
 
     // auth
@@ -45,14 +39,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }
 
-    // magazzino centrale può essere 0 (standard)
-    if (!Number.isFinite(MAGAZZINO_CENTRALE_ID) || MAGAZZINO_CENTRALE_ID < 0) {
-      return NextResponse.json(
-        { error: "MAGAZZINO_CENTRALE_ID non valido" },
-        { status: 500 }
-      );
+    if (!Number.isFinite(MAGAZZINO_CENTRALE_ID) || MAGAZZINO_CENTRALE_ID <= 0) {
+      return NextResponse.json({ error: "MAGAZZINO_CENTRALE_ID non valido" }, { status: 500 });
     }
 
+    // crea prodotto (service role)
     const { data: product, error: insertError } = await supabaseAdmin
       .from("products")
       .insert({
@@ -63,6 +54,8 @@ export async function POST(req: Request) {
         type,
         description,
         active: true,
+        vat_rate: 22, // se hai questa colonna e vuoi default
+        unit: "pz",   // se hai questa colonna e vuoi default
       })
       .select("id")
       .single();
@@ -74,13 +67,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Stock iniziale: usa la RPC che mantiene coerenza (product_stock + movimento)
+    // stock iniziale nel CENTRALE via RPC (service role)
     if (initialQty > 0) {
       const { error: moveErr } = await supabaseAdmin.rpc("stock_move", {
-        p_product: Number(product.id),
+        p_product_id: Number(product.id),
         p_qty: initialQty,
-        p_from_salon: null, // carico in magazzino
+        p_from_salon: null,
         p_to_salon: MAGAZZINO_CENTRALE_ID,
+        p_movement_type: "carico",
         p_reason: "initial_stock",
       });
 
@@ -91,9 +85,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, productId: product.id }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Errore interno" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: e?.message ?? "Errore interno" }, { status: 500 });
   }
 }

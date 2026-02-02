@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export const MAGAZZINO_CENTRALE_ID = 0;
+export const MAGAZZINO_CENTRALE_ID = 5;
 
 interface UIState {
   sidebarOpen: boolean;

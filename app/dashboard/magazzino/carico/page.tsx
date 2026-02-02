@@ -14,7 +14,7 @@ interface Product {
   quantity: number; // giacenza del MAGAZZINO CENTRALE
 }
 
-const MAGAZZINO_CENTRALE_ID = 0;
+const MAGAZZINO_CENTRALE_ID = 5;
 
 const SALONI: { id: number; name: string }[] = [
   { id: 1, name: "Corigliano" },
@@ -189,7 +189,7 @@ function CaricoInner() {
                   Carico dal Magazzino Centrale
                 </h1>
                 <p className="text-[#c9b299] mt-2 max-w-2xl">
-                  Sposta quantità dal <b>centrale (ID 0)</b> al salone selezionato.
+                  Sposta quantità dal <b>centrale (ID 5)</b> al salone selezionato.
                 </p>
               </div>
 

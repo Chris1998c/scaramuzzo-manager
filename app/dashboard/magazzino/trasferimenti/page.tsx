@@ -18,11 +18,11 @@ interface SelectedItem {
 }
 
 const SALONI = [
-  { id: 0, name: "Magazzino Centrale" },
   { id: 1, name: "Scaramuzzo Corigliano" },
   { id: 2, name: "Scaramuzzo Cosenza" },
   { id: 3, name: "Scaramuzzo Castrovillari" },
   { id: 4, name: "Scaramuzzo Roma" },
+  { id: 5, name: "Magazzino Centrale" },
 ];
 
 function toSalonId(v: unknown): number | null {

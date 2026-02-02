@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const MAGAZZINO_CENTRALE_ID = 0;
+const MAGAZZINO_CENTRALE_ID = 5;
 
 export async function POST(req: Request) {
   try {

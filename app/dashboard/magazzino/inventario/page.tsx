@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import Link from "next/link";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 interface Product {
   product_id: number;
@@ -12,34 +14,9 @@ interface Product {
   quantity: number;
 }
 
-const MAGAZZINO_CENTRALE_ID = 0;
-
-const SALONI_LABEL: Record<number, string> = {
-  0: "Magazzino Centrale",
-  1: "Corigliano",
-  2: "Cosenza",
-  3: "Castrovillari",
-  4: "Roma",
-};
-
-function salonLabel(id: number) {
-  return SALONI_LABEL[id] ?? `Salone ${id}`;
-}
-
-function toSalonId(v: any): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
-
 export default function InventarioPage() {
   const supabase = useMemo(() => createClient(), []);
-
-  const [role, setRole] = useState<string>("reception");
-  const [userSalonId, setUserSalonId] = useState<number | null>(null);
-
-  // salon selezionato per la vista inventario
-  const [salon, setSalon] = useState<number | null>(null);
+  const { role, activeSalonId, allowedSalons, isReady } = useActiveSalon();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState("");
@@ -47,53 +24,13 @@ export default function InventarioPage() {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  // LOAD USER
-  useEffect(() => {
-    let cancelled = false;
+  const isWarehouse = role === "magazzino" || role === "coordinator";
+  const canCarico = isWarehouse && activeSalonId === MAGAZZINO_CENTRALE_ID;
 
-    async function init() {
-      try {
-        setLoading(true);
-        setErrMsg(null);
-
-        const { data, error } = await supabase.auth.getUser();
-        if (error) throw error;
-
-        const user = data?.user;
-        if (!user) {
-          setErrMsg("Utente non autenticato.");
-          return;
-        }
-
-        const r = String(user.user_metadata?.role ?? "reception");
-        const sid = toSalonId(user.user_metadata?.salon_id ?? null);
-
-        if (cancelled) return;
-
-        setRole(r);
-        setUserSalonId(sid);
-
-        // Default vista:
-        // - reception: il proprio salone
-        // - magazzino/coordinator: magazzino centrale
-        if (r === "magazzino" || r === "coordinator") {
-          setSalon(MAGAZZINO_CENTRALE_ID);
-        } else {
-          setSalon(sid);
-        }
-      } catch (e: any) {
-        console.error(e);
-        if (!cancelled) setErrMsg("Errore nel caricamento utente.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    init();
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
+  const salonName =
+    activeSalonId == null
+      ? "—"
+      : allowedSalons.find((s) => s.id === activeSalonId)?.name ?? `Salone ${activeSalonId}`;
 
   async function fetchProducts(salonId: number, search: string, cat: string) {
     let query = supabase
@@ -105,6 +42,7 @@ export default function InventarioPage() {
     if (cat) query = query.eq("category", cat);
 
     const { data, error } = await query;
+
     if (error) {
       console.error(error);
       setProducts([]);
@@ -114,15 +52,39 @@ export default function InventarioPage() {
     setProducts((data as Product[]) || []);
   }
 
-  // FILTRI LIVE
+  // fetch quando cambia salone / filtri
   useEffect(() => {
-    if (salon !== null) {
-      fetchProducts(salon, filter, category);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salon, filter, category]);
+    let cancelled = false;
 
-  if (loading) {
+    async function run() {
+      if (!isReady) return;
+
+      setErrMsg(null);
+
+      if (activeSalonId == null) {
+        setErrMsg("Nessun salone selezionato: non posso mostrare l’inventario.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        await fetchProducts(activeSalonId, filter, category);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setErrMsg("Errore nel caricamento inventario.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [isReady, activeSalonId, filter, category]);
+
+  if (!isReady || loading) {
     return (
       <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
         Caricamento…
@@ -139,51 +101,26 @@ export default function InventarioPage() {
     );
   }
 
-  if (salon === null) {
-    return (
-      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
-        <h1 className="text-3xl font-bold mb-3">Inventario</h1>
-        <p className="text-white/70">
-          salon_id non presente: non posso mostrare l’inventario.
-        </p>
-      </div>
-    );
-  }
-
-  const isWarehouse = role === "magazzino" || role === "coordinator";
-  const canCarico = isWarehouse && salon === MAGAZZINO_CENTRALE_ID;
-
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold mb-2">
-            Inventario — {salonLabel(salon)}
-          </h1>
+          <h1 className="text-3xl font-bold mb-2">Inventario — {salonName}</h1>
           <p className="text-white/60">
             {isWarehouse
-              ? "Selettore vista: centrale o saloni."
+              ? "Cambia salone dallo switcher in alto."
               : "Visualizzazione del tuo salone."}
           </p>
         </div>
 
-        {/* Selettore salone SOLO per coordinator/magazzino */}
-        {isWarehouse && (
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-white/70">Vista salone</label>
-            <select
-              value={salon}
-              onChange={(e) => setSalon(Number(e.target.value))}
-              className="bg-[#FFF9F4] text-[#341A09] rounded-xl px-4 py-3 shadow"
-            >
-              <option value={0}>Magazzino Centrale</option>
-              <option value={1}>Corigliano</option>
-              <option value={2}>Cosenza</option>
-              <option value={3}>Castrovillari</option>
-              <option value={4}>Roma</option>
-            </select>
-          </div>
-        )}
+        <button
+          className="bg-[#341A09] text-white rounded-xl shadow px-6 py-3"
+          onClick={() => {
+            if (activeSalonId != null) fetchProducts(activeSalonId, filter, category);
+          }}
+        >
+          Aggiorna
+        </button>
       </div>
 
       {/* FILTRI */}
@@ -201,13 +138,6 @@ export default function InventarioPage() {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         />
-
-        <button
-          className="bg-[#341A09] text-white rounded-xl shadow px-6"
-          onClick={() => fetchProducts(salon, filter, category)}
-        >
-          Aggiorna
-        </button>
       </div>
 
       {/* TABELLA */}
@@ -239,7 +169,7 @@ export default function InventarioPage() {
                 </td>
 
                 <td className="p-3 text-right space-x-3">
-                  {/* CARICO: ha senso solo dalla vista Centrale -> verso un salone (lo scegli in pagina carico) */}
+                  {/* CARICO: ha senso solo se sei su centrale (carico dal centrale verso un salone) */}
                   {canCarico && (
                     <Link
                       href={`/dashboard/magazzino/carico?product=${p.product_id}`}
@@ -249,7 +179,6 @@ export default function InventarioPage() {
                     </Link>
                   )}
 
-                  {/* SCARICO: sempre sul salone attualmente in vista, ma se reception controlliamo che coincida col suo */}
                   <Link
                     href={`/dashboard/magazzino/scarico?product=${p.product_id}`}
                     className="px-3 py-1 bg-red-600 text-white rounded"
@@ -257,7 +186,7 @@ export default function InventarioPage() {
                     Scarico
                   </Link>
 
-                  {(role === "magazzino" || role === "coordinator") && (
+                  {isWarehouse && (
                     <>
                       <Link
                         href={`/dashboard/magazzino/prodotto/${p.product_id}/modifica`}
@@ -286,13 +215,6 @@ export default function InventarioPage() {
           </div>
         )}
       </div>
-
-      {/* Nota per reception */}
-      {role === "reception" && userSalonId !== null && salon !== userSalonId && (
-        <div className="mt-6 text-sm text-yellow-700 bg-yellow-100 rounded-xl p-4">
-          Nota: come reception, dovresti lavorare solo sul tuo salone.
-        </div>
-      )}
     </div>
   );
 }

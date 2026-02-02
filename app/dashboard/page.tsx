@@ -42,7 +42,7 @@ const MODULES: Tile[] = [
   {
     kind: "live",
     title: "Magazzino",
-    subtitle: "Centrale (0) + saloni, carico/scarico/trasferimenti",
+    subtitle: "Centrale (5) + saloni, carico/scarico/trasferimenti",
     href: "/dashboard/magazzino",
     icon: Package,
     tag: "Live",
@@ -89,7 +89,7 @@ export default async function DashboardPage() {
             </h1>
             <p className="text-[#c9b299] mt-2 max-w-2xl">
               Pochi pulsanti, zero confusione: entri nei <b>moduli</b> e dentro trovi tutte le funzioni.
-              Magazzino Centrale (0) è reale: carichi dal laboratorio e trasferisci ai saloni.
+              Magazzino Centrale (5) è reale: carichi dal laboratorio e trasferisci ai saloni.
             </p>
           </div>
 

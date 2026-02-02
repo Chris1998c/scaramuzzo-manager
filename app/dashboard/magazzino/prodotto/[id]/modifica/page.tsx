@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
@@ -19,12 +19,13 @@ interface StockRow {
   quantity: number;
 }
 
-export default function ModificaProdottoPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const supabase = createClient();
+interface SalonRow {
+  id: number;
+  name: string;
+}
+
+export default function ModificaProdottoPage({ params }: { params: { id: string } }) {
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const productId = Number(params.id);
 
@@ -33,50 +34,58 @@ export default function ModificaProdottoPage({
 
   const [product, setProduct] = useState<Product | null>(null);
   const [stock, setStock] = useState<StockRow[]>([]);
+  const [salons, setSalons] = useState<SalonRow[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function init() {
       const { data } = await supabase.auth.getUser();
       const user = data?.user;
 
-      if (!user?.user_metadata?.role) {
-        setLoading(false);
+      const r = String(user?.user_metadata?.role ?? "");
+      if (!r) {
+        if (!cancelled) setLoading(false);
         return;
       }
 
-      const r = user.user_metadata.role;
-      setRole(r);
+      if (!cancelled) setRole(r);
 
       if (r !== "magazzino" && r !== "coordinator") {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
         return;
       }
 
-      await fetchProduct();
-      await fetchStock();
-      setLoading(false);
+      await Promise.all([fetchProduct(), fetchStock(), fetchSalons()]);
+      if (!cancelled) setLoading(false);
     }
 
     init();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, productId]);
 
   async function fetchProduct() {
-    const { data } = await supabase
-      .from("products")
-      .select("*")
-      .eq("id", productId)
-      .single();
-
+    const { data, error } = await supabase.from("products").select("*").eq("id", productId).single();
+    if (error) throw error;
     setProduct(data as Product);
   }
 
   async function fetchStock() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("products_with_stock")
       .select("salon_id, quantity")
       .eq("product_id", productId);
 
+    if (error) throw error;
     setStock((data as StockRow[]) || []);
+  }
+
+  async function fetchSalons() {
+    const { data, error } = await supabase.from("salons").select("id, name").order("id");
+    if (error) throw error;
+    setSalons((data as SalonRow[]) || []);
   }
 
   async function salva() {
@@ -109,17 +118,11 @@ export default function ModificaProdottoPage({
     const conferma = prompt('Scrivi "ELIMINA" per confermare');
     if (conferma !== "ELIMINA") return;
 
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", productId);
+    const { error } = await supabase.from("products").delete().eq("id", productId);
 
     if (error) {
-      await supabase
-        .from("products")
-        .update({ active: false })
-        .eq("id", productId);
-
+      // fallback: disattiva
+      await supabase.from("products").update({ active: false }).eq("id", productId);
       alert("Prodotto disattivato");
       router.push("/dashboard/magazzino/inventario");
       return;
@@ -137,6 +140,8 @@ export default function ModificaProdottoPage({
 
   if (!product) return null;
 
+  const salonName = (id: number) => salons.find((s) => s.id === id)?.name ?? `Salone #${id}`;
+
   return (
     <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-white">
       <h1 className="text-3xl font-bold mb-8">Modifica Prodotto</h1>
@@ -145,42 +150,32 @@ export default function ModificaProdottoPage({
         <input
           className="p-4 w-full rounded-xl border"
           value={product.name}
-          onChange={(e) =>
-            setProduct({ ...product, name: e.target.value })
-          }
+          onChange={(e) => setProduct({ ...product, name: e.target.value })}
         />
 
         <input
           className="p-4 w-full rounded-xl border"
           value={product.category || ""}
-          onChange={(e) =>
-            setProduct({ ...product, category: e.target.value })
-          }
+          onChange={(e) => setProduct({ ...product, category: e.target.value })}
         />
 
         <input
           className="p-4 w-full rounded-xl border"
           value={product.barcode || ""}
-          onChange={(e) =>
-            setProduct({ ...product, barcode: e.target.value })
-          }
+          onChange={(e) => setProduct({ ...product, barcode: e.target.value })}
         />
 
         <input
           type="number"
           className="p-4 w-full rounded-xl border"
           value={product.cost}
-          onChange={(e) =>
-            setProduct({ ...product, cost: Number(e.target.value) })
-          }
+          onChange={(e) => setProduct({ ...product, cost: Number(e.target.value) })}
         />
 
         <select
           className="p-4 w-full rounded-xl border bg-white"
           value={product.type}
-          onChange={(e) =>
-            setProduct({ ...product, type: e.target.value })
-          }
+          onChange={(e) => setProduct({ ...product, type: e.target.value })}
         >
           <option value="rivendita">Rivendita</option>
           <option value="uso-interno">Uso interno</option>
@@ -190,9 +185,7 @@ export default function ModificaProdottoPage({
         <textarea
           className="p-4 w-full rounded-xl border min-h-[120px]"
           value={product.description || ""}
-          onChange={(e) =>
-            setProduct({ ...product, description: e.target.value })
-          }
+          onChange={(e) => setProduct({ ...product, description: e.target.value })}
         />
 
         <button
@@ -211,17 +204,18 @@ export default function ModificaProdottoPage({
       </div>
 
       <div className="mt-12 bg-white p-6 rounded-xl shadow-xl text-[#341A09]">
-        <h2 className="text-2xl font-bold mb-4">Giacenze nei saloni</h2>
+        <h2 className="text-2xl font-bold mb-4">Giacenze</h2>
 
-        {stock.map((s) => (
-          <div
-            key={s.salon_id}
-            className="border-b py-3 flex justify-between"
-          >
-            <span>Salone {s.salon_id}</span>
-            <span>{s.quantity}</span>
-          </div>
-        ))}
+        {stock.length === 0 ? (
+          <div className="text-sm text-gray-600">Nessuna giacenza registrata.</div>
+        ) : (
+          stock.map((s) => (
+            <div key={s.salon_id} className="border-b py-3 flex justify-between">
+              <span>{salonName(s.salon_id)}</span>
+              <span>{s.quantity}</span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

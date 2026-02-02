@@ -3,14 +3,17 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { motion } from "framer-motion";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 interface Props {
   isOpen: boolean;
   close: () => void;
   product: any;
-  salons: any[];
+  salons: any[]; // [{id,name}] includi anche centrale (5)
   onCompleted: () => void;
 }
+
+type Mode = "carico" | "scarico" | "trasferimento";
 
 export default function StockModal({
   isOpen,
@@ -19,75 +22,81 @@ export default function StockModal({
   salons,
   onCompleted,
 }: Props) {
-  const [mode, setMode] = useState<"carico" | "scarico" | "trasferimento">(
-    "carico"
-  );
-    const supabase = createClient(); // ✅ ORA FUNZIONA
+  const supabase = createClient();
+
+  const [mode, setMode] = useState<Mode>("carico");
   const [quantity, setQuantity] = useState<number>(1);
-  const [fromSalon, setFromSalon] = useState<number>(5); // Magazzino Centrale
-  const [toSalon, setToSalon] = useState<number>(1);
+
+  // default: centrale (id=5)
+  const [fromSalon, setFromSalon] = useState<number>(MAGAZZINO_CENTRALE_ID);
+  const [toSalon, setToSalon] = useState<number>(MAGAZZINO_CENTRALE_ID);
+
+  const [saving, setSaving] = useState(false);
 
   if (!isOpen || !product) return null;
 
   async function handleConfirm() {
-    if (quantity <= 0) return;
+    const qty = Number(quantity);
+    if (!Number.isFinite(qty) || qty <= 0) return;
 
-    if (mode === "carico") {
-      await supabase.from("product_stock").insert({
-        product_id: product.id,
-        salon_id: toSalon,
-        quantity,
-      });
-
-      await supabase.from("stock_movements").insert({
-        type: "carico",
-        product_id: product.id,
-        quantity,
-        from_salon: null,
-        to_salon: toSalon,
-      });
-    }
-
-    if (mode === "scarico") {
-      await supabase
-        .from("product_stock")
-        .update({ quantity: product.quantity - quantity })
-        .eq("product_id", product.id)
-        .eq("salon_id", fromSalon);
-
-      await supabase.from("stock_movements").insert({
-        type: "scarico",
-        product_id: product.id,
-        quantity,
-        from_salon: fromSalon,
-        to_salon: null,
-      });
-    }
-
+    // validazioni base
+    if (mode === "scarico" && (fromSalon == null || !Number.isFinite(fromSalon))) return;
+    if (mode === "carico" && (toSalon == null || !Number.isFinite(toSalon))) return;
     if (mode === "trasferimento") {
-      await supabase
-        .from("product_stock")
-        .update({ quantity: product.quantity - quantity })
-        .eq("product_id", product.id)
-        .eq("salon_id", fromSalon);
-
-      await supabase.from("product_stock").insert({
-        product_id: product.id,
-        salon_id: toSalon,
-        quantity,
-      });
-
-      await supabase.from("stock_movements").insert({
-        type: "trasferimento",
-        product_id: product.id,
-        quantity,
-        from_salon: fromSalon,
-        to_salon: toSalon,
-      });
+      if (fromSalon == null || toSalon == null) return;
+      if (fromSalon === toSalon) return;
     }
 
-    onCompleted();
-    close();
+    try {
+      setSaving(true);
+
+      const args =
+        mode === "carico"
+          ? {
+              p_product_id: Number(product.id),
+              p_qty: qty,
+              p_from_salon: null,
+              p_to_salon: Number(toSalon),
+              p_movement_type: "carico",
+              p_reason: "manuale",
+            }
+          : mode === "scarico"
+          ? {
+              p_product_id: Number(product.id),
+              p_qty: qty,
+              p_from_salon: Number(fromSalon),
+              p_to_salon: null,
+              p_movement_type: "scarico",
+              p_reason: "manuale",
+            }
+          : {
+              p_product_id: Number(product.id),
+              p_qty: qty,
+              p_from_salon: Number(fromSalon),
+              p_to_salon: Number(toSalon),
+              p_movement_type: "trasferimento",
+              p_reason: "manuale",
+            };
+
+      const { data, error } = await supabase.rpc("stock_move", args);
+
+      if (error) {
+        console.error("stock_move error:", error);
+        alert(error.message);
+        return;
+      }
+
+      // opzionale: se vuoi vedere risposta
+      // console.log("stock_move ok:", data);
+
+      onCompleted();
+      close();
+    } catch (e) {
+      console.error("StockModal error:", e);
+      alert("Errore durante la movimentazione");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -103,15 +112,14 @@ export default function StockModal({
 
         {/* MODALITÀ */}
         <div className="flex gap-2 mb-6">
-          {["carico", "scarico", "trasferimento"].map((m) => (
+          {(["carico", "scarico", "trasferimento"] as Mode[]).map((m) => (
             <button
               key={m}
-              onClick={() => setMode(m as any)}
+              onClick={() => setMode(m)}
+              disabled={saving}
               className={`flex-1 py-3 rounded-xl font-semibold ${
-                mode === m
-                  ? "bg-[#d8a471] text-black"
-                  : "bg-[#3a251a] text-white"
-              }`}
+                mode === m ? "bg-[#d8a471] text-black" : "bg-[#3a251a] text-white"
+              } ${saving ? "opacity-60 cursor-not-allowed" : ""}`}
             >
               {m.toUpperCase()}
             </button>
@@ -123,6 +131,7 @@ export default function StockModal({
           <select
             className="w-full p-3 mb-4 bg-[#3a251a] rounded-xl text-white"
             value={fromSalon}
+            disabled={saving}
             onChange={(e) => setFromSalon(Number(e.target.value))}
           >
             <option value="">Da salone...</option>
@@ -138,6 +147,7 @@ export default function StockModal({
           <select
             className="w-full p-3 mb-4 bg-[#3a251a] rounded-xl text-white"
             value={toSalon}
+            disabled={saving}
             onChange={(e) => setToSalon(Number(e.target.value))}
           >
             <option value="">A salone...</option>
@@ -154,6 +164,7 @@ export default function StockModal({
           type="number"
           className="w-full p-3 bg-[#3a251a] rounded-xl text-white mb-6"
           value={quantity}
+          disabled={saving}
           onChange={(e) => setQuantity(Number(e.target.value))}
           min={1}
         />
@@ -161,13 +172,17 @@ export default function StockModal({
         {/* BOTTONI */}
         <button
           onClick={handleConfirm}
-          className="w-full bg-[#d8a471] text-[#1c0f0a] py-3 rounded-xl font-bold text-lg mb-4"
+          disabled={saving}
+          className={`w-full bg-[#d8a471] text-[#1c0f0a] py-3 rounded-xl font-bold text-lg mb-4 ${
+            saving ? "opacity-60 cursor-not-allowed" : ""
+          }`}
         >
-          Conferma
+          {saving ? "Salvataggio..." : "Conferma"}
         </button>
 
         <button
           onClick={close}
+          disabled={saving}
           className="w-full text-white/70 py-2 text-center"
         >
           Annulla
