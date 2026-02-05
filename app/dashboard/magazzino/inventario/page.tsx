@@ -14,6 +14,16 @@ interface Product {
   quantity: number;
 }
 
+// SOLO saloni veri: 1..MAGAZZINO_CENTRALE_ID (5)
+function isValidSalonId(n: unknown): n is number {
+  return (
+    typeof n === "number" &&
+    Number.isFinite(n) &&
+    n >= 1 &&
+    n <= MAGAZZINO_CENTRALE_ID
+  );
+}
+
 export default function InventarioPage() {
   const supabase = useMemo(() => createClient(), []);
   const { role, activeSalonId, allowedSalons, isReady } = useActiveSalon();
@@ -25,12 +35,27 @@ export default function InventarioPage() {
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const isWarehouse = role === "magazzino" || role === "coordinator";
-  const canCarico = isWarehouse && activeSalonId === MAGAZZINO_CENTRALE_ID;
+
+  // ✅ ctxSalonId definitivo (fallback + validazione)
+  const ctxSalonId: number | null = (() => {
+    if (!isReady) return null;
+
+    // magazzino/coordinator: segue switcher, fallback centrale
+    if (isWarehouse) {
+      const v = isValidSalonId(activeSalonId) ? activeSalonId : MAGAZZINO_CENTRALE_ID;
+      return v;
+    }
+
+    // reception: deve avere un salone valido dal provider
+    return isValidSalonId(activeSalonId) ? activeSalonId : null;
+  })();
+
+  const canCarico = isWarehouse && ctxSalonId === MAGAZZINO_CENTRALE_ID;
 
   const salonName =
-    activeSalonId == null
+    ctxSalonId == null
       ? "—"
-      : allowedSalons.find((s) => s.id === activeSalonId)?.name ?? `Salone ${activeSalonId}`;
+      : allowedSalons.find((s) => s.id === ctxSalonId)?.name ?? `Salone ${ctxSalonId}`;
 
   async function fetchProducts(salonId: number, search: string, cat: string) {
     let query = supabase
@@ -38,21 +63,16 @@ export default function InventarioPage() {
       .select("product_id, name, category, barcode, quantity")
       .eq("salon_id", salonId);
 
-    if (search) query = query.ilike("name", `%${search}%`);
-    if (cat) query = query.eq("category", cat);
+    if (search.trim()) query = query.ilike("name", `%${search.trim()}%`);
+    if (cat.trim()) query = query.eq("category", cat.trim());
 
     const { data, error } = await query;
+    if (error) throw error;
 
-    if (error) {
-      console.error(error);
-      setProducts([]);
-      return;
-    }
-
-    setProducts((data as Product[]) || []);
+    return (data as Product[]) || [];
   }
 
-  // fetch quando cambia salone / filtri
+  // ✅ fetch quando cambia salone / filtri
   useEffect(() => {
     let cancelled = false;
 
@@ -61,18 +81,27 @@ export default function InventarioPage() {
 
       setErrMsg(null);
 
-      if (activeSalonId == null) {
-        setErrMsg("Nessun salone selezionato: non posso mostrare l’inventario.");
+      if (ctxSalonId == null) {
+        setProducts([]);
         setLoading(false);
+        setErrMsg(
+          isWarehouse
+            ? "Nessun salone selezionato: usa lo switcher in alto."
+            : "Questo utente non ha un salone associato: non posso mostrare l’inventario."
+        );
         return;
       }
 
       try {
         setLoading(true);
-        await fetchProducts(activeSalonId, filter, category);
-      } catch (e) {
+        const rows = await fetchProducts(ctxSalonId, filter, category);
+        if (!cancelled) setProducts(rows);
+      } catch (e: any) {
         console.error(e);
-        if (!cancelled) setErrMsg("Errore nel caricamento inventario.");
+        if (!cancelled) {
+          setProducts([]);
+          setErrMsg(e?.message ?? "Errore nel caricamento inventario.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -82,7 +111,7 @@ export default function InventarioPage() {
     return () => {
       cancelled = true;
     };
-  }, [isReady, activeSalonId, filter, category]);
+  }, [isReady, ctxSalonId, filter, category, isWarehouse]); // ✅ ctxSalonId è la chiave
 
   if (!isReady || loading) {
     return (
@@ -115,8 +144,19 @@ export default function InventarioPage() {
 
         <button
           className="bg-[#341A09] text-white rounded-xl shadow px-6 py-3"
-          onClick={() => {
-            if (activeSalonId != null) fetchProducts(activeSalonId, filter, category);
+          onClick={async () => {
+            if (ctxSalonId == null) return;
+            try {
+              setLoading(true);
+              setErrMsg(null);
+              const rows = await fetchProducts(ctxSalonId, filter, category);
+              setProducts(rows);
+            } catch (e: any) {
+              console.error(e);
+              setErrMsg(e?.message ?? "Errore aggiornamento inventario.");
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           Aggiorna
@@ -169,7 +209,7 @@ export default function InventarioPage() {
                 </td>
 
                 <td className="p-3 text-right space-x-3">
-                  {/* CARICO: ha senso solo se sei su centrale (carico dal centrale verso un salone) */}
+                  {/* CARICO: solo dal centrale verso un salone */}
                   {canCarico && (
                     <Link
                       href={`/dashboard/magazzino/carico?product=${p.product_id}`}

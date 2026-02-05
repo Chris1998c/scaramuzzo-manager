@@ -3,8 +3,17 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, PackageMinus, ShieldAlert, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  PackageMinus,
+  ShieldAlert,
+  AlertTriangle,
+} from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
+import { useUI } from "@/lib/ui-store";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+
+type Role = "coordinator" | "magazzino" | "reception" | "cliente" | string;
 
 interface Product {
   product_id: number;
@@ -25,6 +34,11 @@ function clampQty(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
 
+function salonLabel(id: number) {
+  if (id === MAGAZZINO_CENTRALE_ID) return "Magazzino Centrale";
+  return `Salone ${id}`;
+}
+
 /** ✅ Wrapper required by Next.js when using useSearchParams() */
 export default function ScaricoPage() {
   return (
@@ -38,21 +52,30 @@ function ScaricoInner() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
+  const { activeSalonId } = useUI(); // cambia dall’header senza refresh
 
   const productId = toNumberOrNull(searchParams.get("product"));
 
+  const [role, setRole] = useState<Role>("reception");
+  const [userSalonId, setUserSalonId] = useState<number | null>(null);
+
+  // ✅ contesto su cui scarichiamo:
+  // - magazzino/coordinator -> activeSalonId (può essere 1..4 o 5 centrale)
+  // - reception -> userSalonId
+  const [ctxSalonId, setCtxSalonId] = useState<number | null>(null);
+
   const [product, setProduct] = useState<Product | null>(null);
   const [qty, setQty] = useState<number>(1);
-  const [salonId, setSalonId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // 1) Load user + decide ruolo + set ctx
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
+    async function initUser() {
       try {
         setLoading(true);
         setErrorMsg(null);
@@ -71,19 +94,78 @@ function ScaricoInner() {
           return;
         }
 
-        const sId = toNumberOrNull(user.user_metadata?.salon_id ?? null);
-        if (sId === null) {
-          setErrorMsg("salon_id non presente sull’utente.");
-          return;
-        }
+        const r: Role = String(user.user_metadata?.role ?? "reception");
+        const sid = toNumberOrNull(user.user_metadata?.salon_id ?? null);
 
         if (cancelled) return;
-        setSalonId(sId);
+
+        setRole(r);
+        setUserSalonId(sid);
+
+        const isWarehouse = r === "magazzino" || r === "coordinator";
+
+        if (isWarehouse) {
+          // activeSalonId arriva dallo store (header)
+          // se per caso è NaN, fallback centrale
+          const v = Number.isFinite(activeSalonId)
+            ? Number(activeSalonId)
+            : MAGAZZINO_CENTRALE_ID;
+
+          setCtxSalonId(v);
+        } else {
+          // reception: obbligatorio il suo salone
+          if (sid == null) {
+            setCtxSalonId(null);
+            setErrorMsg("salon_id non presente sull’utente.");
+            return;
+          }
+          setCtxSalonId(sid);
+        }
+      } catch (err) {
+        console.error("Scarico init user error:", err);
+        if (!cancelled) setErrorMsg("Errore nel caricamento utente.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    initUser();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, productId]);
+
+  // 2) Se cambia activeSalonId, aggiorna ctx SOLO per magazzino/coordinator
+  useEffect(() => {
+    if (!productId || productId <= 0) return;
+    const isWarehouse = role === "magazzino" || role === "coordinator";
+    if (!isWarehouse) return;
+
+    const v = Number.isFinite(activeSalonId)
+      ? Number(activeSalonId)
+      : MAGAZZINO_CENTRALE_ID;
+
+    if (ctxSalonId !== v) setCtxSalonId(v);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSalonId, role, productId]);
+
+  // 3) Fetch product quando cambia ctxSalonId o productId
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchProduct() {
+      if (!productId || productId <= 0) return;
+      if (ctxSalonId == null) return;
+
+      try {
+        setErrorMsg(null);
+        setProduct(null);
 
         const { data: prod, error: prodErr } = await supabase
           .from("products_with_stock")
           .select("product_id, name, category, barcode, quantity")
-          .eq("salon_id", sId)
+          .eq("salon_id", ctxSalonId) // ✅ qui sta il fix
           .eq("product_id", productId)
           .maybeSingle();
 
@@ -92,7 +174,6 @@ function ScaricoInner() {
         if (prodErr) {
           console.error(prodErr);
           setErrorMsg("Errore nel recupero del prodotto.");
-          setProduct(null);
           return;
         }
 
@@ -101,27 +182,32 @@ function ScaricoInner() {
 
         if (p?.quantity && p.quantity > 0) {
           setQty((q) => clampQty(q, 1, p.quantity));
+        } else {
+          setQty(1);
         }
-      } catch (err) {
-        console.error("Scarico init error:", err);
-        if (!cancelled) setErrorMsg("Errore nel caricamento della pagina scarico.");
-      } finally {
-        if (!cancelled) setLoading(false);
+      } catch (e) {
+        console.error("Scarico fetch product error:", e);
+        if (!cancelled) setErrorMsg("Errore nel recupero del prodotto.");
       }
     }
 
-    init();
-
+    fetchProduct();
     return () => {
       cancelled = true;
     };
-  }, [productId, supabase]);
+  }, [supabase, productId, ctxSalonId]);
 
   const maxQty = product?.quantity ?? 0;
-  const disabled = !product || salonId === null || submitting || qty <= 0 || qty > maxQty || maxQty <= 0;
+  const disabled =
+    !product ||
+    ctxSalonId === null ||
+    submitting ||
+    qty <= 0 ||
+    qty > maxQty ||
+    maxQty <= 0;
 
   const handleScarico = async () => {
-    if (salonId === null || !product) return;
+    if (ctxSalonId === null || !product) return;
 
     const q = clampQty(Number(qty), 1, product.quantity);
     if (q > product.quantity) return;
@@ -134,10 +220,10 @@ function ScaricoInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          salonId,
+          salonId: ctxSalonId, // ✅ scarica dal contesto (header per warehouse)
           productId: product.product_id,
           qty: q,
-          reason: "scarico",
+          reason: "scarico_app",
         }),
       });
 
@@ -160,6 +246,13 @@ function ScaricoInner() {
     }
   };
 
+  const titleSalon =
+    role === "magazzino" || role === "coordinator"
+      ? salonLabel(ctxSalonId ?? MAGAZZINO_CENTRALE_ID)
+      : userSalonId != null
+      ? salonLabel(userSalonId)
+      : "Salone";
+
   return (
     <div className="min-h-[calc(100vh-64px)] w-full space-y-6">
       {/* HERO */}
@@ -178,10 +271,12 @@ function ScaricoInner() {
               <div className="min-w-0">
                 <div className="text-sm text-[#c9b299]">Magazzino</div>
                 <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                  Scarico dal Salone
+                  Scarico — {titleSalon}
                 </h1>
                 <p className="text-[#c9b299] mt-2 max-w-2xl">
-                  Scarica quantità dalla giacenza del salone associato all’utente.
+                  {role === "magazzino" || role === "coordinator"
+                    ? "Scarica quantità dalla giacenza del salone attualmente in vista (header)."
+                    : "Scarica quantità dalla giacenza del tuo salone."}
                 </p>
               </div>
 
@@ -226,14 +321,14 @@ function ScaricoInner() {
               <div className="min-w-0">
                 <div className="text-[#f3d8b6] font-extrabold">Prodotto non trovato</div>
                 <div className="text-[#c9b299] mt-1 text-sm">
-                  Prodotto non trovato o senza giacenza nel salone.
+                  Prodotto non presente o senza giacenza nel contesto selezionato.
                 </div>
               </div>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* LEFT: product info */}
+            {/* LEFT */}
             <div className="lg:col-span-1 rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">
               <div className="text-[#f3d8b6] font-extrabold text-lg leading-tight">
                 {product.name}
@@ -253,7 +348,7 @@ function ScaricoInner() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span>Disponibili (salone)</span>
+                  <span>Disponibili</span>
                   <span className="text-[#f3d8b6] font-extrabold">
                     {product.quantity}
                   </span>
@@ -267,7 +362,7 @@ function ScaricoInner() {
               )}
             </div>
 
-            {/* RIGHT: form */}
+            {/* RIGHT */}
             <div className="lg:col-span-2 rounded-2xl bg-[#FFF9F4] border border-black/5 p-6 text-[#341A09]">
               <div>
                 <label className="font-extrabold block mb-2">Quantità da scaricare</label>
@@ -281,7 +376,9 @@ function ScaricoInner() {
                   }
                   className="w-full p-3 rounded-xl border bg-white"
                 />
-                <p className="mt-2 text-sm opacity-70">Disponibili: {product.quantity}</p>
+                <p className="mt-2 text-sm opacity-70">
+                  Disponibili: {product.quantity}
+                </p>
               </div>
 
               <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">

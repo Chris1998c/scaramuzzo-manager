@@ -4,6 +4,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const MAGAZZINO_CENTRALE_ID = 5;
 
+// Saloni validi: 1..4 + centrale 5
+function isValidSalonId(id: number) {
+  return Number.isFinite(id) && id >= 1 && id <= MAGAZZINO_CENTRALE_ID;
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -17,8 +22,8 @@ export async function POST(req: Request) {
         ? String(body.reason).trim()
         : "scarico_app";
 
-    // VALIDAZIONI COERENTI COL DB
-    if (!Number.isFinite(salonId) || salonId < MAGAZZINO_CENTRALE_ID) {
+    // VALIDAZIONI
+    if (!isValidSalonId(salonId)) {
       return NextResponse.json({ error: "salonId non valido" }, { status: 400 });
     }
     if (!Number.isFinite(productId) || productId <= 0) {
@@ -34,32 +39,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const role = String(userData.user.user_metadata?.role ?? "");
-    const allowed =
-      role === "coordinator" ||
-      role === "magazzino" ||
-      role === "reception";
+    const meta: any = userData.user.user_metadata ?? {};
+    const role = String(meta?.role ?? "");
 
+    const allowed = role === "coordinator" || role === "magazzino" || role === "reception";
     if (!allowed) {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }
 
     // RECEPTION: può scaricare SOLO dal proprio salone
     if (role === "reception") {
-      const { data: us, error: usErr } = await supabase
-        .from("user_salons")
-        .select("salon_id")
-        .eq("user_id", userData.user.id)
-        .maybeSingle();
+      // preferisco il salon_id da user_metadata (più veloce e coerente col tuo setup)
+      const mySalonId = Number(meta?.salon_id);
 
-      if (usErr || us?.salon_id == null) {
+      if (!Number.isFinite(mySalonId) || mySalonId < 1) {
         return NextResponse.json(
-          { error: "Salone utente non trovato" },
+          { error: "salon_id mancante sull'utente reception" },
           { status: 403 }
         );
       }
 
-      if (Number(us.salon_id) !== salonId) {
+      if (mySalonId !== salonId) {
         return NextResponse.json(
           { error: "Non puoi scaricare su un altro salone" },
           { status: 403 }
@@ -67,11 +67,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // RPC DEFINITIVA
-    const { error } = await supabaseAdmin.rpc("stock_decrease", {
-      p_salon: salonId,
+    // RPC UNICA DEFINITIVA:
+    // scarico = movimento in uscita dal salone (from = salonId, to = null)
+    const { error } = await supabaseAdmin.rpc("stock_move", {
       p_product: productId,
       p_qty: qty,
+      p_from_salon: salonId,
+      p_to_salon: null,
       p_reason: reason,
     });
 
@@ -79,7 +81,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message ?? "Errore scarico" },

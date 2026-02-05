@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 interface Movement {
   id: number;
@@ -17,11 +18,11 @@ interface Movement {
 }
 
 const SALONI_LABEL: Record<number, string> = {
-  0: "Magazzino Centrale",
   1: "Corigliano",
   2: "Cosenza",
   3: "Castrovillari",
   4: "Roma",
+  5: "Magazzino Centrale",
 };
 
 function salonLabel(id: number | null) {
@@ -63,7 +64,6 @@ export default function TrasferimentoDetailPage() {
           return;
         }
 
-        // Auth check (solo per evitare pagine vuote anonime)
         const { data, error } = await supabase.auth.getUser();
         if (error) throw error;
         if (!data.user) {
@@ -73,9 +73,7 @@ export default function TrasferimentoDetailPage() {
 
         const { data: movs, error: movErr } = await supabase
           .from("movimenti_view")
-          .select(
-            "id,created_at,product_id,product_name,quantity,movement_type,from_salon,to_salon,reason"
-          )
+          .select("id,created_at,product_id,product_name,quantity,movement_type,from_salon,to_salon,reason")
           .eq("product_id", productId)
           .order("created_at", { ascending: false });
 
@@ -124,9 +122,7 @@ export default function TrasferimentoDetailPage() {
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3] min-h-screen">
       <h1 className="text-3xl font-bold mb-2">Dettaglio — {title}</h1>
-      <p className="opacity-70 mb-8">
-        Storico movimenti per questo prodotto (read-only).
-      </p>
+      <p className="opacity-70 mb-8">Storico movimenti per questo prodotto (read-only).</p>
 
       <div className="bg-[#FFF9F4] text-[#341A09] p-6 rounded-xl shadow">
         <table className="w-full text-sm">
@@ -140,6 +136,7 @@ export default function TrasferimentoDetailPage() {
               <th className="p-3 text-left">Motivo</th>
             </tr>
           </thead>
+
           <tbody>
             {rows.map((m) => (
               <tr key={m.id} className="border-b">

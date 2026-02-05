@@ -1,15 +1,15 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 export type RoleName = "coordinator" | "reception" | "magazzino" | "cliente";
-
 export type AllowedSalon = { id: number; name: string };
 
 type ActiveSalonContextValue = {
   role: RoleName;
-  activeSalonId: number | null;          // SEMPRE un solo salone
-  canChooseSalon: boolean;               // solo coordinator
+  activeSalonId: number | null;          // salone attivo (es. 5 centrale o 1..4)
+  canChooseSalon: boolean;               // coordinator + magazzino
   allowedSalonIds: number[];             // lista consentita
   allowedSalons: AllowedSalon[];         // id + name (per la select)
   setActiveSalonId: (id: number) => void;
@@ -32,6 +32,13 @@ type Props = {
   defaultSalonId?: number | null;
 };
 
+function pickDefaultSalonId(allowedSalonIds: number[], fallback?: number | null) {
+  // Preferisci sempre il MAGAZZINO_CENTRALE_ID se presente
+  if (allowedSalonIds.includes(MAGAZZINO_CENTRALE_ID)) return MAGAZZINO_CENTRALE_ID;
+  if (fallback != null && allowedSalonIds.includes(fallback)) return fallback;
+  return allowedSalonIds[0] ?? null;
+}
+
 export function ActiveSalonProvider({
   children,
   role,
@@ -39,24 +46,29 @@ export function ActiveSalonProvider({
   allowedSalons,
   defaultSalonId = null,
 }: Props) {
-  const canChooseSalon = role === "coordinator";
+  // ✅ MAGAZZINO + COORDINATOR possono cambiare salone
+  const canChooseSalon = role === "coordinator" || role === "magazzino";
 
-  // reception/magazzino: salone forzato = primo consentito
+  // ✅ SOLO reception/cliente forzati al primo consentito
   const forcedSalonId = !canChooseSalon ? (allowedSalonIds[0] ?? null) : null;
 
-  const [activeSalonId, _setActiveSalonId] = useState<number | null>(
-    forcedSalonId ?? defaultSalonId ?? (allowedSalonIds[0] ?? null)
-  );
+  const [activeSalonId, _setActiveSalonId] = useState<number | null>(() => {
+    // init sync (no localStorage in init)
+    return forcedSalonId ?? pickDefaultSalonId(allowedSalonIds, defaultSalonId);
+  });
+
   const [isReady, setIsReady] = useState(false);
 
-  // init / re-init quando cambiano permessi
+  // init / re-init quando cambiano ruolo/permessi
   useEffect(() => {
+    // reception/cliente: sempre forzato
     if (!canChooseSalon) {
       _setActiveSalonId(forcedSalonId);
       setIsReady(true);
       return;
     }
 
+    // coordinator/magazzino: prova a ripristinare da localStorage
     const saved = window.localStorage.getItem("sm_activeSalonId");
     const savedNum = saved ? Number(saved) : NaN;
 
@@ -67,30 +79,33 @@ export function ActiveSalonProvider({
     } else if (defaultSalonId != null && allowedSalonIds.includes(defaultSalonId)) {
       initial = defaultSalonId;
     } else {
-      initial = allowedSalonIds[0] ?? null;
+      initial = pickDefaultSalonId(allowedSalonIds, defaultSalonId);
     }
 
     _setActiveSalonId(initial);
     setIsReady(true);
   }, [canChooseSalon, forcedSalonId, defaultSalonId, allowedSalonIds]);
 
-  // se activeSalonId diventa non valido (es. permessi cambiati), fallback
+  // se activeSalonId diventa non valido (permessi cambiati), fallback
   useEffect(() => {
     if (!isReady) return;
+
     const effective = forcedSalonId ?? activeSalonId;
     if (effective == null) return;
 
     if (!allowedSalonIds.includes(effective)) {
-      const fallback = forcedSalonId ?? (allowedSalonIds[0] ?? null);
+      const fallback = forcedSalonId ?? pickDefaultSalonId(allowedSalonIds, defaultSalonId);
       _setActiveSalonId(fallback);
+
+      // salva solo se può scegliere
       if (canChooseSalon && fallback != null) {
         window.localStorage.setItem("sm_activeSalonId", String(fallback));
       }
     }
-  }, [isReady, activeSalonId, forcedSalonId, allowedSalonIds, canChooseSalon]);
+  }, [isReady, activeSalonId, forcedSalonId, allowedSalonIds, canChooseSalon, defaultSalonId]);
 
   const setActiveSalonId = (id: number) => {
-    if (!canChooseSalon) return;                 // reception/magazzino non cambiano
+    if (!canChooseSalon) return;                 // reception/cliente NON cambiano
     if (!allowedSalonIds.includes(id)) return;   // guardrail
 
     _setActiveSalonId(id);

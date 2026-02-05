@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { Repeat } from "lucide-react";
-import { useUI, MAGAZZINO_CENTRALE_ID } from "@/lib/ui-store";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
+import { MAGAZZINO_CENTRALE_ID, toSalonId } from "@/lib/constants";
 
 interface ProductRow {
   product_id: number;
@@ -25,17 +26,10 @@ const SALONI = [
   { id: 5, name: "Magazzino Centrale" },
 ];
 
-function toSalonId(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) && n >= 0 ? n : null; // accetta 0
-}
-
 export default function TrasferimentiPage() {
   const supabase = useMemo(() => createClient(), []);
-  const { activeSalonId } = useUI(); // SEMPRE number (0 incluso)
+  const { role, activeSalonId, isReady } = useActiveSalon();
 
-  const [role, setRole] = useState<string>("reception");
   const [userSalonId, setUserSalonId] = useState<number | null>(null);
 
   const [fromSalon, setFromSalon] = useState<number | null>(null);
@@ -46,7 +40,7 @@ export default function TrasferimentiPage() {
   const [loading, setLoading] = useState(true);
 
   const isWarehouse = role === "magazzino" || role === "coordinator";
-  const disableFromSelect = !isWarehouse; // reception non cambia "Da"
+  const disableFromSelect = !isWarehouse;
 
   const toOptions = useMemo(() => {
     if (fromSalon === null) return SALONI.filter((s) => s.id !== MAGAZZINO_CENTRALE_ID);
@@ -54,14 +48,14 @@ export default function TrasferimentiPage() {
   }, [fromSalon]);
 
   function pickDefaultTo(from: number | null) {
-    // se from è null -> fallback 1
     if (from === null) return 1;
-    // scegli il primo salone "reale" diverso da from (può essere anche 0 se from !=0)
-    const first =
-      SALONI.find((x) => x.id !== from && x.id !== MAGAZZINO_CENTRALE_ID)?.id ??
-      SALONI.find((x) => x.id !== from)?.id ??
-      1;
-    return first;
+
+    // preferisci sempre un salone reale (1..4) diverso da from
+    const firstReal =
+      SALONI.find((x) => x.id !== from && x.id !== MAGAZZINO_CENTRALE_ID)?.id ?? 1;
+
+    // se from è un salone reale, ok; se from è centrale 5, firstReal sarà 1
+    return firstReal;
   }
 
   async function fetchProducts(salonId: number) {
@@ -80,10 +74,13 @@ export default function TrasferimentiPage() {
     setProducts(((data as ProductRow[]) ?? []).filter((p) => (p.quantity ?? 0) > 0));
   }
 
+  // carica user + default from/to
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      if (!isReady) return;
+
       try {
         setLoading(true);
 
@@ -93,20 +90,17 @@ export default function TrasferimentiPage() {
         const user = data.user;
         if (!user) return;
 
-        const r = String(user.user_metadata?.role ?? "reception");
         const sid = toSalonId(user.user_metadata?.salon_id ?? null);
 
         if (cancelled) return;
-
-        setRole(r);
         setUserSalonId(sid);
 
-        const wh = r === "magazzino" || r === "coordinator";
-
         // DEFAULT DEFINITIVO:
-        // - magazzino/coordinator: from = activeSalonId (default 0 centrale)
+        // - magazzino/coordinator: from = activeSalonId (se valido) altrimenti 5
         // - reception/cliente: from = proprio salone (obbligatorio)
-        const defaultFrom = wh ? (Number.isFinite(activeSalonId) ? activeSalonId : MAGAZZINO_CENTRALE_ID) : sid;
+        const defaultFrom = isWarehouse
+          ? (activeSalonId ?? MAGAZZINO_CENTRALE_ID)
+          : sid;
 
         setFromSalon(defaultFrom);
 
@@ -115,7 +109,7 @@ export default function TrasferimentiPage() {
 
         setSelected([]);
 
-        if (defaultFrom !== null) {
+        if (defaultFrom != null) {
           await fetchProducts(defaultFrom);
         } else {
           setProducts([]);
@@ -129,18 +123,15 @@ export default function TrasferimentiPage() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, [supabase, isReady, isWarehouse, activeSalonId]);
 
-  // COERENZA DEFINITIVA CON HEADER:
-  // se sei coordinator/magazzino e cambi "Vista" nell'header, cambiamo FROM
+  // se warehouse cambia vista dall’header => cambia FROM
   useEffect(() => {
+    if (!isReady) return;
     if (loading) return;
     if (!isWarehouse) return;
 
-    const v = Number.isFinite(activeSalonId) ? activeSalonId : MAGAZZINO_CENTRALE_ID;
-
-    // se già uguale non fare nulla
+    const v = activeSalonId ?? MAGAZZINO_CENTRALE_ID;
     if (fromSalon === v) return;
 
     setFromSalon(v);
@@ -149,7 +140,7 @@ export default function TrasferimentiPage() {
     setSelected([]);
     fetchProducts(v);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSalonId]);
+  }, [activeSalonId, isReady, loading, isWarehouse]);
 
   function add(prod: ProductRow) {
     setSelected((prev) => {
@@ -181,7 +172,7 @@ export default function TrasferimentiPage() {
     if (!selected.length) return;
     if (fromSalon === toSalon) return;
 
-    // BLOCCO DEFINITIVO: reception non esegue trasferimenti
+    // BLOCCO DEFINITIVO: reception/cliente NON eseguono trasferimenti
     if (role === "reception" || role === "cliente") {
       alert("Come reception non puoi eseguire trasferimenti. Chiedi al magazzino.");
       return;
@@ -232,7 +223,7 @@ export default function TrasferimentiPage() {
     );
   }
 
-  if (loading || fromSalon === null) {
+  if (!isReady || loading || fromSalon === null) {
     return (
       <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3]">
         Caricamento…
@@ -242,15 +233,11 @@ export default function TrasferimentiPage() {
 
   return (
     <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3] space-y-10">
-      {/* TITOLO */}
       <div className="flex items-center gap-4">
         <Repeat size={44} strokeWidth={1.5} className="text-[#B88A54]" />
-        <h1 className="text-4xl font-bold text-[#B88A54]">
-          Trasferimenti di Magazzino
-        </h1>
+        <h1 className="text-4xl font-bold text-[#B88A54]">Trasferimenti di Magazzino</h1>
       </div>
 
-      {/* SELEZIONE SALONI */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#FDF8F3] text-[#341A09] p-6 shadow rounded-2xl">
         <div>
           <label className="font-semibold">Da</label>
@@ -273,10 +260,9 @@ export default function TrasferimentiPage() {
               </option>
             ))}
           </select>
+
           {!isWarehouse && (
-            <p className="text-xs opacity-60 mt-2">
-              Come reception, lavori solo sul tuo salone.
-            </p>
+            <p className="text-xs opacity-60 mt-2">Come reception, lavori solo sul tuo salone.</p>
           )}
         </div>
 
@@ -296,9 +282,7 @@ export default function TrasferimentiPage() {
         </div>
       </div>
 
-      {/* LISTE PRODOTTI */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* DISPONIBILI */}
         <div className="bg-[#FDF8F3] text-[#341A09] p-6 rounded-2xl shadow space-y-3">
           <h2 className="font-semibold text-xl text-[#B88A54]">Disponibili</h2>
 
@@ -321,17 +305,13 @@ export default function TrasferimentiPage() {
           )}
         </div>
 
-        {/* TRASFERITI */}
         <div className="bg-[#FDF8F3] text-[#341A09] p-6 rounded-2xl shadow space-y-3">
           <h2 className="font-semibold text-xl text-[#B88A54]">Trasferiti</h2>
 
           {selected.map((s) => {
             const max = maxFor(s.product_id);
             return (
-              <div
-                key={s.product_id}
-                className="flex justify-between border-b py-2 items-center"
-              >
+              <div key={s.product_id} className="flex justify-between border-b py-2 items-center">
                 <span>
                   {s.name} <span className="opacity-60 text-sm">(max {max})</span>
                 </span>
@@ -350,15 +330,18 @@ export default function TrasferimentiPage() {
           <button
             className="w-full py-4 mt-5 bg-[#0FA958] text-white rounded-2xl text-lg font-semibold hover:scale-[1.02] transition disabled:opacity-40"
             onClick={completa}
-            disabled={!selected.length || fromSalon === toSalon || role === "reception" || role === "cliente"}
+            disabled={
+              !selected.length ||
+              fromSalon === toSalon ||
+              role === "reception" ||
+              role === "cliente"
+            }
           >
             Completa Trasferimento
           </button>
 
           {(role === "reception" || role === "cliente") && (
-            <p className="text-xs opacity-60">
-              Nota: come reception non puoi eseguire trasferimenti.
-            </p>
+            <p className="text-xs opacity-60">Nota: come reception non puoi eseguire trasferimenti.</p>
           )}
         </div>
       </div>

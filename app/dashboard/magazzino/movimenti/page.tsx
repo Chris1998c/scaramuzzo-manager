@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
-import { useUI, MAGAZZINO_CENTRALE_ID } from "@/lib/ui-store";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 interface Movement {
   id: number;
@@ -11,17 +12,17 @@ interface Movement {
   product_name: string;
   category: string | null;
   quantity: number;
-  movement_type: string;
+  movement_type: "carico" | "scarico" | "trasferimento" | string;
   from_salon: number | null;
   to_salon: number | null;
 }
 
 const SALONI_LABEL: Record<number, string> = {
-  0: "Magazzino Centrale",
   1: "Corigliano",
   2: "Cosenza",
   3: "Castrovillari",
   4: "Roma",
+  5: "Magazzino Centrale",
 };
 
 function salonLabel(id: number) {
@@ -31,32 +32,37 @@ function salonLabel(id: number) {
 function toSalonId(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
-  // accetta 0
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  return Number.isFinite(n) && n >= 1 ? n : null; // ✅ 1..n (qui 1..5)
 }
 
 export default function MovimentiPage() {
   const supabase = useMemo(() => createClient(), []);
-  const { activeSalonId } = useUI();
 
-  const [role, setRole] = useState("reception");
+  // ✅ nuovo sistema
+  const { role, activeSalonId, isReady } = useActiveSalon();
+
   const [userSalonId, setUserSalonId] = useState<number | null>(null);
 
-  // contesto definitivo: SEMPRE number (0 = tutti/centrale)
-  const [ctx, setCtx] = useState<number>(MAGAZZINO_CENTRALE_ID);
+  // ✅ contesto: SEMPRE 1..5
+  const [ctxSalonId, setCtxSalonId] = useState<number>(MAGAZZINO_CENTRALE_ID);
 
   const [movements, setMovements] = useState<Movement[]>([]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | "carico" | "scarico" | "trasferimento">("");
-  const [loading, setLoading] = useState(true);
+  const [loadingUser, setLoadingUser] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
+  const isWarehouse = role === "coordinator" || role === "magazzino";
+
+  // ---------------------------
+  // LOAD USER (solo per ricavare salon_id della reception/cliente)
+  // ---------------------------
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
+    async function loadUser() {
       try {
-        setLoading(true);
+        setLoadingUser(true);
         setErrMsg(null);
 
         const { data, error } = await supabase.auth.getUser();
@@ -68,62 +74,71 @@ export default function MovimentiPage() {
           return;
         }
 
-        const r = String(user.user_metadata?.role ?? "reception");
         const sid = toSalonId(user.user_metadata?.salon_id ?? null);
 
         if (cancelled) return;
-        setRole(r);
         setUserSalonId(sid);
       } catch (e) {
         console.error(e);
         if (!cancelled) setErrMsg("Errore nel caricamento utente.");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoadingUser(false);
       }
     }
 
-    init();
+    loadUser();
     return () => {
       cancelled = true;
     };
   }, [supabase]);
 
-  // ctx definitivo:
-  // - reception/cliente -> sempre userSalonId (se manca, blocco)
-  // - coordinator/magazzino -> usa activeSalonId (0 = tutti)
+  // ---------------------------
+  // CTX DEFINITIVO
+  // - warehouse -> segue activeSalonId (dallo switcher)
+  // - reception/cliente -> segue userSalonId
+  // ---------------------------
   useEffect(() => {
-    if (loading) return;
-
-    const isWarehouse = role === "coordinator" || role === "magazzino";
+    if (!isReady) return;
+    if (loadingUser) return;
 
     if (!isWarehouse) {
-      setCtx(userSalonId ?? -1); // -1 = stato invalido per bloccare fetch
+      // reception/cliente: obbligatorio avere salon_id
+      if (userSalonId == null) {
+        setCtxSalonId(MAGAZZINO_CENTRALE_ID); // placeholder
+        return;
+      }
+      setCtxSalonId(userSalonId);
       return;
     }
 
-    setCtx(Number.isFinite(activeSalonId) ? activeSalonId : MAGAZZINO_CENTRALE_ID);
-  }, [activeSalonId, role, userSalonId, loading]);
+    // warehouse: activeSalonId deve essere valido
+    const v =
+      Number.isFinite(activeSalonId) &&
+      (activeSalonId as number) >= 1
+        ? (activeSalonId as number)
+        : MAGAZZINO_CENTRALE_ID;
 
-  async function fetchMovements(contextSalonId: number, searchText: string, type: typeof typeFilter) {
-    // contextSalonId:
-    // - 0 => "tutti i saloni" (vista aggregata)
-    // - >0 => filtra movimenti dove from/to = quel salone
-    // - -1 => invalido (non fetchare)
-    if (contextSalonId === -1) return;
+    setCtxSalonId(v);
+  }, [isReady, loadingUser, isWarehouse, activeSalonId, userSalonId]);
 
+  // ---------------------------
+  // FETCH MOVEMENTS (filtrato SEMPRE su ctxSalonId)
+  // ---------------------------
+  async function fetchMovements(salonId: number, searchText: string, type: typeof typeFilter) {
     let query = supabase
       .from("movimenti_view")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (contextSalonId !== MAGAZZINO_CENTRALE_ID) {
-      query = query.or(`from_salon.eq.${contextSalonId},to_salon.eq.${contextSalonId}`);
-    }
+    // ✅ SEMPRE: dove from_salon o to_salon = salone corrente
+    query = query.or(`from_salon.eq.${salonId},to_salon.eq.${salonId}`);
 
-    if (searchText.trim()) query = query.ilike("product_name", `%${searchText.trim()}%`);
+    const st = searchText.trim();
+    if (st) query = query.ilike("product_name", `%${st}%`);
     if (type) query = query.eq("movement_type", type);
 
     const { data, error } = await query;
+
     if (error) {
       console.error(error);
       setMovements([]);
@@ -135,15 +150,17 @@ export default function MovimentiPage() {
     setMovements((data as Movement[]) || []);
   }
 
+  // fetch automatico quando cambia ctx/filtri
   useEffect(() => {
-    if (loading) return;
+    if (!isReady) return;
+    if (loadingUser) return;
 
     // reception senza salon_id: blocco definitivo
-    if ((role === "reception" || role === "cliente") && userSalonId === null) return;
+    if (!isWarehouse && userSalonId == null) return;
 
-    fetchMovements(ctx, search, typeFilter);
+    fetchMovements(ctxSalonId, search, typeFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx, search, typeFilter, loading]);
+  }, [isReady, loadingUser, ctxSalonId, search, typeFilter]);
 
   function formatDate(dateString: string): string {
     const d = new Date(dateString);
@@ -172,8 +189,15 @@ export default function MovimentiPage() {
     return m.movement_type;
   }
 
-  if (loading) {
-    return <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">Caricamento…</div>;
+  // ---------------------------
+  // UI STATES
+  // ---------------------------
+  if (!isReady || loadingUser) {
+    return (
+      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
+        Caricamento…
+      </div>
+    );
   }
 
   if (errMsg) {
@@ -185,7 +209,7 @@ export default function MovimentiPage() {
     );
   }
 
-  if ((role === "reception" || role === "cliente") && userSalonId === null) {
+  if (!isWarehouse && userSalonId == null) {
     return (
       <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
         <h1 className="text-3xl font-bold mb-3">Movimenti</h1>
@@ -196,13 +220,15 @@ export default function MovimentiPage() {
     );
   }
 
-  const titleSuffix = salonLabel(ctx); // 0 -> Magazzino Centrale
+  const titleSuffix = salonLabel(ctxSalonId);
 
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
       <h1 className="text-3xl font-bold mb-3">Movimenti — {titleSuffix}</h1>
 
-      <p className="text-white/60 mb-6">Storico movimenti sincronizzato con il salone attivo.</p>
+      <p className="text-white/60 mb-6">
+        Storico movimenti sincronizzato con il salone attivo.
+      </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
         <input
@@ -225,7 +251,7 @@ export default function MovimentiPage() {
 
         <button
           className="bg-[#341A09] text-white rounded-xl shadow px-6 py-4 hover:opacity-90 transition"
-          onClick={() => fetchMovements(ctx, search, typeFilter)}
+          onClick={() => fetchMovements(ctxSalonId, search, typeFilter)}
         >
           Aggiorna
         </button>

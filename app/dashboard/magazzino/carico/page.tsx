@@ -3,19 +3,27 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, PackagePlus, ShieldAlert, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  PackagePlus,
+  ShieldAlert,
+  AlertTriangle,
+  Search,
+} from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
+import { useUI } from "@/lib/ui-store";
 
-interface Product {
+interface ProductRow {
   product_id: number;
   name: string;
   category: string | null;
   barcode: string | null;
-  quantity: number; // giacenza del MAGAZZINO CENTRALE
+  quantity: number; // giacenza del MAGAZZINO CENTRALE (ID 5)
 }
 
 const MAGAZZINO_CENTRALE_ID = 5;
 
+// saloni “operativi” (non includo il centrale qui perché è solo sorgente)
 const SALONI: { id: number; name: string }[] = [
   { id: 1, name: "Corigliano" },
   { id: 2, name: "Cosenza" },
@@ -48,15 +56,36 @@ function CaricoInner() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
 
-  const productId = toNumberOrNull(searchParams.get("product"));
+  // 👇 DESTINAZIONE: prende il salone selezionato dall’header (switcher)
+  const { activeSalonId } = useUI();
 
-  const [product, setProduct] = useState<Product | null>(null);
+  const productIdFromUrl = toNumberOrNull(searchParams.get("product"));
+
+  const [role, setRole] = useState<string>("reception");
+
+  const [product, setProduct] = useState<ProductRow | null>(null);
   const [qty, setQty] = useState<number>(1);
-  const [toSalonId, setToSalonId] = useState<number>(1);
+
+  // destinazione: se activeSalonId è un salone valido (1..4) lo uso, altrimenti 1
+  const [toSalonId, setToSalonId] = useState<number>(() => {
+    const v = Number(activeSalonId);
+    return SALONI.some((s) => s.id === v) ? v : 1;
+  });
+
+  // lista prodotti (quando mancano query param)
+  const [list, setList] = useState<ProductRow[]>([]);
+  const [search, setSearch] = useState("");
 
   const [loading, setLoading] = useState(true);
+  const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // se cambia lo switcher in header aggiorno destinazione (solo se è un salone 1..4)
+  useEffect(() => {
+    const v = Number(activeSalonId);
+    if (SALONI.some((s) => s.id === v)) setToSalonId(v);
+  }, [activeSalonId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,11 +94,6 @@ function CaricoInner() {
       try {
         setLoading(true);
         setErrorMsg(null);
-
-        if (!productId || productId <= 0) {
-          setErrorMsg("Parametro prodotto mancante o non valido.");
-          return;
-        }
 
         const { data, error } = await supabase.auth.getUser();
         if (error) throw error;
@@ -80,37 +104,44 @@ function CaricoInner() {
           return;
         }
 
-        const role = String(user.user_metadata?.role ?? "reception");
+        const r = String(user.user_metadata?.role ?? "reception");
+        setRole(r);
 
         // Solo magazzino/coordinator possono fare carico
-        if (role !== "magazzino" && role !== "coordinator") {
+        if (r !== "magazzino" && r !== "coordinator") {
           setErrorMsg("Permessi insufficienti per eseguire un carico.");
           return;
         }
 
-        // Prodotto dal MAGAZZINO CENTRALE (0)
-        const { data: prod, error: prodErr } = await supabase
-          .from("products_with_stock")
-          .select("product_id, name, category, barcode, quantity")
-          .eq("salon_id", MAGAZZINO_CENTRALE_ID)
-          .eq("product_id", productId)
-          .maybeSingle();
+        // ✅ se ho product in URL, carico direttamente quel prodotto
+        if (productIdFromUrl && productIdFromUrl > 0) {
+          const { data: prod, error: prodErr } = await supabase
+            .from("products_with_stock")
+            .select("product_id, name, category, barcode, quantity")
+            .eq("salon_id", MAGAZZINO_CENTRALE_ID)
+            .eq("product_id", productIdFromUrl)
+            .maybeSingle();
 
-        if (cancelled) return;
+          if (cancelled) return;
 
-        if (prodErr) {
-          console.error(prodErr);
-          setErrorMsg("Errore nel recupero del prodotto dal magazzino centrale.");
+          if (prodErr) {
+            console.error(prodErr);
+            setErrorMsg("Errore nel recupero del prodotto dal magazzino centrale.");
+            return;
+          }
+
+          const p = (prod as ProductRow) ?? null;
+          setProduct(p);
+
+          if (p?.quantity && p.quantity > 0) {
+            setQty((q) => clampQty(q, 1, p.quantity));
+          }
+
           return;
         }
 
-        const p = (prod as Product) ?? null;
-        setProduct(p);
-
-        // qty default + clamp
-        if (p?.quantity && p.quantity > 0) {
-          setQty((q) => clampQty(q, 1, p.quantity));
-        }
+        // ✅ altrimenti carico la lista prodotti per scegliere
+        await loadList();
       } catch (err) {
         console.error("Carico init error:", err);
         if (!cancelled) setErrorMsg("Errore nel caricamento della pagina carico.");
@@ -119,17 +150,91 @@ function CaricoInner() {
       }
     }
 
+    async function loadList() {
+      setLoadingList(true);
+      try {
+        let q = supabase
+          .from("products_with_stock")
+          .select("product_id, name, category, barcode, quantity")
+          .eq("salon_id", MAGAZZINO_CENTRALE_ID)
+          .order("name", { ascending: true });
+
+        const s = search.trim();
+        if (s) q = q.ilike("name", `%${s}%`);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        setList((data as ProductRow[]) || []);
+      } catch (e) {
+        console.error(e);
+        setList([]);
+      } finally {
+        setLoadingList(false);
+      }
+    }
+
     init();
     return () => {
       cancelled = true;
     };
-  }, [productId, supabase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productIdFromUrl, supabase]);
+
+  // refresh lista quando cambi search (solo se NON hai prodotto selezionato)
+  useEffect(() => {
+    if (product) return;
+    if (role !== "magazzino" && role !== "coordinator") return;
+
+    const t = setTimeout(async () => {
+      setLoadingList(true);
+      try {
+        let q = supabase
+          .from("products_with_stock")
+          .select("product_id, name, category, barcode, quantity")
+          .eq("salon_id", MAGAZZINO_CENTRALE_ID)
+          .order("name", { ascending: true });
+
+        const s = search.trim();
+        if (s) q = q.ilike("name", `%${s}%`);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        setList((data as ProductRow[]) || []);
+      } catch (e) {
+        console.error(e);
+        setList([]);
+      } finally {
+        setLoadingList(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(t);
+  }, [search, product, role, supabase]);
 
   const maxQty = product?.quantity ?? 0;
-  const disabled = !product || submitting || qty <= 0 || qty > maxQty || maxQty <= 0;
+  const disabled =
+    !product || submitting || qty <= 0 || qty > maxQty || maxQty <= 0;
+
+  const handleSelectProduct = (p: ProductRow) => {
+    setErrorMsg(null);
+    setProduct(p);
+    setQty(clampQty(1, 1, Math.max(1, p.quantity)));
+
+    // ✅ opzionale ma utile: aggiorna URL per deep link
+    const url = `/dashboard/magazzino/carico?product=${p.product_id}`;
+    router.replace(url);
+  };
 
   const handleCarico = async () => {
     if (!product) return;
+
+    // guardrail destinazione: deve essere 1..4
+    if (!SALONI.some((s) => s.id === toSalonId)) {
+      setErrorMsg("Seleziona un salone di destinazione valido.");
+      return;
+    }
 
     const q = clampQty(Number(qty), 1, product.quantity);
     if (q > product.quantity) return;
@@ -159,7 +264,10 @@ function CaricoInner() {
         return;
       }
 
-      router.back();
+      // ✅ dopo carico: reset UI e reload prodotto dal centrale
+      setProduct(null);
+      router.replace("/dashboard/magazzino/carico");
+      // se vuoi tornare indietro: router.back();
     } catch (e) {
       console.error(e);
       setErrorMsg("Errore di rete durante il carico.");
@@ -225,21 +333,94 @@ function CaricoInner() {
               </div>
             </div>
           </div>
-        ) : !product ? (
+        ) : role !== "magazzino" && role !== "coordinator" ? (
           <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">
             <div className="flex items-start gap-3">
               <div className="rounded-xl p-2 bg-black/20 border border-[#5c3a21]/60">
-                <AlertTriangle className="text-[#f3d8b6]" size={18} />
+                <ShieldAlert className="text-[#f3d8b6]" size={18} />
               </div>
               <div className="min-w-0">
-                <div className="text-[#f3d8b6] font-extrabold">Prodotto non trovato</div>
+                <div className="text-[#f3d8b6] font-extrabold">Permessi insufficienti</div>
                 <div className="text-[#c9b299] mt-1 text-sm">
-                  Il prodotto non è presente nel magazzino centrale.
+                  Solo magazzino/coordinator possono eseguire carichi.
                 </div>
               </div>
             </div>
           </div>
+        ) : !product ? (
+          // ✅ PICKER PRODOTTI (quando mancano query param)
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-[#FFF9F4] border border-black/5 p-5 text-[#341A09]">
+              <div className="font-extrabold text-lg">Seleziona un prodotto</div>
+              <div className="text-sm opacity-70 mt-1">
+                Lista dal magazzino centrale (ID 5). Cerca e clicca un prodotto per procedere.
+              </div>
+
+              <div className="mt-4 flex items-center gap-3">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60" size={18} />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Cerca prodotto..."
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border bg-white"
+                  />
+                </div>
+
+                <div className="min-w-[220px]">
+                  <label className="block text-xs font-bold mb-1 opacity-70">
+                    Salone destinazione
+                  </label>
+                  <select
+                    value={toSalonId}
+                    onChange={(e) => setToSalonId(Number(e.target.value))}
+                    className="w-full p-3 rounded-xl border bg-white"
+                  >
+                    {SALONI.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 overflow-hidden">
+              {loadingList ? (
+                <div className="p-6 text-[#c9b299]">Caricamento prodotti…</div>
+              ) : list.length === 0 ? (
+                <div className="p-6 text-[#c9b299]">Nessun prodotto trovato.</div>
+              ) : (
+                <div className="divide-y divide-[#5c3a21]/40">
+                  {list.map((p) => (
+                    <button
+                      key={p.product_id}
+                      onClick={() => handleSelectProduct(p)}
+                      className="w-full text-left px-5 py-4 hover:bg-black/20 transition flex items-center justify-between gap-4"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-[#f3d8b6] font-extrabold truncate">
+                          {p.name}
+                        </div>
+                        <div className="text-[#c9b299] text-sm opacity-90">
+                          {p.category ?? "—"} • {p.barcode ?? "—"}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-[#f3d8b6] font-extrabold">
+                          {p.quantity}
+                        </div>
+                        <div className="text-[#c9b299] text-xs">Disponibili</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
+          // ✅ FORM CARICO (prodotto selezionato)
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* LEFT: product info */}
             <div className="lg:col-span-1 rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">
@@ -267,6 +448,16 @@ function CaricoInner() {
                   </span>
                 </div>
               </div>
+
+              <button
+                onClick={() => {
+                  setProduct(null);
+                  router.replace("/dashboard/magazzino/carico");
+                }}
+                className="mt-5 w-full rounded-xl px-4 py-3 bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6] hover:bg-black/30 transition"
+              >
+                Cambia prodotto
+              </button>
 
               {product.quantity <= 0 && (
                 <div className="mt-4 rounded-xl bg-black/15 border border-[#5c3a21]/50 p-3 text-sm text-[#c9b299]">
@@ -335,7 +526,6 @@ function CaricoInner() {
         )}
       </div>
 
-      {/* safety spacing */}
       <div className="h-2" />
     </div>
   );
