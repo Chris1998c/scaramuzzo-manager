@@ -28,6 +28,29 @@ export default function LoginPage() {
     window.location.href = "/dashboard";
   }
 
+  async function handleForgotPassword() {
+    setError("");
+
+    const mail = email.trim();
+    if (!mail) {
+      setError("Inserisci prima la tua email, poi clicca 'Password dimenticata?'.");
+      return;
+    }
+
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(mail, {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    });
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setError("Ti ho inviato l’email per reimpostare la password.");
+  }
+
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center px-6 bg-[var(--bg)] overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.10),transparent_70%)] opacity-30" />
@@ -49,6 +72,7 @@ export default function LoginPage() {
         transition={{ duration: 0.6 }}
         src="/logo-scaramuzzo.webp"
         className="w-28 mb-10 opacity-95 drop-shadow-[0_0_25px_rgba(0,0,0,0.4)]"
+        alt="Scaramuzzo"
       />
 
       <motion.div
@@ -70,7 +94,7 @@ export default function LoginPage() {
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Inserisci la tua email"
               className="
                 w-full px-4 py-4 rounded-xl
@@ -79,6 +103,14 @@ export default function LoginPage() {
                 focus:border-white/40 outline-none
               "
             />
+
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="self-end text-xs text-white/70 hover:text-white underline underline-offset-4 mt-1"
+            >
+              Password dimenticata?
+            </button>
           </div>
 
           <div className="flex flex-col space-y-2">
@@ -86,7 +118,7 @@ export default function LoginPage() {
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Inserisci la password"
               className="
                 w-full px-4 py-4 rounded-xl
