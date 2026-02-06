@@ -42,7 +42,7 @@ const MODULES: Tile[] = [
   {
     kind: "live",
     title: "Magazzino",
-    subtitle: "Centrale (5) + saloni, carico/scarico/trasferimenti",
+    subtitle: "Carico/scarico/trasferimenti",
     href: "/dashboard/magazzino",
     icon: Package,
     tag: "Live",

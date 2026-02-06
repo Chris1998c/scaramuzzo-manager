@@ -7,10 +7,14 @@ import AgendaModal from "./AgendaModal";
 import EditAppointmentModal from "./EditAppointmentModal";
 import AppointmentBox from "./AppointmentBox";
 import { generateHours, generateWeekDaysFromDate } from "./utils";
+import { useRouter } from "next/navigation";
+
+
 
 export default function AgendaGrid({ currentDate }: { currentDate: string }) {
   const supabase = useMemo(() => createClient(), []);
   const { activeSalonId, isReady, role } = useActiveSalon();
+  const router = useRouter();
 
   const [view, setView] = useState<"day" | "week">("day");
 
@@ -116,9 +120,9 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
     setSelectedSlot({ time, staffId });
   }
 
-  function handleAppointmentClick(a: any) {
-    setEditingAppointment(a);
-  }
+function handleAppointmentClick(a: any) {
+  router.push(`/cassa/${a.id}`);
+}
 
   if (!isReady) {
     return <div className="px-4 text-white/70">Caricamento...</div>;

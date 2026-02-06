@@ -25,17 +25,15 @@ export async function middleware(req: NextRequest) {
   const { data } = await supabase.auth.getUser();
   const user = data.user;
 
-  const isDashboard = path.startsWith("/dashboard");
+  const isProtected = path.startsWith("/dashboard") || path.startsWith("/cassa");
   const isLogin = path === "/login";
 
-  // non loggato e sta entrando in dashboard → login
-  if (!user && isDashboard) {
+  if (!user && isProtected) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // loggato e sta entrando in login → dashboard
   if (user && isLogin) {
     const url = req.nextUrl.clone();
     url.pathname = "/dashboard";
@@ -46,5 +44,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/cassa/:path*", "/login"],
 };

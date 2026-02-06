@@ -1,3 +1,4 @@
+// components/agenda/EditAppointmentModal.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -5,13 +6,14 @@ import { createClient } from "@/lib/supabaseClient";
 import { motion } from "framer-motion";
 import { timeFromTs } from "@/lib/appointmentTime";
 import { generateHours } from "./utils";
+import { useRouter } from "next/navigation";
 
 interface Props {
   isOpen: boolean;
   close: () => void;
   appointment: any;
   selectedDay: string; // yyyy-mm-dd
-  onUpdated?: () => void; // ✅ refresh grid
+  onUpdated?: () => void; // refresh grid
 }
 
 export default function EditAppointmentModal({
@@ -22,6 +24,7 @@ export default function EditAppointmentModal({
   onUpdated,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
 
   const [customers, setCustomers] = useState<any[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
@@ -41,9 +44,9 @@ export default function EditAppointmentModal({
     void loadStaff();
 
     if (appointment) {
-      setCustomer(appointment.customer_id ?? "");
-      setStaffId(appointment.staff_id?.toString() ?? null);
-      setNotes(appointment.notes ?? "");
+      setCustomer(String(appointment.customer_id ?? ""));
+      setStaffId(appointment.staff_id != null ? String(appointment.staff_id) : null);
+      setNotes(String(appointment.notes ?? ""));
       setTime(timeFromTs(appointment.start_time));
     }
 
@@ -52,21 +55,39 @@ export default function EditAppointmentModal({
   }, [isOpen]);
 
   async function loadCustomers() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("customers")
       .select("id, first_name, last_name, phone")
-      .order("first_name");
+      .order("last_name", { ascending: true });
 
-    setCustomers(data || []);
-    setFilteredCustomers(data || []);
+    if (error) {
+      console.error(error);
+      setCustomers([]);
+      setFilteredCustomers([]);
+      return;
+    }
+
+    const list = (data || []).map((c: any) => ({
+      ...c,
+      full_name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim(),
+    }));
+
+    setCustomers(list);
+    setFilteredCustomers(list);
   }
 
   async function loadStaff() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("staff")
       .select("id, name, active")
       .eq("active", true)
-      .order("name");
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      setStaff([{ id: null, name: "Disponibile" }]);
+      return;
+    }
 
     const available = [{ id: null, name: "Disponibile" }];
     setStaff(available.concat(data || []));
@@ -74,11 +95,15 @@ export default function EditAppointmentModal({
 
   async function updateAppointment() {
     if (!appointment?.id) return;
-    if (!customer || !time) return;
+    if (!customer || !time) {
+      alert("Seleziona cliente e orario.");
+      return;
+    }
     if (saving) return;
 
     setSaving(true);
 
+    // mantieni durata originale
     const oldStart = new Date(appointment.start_time);
     const oldEnd = appointment.end_time
       ? new Date(appointment.end_time)
@@ -107,6 +132,7 @@ export default function EditAppointmentModal({
     }
 
     onUpdated?.();
+    setSaving(false);
     close();
   }
 
@@ -114,12 +140,12 @@ export default function EditAppointmentModal({
     if (!appointment?.id) return;
     if (saving) return;
 
+    const ok = confirm("Vuoi eliminare questo appuntamento?");
+    if (!ok) return;
+
     setSaving(true);
 
-    const { error } = await supabase
-      .from("appointments")
-      .delete()
-      .eq("id", appointment.id);
+    const { error } = await supabase.from("appointments").delete().eq("id", appointment.id);
 
     if (error) {
       alert("Errore eliminazione: " + error.message);
@@ -128,30 +154,15 @@ export default function EditAppointmentModal({
     }
 
     onUpdated?.();
+    setSaving(false);
     close();
   }
 
-  async function closeAppointmentAndCreateSale() {
+  function goToCash() {
     if (!appointment?.id) return;
-    if (saving) return;
-
-    setSaving(true);
-
-    const res = await fetch("/api/agenda/close-appointment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointment_id: appointment.id }),
-    });
-
-    if (!res.ok) {
-      const j = await res.json().catch(() => null);
-      alert("Errore chiusura: " + (j?.error || res.statusText));
-      setSaving(false);
-      return;
-    }
-
-    onUpdated?.();
+    // niente API qui: solo “porta in sala” -> vai a /cassa/:id
     close();
+    router.push(`/cassa/${appointment.id}`);
   }
 
   if (!isOpen) return null;
@@ -165,9 +176,17 @@ export default function EditAppointmentModal({
         animate={{ scale: 1, opacity: 1 }}
         className="bg-[#1c0f0a] p-8 rounded-2xl shadow-xl w-full max-w-lg border border-[#9b6b43]/30"
       >
-        <h2 className="text-2xl font-semibold text-white mb-6">
-          Modifica Appuntamento
-        </h2>
+        <h2 className="text-2xl font-semibold text-white mb-6">Appuntamento</h2>
+
+        <button
+          onClick={goToCash}
+          disabled={saving}
+          className={`w-full bg-[#22c55e] text-[#0b120c] p-3 rounded-xl font-semibold text-lg mb-4 ${
+            saving ? "opacity-70 cursor-not-allowed" : ""
+          }`}
+        >
+          Porta in sala (Cassa)
+        </button>
 
         <input
           type="text"
@@ -176,12 +195,9 @@ export default function EditAppointmentModal({
           disabled={saving}
           onChange={(e) => {
             const q = e.target.value.toLowerCase().trim();
-            const filtered = customers.filter((c: any) => {
-              const full = `${c.first_name ?? ""} ${c.last_name ?? ""}`
-                .toLowerCase()
-                .trim();
-              return full.includes(q);
-            });
+            const filtered = customers.filter((c: any) =>
+              String(c.full_name ?? "").toLowerCase().includes(q)
+            );
             setFilteredCustomers(filtered);
           }}
         />
@@ -195,7 +211,7 @@ export default function EditAppointmentModal({
           <option value="">Seleziona Cliente</option>
           {filteredCustomers.map((c: any) => (
             <option key={c.id} value={c.id}>
-              {c.first_name} {c.last_name}
+              {c.full_name} {c.phone ? `- ${c.phone}` : ""}
             </option>
           ))}
         </select>
@@ -217,9 +233,7 @@ export default function EditAppointmentModal({
           className="w-full p-3 bg-[#3a251a] rounded-xl text-white mb-4"
           value={staffId ?? ""}
           disabled={saving}
-          onChange={(e) =>
-            setStaffId(e.target.value === "" ? null : e.target.value)
-          }
+          onChange={(e) => setStaffId(e.target.value === "" ? null : e.target.value)}
         >
           {staff.map((s: any) => (
             <option key={s.id ?? "free"} value={s.id ?? ""}>
@@ -235,16 +249,6 @@ export default function EditAppointmentModal({
           disabled={saving}
           onChange={(e) => setNotes(e.target.value)}
         />
-
-        <button
-          onClick={closeAppointmentAndCreateSale}
-          disabled={saving}
-          className={`w-full bg-green-600 text-white p-3 rounded-xl font-semibold text-lg mb-3 ${
-            saving ? "opacity-70 cursor-not-allowed" : ""
-          }`}
-        >
-          Chiudi appuntamento (crea vendita)
-        </button>
 
         <button
           onClick={updateAppointment}
@@ -269,9 +273,7 @@ export default function EditAppointmentModal({
         <button
           onClick={close}
           disabled={saving}
-          className={`w-full text-white/70 text-center ${
-            saving ? "opacity-50 cursor-not-allowed" : ""
-          }`}
+          className={`w-full text-white/70 text-center ${saving ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           Annulla
         </button>
