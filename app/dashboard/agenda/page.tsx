@@ -6,11 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
-  ArrowRight,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ArrowRight,
 } from "lucide-react";
 
 import AgendaGrid from "@/components/agenda/AgendaGrid";
@@ -39,7 +39,6 @@ function formatPretty(ymd: string) {
   });
 }
 
-/** ✅ Wrapper required by Next.js when using useSearchParams() */
 export default function AgendaPage() {
   return (
     <Suspense fallback={<AgendaPageSkeleton />}>
@@ -61,7 +60,7 @@ function AgendaPageInner() {
   const [currentDate, setCurrentDate] = useState<string>(initialDate);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // URL always in sync (refresh/share safe)
+  // ✅ URL always in sync (refresh/share safe)
   useEffect(() => {
     router.replace(`/dashboard/agenda?date=${encodeURIComponent(currentDate)}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,11 +72,20 @@ function AgendaPageInner() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7 backdrop-blur-md shadow-[0_0_60px_rgba(0,0,0,0.25)]"
+        className={[
+          "rounded-3xl border border-[#5c3a21]/50",
+          "bg-[#24140e]/60 backdrop-blur-md",
+          "p-5 md:p-7",
+          "shadow-[0_0_60px_rgba(0,0,0,0.25)]",
+        ].join(" ")}
       >
         <div className="flex items-start gap-4">
           <div className="shrink-0 rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
-            <CalendarDays className="text-[#f3d8b6]" size={26} strokeWidth={1.7} />
+            <CalendarDays
+              className="text-[#f3d8b6]"
+              size={26}
+              strokeWidth={1.7}
+            />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -86,8 +94,10 @@ function AgendaPageInner() {
                 <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
                   Agenda
                 </h1>
+
                 <p className="text-[#c9b299] mt-2 max-w-2xl">
-                  Week view, creazione/modifica e chiusura. Veloce per reception e staff, UX moderna.
+                  Veloce per reception e staff. Drag & resize, gestione servizi,
+                  e workflow “Porta in sala”.
                 </p>
 
                 <div className="mt-4 text-sm text-[#c9b299]">
@@ -101,19 +111,26 @@ function AgendaPageInner() {
               <div className="flex flex-col sm:flex-row gap-3 lg:justify-end">
                 <button
                   onClick={() => setCalendarOpen(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-                    bg-[#0FA958] text-white font-semibold
-                    shadow-[0_10px_35px_rgba(15,169,88,0.25)]
-                    hover:scale-[1.02] transition"
+                  className={[
+                    "inline-flex items-center justify-center gap-2",
+                    "rounded-2xl px-5 py-3",
+                    "bg-[#0FA958] text-white font-semibold",
+                    "shadow-[0_10px_35px_rgba(15,169,88,0.25)]",
+                    "hover:scale-[1.02] transition",
+                  ].join(" ")}
                 >
                   Calendario <ArrowRight size={18} />
                 </button>
 
                 <Link
                   href="/dashboard"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-                    bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
-                    hover:border-[var(--accent)] transition"
+                  className={[
+                    "inline-flex items-center justify-center gap-2",
+                    "rounded-2xl px-5 py-3",
+                    "bg-black/20 border border-[#5c3a21]/60",
+                    "text-[#f3d8b6]",
+                    "hover:bg-white/5 transition",
+                  ].join(" ")}
                 >
                   Dashboard
                 </Link>
@@ -126,7 +143,7 @@ function AgendaPageInner() {
                 <button
                   onClick={() => setCurrentDate(toYmd(new Date()))}
                   className="rounded-2xl px-4 py-2 bg-black/25 border border-[#5c3a21]/60 text-[#f3d8b6]
-                    hover:bg-black/30 transition"
+                             hover:bg-black/30 transition"
                 >
                   Oggi
                 </button>
@@ -134,7 +151,7 @@ function AgendaPageInner() {
                 <button
                   onClick={() => setCalendarOpen(true)}
                   className="rounded-2xl px-4 py-2 bg-[#f3d8b6] text-[#1A0F0A] font-extrabold
-                    hover:opacity-90 transition inline-flex items-center gap-2"
+                             hover:opacity-90 transition inline-flex items-center gap-2"
                 >
                   <CalendarDays size={18} />
                   Seleziona data
@@ -182,6 +199,12 @@ function AgendaPageInner() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* QUICK TIP */}
+            <div className="mt-4 text-xs text-white/45">
+              Tip: trascina gli appuntamenti per spostarli, e trascina il bordo
+              sotto per cambiare durata.
             </div>
           </div>
         </div>

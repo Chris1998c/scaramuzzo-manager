@@ -23,101 +23,135 @@ export async function getUserAccess(): Promise<{
   allowedSalonIds: number[];
   allowedSalons: { id: number; name: string }[];
   defaultSalonId: number | null;
+  staffId: number | null;
+  staffSalonId: number | null;
 }> {
-  try {
-    const supabase = await createServerSupabase();
+  const supabase = await createServerSupabase();
 
-    // 1) user autenticato
-    const { data: auth, error: authErr } = await supabase.auth.getUser();
-    if (authErr) throw authErr;
-    if (!auth?.user) throw new Error("Not authenticated");
+  // 1) user autenticato
+  const { data: auth, error: authErr } = await supabase.auth.getUser();
+  if (authErr) throw authErr;
+  if (!auth?.user) throw new Error("Not authenticated");
 
-    const userId = auth.user.id;
+  const userId = auth.user.id;
 
-    // 2) profilo su public.users (se manca, prova a crearlo)
-    const { data: u0, error: u0Err } = await supabase
+  // 2) profilo su public.users (se manca, prova a crearlo)
+  const { data: u0, error: u0Err } = await supabase
+    .from("users")
+    .select("id, role_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (u0Err) throw u0Err;
+
+  let u = u0;
+
+  if (!u) {
+    const payload: any = { id: userId, role_id: 4 };
+
+    if (auth.user.email) payload.email = auth.user.email;
+    if (auth.user.phone) payload.phone = auth.user.phone;
+
+    payload.full_name =
+      (auth.user.user_metadata as any)?.full_name ??
+      auth.user.email ??
+      "User";
+
+    const { data: created, error: cErr } = await supabase
       .from("users")
+      .insert(payload)
       .select("id, role_id")
-      .eq("id", userId)
-      .maybeSingle();
+      .single();
 
-    if (u0Err) throw u0Err;
+    if (cErr) throw cErr;
+    u = created;
+  }
 
-    let u = u0;
+  const role = roleIdToName(u.role_id);
 
-    if (!u) {
-      const payload: any = { id: userId, role_id: 4 };
+  // 2.5) staff context (NON deve rompere sempre tutto)
+  // - reception: obbligatorio
+  // - coordinator/magazzino: opzionale (può non essere in staff)
+  // - cliente: opzionale
+  const { data: staff, error: staffErr } = await supabase
+    .from("staff")
+    .select("id, salon_id")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-      if (auth.user.email) payload.email = auth.user.email;
-      if (auth.user.phone) payload.phone = auth.user.phone;
-      payload.full_name =
-        (auth.user.user_metadata as any)?.full_name ??
-        auth.user.email ??
-        "User";
+  if (staffErr) {
+    // se RLS blocca o altro errore reale: logga ma non crashare a prescindere
+    console.error("staff lookup error", { userId, staffErr });
+  }
 
-      const { data: created, error: cErr } = await supabase
-        .from("users")
-        .insert(payload)
-        .select("id, role_id")
-        .single();
+  if (!staff && role === "reception") {
+    // SOLO reception deve per forza essere collegata a staff
+    console.error("Staff context missing for reception user", userId);
+    throw new Error("Staff not linked to this user (reception)");
+  }
 
-      if (cErr) throw cErr;
-      u = created;
-    }
+  // 3) user_salons assegnati
+  const { data: us, error: usErr } = await supabase
+    .from("user_salons")
+    .select("salon_id")
+    .eq("user_id", userId);
 
-    const role = roleIdToName(u.role_id);
+  if (usErr) throw usErr;
 
-    // 3) user_salons assegnati
-    const { data: us, error: usErr } = await supabase
-      .from("user_salons")
-      .select("salon_id")
-      .eq("user_id", userId);
+  const assignedSalonIds = (us ?? [])
+    .map((x) => x.salon_id)
+    .filter((x): x is number => typeof x === "number");
 
-    if (usErr) throw usErr;
+  // 4) allowed salons + nomi
+  let allowedSalons: { id: number; name: string }[] = [];
 
-    const assignedSalonIds = (us ?? [])
-      .map((x) => x.salon_id)
-      .filter((x): x is number => typeof x === "number");
+  if (role === "coordinator") {
+    const { data: salons, error: sErr } = await supabase
+      .from("salons")
+      .select("id, name")
+      .order("id", { ascending: true });
 
-    // 4) allowed salons + nomi
-    let allowedSalons: { id: number; name: string }[] = [];
+    if (sErr) throw sErr;
 
-    if (role === "coordinator") {
-      // coordinator: tutti i saloni reali (mai magazzino in agenda)
+    const all = (salons ?? []).map((s) => ({ id: s.id, name: s.name }));
+
+    // tieni centrale prima se esiste, poi reali
+    const centrale = all.filter((s) =>
+      String(s.name).toLowerCase().includes("magazzino")
+    );
+    const reali = all.filter(
+      (s) => !String(s.name).toLowerCase().includes("magazzino")
+    );
+
+    allowedSalons = [...centrale, ...reali];
+  } else {
+    // reception/magazzino/cliente: SOLO assegnati
+    if (assignedSalonIds.length) {
       const { data: salons, error: sErr } = await supabase
         .from("salons")
         .select("id, name")
+        .in("id", assignedSalonIds)
         .order("id", { ascending: true });
 
       if (sErr) throw sErr;
-const all = (salons ?? []).map((s) => ({ id: s.id, name: s.name }));
 
-const centrale = all.filter((s) => String(s.name).toLowerCase().includes("magazzino"));
-const reali = all.filter((s) => !String(s.name).toLowerCase().includes("magazzino"));
-
-allowedSalons = [...centrale, ...reali];
-
-    } else {
-      // reception/magazzino/cliente: SOLO assegnati
-      if (assignedSalonIds.length) {
-        const { data: salons, error: sErr } = await supabase
-          .from("salons")
-          .select("id, name")
-          .in("id", assignedSalonIds)
-          .order("id", { ascending: true });
-
-        if (sErr) throw sErr;
-
-        allowedSalons = (salons ?? []).map((s) => ({ id: s.id, name: s.name }));
-      }
+      allowedSalons = (salons ?? []).map((s) => ({ id: s.id, name: s.name }));
     }
-
-    const allowedSalonIds = allowedSalons.map((s) => s.id);
-    const defaultSalonId = allowedSalonIds.length ? allowedSalonIds[0] : null;
-
-    return { role, allowedSalonIds, allowedSalons, defaultSalonId };
-  } catch (err) {
-    console.error("getUserAccess ERROR:", err);
-    throw err;
   }
+
+  const allowedSalonIds = allowedSalons.map((s) => s.id);
+  const defaultSalonId = allowedSalonIds.length ? allowedSalonIds[0] : null;
+
+  // ✅ fallback: se non hai staff ma hai saloni assegnati, usa quello come “staffSalonId”
+  const staffId = staff?.id ?? null;
+  const staffSalonId = staff?.salon_id ?? (defaultSalonId ?? null);
+
+  return {
+    role,
+    allowedSalonIds,
+    allowedSalons,
+    defaultSalonId,
+    staffId,
+    staffSalonId,
+  };
 }
