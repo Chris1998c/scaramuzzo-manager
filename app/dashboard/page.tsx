@@ -47,13 +47,14 @@ const MODULES: Tile[] = [
     icon: Package,
     tag: "Live",
   },
-  {
-    kind: "locked",
-    title: "Clienti",
-    subtitle: "Anagrafiche, note, storico",
-    icon: Users,
-    tag: "In arrivo",
-  },
+{
+  kind: "live",
+  title: "Clienti",
+  subtitle: "Anagrafiche, note, storico",
+  href: "/dashboard/clienti",
+  icon: Users,
+  tag: "Live",
+},
   {
     kind: "locked",
     title: "Report",
@@ -87,10 +88,6 @@ export default async function DashboardPage() {
             <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
               Dashboard operativa
             </h1>
-            <p className="text-[#c9b299] mt-2 max-w-2xl">
-              Pochi pulsanti, zero confusione: entri nei <b>moduli</b> e dentro trovi tutte le funzioni.
-              Magazzino Centrale (5) è reale: carichi dal laboratorio e trasferisci ai saloni.
-            </p>
           </div>
 
           <div className="hidden md:flex items-center gap-2 text-xs text-[#f3d8b6]/70">

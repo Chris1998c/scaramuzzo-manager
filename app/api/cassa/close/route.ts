@@ -11,22 +11,30 @@ type LineKind = "service" | "product";
 
 type CloseLineInput = {
   kind: LineKind;
-  id: number;         // service_id or product_id
+  id: number;
   qty: number;
-  discount?: number;  // % (0-100)
+  discount?: number; // %
 };
 
 type CloseBody = {
-  appointment_id: number;
+  appointment_id?: number;
   payment_method: PaymentMethod;
-  global_discount?: number; // % (0-100)
+  global_discount?: number; // %
   lines?: CloseLineInput[];
-  items?: CloseLineInput[]; // compat
+  items?: CloseLineInput[];
 };
 
-/* ---------------- utils ---------------- */
+/* utils */
+const toNumber = (x: unknown, fb = 0) =>
+  Number.isFinite(typeof x === "number" ? x : Number(x)) ? Number(x) : fb;
 
-function errMsg(e: unknown): string {
+const clamp = (n: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, n));
+
+const round2 = (n: number) =>
+  Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+const errMsg = (e: unknown) => {
   if (!e) return "unknown";
   if (typeof e === "string") return e;
   if (typeof e === "object" && "message" in e) return String((e as any).message);
@@ -35,37 +43,22 @@ function errMsg(e: unknown): string {
   } catch {
     return "unknown";
   }
-}
+};
 
-function toNumber(x: unknown, fallback = 0): number {
-  const n = typeof x === "number" ? x : Number(x);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n));
-}
-
-function round2(n: number): number {
-  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
-}
-
-function normalizeLines(body: CloseBody): Array<{ kind: LineKind; id: number; qty: number; discountPct: number }> {
+function normalizeLines(body: CloseBody) {
   const raw =
     (Array.isArray(body.lines) && body.lines.length
       ? body.lines
       : Array.isArray(body.items)
-        ? body.items
-        : []) ?? [];
-
-  if (!Array.isArray(raw)) return [];
+      ? body.items
+      : []) ?? [];
 
   return raw
     .map((l) => ({
       kind: l?.kind,
       id: toNumber(l?.id, NaN),
-      qty: toNumber(l?.qty, NaN),
-      discountPct: toNumber(l?.discount ?? 0, 0),
+      qty: Math.floor(toNumber(l?.qty, NaN)),
+      discountPct: clamp(toNumber(l?.discount ?? 0, 0), 0, 100),
     }))
     .filter(
       (l) =>
@@ -74,28 +67,19 @@ function normalizeLines(body: CloseBody): Array<{ kind: LineKind; id: number; qt
         l.id > 0 &&
         Number.isFinite(l.qty) &&
         l.qty > 0
-    )
-    .map((l) => ({
-      kind: l.kind as LineKind,
-      id: l.id,
-      qty: Math.floor(l.qty),
-      discountPct: clamp(l.discountPct, 0, 100),
-    }));
+    ) as Array<{ kind: LineKind; id: number; qty: number; discountPct: number }>;
 }
 
-/* ---------------- handler ---------------- */
-
+/* handler */
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
 
-    // AUTH (solo check login)
     const { data: authData, error: authErr } = await supabase.auth.getUser();
     if (authErr || !authData?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // BODY
     let body: CloseBody;
     try {
       body = (await req.json()) as CloseBody;
@@ -103,51 +87,47 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const appointmentId = toNumber(body.appointment_id, NaN);
     const paymentMethod = body.payment_method;
-    const globalDiscountPct = clamp(toNumber(body.global_discount ?? 0, 0), 0, 100);
-    const lines = normalizeLines(body);
-
-    if (!Number.isFinite(appointmentId) || appointmentId <= 0) {
-      return NextResponse.json({ error: "appointment_id invalid" }, { status: 400 });
-    }
     if (paymentMethod !== "cash" && paymentMethod !== "card") {
       return NextResponse.json({ error: "payment_method invalid" }, { status: 400 });
     }
+
+    const globalDiscountPct = clamp(toNumber(body.global_discount ?? 0, 0), 0, 100);
+    const lines = normalizeLines(body);
     if (!lines.length) {
       return NextResponse.json({ error: "lines missing" }, { status: 400 });
     }
 
-    // LOAD APPOINTMENT (ADMIN)
-    const { data: appt, error: apptErr } = await supabaseAdmin
-      .from("appointments")
-      .select("id, salon_id, customer_id, staff_id, status, sale_id")
-      .eq("id", appointmentId)
-      .maybeSingle();
+    // optional appointment link (NO agenda logic here)
+    let salonId: number | null = null;
+    let staffId: number | null = null;
+    let customerId: string | null = null;
+    let appointmentId: number | null = null;
 
-    if (apptErr || !appt) {
-      return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+    if (Number.isFinite(body.appointment_id)) {
+      appointmentId = toNumber(body.appointment_id, NaN);
+      const { data: appt, error: apptErr } = await supabaseAdmin
+        .from("appointments")
+        .select("id, salon_id, customer_id, staff_id, status, sale_id")
+        .eq("id", appointmentId)
+        .maybeSingle();
+
+      if (apptErr || !appt) {
+        return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+      }
+
+      salonId = toNumber(appt.salon_id, NaN);
+      staffId = appt.staff_id ?? null;
+      customerId = appt.customer_id ?? null;
     }
 
-    // already closed
-    if (appt.status === "done" && appt.sale_id) {
-      return NextResponse.json(
-        { ok: true, sale_id: appt.sale_id, already_closed: true },
-        { status: 200 }
-      );
-    }
-
-    const salonId = toNumber(appt.salon_id, NaN);
     if (!Number.isFinite(salonId)) {
       return NextResponse.json({ error: "Invalid salon_id" }, { status: 400 });
     }
 
-    const staffId = appt.staff_id ?? null;
-    const customerId = appt.customer_id ?? null;
-
-    // LOAD PRICES (ADMIN)
-    const serviceIds = [...new Set(lines.filter((l) => l.kind === "service").map((l) => l.id))];
-    const productIds = [...new Set(lines.filter((l) => l.kind === "product").map((l) => l.id))];
+    // load prices
+    const serviceIds = [...new Set(lines.filter(l => l.kind === "service").map(l => l.id))];
+    const productIds = [...new Set(lines.filter(l => l.kind === "product").map(l => l.id))];
 
     const [svcRes, prodRes] = await Promise.all([
       serviceIds.length
@@ -159,10 +139,10 @@ export async function POST(req: Request) {
     ]);
 
     if (svcRes.error) {
-      return NextResponse.json({ error: `Load services failed: ${errMsg(svcRes.error)}` }, { status: 500 });
+      return NextResponse.json({ error: errMsg(svcRes.error) }, { status: 500 });
     }
     if (prodRes.error) {
-      return NextResponse.json({ error: `Load products failed: ${errMsg(prodRes.error)}` }, { status: 500 });
+      return NextResponse.json({ error: errMsg(prodRes.error) }, { status: 500 });
     }
 
     const svcMap = new Map<number, number>(
@@ -174,19 +154,20 @@ export async function POST(req: Request) {
 
     for (const l of lines) {
       if (l.kind === "service" && !svcMap.has(l.id)) {
-        return NextResponse.json({ error: `Service not found: ${l.id}` }, { status: 400 });
+        return NextResponse.json({ error: `Service not found ${l.id}` }, { status: 400 });
       }
       if (l.kind === "product" && !prodMap.has(l.id)) {
-        return NextResponse.json({ error: `Product not found: ${l.id}` }, { status: 400 });
+        return NextResponse.json({ error: `Product not found ${l.id}` }, { status: 400 });
       }
     }
 
-    // COMPUTE TOTALS
-    let subtotal = 0;           // net after line discounts
-    let lineDiscountTotal = 0;  // € discounts on lines
+    // totals
+    let subtotal = 0;
+    let lineDiscountTotal = 0;
 
     const computed = lines.map((l) => {
-      const unit = l.kind === "service" ? (svcMap.get(l.id) as number) : (prodMap.get(l.id) as number);
+      const unit =
+        l.kind === "service" ? svcMap.get(l.id)! : prodMap.get(l.id)!;
 
       const gross = round2(unit * l.qty);
       const lineDisc = round2(gross * (l.discountPct / 100));
@@ -207,9 +188,8 @@ export async function POST(req: Request) {
     const total = round2(subtotal - globalDiscountAmount);
     const discountTotal = round2(lineDiscountTotal + globalDiscountAmount);
 
-    // INSERT SALE (schema REALE)
-    // sales: salon_id, customer_id?, total_amount, payment_method, discount, date
-    const saleInsert: Record<string, any> = {
+    // insert sale
+    const saleInsert: any = {
       salon_id: salonId,
       total_amount: total,
       payment_method: paymentMethod,
@@ -225,19 +205,12 @@ export async function POST(req: Request) {
       .single();
 
     if (saleErr || !sale) {
-      return NextResponse.json(
-        { error: "Sale insert failed", details: saleErr ? errMsg(saleErr) : "unknown", saleInsert },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: errMsg(saleErr) }, { status: 500 });
     }
 
     const saleId = Number(sale.id);
-    if (!Number.isFinite(saleId)) {
-      return NextResponse.json({ error: "Sale insert failed: invalid id" }, { status: 500 });
-    }
 
-    // INSERT SALE_ITEMS (schema REALE)
-    // sale_items: sale_id, service_id?, product_id?, staff_id?, quantity, price (unit), discount (€)
+    // insert sale_items
     const saleItems = computed.map((l) => ({
       sale_id: saleId,
       service_id: l.kind === "service" ? l.id : null,
@@ -248,44 +221,55 @@ export async function POST(req: Request) {
       discount: l.line_discount_eur,
     }));
 
-    const { error: itemsErr } = await supabaseAdmin.from("sale_items").insert(saleItems);
+    const { error: itemsErr } = await supabaseAdmin
+      .from("sale_items")
+      .insert(saleItems);
 
     if (itemsErr) {
       await supabaseAdmin.from("sales").delete().eq("id", saleId);
-      return NextResponse.json(
-        { error: "Sale items insert failed", details: errMsg(itemsErr) },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: errMsg(itemsErr) }, { status: 500 });
     }
 
-    // CLOSE APPOINTMENT (set status + sale_id)
-    const { error: closeErr } = await supabaseAdmin
-      .from("appointments")
-      .update({ status: "done", sale_id: saleId })
-      .eq("id", appointmentId);
+// ===== STOCK SCARICO DEFINITIVO =====
+const productLines = computed.filter((l) => l.kind === "product");
 
-    if (closeErr) {
-      await supabaseAdmin.from("sales").delete().eq("id", saleId);
-      return NextResponse.json(
-        { error: "Appointment close failed", details: errMsg(closeErr) },
-        { status: 500 }
-      );
-    }
+for (const l of productLines) {
+  const { error: rpcErr } = await supabaseAdmin.rpc("stock_move", {
+    p_product: l.id,
+    p_qty: l.qty,
+    p_from_salon: salonId,
+    p_to_salon: null,
+    p_reason: `sale #${saleId}`,
+  });
 
+  if (rpcErr) {
     return NextResponse.json(
-      {
-        ok: true,
-        sale_id: saleId,
-        appointment_id: appointmentId,
-        totals: {
-          subtotal,
-          global_discount_pct: globalDiscountPct,
-          discount_total: discountTotal,
-          total,
-        },
-      },
-      { status: 200 }
+      { error: "Stock move failed", details: errMsg(rpcErr) },
+      { status: 500 }
     );
+  }
+}
+// ===== END STOCK =====
+
+
+    // optional appointment link (NO close here)
+    if (appointmentId) {
+      await supabaseAdmin
+        .from("appointments")
+        .update({ sale_id: saleId })
+        .eq("id", appointmentId);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      sale_id: saleId,
+      totals: {
+        subtotal,
+        global_discount_pct: globalDiscountPct,
+        discount_total: discountTotal,
+        total,
+      },
+    });
   } catch (e) {
     return NextResponse.json(
       { error: "Errore /api/cassa/close", details: errMsg(e) },
