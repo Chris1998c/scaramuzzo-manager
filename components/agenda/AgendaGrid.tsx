@@ -29,8 +29,9 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
 
   const [selectedSlot, setSelectedSlot] = useState<{
     time: string;
-    staffId: number | null;
+    staffId: string | null; // ✅ UUID
   } | null>(null);
+
 
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
@@ -133,9 +134,10 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
     setLoading(false);
   }
 
-  function handleSlotClick(time: string, staffId: number | null) {
+  function handleSlotClick(time: string, staffId: string | null) {
     setSelectedSlot({ time, staffId });
   }
+
 
   function handleAppointmentClick(a: any) {
     setEditingAppointment(a);
@@ -281,9 +283,12 @@ function DayView({
 
           {/* STAFF COLUMNS */}
           {staff.map((s: any) => {
+            const sid = s.id != null ? String(s.id) : null;
+
             const colAppointments = appointments.filter((a: any) =>
-              s.id == null ? a.staff_id == null : a.staff_id === s.id
+              sid == null ? a.staff_id == null : String(a.staff_id) === sid
             );
+
 
             return (
               <div
@@ -305,7 +310,8 @@ function DayView({
                       key={h}
                       style={{ height: SLOT_PX }}
                       className="border-b border-[#2a1811]/60 cursor-pointer hover:bg-white/5 transition"
-                      onClick={() => onSlotClick(h, s.id ?? null)}
+                      onClick={() => onSlotClick(h, s.id != null ? String(s.id) : null)}
+
                     />
                   ))}
                 </div>
