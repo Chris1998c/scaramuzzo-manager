@@ -1,8 +1,7 @@
-// C:\dev\scaramuzzo-manager\components\agenda\AgendaGrid.tsx
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import AgendaModal from "./AgendaModal";
@@ -14,12 +13,14 @@ import {
   SLOT_MINUTES,
   SLOT_PX,
 } from "./utils";
-import { CalendarDays, Users } from "lucide-react";
+import { CalendarDays, Users, Loader2 } from "lucide-react";
 
 type ViewMode = "day" | "week";
+type OnCashIn = (appointmentId: number) => void;
 
 export default function AgendaGrid({ currentDate }: { currentDate: string }) {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const { activeSalonId, isReady, role } = useActiveSalon();
 
   const [view, setView] = useState<ViewMode>("day");
@@ -29,28 +30,23 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
 
   const [selectedSlot, setSelectedSlot] = useState<{
     time: string;
-    staffId: string | null; // ✅ UUID
+    staffId: string | null;
   } | null>(null);
-
 
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
-  const hours = generateHours("08:00", "20:00", SLOT_MINUTES);
+  const hours = useMemo(() => generateHours("08:00", "20:00", SLOT_MINUTES), []);
 
+  // 1. Caricamento Staff
   useEffect(() => {
-    if (!isReady) return;
-    if (role === "magazzino") return;
-    if (activeSalonId == null) return;
-    void loadStaff(activeSalonId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!isReady || role === "magazzino" || activeSalonId == null) return;
+    loadStaff(activeSalonId);
   }, [isReady, role, activeSalonId]);
 
+  // 2. Caricamento Appuntamenti
   useEffect(() => {
-    if (!isReady) return;
-    if (role === "magazzino") return;
-    if (activeSalonId == null) return;
-    void loadAppointments(activeSalonId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!isReady || role === "magazzino" || activeSalonId == null) return;
+    loadAppointments(activeSalonId);
   }, [currentDate, view, isReady, role, activeSalonId]);
 
   async function loadStaff(salonId: number) {
@@ -62,45 +58,21 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
       .order("name");
 
     if (error) {
-      console.error(error);
       setStaff([{ id: null, name: "Disponibile" }]);
       return;
     }
-
     const available = [{ id: null, name: "Disponibile" }];
     setStaff(available.concat(data || []));
-  }
-
-  function getRangeForView(dateString: string) {
-    if (view === "day") {
-      return { start: `${dateString}T00:00:00`, end: `${dateString}T23:59:59` };
-    }
-
-    const base = new Date(dateString);
-    const day = base.getDay() || 7;
-
-    const weekStart = new Date(base);
-    weekStart.setDate(base.getDate() - (day - 1));
-    weekStart.setHours(0, 0, 0, 0);
-
-    const weekEnd = new Date(base);
-    weekEnd.setDate(base.getDate() + (7 - day));
-    weekEnd.setHours(23, 59, 59, 999);
-
-    const toNoZ = (d: Date) => d.toISOString().replace("Z", "");
-    return { start: toNoZ(weekStart), end: toNoZ(weekEnd) };
   }
 
   async function loadAppointments(salonId: number) {
     if (!currentDate) return;
     setLoading(true);
-
     const range = getRangeForView(currentDate);
 
     const { data, error } = await supabase
       .from("appointments")
-      .select(
-        `
+      .select(`
         id,
         salon_id,
         staff_id,
@@ -116,122 +88,115 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
           duration_minutes,
           service:service_id ( id, name, color_code )
         )
-      `
-      )
+      `)
       .eq("salon_id", salonId)
       .gte("start_time", range.start)
-      .lte("start_time", range.end)
-      .order("start_time", { ascending: true });
+      .lte("start_time", range.end);
 
     if (error) {
       console.error(error);
       setAppointments([]);
-      setLoading(false);
-      return;
+    } else {
+      setAppointments(data || []);
     }
-
-    setAppointments(data || []);
     setLoading(false);
   }
 
-  function handleSlotClick(time: string, staffId: string | null) {
-    setSelectedSlot({ time, staffId });
+  function getRangeForView(dateString: string) {
+    if (view === "day") {
+      return { start: `${dateString}T00:00:00`, end: `${dateString}T23:59:59` };
+    }
+    const days = generateWeekDaysFromDate(dateString);
+    return { 
+      start: `${days[0].date}T00:00:00`, 
+      end: `${days[6].date}T23:59:59` 
+    };
   }
 
-
-  function handleAppointmentClick(a: any) {
-    setEditingAppointment(a);
+  function handleCashIn(appointmentId: number) {
+    router.push(`/dashboard/cassa/${appointmentId}`);
   }
 
-  if (!isReady) return <div className="px-4 text-white/70">Caricamento…</div>;
-
-  if (role === "magazzino") {
-    return (
-      <div className="px-4 text-white/70">
-        Agenda non disponibile per Magazzino.
-      </div>
-    );
-  }
-
-  if (activeSalonId == null) {
-    return <div className="px-4 text-white/70">Nessun salone selezionato.</div>;
-  }
+  if (!isReady) return <div className="p-8 text-[#f3d8b6]/50 italic">Caricamento sistema...</div>;
+  if (role === "magazzino") return <div className="p-8 text-[#f3d8b6]/50">Accesso negato all'agenda.</div>;
+  if (activeSalonId == null) return <div className="p-8 text-[#f3d8b6]/50">Seleziona un salone per visualizzare l'agenda.</div>;
 
   return (
-    <div className="w-full">
-      {/* TOP BAR */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+    <div className="w-full space-y-4">
+      {/* HEADER CONTROLS */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2 text-[#f3d8b6]">
           <span className="rounded-2xl p-2 bg-black/20 border border-[#5c3a21]/60">
             <CalendarDays size={18} />
           </span>
-          <div className="text-sm text-white/60">
-            Vista:
-            <span className="ml-2 text-[#f3d8b6] font-semibold">
-              {view === "day" ? "Giorno" : "Settimana"}
-            </span>
-          </div>
-
-          <div className="ml-3 text-xs text-white/40">
-            Tip: drag per spostare, drag del bordo per durata (step {SLOT_MINUTES}m).
+          <div className="text-sm">
+            <span className="text-white/60">Vista: </span>
+            <span className="font-bold uppercase tracking-wider">{view === "day" ? "Giorno" : "Settimana"}</span>
           </div>
         </div>
 
-        <div className="inline-flex items-center rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-1">
+        <div className="inline-flex rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-1">
           <button
             onClick={() => setView("day")}
-            className={[
-              "px-4 py-2 rounded-xl text-sm font-semibold transition",
-              view === "day"
-                ? "bg-[#f3d8b6] text-[#1A0F0A]"
-                : "text-[#f3d8b6] hover:bg-white/5",
-            ].join(" ")}
+            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+              view === "day" ? "bg-[#f3d8b6] text-black shadow-lg" : "text-[#f3d8b6] hover:bg-white/5"
+            }`}
           >
-            Giorno
+            GIORNO
           </button>
           <button
             onClick={() => setView("week")}
-            className={[
-              "px-4 py-2 rounded-xl text-sm font-semibold transition",
-              view === "week"
-                ? "bg-[#f3d8b6] text-[#1A0F0A]"
-                : "text-[#f3d8b6] hover:bg-white/5",
-            ].join(" ")}
+            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+              view === "week" ? "bg-[#f3d8b6] text-black shadow-lg" : "text-[#f3d8b6] hover:bg-white/5"
+            }`}
           >
-            Settimana
+            SETTIMANA
           </button>
         </div>
       </div>
 
+      {/* LOADING STATE */}
       {loading ? (
-        <div className="px-2 py-10 text-white/70">Caricamento…</div>
-      ) : view === "day" ? (
-        <DayView
-          staff={staff}
-          hours={hours}
-          appointments={appointments}
-          onSlotClick={handleSlotClick}
-          onAppointmentClick={handleAppointmentClick}
-          onAppointmentsChanged={() => void loadAppointments(activeSalonId)}
-        />
+        <div className="flex flex-col items-center justify-center h-96 bg-black/10 rounded-3xl border border-dashed border-[#5c3a21]/40">
+          <Loader2 className="animate-spin text-[#f3d8b6] mb-2" size={32} />
+          <p className="text-[#f3d8b6]/60 text-sm">Sincronizzazione appuntamenti...</p>
+        </div>
       ) : (
-        <WeekView
-          hours={hours}
-          appointments={appointments}
-          onSlotClick={handleSlotClick}
-          onAppointmentClick={handleAppointmentClick}
-          currentDate={currentDate}
-          onAppointmentsChanged={() => void loadAppointments(activeSalonId)}
-        />
+        <div className="rounded-3xl border border-[#5c3a21]/45 bg-[#140b07]/40 backdrop-blur-md overflow-hidden shadow-2xl">
+          <div className="overflow-auto max-h-[calc(100vh-280px)] custom-scrollbar">
+            {view === "day" ? (
+              <DayLayout
+                staff={staff}
+                hours={hours}
+                appointments={appointments}
+                onSlotClick={(h: string, sid: string | null) => setSelectedSlot({ time: h, staffId: sid })}
+                onEdit={setEditingAppointment}
+                onCashIn={handleCashIn}
+                onRefresh={() => loadAppointments(activeSalonId)}
+              />
+            ) : (
+              <WeekLayout
+                currentDate={currentDate}
+                hours={hours}
+                appointments={appointments}
+                onSlotClick={(h: string) => setSelectedSlot({ time: h, staffId: null })}
+                onEdit={setEditingAppointment}
+                onCashIn={handleCashIn}
+                onRefresh={() => loadAppointments(activeSalonId)}
+              />
+            )}
+          </div>
+        </div>
       )}
 
+      {/* MODALS */}
       {selectedSlot && (
         <AgendaModal
           isOpen={true}
           selectedSlot={selectedSlot}
           currentDate={currentDate}
           close={() => setSelectedSlot(null)}
-          onCreated={() => void loadAppointments(activeSalonId)}
+          onCreated={() => loadAppointments(activeSalonId)}
         />
       )}
 
@@ -241,184 +206,151 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
           appointment={editingAppointment}
           selectedDay={currentDate}
           close={() => setEditingAppointment(null)}
-          onUpdated={() => void loadAppointments(activeSalonId)}
+          onUpdated={() => loadAppointments(activeSalonId)}
         />
       )}
     </div>
   );
 }
 
-/* ========================== DAY VIEW ========================== */
+/* ========================== DAY LAYOUT ========================== */
 
-function DayView({
-  staff,
-  hours,
-  appointments,
-  onSlotClick,
-  onAppointmentClick,
-  onAppointmentsChanged,
-}: any) {
-  const cols = `120px repeat(${staff.length}, minmax(260px, 1fr))`;
+function DayLayout({ staff, hours, appointments, onSlotClick, onEdit, onCashIn, onRefresh }: any) {
+  const colTemplate = `80px repeat(${staff.length}, minmax(240px, 1fr))`;
 
   return (
-    <div className="rounded-3xl border border-[#5c3a21]/45 bg-black/10 overflow-hidden">
-      <div className="overflow-auto">
-        <div className="grid" style={{ gridTemplateColumns: cols }}>
-          {/* TIME COLUMN */}
-          <div className="sticky left-0 z-20 bg-[#140b07]/80 backdrop-blur-md border-r border-[#5c3a21]/45">
-            <div className="h-[52px] sticky top-0 z-30 flex items-center justify-end pr-3 bg-[#140b07]/90 border-b border-[#5c3a21]/45">
-              <span className="text-xs text-[#f3d8b6]/70">Ora</span>
+    <div className="grid" style={{ gridTemplateColumns: colTemplate }}>
+      {/* TIME COLUMN */}
+      <div className="sticky left-0 z-30 bg-[#140b07] border-r border-[#5c3a21]/45 shadow-xl">
+        <div className="h-[52px] border-b border-[#5c3a21]/45 flex items-center justify-center">
+          <span className="text-[10px] font-bold text-[#f3d8b6]/40 uppercase">Ora</span>
+        </div>
+        {hours.map((h: string) => (
+          <div
+            key={h}
+            style={{ height: SLOT_PX }}
+            className="flex items-start justify-center pt-1 text-[#f3d8b6]/60 text-[11px] font-mono border-b border-white/5"
+          >
+            {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
+          </div>
+        ))}
+      </div>
+
+      {/* STAFF COLUMNS */}
+      {staff.map((s: any) => {
+        const sid = s.id ? String(s.id) : null;
+        const colApps = appointments.filter((a: any) => 
+          sid === null ? a.staff_id === null : String(a.staff_id) === sid
+        );
+
+        return (
+          <div key={sid || 'unassigned'} className="relative border-r border-white/5 min-h-full">
+            {/* Header Staff */}
+            <div className="sticky top-0 z-20 h-[52px] bg-[#1c110d] border-b border-[#5c3a21]/45 flex items-center justify-center gap-2">
+              <Users size={12} className="text-[#f3d8b6]/40" />
+              <span className="text-xs font-black text-[#f3d8b6] uppercase tracking-tighter truncate px-2">
+                {s.name}
+              </span>
             </div>
 
-            {hours.map((h: string) => (
-              <div
-                key={h}
-                style={{ height: SLOT_PX }}
-                className="flex items-center justify-end pr-3 text-[#f3d8b6]/75 text-sm border-b border-[#2a1811]/60"
-              >
-                {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
-              </div>
-            ))}
-          </div>
+            {/* Clickable Grid */}
+            <div className="relative">
+              {hours.map((h: string) => (
+                <div
+                  key={h}
+                  style={{ height: SLOT_PX }}
+                  className="border-b border-white/5 cursor-crosshair hover:bg-[#f3d8b6]/5 transition-colors"
+                  onClick={() => onSlotClick(h, sid)}
+                />
+              ))}
 
-          {/* STAFF COLUMNS */}
-          {staff.map((s: any) => {
-            const sid = s.id != null ? String(s.id) : null;
-
-            const colAppointments = appointments.filter((a: any) =>
-              sid == null ? a.staff_id == null : String(a.staff_id) === sid
-            );
-
-
-            return (
-              <div
-                key={String(s.id)}
-                className="relative border-r border-[#2a1811]/60 bg-[#0f0704]/20"
-              >
-                {/* sticky header */}
-                <div className="h-[52px] sticky top-0 z-30 flex items-center justify-center gap-2 bg-[#140b07]/90 backdrop-blur-md border-b border-[#5c3a21]/45">
-                  <Users size={14} className="text-[#f3d8b6]/60" />
-                  <div className="text-sm font-extrabold text-[#f3d8b6] truncate px-2">
-                    {s.name}
-                  </div>
-                </div>
-
-                {/* GRID LAYER (clickable slots) */}
-                <div className="relative z-10">
-                  {hours.map((h: string) => (
-                    <div
-                      key={h}
-                      style={{ height: SLOT_PX }}
-                      className="border-b border-[#2a1811]/60 cursor-pointer hover:bg-white/5 transition"
-                      onClick={() => onSlotClick(h, s.id != null ? String(s.id) : null)}
-
+              {/* Appointment Overlay */}
+              <div className="absolute inset-0 pointer-events-none z-10">
+                {colApps.map((a: any) => (
+                  <div key={a.id} className="pointer-events-auto">
+                    <AppointmentBox
+                      appointment={a}
+                      hours={hours}
+                      onClick={() => onEdit(a)}
+                      onUpdated={onRefresh}
+                      onCashIn={() => onCashIn(a.id)}
                     />
-                  ))}
-                </div>
-
-                {/* APPOINTMENTS OVERLAY (always on top) */}
-                <div className="absolute left-0 right-0 top-[52px] bottom-0 z-40 pointer-events-none">
-                  {colAppointments.map((a: any) => (
-                    <div key={a.id} className="pointer-events-auto">
-                      <AppointmentBox
-                        appointment={a}
-                        hours={hours}
-                        onClick={() => onAppointmentClick(a)}
-                        onUpdated={onAppointmentsChanged}
-                      />
-                    </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-/* ========================== WEEK VIEW ========================== */
+/* ========================== WEEK LAYOUT ========================== */
 
-function WeekView({
-  hours,
-  appointments,
-  onSlotClick,
-  onAppointmentClick,
-  currentDate,
-  onAppointmentsChanged,
-}: any) {
+function WeekLayout({ currentDate, hours, appointments, onSlotClick, onEdit, onCashIn, onRefresh }: any) {
   const days = generateWeekDaysFromDate(currentDate);
-  const cols = `120px repeat(7, minmax(240px, 1fr))`;
+  const colTemplate = `80px repeat(7, minmax(200px, 1fr))`;
 
   return (
-    <div className="rounded-3xl border border-[#5c3a21]/45 bg-black/10 overflow-hidden">
-      <div className="overflow-auto">
-        <div className="grid" style={{ gridTemplateColumns: cols }}>
-          {/* TIME COLUMN */}
-          <div className="sticky left-0 z-20 bg-[#140b07]/80 backdrop-blur-md border-r border-[#5c3a21]/45">
-            <div className="h-[52px] sticky top-0 z-30 flex items-center justify-end pr-3 bg-[#140b07]/90 border-b border-[#5c3a21]/45">
-              <span className="text-xs text-[#f3d8b6]/70">Ora</span>
+    <div className="grid" style={{ gridTemplateColumns: colTemplate }}>
+      {/* TIME COLUMN */}
+      <div className="sticky left-0 z-30 bg-[#140b07] border-r border-[#5c3a21]/45 shadow-xl">
+        <div className="h-[52px] border-b border-[#5c3a21]/45 flex items-center justify-center">
+           <span className="text-[10px] font-bold text-[#f3d8b6]/40 uppercase">Ora</span>
+        </div>
+        {hours.map((h: string) => (
+          <div
+            key={h}
+            style={{ height: SLOT_PX }}
+            className="flex items-start justify-center pt-1 text-[#f3d8b6]/60 text-[11px] font-mono border-b border-white/5"
+          >
+            {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
+          </div>
+        ))}
+      </div>
+
+      {/* DAY COLUMNS */}
+      {days.map((d: any) => {
+        const dayApps = appointments.filter((a: any) => a.start_time.startsWith(d.date));
+
+        return (
+          <div key={d.date} className="relative border-r border-white/5 min-h-full">
+            {/* Header Day */}
+            <div className="sticky top-0 z-20 h-[52px] bg-[#1c110d] border-b border-[#5c3a21]/45 flex flex-col items-center justify-center">
+              <span className="text-[10px] font-bold text-[#f3d8b6]/40 uppercase tracking-widest">{d.label.split(' ')[0]}</span>
+              <span className="text-xs font-black text-[#f3d8b6]">{d.label.split(' ')[1]}</span>
             </div>
 
-            {hours.map((h: string) => (
-              <div
-                key={h}
-                style={{ height: SLOT_PX }}
-                className="flex items-center justify-end pr-3 text-[#f3d8b6]/75 text-sm border-b border-[#2a1811]/60"
-              >
-                {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
-              </div>
-            ))}
-          </div>
+            {/* Clickable Grid */}
+            <div className="relative">
+              {hours.map((h: string) => (
+                <div
+                  key={h}
+                  style={{ height: SLOT_PX }}
+                  className="border-b border-white/5 cursor-crosshair hover:bg-[#f3d8b6]/5 transition-colors"
+                  onClick={() => onSlotClick(h, null)}
+                />
+              ))}
 
-          {/* DAYS */}
-          {days.map((d: any) => {
-            const dayAppointments = appointments.filter((a: any) =>
-              String(a.start_time).startsWith(d.date)
-            );
-
-            return (
-              <div
-                key={d.date}
-                className="relative border-r border-[#2a1811]/60 bg-[#0f0704]/20"
-              >
-                <div className="h-[52px] sticky top-0 z-30 flex items-center justify-center bg-[#140b07]/90 backdrop-blur-md border-b border-[#5c3a21]/45">
-                  <div className="text-sm font-extrabold text-[#f3d8b6] truncate px-2">
-                    {d.label}
-                  </div>
-                </div>
-
-                {/* GRID LAYER */}
-                <div className="relative z-10">
-                  {hours.map((h: string) => (
-                    <div
-                      key={h}
-                      style={{ height: SLOT_PX }}
-                      className="border-b border-[#2a1811]/60 cursor-pointer hover:bg-white/5 transition"
-                      onClick={() => onSlotClick(h, null)}
+              {/* Appointment Overlay */}
+              <div className="absolute inset-0 pointer-events-none z-10">
+                {dayApps.map((a: any) => (
+                  <div key={a.id} className="pointer-events-auto">
+                    <AppointmentBox
+                      appointment={a}
+                      hours={hours}
+                      onClick={() => onEdit(a)}
+                      onUpdated={onRefresh}
+                      onCashIn={() => onCashIn(a.id)}
                     />
-                  ))}
-                </div>
-
-                {/* APPOINTMENTS OVERLAY */}
-                <div className="absolute left-0 right-0 top-[52px] bottom-0 z-40 pointer-events-none">
-                  {dayAppointments.map((a: any) => (
-                    <div key={a.id} className="pointer-events-auto">
-                      <AppointmentBox
-                        appointment={a}
-                        hours={hours}
-                        onClick={() => onAppointmentClick(a)}
-                        onUpdated={onAppointmentsChanged}
-                      />
-                    </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

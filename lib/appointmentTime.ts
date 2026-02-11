@@ -1,4 +1,4 @@
-// lib/appointmentTime.ts
+// C:\dev\scaramuzzo-manager\lib\appointmentTime.ts
 
 // yyyy-mm-dd dal timestamp (es: "2026-01-07T09:30:00")
 export function dayFromTs(ts: string) {

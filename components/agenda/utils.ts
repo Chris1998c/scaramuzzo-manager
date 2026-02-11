@@ -1,30 +1,29 @@
 // components/agenda/utils.ts
 
 /* ----------------------------------------- */
-/*           SLOT CONFIG (AGENDA)            */
+/* SLOT CONFIG (AGENDA)             */
 /* ----------------------------------------- */
 
 export const SLOT_MINUTES = 15; // scaglioni 15 minuti
-export const SLOT_PX = 32;      // altezza di 1 slot (15m)
+export const SLOT_PX = 28;      // RIDOTTO per visuale compatta (era 32)
 
 /* ----------------------------------------- */
-/*      FORMAT / PARSE TIMESTAMP (DB)        */
+/* FORMAT / PARSE TIMESTAMP (DB)        */
 /* ----------------------------------------- */
 
 export function dayFromTs(ts: string) {
+  if (!ts) return "";
   return String(ts).split("T")[0];
 }
 
 export function timeFromTs(ts: string) {
+  if (!ts) return "";
   const t = String(ts).split("T")[1] || "";
   return t.slice(0, 5);
 }
 
 /* ----------------------------------------- */
-/*           GENERA ORE GIORNALIERE          */
-/*  end è INCLUSIVO per etichette, ma        */
-/*  per click/slot useremo l'ultimo slot     */
-/*  valido dal chiamante se serve.           */
+/* GENERA ORE GIORNALIERE          */
 /* ----------------------------------------- */
 
 export function generateHours(
@@ -48,7 +47,7 @@ export function generateHours(
 }
 
 /* ----------------------------------------- */
-/*           ORA → MINUTI                    */
+/* ORA → MINUTI                    */
 /* ----------------------------------------- */
 
 export function timeToMinutes(t: string): number {
@@ -70,7 +69,7 @@ function timeToMinutesSafe(t: string): number | null {
 }
 
 /* ----------------------------------------- */
-/*           MINUTI → ORA                    */
+/* MINUTI → ORA                    */
 /* ----------------------------------------- */
 
 export function minutesToTime(mins: number): string {
@@ -81,7 +80,7 @@ export function minutesToTime(mins: number): string {
 }
 
 /* ----------------------------------------- */
-/*      POSIZIONE BOX IN PIXEL               */
+/* POSIZIONE BOX IN PIXEL               */
 /* ----------------------------------------- */
 
 export function getBoxTop(time: string, hours: string[], slotPx = SLOT_PX) {
@@ -90,8 +89,7 @@ export function getBoxTop(time: string, hours: string[], slotPx = SLOT_PX) {
 }
 
 /* ----------------------------------------- */
-/*      ALTEZZA BOX IN PIXEL                 */
-/*  minimo = 1 slot visibile                 */
+/* ALTEZZA BOX IN PIXEL                 */
 /* ----------------------------------------- */
 
 export function getBoxHeight(
@@ -101,13 +99,12 @@ export function getBoxHeight(
 ) {
   const dur = Math.max(0, Number(durationMin) || 0);
   const s = Math.max(1, Number(step) || SLOT_MINUTES);
+  // Restituisce l'altezza esatta in pixel basata sulla durata
   return Math.max(slotPx, (dur / s) * slotPx);
 }
 
 /* ----------------------------------------- */
-/*      DURATA (min) DA start/end_time       */
-/*  - minimo reale salone: 30 min            */
-/*  - rounding stabile                        */
+/* DURATA (min) DA start/end_time       */
 /* ----------------------------------------- */
 
 export function durationFromTimestamps(
@@ -116,19 +113,18 @@ export function durationFromTimestamps(
 ) {
   if (!end_time) return 30;
 
-  const start = new Date(start_time).getTime();
-  const end = new Date(end_time).getTime();
+  const startM = timeToMinutes(timeFromTs(start_time));
+  const endM = timeToMinutes(timeFromTs(end_time));
 
-  const mins = (end - start) / 60000;
+  const mins = endM - startM;
+
   if (!Number.isFinite(mins) || mins <= 0) return 30;
-
-  const rounded = Math.round(mins * 10) / 10;
-  return Math.max(30, rounded);
+  // Per l'uso quotidiano, permettiamo anche scatti da 15 min
+  return mins; 
 }
 
 /* ----------------------------------------- */
-/*      SOMMA DURATE appointment_services     */
-/*  - se somma 0 => 30                       */
+/* SOMMA DURATE appointment_services    */
 /* ----------------------------------------- */
 
 export function sumServiceDurationsMinutes(appointment_services: any[]) {
@@ -140,7 +136,7 @@ export function sumServiceDurationsMinutes(appointment_services: any[]) {
 }
 
 /* ----------------------------------------- */
-/*      GENERA 7 GIORNI SETTIMANA (lun-dom)  */
+/* GENERA 7 GIORNI SETTIMANA (lun-dom)  */
 /* ----------------------------------------- */
 
 export function generateWeekDaysFromDate(
@@ -169,7 +165,7 @@ export function generateWeekDaysFromDate(
 }
 
 /* ----------------------------------------- */
-/*  PROSSIMO SLOT LIBERO (usa start_time)     */
+/* PROSSIMO SLOT LIBERO (usa start_time)    */
 /* ----------------------------------------- */
 
 export function findNextAvailable(
@@ -191,7 +187,7 @@ export function findNextAvailable(
 }
 
 /* ----------------------------------------- */
-/*      UTILITY PAD                           */
+/* UTILITY INTERNE                      */
 /* ----------------------------------------- */
 
 function pad(n: number) {
