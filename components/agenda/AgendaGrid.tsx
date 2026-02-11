@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
@@ -13,183 +13,503 @@ import {
   SLOT_MINUTES,
   SLOT_PX,
 } from "./utils";
-import { CalendarDays, Users, Loader2 } from "lucide-react";
+import {
+  Loader2,
+  RefreshCw,
+  LayoutGrid,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 type ViewMode = "day" | "week";
-type OnCashIn = (appointmentId: number) => void;
+
+function isoDate(d: Date) {
+  const y = d.getFullYear();
+  const means = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${means}-${day}`;
+}
+
+function addDaysISO(dateStr: string, deltaDays: number) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + deltaDays);
+  return isoDate(d);
+}
+
+function addWeeksISO(dateStr: string, deltaWeeks: number) {
+  return addDaysISO(dateStr, deltaWeeks * 7);
+}
+
+function toIdStr(v: any): string | null {
+  if (v === null || v === undefined || v === "") return null;
+  return String(v);
+}
 
 export default function AgendaGrid({ currentDate }: { currentDate: string }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
-  const { activeSalonId, isReady, role } = useActiveSalon();
+  const { activeSalonId, isReady } = useActiveSalon();
 
+  // Refs (scroll sync + misura)
+  const timeColumnRef = useRef<HTMLDivElement>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const masterRef = useRef<HTMLDivElement>(null);
+
+  // Stati
   const [view, setView] = useState<ViewMode>("day");
   const [staff, setStaff] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Modali
   const [selectedSlot, setSelectedSlot] = useState<{
     time: string;
     staffId: string | null;
   } | null>(null);
-
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
-  const hours = useMemo(() => generateHours("08:00", "20:00", SLOT_MINUTES), []);
-
-  // 1. Caricamento Staff
+  // resize tick per ricalcolo colWidth
+  const [layoutTick, setLayoutTick] = useState(0);
   useEffect(() => {
-    if (!isReady || role === "magazzino" || activeSalonId == null) return;
-    loadStaff(activeSalonId);
-  }, [isReady, role, activeSalonId]);
+    const onResize = () => setLayoutTick((x) => x + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
-  // 2. Caricamento Appuntamenti
-  useEffect(() => {
-    if (!isReady || role === "magazzino" || activeSalonId == null) return;
-    loadAppointments(activeSalonId);
-  }, [currentDate, view, isReady, role, activeSalonId]);
+  const hours = useMemo(
+    () => generateHours("08:00", "20:30", SLOT_MINUTES),
+    []
+  );
 
-  async function loadStaff(salonId: number) {
-    const { data, error } = await supabase
-      .from("staff")
-      .select("*")
-      .eq("active", true)
-      .eq("salon_id", salonId)
-      .order("name");
+  const weekDays = useMemo(
+    () => generateWeekDaysFromDate(currentDate),
+    [currentDate]
+  );
 
-    if (error) {
-      setStaff([{ id: null, name: "Disponibile" }]);
-      return;
-    }
-    const available = [{ id: null, name: "Disponibile" }];
-    setStaff(available.concat(data || []));
-  }
+  /**
+   * AUTO-FIT stile Boss:
+   * - se sono pochi: colonne si allargano e riempiono tutto (NO BUCHI)
+   * - se aumentano: stringe fino a min
+   * - se ancora tanti: allora compare scroll orizzontale
+   */
+  const colWidth = useMemo(() => {
+    const count = view === "day" ? staff.length : weekDays.length;
 
-  async function loadAppointments(salonId: number) {
-    if (!currentDate) return;
-    setLoading(true);
-    const range = getRangeForView(currentDate);
+    // fallback
+    if (!count) return 280;
 
-    const { data, error } = await supabase
-      .from("appointments")
-      .select(`
-        id,
-        salon_id,
-        staff_id,
-        customer_id,
-        start_time,
-        end_time,
-        status,
-        notes,
-        customers:customer_id ( id, first_name, last_name, phone ),
-        staff:staff_id ( id, name ),
-        appointment_services (
-          id,
-          duration_minutes,
-          service:service_id ( id, name, color_code )
+    const master = masterRef.current;
+    const available = (master?.clientWidth ?? 0) - 80; // 80 = colonna ore
+    if (!available) return 280;
+
+    const ideal = Math.floor(available / count);
+
+    // clamp: max 280, min 140 (puoi scendere a 120 se vuoi ancora più stretto)
+    return Math.max(140, Math.min(280, ideal));
+  }, [view, staff.length, weekDays.length, layoutTick]);
+
+  // width totale contenuto (serve per decidere w-max vs w-full)
+  const columnsCount = view === "day" ? staff.length : weekDays.length;
+  const contentWidth = 80 + columnsCount * colWidth;
+  const masterWidth = masterRef.current?.clientWidth ?? 0;
+  const shouldScrollX = contentWidth > masterWidth;
+
+  const loadStaff = useCallback(
+    async (salonId: number) => {
+      // fallback: colonna virtuale sempre
+      const virtual = { id: null, name: "DA ASSEGNARE", is_virtual: true };
+
+      const { data, error } = await supabase
+        .from("staff")
+        .select("*")
+        .eq("salon_id", salonId)
+        .eq("active", true)
+        .order("name");
+
+      if (error) {
+        console.error("Errore caricamento staff:", error);
+        setStaff([virtual]);
+        return;
+      }
+
+      setStaff([virtual, ...(data || [])]);
+    },
+    [supabase]
+  );
+
+  const loadAppointments = useCallback(
+    async (salonId: number) => {
+      if (!currentDate) return;
+      setLoading(true);
+
+      let startRange: string;
+      let endRange: string;
+
+      if (view === "day") {
+        startRange = `${currentDate}T00:00:00`;
+        endRange = `${currentDate}T23:59:59`;
+      } else {
+        startRange = `${weekDays[0].date}T00:00:00`;
+        endRange = `${weekDays[6].date}T23:59:59`;
+      }
+
+      const { data, error } = await supabase
+        .from("appointments")
+        .select(
+          `
+            *,
+            customers:customer_id (*),
+            appointment_services (
+              *,
+              service:service_id (*)
+            )
+          `
         )
-      `)
-      .eq("salon_id", salonId)
-      .gte("start_time", range.start)
-      .lte("start_time", range.end);
+        .eq("salon_id", salonId)
+        .gte("start_time", startRange)
+        .lte("start_time", endRange);
 
-    if (error) {
-      console.error(error);
-      setAppointments([]);
-    } else {
-      setAppointments(data || []);
-    }
-    setLoading(false);
+      if (error) {
+        console.error("Errore appuntamenti:", error);
+        setAppointments([]);
+      } else {
+        setAppointments(data || []);
+      }
+
+      setLoading(false);
+    },
+    [currentDate, view, supabase, weekDays]
+  );
+
+  useEffect(() => {
+    if (!isReady) return;
+    if (activeSalonId == null) return;
+
+    loadStaff(activeSalonId);
+    loadAppointments(activeSalonId);
+  }, [isReady, activeSalonId, currentDate, view, loadStaff, loadAppointments]);
+
+  // Scroll sync
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (timeColumnRef.current) timeColumnRef.current.scrollTop = target.scrollTop;
+    if (headerRef.current) headerRef.current.scrollLeft = target.scrollLeft;
+  };
+
+  // Nav
+  const gotoPrev = () => {
+    const next =
+      view === "day"
+        ? addDaysISO(currentDate, -1)
+        : addWeeksISO(currentDate, -1);
+    router.push(`/dashboard/agenda?date=${next}`);
+  };
+
+  const gotoNext = () => {
+    const next =
+      view === "day"
+        ? addDaysISO(currentDate, 1)
+        : addWeeksISO(currentDate, 1);
+    router.push(`/dashboard/agenda?date=${next}`);
+  };
+
+  const gotoToday = () => {
+    const today = isoDate(new Date());
+    router.push(`/dashboard/agenda?date=${today}`);
+  };
+
+  if (!isReady || activeSalonId == null) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-[#0a0503]">
+        <Loader2 className="animate-spin text-[#f3d8b6]" size={40} />
+      </div>
+    );
   }
-
-  function getRangeForView(dateString: string) {
-    if (view === "day") {
-      return { start: `${dateString}T00:00:00`, end: `${dateString}T23:59:59` };
-    }
-    const days = generateWeekDaysFromDate(dateString);
-    return { 
-      start: `${days[0].date}T00:00:00`, 
-      end: `${days[6].date}T23:59:59` 
-    };
-  }
-
-  function handleCashIn(appointmentId: number) {
-    router.push(`/dashboard/cassa/${appointmentId}`);
-  }
-
-  if (!isReady) return <div className="p-8 text-[#f3d8b6]/50 italic">Caricamento sistema...</div>;
-  if (role === "magazzino") return <div className="p-8 text-[#f3d8b6]/50">Accesso negato all'agenda.</div>;
-  if (activeSalonId == null) return <div className="p-8 text-[#f3d8b6]/50">Seleziona un salone per visualizzare l'agenda.</div>;
 
   return (
-    <div className="w-full space-y-4">
-      {/* HEADER CONTROLS */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2 text-[#f3d8b6]">
-          <span className="rounded-2xl p-2 bg-black/20 border border-[#5c3a21]/60">
-            <CalendarDays size={18} />
-          </span>
-          <div className="text-sm">
-            <span className="text-white/60">Vista: </span>
-            <span className="font-bold uppercase tracking-wider">{view === "day" ? "Giorno" : "Settimana"}</span>
+    <div className="flex flex-col h-full w-full bg-[#0a0503] text-[#f3d8b6] overflow-hidden p-4 md:p-6">
+      {/* TOOLBAR */}
+      <div className="flex flex-shrink-0 flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-[#f3d8b6]/10 rounded-2xl border border-[#f3d8b6]/20">
+            <LayoutGrid className="text-[#f3d8b6]" size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-tighter leading-none">
+              Agenda
+            </h1>
+            <p className="text-[10px] font-bold opacity-40 uppercase tracking-[0.3em] mt-1">
+              {currentDate} • {view === "day" ? "Giorno" : "Settimana"}
+            </p>
           </div>
         </div>
 
-        <div className="inline-flex rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-1">
+        <div className="flex items-center gap-2 bg-black/40 p-1 rounded-2xl border border-white/5 backdrop-blur-xl">
+          {/* NAV */}
+          <button
+            onClick={gotoPrev}
+            className="p-2.5 rounded-xl opacity-60 hover:opacity-100 hover:bg-white/5 transition-all"
+            title="Precedente"
+          >
+            <ChevronLeft size={16} />
+          </button>
+
+          <button
+            onClick={gotoToday}
+            className="px-4 py-2.5 rounded-xl text-[11px] font-black transition-all bg-white/5 hover:bg-white/10"
+            title="Oggi"
+          >
+            OGGI
+          </button>
+
+          <button
+            onClick={gotoNext}
+            className="p-2.5 rounded-xl opacity-60 hover:opacity-100 hover:bg-white/5 transition-all"
+            title="Successivo"
+          >
+            <ChevronRight size={16} />
+          </button>
+
+          <div className="w-px h-6 bg-white/10 mx-1" />
+
+          {/* VIEW */}
           <button
             onClick={() => setView("day")}
-            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-              view === "day" ? "bg-[#f3d8b6] text-black shadow-lg" : "text-[#f3d8b6] hover:bg-white/5"
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black transition-all ${
+              view === "day"
+                ? "bg-[#f3d8b6] text-black shadow-2xl"
+                : "opacity-40 hover:opacity-100"
             }`}
           >
-            GIORNO
+            <LayoutGrid size={14} /> GIORNO
           </button>
+
           <button
             onClick={() => setView("week")}
-            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-              view === "week" ? "bg-[#f3d8b6] text-black shadow-lg" : "text-[#f3d8b6] hover:bg-white/5"
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black transition-all ${
+              view === "week"
+                ? "bg-[#f3d8b6] text-black shadow-2xl"
+                : "opacity-40 hover:opacity-100"
             }`}
           >
-            SETTIMANA
+            <CalendarIcon size={14} /> SETTIMANA
+          </button>
+
+          <div className="w-px h-6 bg-white/10 mx-1" />
+
+          <button
+            onClick={() => loadAppointments(activeSalonId)}
+            className="p-2.5 rounded-xl opacity-40 hover:opacity-100 hover:bg-white/5 transition-all"
+            title="Refresh"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
 
-      {/* LOADING STATE */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center h-96 bg-black/10 rounded-3xl border border-dashed border-[#5c3a21]/40">
-          <Loader2 className="animate-spin text-[#f3d8b6] mb-2" size={32} />
-          <p className="text-[#f3d8b6]/60 text-sm">Sincronizzazione appuntamenti...</p>
+      {/* MASTER */}
+      <div
+        ref={masterRef}
+        className="flex-1 relative bg-[#140b07] rounded-[32px] border border-white/5 shadow-inner overflow-hidden flex flex-col"
+      >
+        {/* HEADER COLONNE */}
+        <div className="flex flex-shrink-0 border-b border-white/5 bg-[#140b07] z-30">
+          <div className="w-20 flex-shrink-0 bg-[#140b07] border-r border-white/5" />
+
+          <div ref={headerRef} className="flex-1 overflow-hidden bg-[#140b07]">
+            {/* se non serve scroll: w-full (riempie e NON lascia buchi)
+                se serve scroll: w-max (per poter scrollare) */}
+            <div className={`flex ${shouldScrollX ? "w-max" : "w-full"}`}>
+              {view === "day" ? (
+                staff.map((s) => (
+                  <div
+                    key={s?.id != null ? String(s.id) : `virtual-${s.name}`}
+                    className="flex-shrink-0 p-4 flex flex-col items-center justify-center border-r border-white/5"
+                    style={{
+                      width: colWidth,
+                      flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
+                      minWidth: shouldScrollX ? colWidth : undefined,
+                    }}
+                  >
+                    <span className="text-xs font-black uppercase text-white tracking-widest">
+                      {s.name}
+                    </span>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          s.is_virtual ? "bg-orange-500" : "bg-green-500"
+                        }`}
+                      />
+                      <span className="text-[9px] font-bold opacity-30 uppercase">
+                        {s.is_virtual ? "Supporto" : "Operativo"}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                weekDays.map((d) => (
+                  <div
+                    key={d.date}
+                    className="flex-shrink-0 p-4 flex flex-col items-center justify-center border-r border-white/5"
+                    style={{
+                      width: colWidth,
+                      flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
+                      minWidth: shouldScrollX ? colWidth : undefined,
+                    }}
+                  >
+                    <span className="text-[10px] font-bold opacity-40 uppercase">
+                      {d.label.split(" ")[0]}
+                    </span>
+                    <span className="text-sm font-black text-[#f3d8b6]">
+                      {d.label.split(" ")[1]}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="rounded-3xl border border-[#5c3a21]/45 bg-[#140b07]/40 backdrop-blur-md overflow-hidden shadow-2xl">
-          <div className="overflow-auto max-h-[calc(100vh-280px)] custom-scrollbar">
-            {view === "day" ? (
-              <DayLayout
-                staff={staff}
-                hours={hours}
-                appointments={appointments}
-                onSlotClick={(h: string, sid: string | null) => setSelectedSlot({ time: h, staffId: sid })}
-                onEdit={setEditingAppointment}
-                onCashIn={handleCashIn}
-                onRefresh={() => loadAppointments(activeSalonId)}
-              />
-            ) : (
-              <WeekLayout
-                currentDate={currentDate}
-                hours={hours}
-                appointments={appointments}
-                onSlotClick={(h: string) => setSelectedSlot({ time: h, staffId: null })}
-                onEdit={setEditingAppointment}
-                onCashIn={handleCashIn}
-                onRefresh={() => loadAppointments(activeSalonId)}
-              />
-            )}
+
+        {/* BODY */}
+        <div className="flex-1 flex overflow-hidden relative bg-[#140b07]">
+          {/* TIME COL */}
+          <div
+            ref={timeColumnRef}
+            className="w-20 flex-shrink-0 overflow-hidden bg-[#140b07] border-r border-white/5 z-20"
+          >
+            {hours.map((h) => (
+              <div
+                key={h}
+                style={{ height: SLOT_PX }}
+                className="flex flex-col items-center justify-start pt-2 border-b border-white/[0.02]"
+              >
+                <span className="text-[10px] font-mono font-bold opacity-20">
+                  {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* GRID */}
+          <div
+            ref={gridContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-auto custom-scrollbar relative bg-[#140b07]"
+          >
+            {/* stesso concetto header: w-full se no scroll, w-max se serve scroll */}
+            <div className={`flex relative bg-[#140b07] ${shouldScrollX ? "w-max" : "w-full"}`}>
+              {view === "day"
+                ? staff.map((member) => {
+                    const mid = toIdStr(member?.id);
+
+                    return (
+                      <div
+                        key={mid ?? `virtual-${member?.name ?? "na"}`}
+                        className="relative border-r border-white/[0.03]"
+                        style={{
+                          width: colWidth,
+                          flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
+                          minWidth: shouldScrollX ? colWidth : undefined,
+                        }}
+                      >
+                        {hours.map((h) => (
+                          <div
+                            key={h}
+                            style={{ height: SLOT_PX }}
+                            className="border-b border-white/[0.02] hover:bg-[#f3d8b6]/[0.02] transition-colors cursor-crosshair"
+                            onClick={() =>
+                              setSelectedSlot({
+                                time: h,
+                                staffId: mid,
+                              })
+                            }
+                          />
+                        ))}
+
+                        {/* Appuntamenti */}
+                        <div className="absolute inset-0 pointer-events-none z-10 p-1">
+                          {appointments
+                            .filter((a) => {
+                              const aid = toIdStr(a?.staff_id);
+                              return mid == null ? aid == null : aid === mid;
+                            })
+                            .map((app) => (
+                              <div key={app.id} className="pointer-events-auto">
+                                <AppointmentBox
+                                  appointment={app}
+                                  hours={hours}
+                                  onClick={() => setEditingAppointment(app)}
+                                  onCashIn={() =>
+                                    router.push(`/dashboard/cassa/${app.id}`)
+                                  }
+                                  onUpdated={() => loadAppointments(activeSalonId)}
+                                />
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    );
+                  })
+                : weekDays.map((day) => (
+                    <div
+                      key={day.date}
+                      className="relative border-r border-white/[0.03]"
+                      style={{
+                        width: colWidth,
+                        flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
+                        minWidth: shouldScrollX ? colWidth : undefined,
+                      }}
+                    >
+                      {hours.map((h) => (
+                        <div
+                          key={h}
+                          style={{ height: SLOT_PX }}
+                          className="border-b border-white/[0.02] hover:bg-white/[0.02] cursor-crosshair"
+                          onClick={() => setSelectedSlot({ time: h, staffId: null })}
+                        />
+                      ))}
+
+                      <div className="absolute inset-0 pointer-events-none z-10 p-1">
+                        {appointments
+                          .filter((a) =>
+                            String(a?.start_time || "").startsWith(day.date)
+                          )
+                          .map((app) => (
+                            <div key={app.id} className="pointer-events-auto">
+                              <AppointmentBox
+                                appointment={app}
+                                hours={hours}
+                                onClick={() => setEditingAppointment(app)}
+                                onCashIn={() =>
+                                  router.push(`/dashboard/cassa/${app.id}`)
+                                }
+                                onUpdated={() => loadAppointments(activeSalonId)}
+                              />
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* LOADING OVERLAY */}
+      {loading && (
+        <div className="fixed inset-0 z-[200] bg-black/20 backdrop-blur-[2px] pointer-events-none flex items-center justify-center">
+          <div className="bg-[#1c110d] p-4 rounded-2xl border border-[#f3d8b6]/20 shadow-2xl flex items-center gap-3">
+            <Loader2 className="animate-spin text-[#f3d8b6]" size={20} />
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#f3d8b6]">
+              Aggiornamento dati...
+            </span>
           </div>
         </div>
       )}
 
-      {/* MODALS */}
+      {/* MODALI */}
       {selectedSlot && (
         <AgendaModal
           isOpen={true}
@@ -204,153 +524,28 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
         <EditAppointmentModal
           isOpen={true}
           appointment={editingAppointment}
-          selectedDay={currentDate}
+          selectedDay={currentDate} // ✅ FIX TS
           close={() => setEditingAppointment(null)}
           onUpdated={() => loadAppointments(activeSalonId)}
         />
       )}
-    </div>
-  );
-}
 
-/* ========================== DAY LAYOUT ========================== */
-
-function DayLayout({ staff, hours, appointments, onSlotClick, onEdit, onCashIn, onRefresh }: any) {
-  const colTemplate = `80px repeat(${staff.length}, minmax(240px, 1fr))`;
-
-  return (
-    <div className="grid" style={{ gridTemplateColumns: colTemplate }}>
-      {/* TIME COLUMN */}
-      <div className="sticky left-0 z-30 bg-[#140b07] border-r border-[#5c3a21]/45 shadow-xl">
-        <div className="h-[52px] border-b border-[#5c3a21]/45 flex items-center justify-center">
-          <span className="text-[10px] font-bold text-[#f3d8b6]/40 uppercase">Ora</span>
-        </div>
-        {hours.map((h: string) => (
-          <div
-            key={h}
-            style={{ height: SLOT_PX }}
-            className="flex items-start justify-center pt-1 text-[#f3d8b6]/60 text-[11px] font-mono border-b border-white/5"
-          >
-            {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
-          </div>
-        ))}
-      </div>
-
-      {/* STAFF COLUMNS */}
-      {staff.map((s: any) => {
-        const sid = s.id ? String(s.id) : null;
-        const colApps = appointments.filter((a: any) => 
-          sid === null ? a.staff_id === null : String(a.staff_id) === sid
-        );
-
-        return (
-          <div key={sid || 'unassigned'} className="relative border-r border-white/5 min-h-full">
-            {/* Header Staff */}
-            <div className="sticky top-0 z-20 h-[52px] bg-[#1c110d] border-b border-[#5c3a21]/45 flex items-center justify-center gap-2">
-              <Users size={12} className="text-[#f3d8b6]/40" />
-              <span className="text-xs font-black text-[#f3d8b6] uppercase tracking-tighter truncate px-2">
-                {s.name}
-              </span>
-            </div>
-
-            {/* Clickable Grid */}
-            <div className="relative">
-              {hours.map((h: string) => (
-                <div
-                  key={h}
-                  style={{ height: SLOT_PX }}
-                  className="border-b border-white/5 cursor-crosshair hover:bg-[#f3d8b6]/5 transition-colors"
-                  onClick={() => onSlotClick(h, sid)}
-                />
-              ))}
-
-              {/* Appointment Overlay */}
-              <div className="absolute inset-0 pointer-events-none z-10">
-                {colApps.map((a: any) => (
-                  <div key={a.id} className="pointer-events-auto">
-                    <AppointmentBox
-                      appointment={a}
-                      hours={hours}
-                      onClick={() => onEdit(a)}
-                      onUpdated={onRefresh}
-                      onCashIn={() => onCashIn(a.id)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ========================== WEEK LAYOUT ========================== */
-
-function WeekLayout({ currentDate, hours, appointments, onSlotClick, onEdit, onCashIn, onRefresh }: any) {
-  const days = generateWeekDaysFromDate(currentDate);
-  const colTemplate = `80px repeat(7, minmax(200px, 1fr))`;
-
-  return (
-    <div className="grid" style={{ gridTemplateColumns: colTemplate }}>
-      {/* TIME COLUMN */}
-      <div className="sticky left-0 z-30 bg-[#140b07] border-r border-[#5c3a21]/45 shadow-xl">
-        <div className="h-[52px] border-b border-[#5c3a21]/45 flex items-center justify-center">
-           <span className="text-[10px] font-bold text-[#f3d8b6]/40 uppercase">Ora</span>
-        </div>
-        {hours.map((h: string) => (
-          <div
-            key={h}
-            style={{ height: SLOT_PX }}
-            className="flex items-start justify-center pt-1 text-[#f3d8b6]/60 text-[11px] font-mono border-b border-white/5"
-          >
-            {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
-          </div>
-        ))}
-      </div>
-
-      {/* DAY COLUMNS */}
-      {days.map((d: any) => {
-        const dayApps = appointments.filter((a: any) => a.start_time.startsWith(d.date));
-
-        return (
-          <div key={d.date} className="relative border-r border-white/5 min-h-full">
-            {/* Header Day */}
-            <div className="sticky top-0 z-20 h-[52px] bg-[#1c110d] border-b border-[#5c3a21]/45 flex flex-col items-center justify-center">
-              <span className="text-[10px] font-bold text-[#f3d8b6]/40 uppercase tracking-widest">{d.label.split(' ')[0]}</span>
-              <span className="text-xs font-black text-[#f3d8b6]">{d.label.split(' ')[1]}</span>
-            </div>
-
-            {/* Clickable Grid */}
-            <div className="relative">
-              {hours.map((h: string) => (
-                <div
-                  key={h}
-                  style={{ height: SLOT_PX }}
-                  className="border-b border-white/5 cursor-crosshair hover:bg-[#f3d8b6]/5 transition-colors"
-                  onClick={() => onSlotClick(h, null)}
-                />
-              ))}
-
-              {/* Appointment Overlay */}
-              <div className="absolute inset-0 pointer-events-none z-10">
-                {dayApps.map((a: any) => (
-                  <div key={a.id} className="pointer-events-auto">
-                    <AppointmentBox
-                      appointment={a}
-                      hours={hours}
-                      onClick={() => onEdit(a)}
-                      onUpdated={onRefresh}
-                      onCashIn={() => onCashIn(a.id)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      })}
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(243, 216, 182, 0.1);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(243, 216, 182, 0.2);
+        }
+      `}</style>
     </div>
   );
 }

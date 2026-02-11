@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-
   const { sidebarOpen } = useUI();
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -19,7 +18,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen flex bg-scz-darker">
+    <div className="min-h-screen flex bg-scz-darker overflow-x-hidden">
       <Sidebar />
 
       <motion.div
@@ -27,10 +26,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           marginLeft: isDesktop ? (sidebarOpen ? "16rem" : "0rem") : "0rem",
         }}
         transition={{ type: "spring", stiffness: 260, damping: 28 }}
-        className="flex flex-col flex-1"
+        className="flex flex-col flex-1 min-w-0 overflow-x-hidden"
       >
         <Header />
-        <main className="p-8">{children}</main>
+
+        {/* IMPORTANT: background solido anche qui + min-w-0 */}
+        <main className="p-8 min-w-0 overflow-x-hidden bg-scz-darker">
+          {children}
+        </main>
       </motion.div>
     </div>
   );
