@@ -30,6 +30,13 @@ function timeFromTsSafe(ts: string) {
   return String(t).slice(0, 5) || "08:00";
 }
 
+function parseLocal(ts: string) {
+  const [date, time] = String(ts).split("T");
+  const [y, m, d] = String(date).split("-").map(Number);
+  const [hh, mm, ss] = String(time || "00:00:00").split(":").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, ss || 0, 0);
+}
+
 export default function EditAppointmentModal({
   isOpen,
   close,
@@ -97,6 +104,16 @@ export default function EditAppointmentModal({
     );
   }, [qCustomer, customers]);
 
+  function toNoZ(dt: Date) {
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    const hh = String(dt.getHours()).padStart(2, "0");
+    const mm = String(dt.getMinutes()).padStart(2, "0");
+    const ss = String(dt.getSeconds()).padStart(2, "0");
+    return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
+  }
+
   async function loadCustomers() {
     const { data, error } = await supabase
       .from("customers")
@@ -143,11 +160,12 @@ export default function EditAppointmentModal({
 
     setErr("");
 
-    const customer_id = Number.parseInt(String(customer), 10);
-    if (!Number.isFinite(customer_id) || customer_id <= 0) {
+    const customer_id = customer ? String(customer) : null; // UUID string
+    if (!customer_id) {
       setErr("Seleziona un cliente valido.");
       return;
     }
+
     if (!time) {
       setErr("Seleziona un orario.");
       return;
@@ -156,22 +174,23 @@ export default function EditAppointmentModal({
     setSaving(true);
 
     // ✅ mantieni durata originale (end-start)
-    const oldStart = new Date(appointment.start_time);
+    const oldStart = parseLocal(appointment.start_time);
     const oldEnd = appointment.end_time
-      ? new Date(appointment.end_time)
+      ? parseLocal(appointment.end_time)
       : new Date(oldStart.getTime() + SLOT_MINUTES * 60_000);
 
     const durationMs = Math.max(SLOT_MINUTES * 60_000, oldEnd.getTime() - oldStart.getTime());
-
-    const newStart = new Date(`${selectedDay}T${time}:00`);
+    const newStart = parseLocal(`${selectedDay}T${time}:00`);
     const newEnd = new Date(newStart.getTime() + durationMs);
+
 
     const payload: any = {
       customer_id,
-      staff_id: staffId ? Number(staffId) : null,
+      staff_id: staffId ? String(staffId) : null,
       notes: notes?.trim() || null,
-      start_time: newStart.toISOString().replace("Z", ""),
-      end_time: newEnd.toISOString().replace("Z", ""),
+      start_time: toNoZ(newStart),
+      end_time: toNoZ(newEnd),
+
     };
 
     const { error } = await supabase.from("appointments").update(payload).eq("id", appointment.id);

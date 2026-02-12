@@ -155,29 +155,39 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
         endRange = `${weekDays[6].date}T23:59:59`;
       }
 
-      const { data, error } = await supabase
-        .from("appointments")
-        .select(
-          `
-            *,
-            customers:customer_id (*),
-            appointment_services (
-              *,
-              service:service_id (*)
-            )
-          `
-        )
-        .eq("salon_id", salonId)
-        .gte("start_time", startRange)
-        .lte("start_time", endRange);
+const { data, error } = await supabase
+  .from("appointments")
+  .select(`
+    id,
+    start_time,
+    end_time,
+    status,
+    notes,
+    salon_id,
+    staff_id,
+    customer_id,
+    service_id,
+    group_id,
+    customers:customer_id (
+      id, first_name, last_name, phone
+    ),
+    services:service_id (
+      id, name, color_code, duration
+    )
+  `)
+  .eq("salon_id", salonId)
+  .gte("start_time", startRange)
+  .lte("start_time", endRange);
+
 
       if (error) {
         console.error("Errore appuntamenti:", error);
         setAppointments([]);
       } else {
         setAppointments(data || []);
+        console.log(data?.[0])
       }
-
+console.log(data?.[0])
       setLoading(false);
     },
     [currentDate, view, supabase, weekDays]
@@ -277,22 +287,20 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
           {/* VIEW */}
           <button
             onClick={() => setView("day")}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black transition-all ${
-              view === "day"
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black transition-all ${view === "day"
                 ? "bg-[#f3d8b6] text-black shadow-2xl"
                 : "opacity-40 hover:opacity-100"
-            }`}
+              }`}
           >
             <LayoutGrid size={14} /> GIORNO
           </button>
 
           <button
             onClick={() => setView("week")}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black transition-all ${
-              view === "week"
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black transition-all ${view === "week"
                 ? "bg-[#f3d8b6] text-black shadow-2xl"
                 : "opacity-40 hover:opacity-100"
-            }`}
+              }`}
           >
             <CalendarIcon size={14} /> SETTIMANA
           </button>
@@ -338,9 +346,8 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
                     </span>
                     <div className="flex items-center gap-1.5 mt-1">
                       <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          s.is_virtual ? "bg-orange-500" : "bg-green-500"
-                        }`}
+                        className={`w-1.5 h-1.5 rounded-full ${s.is_virtual ? "bg-orange-500" : "bg-green-500"
+                          }`}
                       />
                       <span className="text-[9px] font-bold opacity-30 uppercase">
                         {s.is_virtual ? "Supporto" : "Operativo"}
@@ -402,59 +409,11 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
             <div className={`flex relative bg-[#140b07] ${shouldScrollX ? "w-max" : "w-full"}`}>
               {view === "day"
                 ? staff.map((member) => {
-                    const mid = toIdStr(member?.id);
+                  const mid = toIdStr(member?.id);
 
-                    return (
-                      <div
-                        key={mid ?? `virtual-${member?.name ?? "na"}`}
-                        className="relative border-r border-white/[0.03]"
-                        style={{
-                          width: colWidth,
-                          flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
-                          minWidth: shouldScrollX ? colWidth : undefined,
-                        }}
-                      >
-                        {hours.map((h) => (
-                          <div
-                            key={h}
-                            style={{ height: SLOT_PX }}
-                            className="border-b border-white/[0.02] hover:bg-[#f3d8b6]/[0.02] transition-colors cursor-crosshair"
-                            onClick={() =>
-                              setSelectedSlot({
-                                time: h,
-                                staffId: mid,
-                              })
-                            }
-                          />
-                        ))}
-
-                        {/* Appuntamenti */}
-                        <div className="absolute inset-0 pointer-events-none z-10 p-1">
-                          {appointments
-                            .filter((a) => {
-                              const aid = toIdStr(a?.staff_id);
-                              return mid == null ? aid == null : aid === mid;
-                            })
-                            .map((app) => (
-                              <div key={app.id} className="pointer-events-auto">
-                                <AppointmentBox
-                                  appointment={app}
-                                  hours={hours}
-                                  onClick={() => setEditingAppointment(app)}
-                                  onCashIn={() =>
-                                    router.push(`/dashboard/cassa/${app.id}`)
-                                  }
-                                  onUpdated={() => loadAppointments(activeSalonId)}
-                                />
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    );
-                  })
-                : weekDays.map((day) => (
+                  return (
                     <div
-                      key={day.date}
+                      key={mid ?? `virtual-${member?.name ?? "na"}`}
                       className="relative border-r border-white/[0.03]"
                       style={{
                         width: colWidth,
@@ -466,16 +425,23 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
                         <div
                           key={h}
                           style={{ height: SLOT_PX }}
-                          className="border-b border-white/[0.02] hover:bg-white/[0.02] cursor-crosshair"
-                          onClick={() => setSelectedSlot({ time: h, staffId: null })}
+                          className="border-b border-white/[0.02] hover:bg-[#f3d8b6]/[0.02] transition-colors cursor-crosshair"
+                          onClick={() =>
+                            setSelectedSlot({
+                              time: h,
+                              staffId: mid,
+                            })
+                          }
                         />
                       ))}
 
+                      {/* Appuntamenti */}
                       <div className="absolute inset-0 pointer-events-none z-10 p-1">
                         {appointments
-                          .filter((a) =>
-                            String(a?.start_time || "").startsWith(day.date)
-                          )
+                          .filter((a) => {
+                            const aid = toIdStr(a?.staff_id);
+                            return mid == null ? aid == null : aid === mid;
+                          })
                           .map((app) => (
                             <div key={app.id} className="pointer-events-auto">
                               <AppointmentBox
@@ -491,7 +457,48 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
                           ))}
                       </div>
                     </div>
-                  ))}
+                  );
+                })
+                : weekDays.map((day) => (
+                  <div
+                    key={day.date}
+                    className="relative border-r border-white/[0.03]"
+                    style={{
+                      width: colWidth,
+                      flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
+                      minWidth: shouldScrollX ? colWidth : undefined,
+                    }}
+                  >
+                    {hours.map((h) => (
+                      <div
+                        key={h}
+                        style={{ height: SLOT_PX }}
+                        className="border-b border-white/[0.02] hover:bg-white/[0.02] cursor-crosshair"
+                        onClick={() => setSelectedSlot({ time: h, staffId: null })}
+                      />
+                    ))}
+
+                    <div className="absolute inset-0 pointer-events-none z-10 p-1">
+                      {appointments
+                        .filter((a) =>
+                          String(a?.start_time || "").startsWith(day.date)
+                        )
+                        .map((app) => (
+                          <div key={app.id} className="pointer-events-auto">
+                            <AppointmentBox
+                              appointment={app}
+                              hours={hours}
+                              onClick={() => setEditingAppointment(app)}
+                              onCashIn={() =>
+                                router.push(`/dashboard/cassa/${app.id}`)
+                              }
+                              onUpdated={() => loadAppointments(activeSalonId)}
+                            />
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         </div>

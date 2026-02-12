@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
@@ -18,7 +19,7 @@ interface Props {
 
 function statusMeta(status: string | null | undefined) {
   const s = String(status || "scheduled");
-  if (s === "in_sala")
+  if (s === "in_progress")
     return { label: "IN SALA", cls: "bg-[#f3d8b6] text-[#1A0F0A]" };
   if (s === "done")
     return { label: "DONE", cls: "bg-white/10 text-white/70 border border-white/10" };
@@ -47,23 +48,18 @@ function toNoZ(dt: Date) {
 }
 
 function getServiceSegments(appointment: any) {
-  const rows = (appointment?.appointment_services || []) as any[];
-  const segs = rows
-    .map((r) => {
-      const name = r?.service?.name ? String(r.service.name) : null;
-      const color = r?.service?.color_code ? String(r.service.color_code) : null;
-      const durRaw = Number(r?.duration_minutes ?? 0);
-      const dur = Math.max(
-        SLOT_MINUTES,
-        Number.isFinite(durRaw) && durRaw > 0 ? durRaw : SLOT_MINUTES
-      );
-      if (!name) return null;
-      return { name, color: color || "#a8754f", duration: dur };
-    })
-    .filter(Boolean) as Array<{ name: string; color: string; duration: number }>;
+  if (!appointment?.services) return [];
 
-  return segs;
+  return [
+    {
+      name: appointment.services.name,
+      color: appointment.services.color_code || "#a8754f",
+      duration: appointment.services.duration || SLOT_MINUTES,
+    },
+  ];
 }
+
+
 
 function uniqueColors(segments: Array<{ color: string }>) {
   return Array.from(new Set(segments.map((s) => s.color))).slice(0, 6);
@@ -80,7 +76,8 @@ export default function AppointmentBox({
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const boxRef = useRef<HTMLDivElement | null>(null);
-
+  const router = useRouter();
+  const [checkingIn, setCheckingIn] = useState(false);
   const [openActions, setOpenActions] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
@@ -126,10 +123,33 @@ export default function AppointmentBox({
   const normalizedSegments = segments.length ? segments : [{ name: "Servizio", color: accent, duration: denom }];
 
   // PORTA IN SALA / CASSA
-  function handlePortaInSala() {
+  async function handlePortaInSala() {
+    if (!appointment?.id) return;
+
     setOpenActions(false);
-    onCashIn?.();
+    setCheckingIn(true);
+
+    try {
+      const { data, error } = await supabase.rpc("appointment_checkin", {
+        p_appointment_id: Number(appointment.id),
+      });
+
+      if (error) throw error;
+      if (!data?.ok) throw new Error("checkin failed");
+
+      // refresh griglia se vuoi vedere subito lo stato cambiato
+      onUpdated?.();
+
+      // vai alla cassa collegata all'appuntamento
+      router.push(`/dashboard/cassa/${appointment.id}`);
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || "Errore durante Porta in sala");
+    } finally {
+      setCheckingIn(false);
+    }
   }
+
 
   // DRAG LOGIC
   async function shiftAppointmentBySlots(slotsMoved: number) {
@@ -191,7 +211,7 @@ export default function AppointmentBox({
     onUpdated?.();
   }
 
-  const isInSala = String(appointment.status) === "in_sala";
+  const isInSala = String(appointment.status) === "in_progress";
   const isDone = String(appointment.status) === "done";
 
   return (
@@ -255,8 +275,24 @@ export default function AppointmentBox({
           className="absolute right-2 top-10 z-50 w-44 rounded-xl bg-[#140b07] border border-[#5c3a21]/60 shadow-2xl py-1 overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <button onClick={handlePortaInSala} className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5">👤 Porta in sala</button>
-          <button onClick={() => { setOpenActions(false); onCashIn?.(); }} className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5">💰 Vai in cassa</button>
+          <button
+            onClick={handlePortaInSala}
+            disabled={checkingIn}
+            className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
+          >
+            👤 {checkingIn ? "..." : "Porta in sala"}
+          </button>
+
+          <button
+            onClick={() => {
+              setOpenActions(false);
+              router.push(`/dashboard/cassa/${appointment.id}`);
+            }}
+            className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5"
+          >
+            💰 Vai in cassa
+          </button>
+
           <button onClick={() => setOpenActions(false)} className="w-full px-4 py-2.5 text-left text-xs text-white/50 hover:bg-white/5">🧪 Scheda Tecnica</button>
         </div>
       )}
