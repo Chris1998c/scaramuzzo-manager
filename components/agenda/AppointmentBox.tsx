@@ -7,12 +7,14 @@ import { createClient } from "@/lib/supabaseClient";
 import { timeFromTs } from "@/lib/appointmentTime";
 import { SLOT_MINUTES, SLOT_PX } from "./utils";
 
+type Segment = { name: string; color: string; duration: number };
+
 interface Props {
   appointment: any;
   hours: string[];
   onClick: () => void;
   onUpdated?: () => void; // refresh grid
-  onCashIn?: () => void;  // apre direttamente Cash-in
+  onCashIn?: () => void; // apre direttamente Cash-in
 }
 
 /* --- HELPERS INTERNI --- */
@@ -22,10 +24,19 @@ function statusMeta(status: string | null | undefined) {
   if (s === "in_progress")
     return { label: "IN SALA", cls: "bg-[#f3d8b6] text-[#1A0F0A]" };
   if (s === "done")
-    return { label: "DONE", cls: "bg-white/10 text-white/70 border border-white/10" };
+    return {
+      label: "DONE",
+      cls: "bg-white/10 text-white/70 border border-white/10",
+    };
   if (s === "cancelled")
-    return { label: "ANNULL.", cls: "bg-red-500/15 text-red-200 border border-red-400/20" };
-  return { label: "PRENOT.", cls: "bg-black/25 text-[#f3d8b6] border border-[#5c3a21]/60" };
+    return {
+      label: "ANNULL.",
+      cls: "bg-red-500/15 text-red-200 border border-red-400/20",
+    };
+  return {
+    label: "PRENOT.",
+    cls: "bg-black/25 text-[#f3d8b6] border border-[#5c3a21]/60",
+  };
 }
 
 /** Date locale (no UTC shift) */
@@ -47,22 +58,39 @@ function toNoZ(dt: Date) {
   return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
 }
 
-function getServiceSegments(appointment: any) {
-  if (!appointment?.services) return [];
+/**
+ * Legge i segmenti da appointment_services (schema: 1 appointment + N righe).
+ * Richiede join: appointment_services( ..., services:service_id(...) )
+ */
+function getServiceSegments(appointment: any): Segment[] {
+  const lines = Array.isArray(appointment?.appointment_services)
+    ? appointment.appointment_services
+    : [];
 
-  return [
-    {
-      name: appointment.services.name,
-      color: appointment.services.color_code || "#a8754f",
-      duration: appointment.services.duration || SLOT_MINUTES,
-    },
-  ];
+  return lines
+    .slice()
+    .sort((a: any, b: any) =>
+      String(a?.start_time ?? "").localeCompare(String(b?.start_time ?? ""))
+    )
+    .map((line: any): Segment => {
+      const svc = line?.services;
+
+      const name = String(svc?.name ?? "").trim() || "Servizio";
+      const color = (svc?.color_code as string) || "#a8754f";
+
+      const duration =
+        Number(line?.duration_minutes ?? svc?.duration ?? SLOT_MINUTES) ||
+        SLOT_MINUTES;
+
+      return { name, color, duration };
+    });
 }
 
-
-
-function uniqueColors(segments: Array<{ color: string }>) {
-  return Array.from(new Set(segments.map((s) => s.color))).slice(0, 6);
+function uniqueColors(segments: Segment[]) {
+  return Array.from(new Set(segments.map((seg: Segment) => seg.color))).slice(
+    0,
+    6
+  );
 }
 
 /* --- COMPONENTE PRINCIPALE --- */
@@ -77,6 +105,7 @@ export default function AppointmentBox({
   const supabase = useMemo(() => createClient(), []);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+
   const [checkingIn, setCheckingIn] = useState(false);
   const [openActions, setOpenActions] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -106,11 +135,13 @@ export default function AppointmentBox({
 
   // ===== DATI UI =====
   const customerName = appointment?.customers
-    ? `${appointment.customers.first_name ?? ""} ${appointment.customers.last_name ?? ""}`.trim()
+    ? `${appointment.customers.first_name ?? ""} ${
+        appointment.customers.last_name ?? ""
+      }`.trim()
     : "Cliente";
 
-  const segments = getServiceSegments(appointment);
-  const serviceNames = segments.map((s) => s.name);
+  const segments: Segment[] = getServiceSegments(appointment);
+  const serviceNames = segments.map((seg: Segment) => seg.name);
   const firstTwo = serviceNames.slice(0, 2);
   const extraCount = Math.max(0, serviceNames.length - 2);
 
@@ -118,9 +149,15 @@ export default function AppointmentBox({
   const accent = colors[0] || "#a8754f";
   const meta = statusMeta(appointment.status);
 
-  const sumSeg = segments.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
-  const denom = sumSeg > 0 ? sumSeg : Math.max(SLOT_MINUTES, Math.round(durationMin));
-  const normalizedSegments = segments.length ? segments : [{ name: "Servizio", color: accent, duration: denom }];
+  const sumSeg = segments.reduce(
+    (sum: number, seg: Segment) => sum + (Number(seg.duration) || 0),
+    0
+  );
+  const denom =
+    sumSeg > 0 ? sumSeg : Math.max(SLOT_MINUTES, Math.round(durationMin));
+  const normalizedSegments: Segment[] = segments.length
+    ? segments
+    : [{ name: "Servizio", color: accent, duration: denom }];
 
   // PORTA IN SALA / CASSA
   async function handlePortaInSala() {
@@ -137,10 +174,7 @@ export default function AppointmentBox({
       if (error) throw error;
       if (!data?.ok) throw new Error("checkin failed");
 
-      // refresh griglia se vuoi vedere subito lo stato cambiato
       onUpdated?.();
-
-      // vai alla cassa collegata all'appuntamento
       router.push(`/dashboard/cassa/${appointment.id}`);
     } catch (e: any) {
       console.error(e);
@@ -149,7 +183,6 @@ export default function AppointmentBox({
       setCheckingIn(false);
     }
   }
-
 
   // DRAG LOGIC
   async function shiftAppointmentBySlots(slotsMoved: number) {
@@ -219,14 +252,9 @@ export default function AppointmentBox({
       ref={boxRef}
       className={[
         "absolute left-1 right-1 z-30",
-        "rounded-2xl cursor-pointer overflow-hidden",
-        "bg-[#1c0f0a]/92 backdrop-blur-md",
-        "border border-[#f3d8b6]/22",
-        "shadow-[0_16px_55px_rgba(0,0,0,0.55)]",
+        "rounded-2xl cursor-pointer",
         "transition-all duration-200",
-        isInSala ? "ring-2 ring-[#f3d8b6]/35 shadow-[0_0_70px_rgba(243,216,182,0.16)]" : "ring-1 ring-black/20",
-        isDone ? "opacity-70" : "",
-        saving ? "pointer-events-none opacity-50" : ""
+        saving ? "pointer-events-none opacity-50" : "",
       ].join(" ")}
       style={{ top, height, opacity: dragging ? 0.82 : 1 }}
       drag="y"
@@ -243,104 +271,148 @@ export default function AppointmentBox({
       }}
       onClick={() => !dragging && !resizing && !saving && onClick()}
     >
-      {/* Accent Lateral Bar */}
-      <div className="absolute left-0 top-0 bottom-0 w-[7px]" style={{ backgroundColor: accent }} />
-
-      {/* Background Segments */}
-      <div className="absolute inset-0 left-[7px] opacity-[0.15] pointer-events-none">
-        <div className="h-full w-full flex flex-col">
-          {normalizedSegments.map((seg, i) => (
-            <div
-              key={i}
-              style={{ flex: seg.duration, backgroundColor: seg.color }}
-              className="w-full border-b border-black/10"
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Action Menu Trigger */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpenActions(!openActions);
-        }}
-        className="absolute top-2 right-2 z-40 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 border border-white/10 text-[#f3d8b6] hover:bg-black/60 transition"
+      {/* WRAPPER: overflow visible così il menu ⋮ NON viene tagliato */}
+      <div
+        className={[
+          "relative h-full w-full overflow-visible rounded-2xl",
+          "bg-[#1c0f0a]/92 backdrop-blur-md",
+          "border border-[#f3d8b6]/22",
+          "shadow-[0_16px_55px_rgba(0,0,0,0.55)]",
+          isInSala
+            ? "ring-2 ring-[#f3d8b6]/35 shadow-[0_0_70px_rgba(243,216,182,0.16)]"
+            : "ring-1 ring-black/20",
+          isDone ? "opacity-70" : "",
+        ].join(" ")}
       >
-        ⋮
-      </button>
+        {/* Layer interno: clip SOLO contenuto, non il menu */}
+        <div className="absolute inset-0 rounded-2xl overflow-hidden">
+          {/* Accent Lateral Bar */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-[7px]"
+            style={{ backgroundColor: accent }}
+          />
 
-      {openActions && (
-        <div
-          className="absolute right-2 top-10 z-50 w-44 rounded-xl bg-[#140b07] border border-[#5c3a21]/60 shadow-2xl py-1 overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={handlePortaInSala}
-            disabled={checkingIn}
-            className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
+          {/* Background Segments */}
+          <div className="absolute inset-0 left-[7px] opacity-[0.15] pointer-events-none">
+            <div className="h-full w-full flex flex-col">
+              {normalizedSegments.map((seg: Segment, i: number) => (
+                <div
+                  key={`${seg.name}-${i}`}
+                  style={{ flex: seg.duration, backgroundColor: seg.color }}
+                  className="w-full border-b border-black/10"
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div
+            className={`relative z-10 h-full pl-5 pr-8 ${
+              compact ? "py-1 flex items-center" : "py-3"
+            }`}
           >
-            👤 {checkingIn ? "..." : "Porta in sala"}
-          </button>
+            <div className="w-full min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span
+                  className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded ${meta.cls}`}
+                >
+                  {meta.label}
+                </span>
+                <h4
+                  className={`font-extrabold text-[#f3d8b6] truncate ${
+                    compact ? "text-[12px]" : "text-[13px]"
+                  }`}
+                >
+                  {customerName}
+                </h4>
+              </div>
 
-          <button
-            onClick={() => {
-              setOpenActions(false);
-              router.push(`/dashboard/cassa/${appointment.id}`);
+              {/* SERVIZI: SEMPRE sotto al nome */}
+              <div
+                className={`text-white/80 truncate ${
+                  compact ? "text-[11px]" : "text-[12px]"
+                }`}
+              >
+                {firstTwo.join(" • ")}
+                {extraCount > 0 && (
+                  <span className="text-white/40 ml-1">+{extraCount}</span>
+                )}
+                <span className="ml-2 text-white/40 font-mono italic">
+                  {Math.round(durationMin)}m
+                </span>
+              </div>
+
+              {!compact && appointment?.notes && (
+                <p className="mt-2 text-[10px] text-white/50 line-clamp-1 italic border-l border-white/10 pl-2">
+                  {appointment.notes}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Resize Handle (Bottom) */}
+          <motion.div
+            className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize z-20 hover:bg-white/5 transition"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setResizing(true);
             }}
-            className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5"
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 500 }}
+            dragElastic={0}
+            dragMomentum={false}
+            onDragEnd={async (_: any, info: any) => {
+              setResizing(false);
+              const slotsChanged = Math.round(info.offset.y / SLOT_PX);
+              if (slotsChanged === 0) return;
+              await resizeAppointmentBySlots(slotsChanged);
+            }}
+          />
+        </div>
+
+        {/* Action Menu Trigger (fuori dal layer overflow-hidden) */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenActions(!openActions);
+          }}
+          className="absolute top-2 right-2 z-40 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 border border-white/10 text-[#f3d8b6] hover:bg-black/60 transition"
+        >
+          ⋮
+        </button>
+
+        {openActions && (
+          <div
+            className="absolute right-2 top-10 z-50 w-44 rounded-xl bg-[#140b07] border border-[#5c3a21]/60 shadow-2xl py-1 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
           >
-            💰 Vai in cassa
-          </button>
+            <button
+              onClick={handlePortaInSala}
+              disabled={checkingIn}
+              className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
+            >
+              👤 {checkingIn ? "..." : "Porta in sala"}
+            </button>
 
-          <button onClick={() => setOpenActions(false)} className="w-full px-4 py-2.5 text-left text-xs text-white/50 hover:bg-white/5">🧪 Scheda Tecnica</button>
-        </div>
-      )}
+            <button
+              onClick={() => {
+                setOpenActions(false);
+                router.push(`/dashboard/cassa/${appointment.id}`);
+              }}
+              className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5"
+            >
+              💰 Vai in cassa
+            </button>
 
-      {/* Main Content */}
-      <div className={`relative z-10 h-full pl-5 pr-8 ${compact ? "py-1 flex items-center" : "py-3"}`}>
-        <div className="w-full min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded ${meta.cls}`}>
-              {meta.label}
-            </span>
-            <h4 className={`font-extrabold text-[#f3d8b6] truncate ${compact ? "text-[12px]" : "text-[13px]"}`}>
-              {customerName}
-            </h4>
+            <button
+              onClick={() => setOpenActions(false)}
+              className="w-full px-4 py-2.5 text-left text-xs text-white/50 hover:bg-white/5"
+            >
+              🧪 Scheda Tecnica
+            </button>
           </div>
-
-          <div className={`text-white/80 truncate ${compact ? "text-[11px]" : "text-[12px]"}`}>
-            {firstTwo.join(" • ")}
-            {extraCount > 0 && <span className="text-white/40 ml-1">+{extraCount}</span>}
-            <span className="ml-2 text-white/40 font-mono italic">{Math.round(durationMin)}m</span>
-          </div>
-
-          {!compact && appointment?.notes && (
-            <p className="mt-2 text-[10px] text-white/50 line-clamp-1 italic border-l border-white/10 pl-2">
-              {appointment.notes}
-            </p>
-          )}
-        </div>
+        )}
       </div>
-
-      {/* Resize Handle (Bottom) */}
-      <motion.div
-        className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize z-20 hover:bg-white/5 transition"
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          setResizing(true);
-        }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 500 }}
-        dragElastic={0}
-        dragMomentum={false}
-        onDragEnd={async (_: any, info: any) => {
-          setResizing(false);
-          const slotsChanged = Math.round(info.offset.y / SLOT_PX);
-          if (slotsChanged === 0) return;
-          await resizeAppointmentBySlots(slotsChanged);
-        }}
-      />
     </motion.div>
   );
 }

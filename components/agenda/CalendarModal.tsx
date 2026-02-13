@@ -45,10 +45,21 @@ export default function CalendarModal({
   const [appointmentsByDay, setAppointmentsByDay] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    if (!isOpen || !selectedDate) return;
+
+    const d = new Date(`${selectedDate}T00:00:00`);
+    if (Number.isFinite(d.getTime())) {
+      setCurrentMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+    }
+  }, [isOpen, selectedDate]);
+
+  useEffect(() => {
     if (!isOpen) return;
+    if (activeSalonId == null) return;
+
     void loadAppointmentsForMonth(currentMonth);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, currentMonth, activeSalonId]);
+
 
   async function loadAppointmentsForMonth(date: Date) {
     if (activeSalonId == null) {
@@ -124,8 +135,13 @@ export default function CalendarModal({
   const days = generateCalendarDays();
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[10vh] bg-black/65 backdrop-blur-sm p-4">
+    <div
+      className="fixed inset-0 z-[200] flex items-start justify-center pt-[10vh] bg-black/65 backdrop-blur-sm p-4"
+      onClick={close}
+    >
       <motion.div
+        onClick={(e) => e.stopPropagation()}
+
         initial={{ opacity: 0, y: 10, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         className="w-full max-w-2xl rounded-3xl border border-[#5c3a21]/60 bg-[#140b07]/85

@@ -1,30 +1,74 @@
-// components/agenda/utils.ts
+/* =====================================================
+   SCARAMUZZO MANAGER – AGENDA UTILS (DEFINITIVE)
+   - Zero shift UTC
+   - Snap 15 minuti
+   - Week lun-dom
+   - Calcoli robusti
+   - Ready for future extensions
+===================================================== */
 
-/* ----------------------------------------- */
-/* SLOT CONFIG (AGENDA)             */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   SLOT CONFIG (AGENDA CORE)
+----------------------------------------- */
 
-export const SLOT_MINUTES = 15; // scaglioni 15 minuti
-export const SLOT_PX = 28;      // RIDOTTO per visuale compatta (era 32)
+export const SLOT_MINUTES = 15; // Step ufficiale gestionale
+export const SLOT_PX = 28;      // Altezza slot (coerente con UI compatta)
 
-/* ----------------------------------------- */
-/* FORMAT / PARSE TIMESTAMP (DB)        */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   DATE / TIME SAFE HELPERS (NO UTC SHIFT)
+----------------------------------------- */
 
-export function dayFromTs(ts: string) {
+/**
+ * Restituisce YYYY-MM-DD da timestamp ISO
+ */
+export function dayFromTs(ts: string): string {
   if (!ts) return "";
   return String(ts).split("T")[0];
 }
 
-export function timeFromTs(ts: string) {
+/**
+ * Restituisce HH:MM robusto anche con secondi/Z
+ */
+export function timeFromTs(ts: string): string {
   if (!ts) return "";
-  const t = String(ts).split("T")[1] || "";
-  return t.slice(0, 5);
+  const parts = String(ts).split("T");
+  if (parts.length < 2) return "";
+  return parts[1].slice(0, 5);
 }
 
-/* ----------------------------------------- */
-/* GENERA ORE GIORNALIERE          */
-/* ----------------------------------------- */
+/**
+ * Parsing locale sicuro (NO Z shift)
+ */
+export function parseLocal(ts: string): Date {
+  const [date, time] = String(ts).split("T");
+  const [y, m, d] = String(date || "").split("-").map(Number);
+  const [hh, mm, ss] = String(time || "00:00:00").split(":").map(Number);
+
+  return new Date(
+    y || 0,
+    (m || 1) - 1,
+    d || 1,
+    hh || 0,
+    mm || 0,
+    ss || 0,
+    0
+  );
+}
+
+/**
+ * Format YYYY-MM-DDTHH:mm:ss senza Z
+ */
+export function toNoZ(dt: Date): string {
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(
+    dt.getDate()
+  )}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(
+    dt.getSeconds()
+  )}`;
+}
+
+/* -----------------------------------------
+   GENERAZIONE ORE GIORNALIERE
+----------------------------------------- */
 
 export function generateHours(
   start: string,
@@ -40,15 +84,17 @@ export function generateHours(
   if (endM < startM) return [];
 
   const res: string[] = [];
+
   for (let m = startM; m <= endM; m += step) {
     res.push(minutesToTime(m));
   }
+
   return res;
 }
 
-/* ----------------------------------------- */
-/* ORA → MINUTI                    */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   TIME ↔ MINUTES
+----------------------------------------- */
 
 export function timeToMinutes(t: string): number {
   return timeToMinutesSafe(t) ?? 0;
@@ -68,10 +114,6 @@ function timeToMinutesSafe(t: string): number | null {
   return h * 60 + m;
 }
 
-/* ----------------------------------------- */
-/* MINUTI → ORA                    */
-/* ----------------------------------------- */
-
 export function minutesToTime(mins: number): string {
   const total = Math.max(0, Math.floor(Number(mins) || 0));
   const h = Math.floor(total / 60);
@@ -79,70 +121,84 @@ export function minutesToTime(mins: number): string {
   return `${pad(h)}:${pad(m)}`;
 }
 
-/* ----------------------------------------- */
-/* POSIZIONE BOX IN PIXEL               */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   SNAP A SLOT (DRAG)
+----------------------------------------- */
 
-export function getBoxTop(time: string, hours: string[], slotPx = SLOT_PX) {
+export function snapMinutesToSlot(
+  minutes: number,
+  slot: number = SLOT_MINUTES
+): number {
+  const s = Math.max(1, Number(slot) || SLOT_MINUTES);
+  return Math.round(minutes / s) * s;
+}
+
+/* -----------------------------------------
+   POSIZIONE BOX (PIXEL)
+----------------------------------------- */
+
+export function getBoxTop(
+  time: string,
+  hours: string[],
+  slotPx = SLOT_PX
+): number {
   const index = hours.indexOf(time);
   return index < 0 ? 0 : index * slotPx;
 }
-
-/* ----------------------------------------- */
-/* ALTEZZA BOX IN PIXEL                 */
-/* ----------------------------------------- */
 
 export function getBoxHeight(
   durationMin: number,
   step = SLOT_MINUTES,
   slotPx = SLOT_PX
-) {
-  const dur = Math.max(0, Number(durationMin) || 0);
-  const s = Math.max(1, Number(step) || SLOT_MINUTES);
-  // Restituisce l'altezza esatta in pixel basata sulla durata
-  return Math.max(slotPx, (dur / s) * slotPx);
+): number {
+  const dur = Math.max(step, Number(durationMin) || step);
+  return (dur / step) * slotPx;
 }
 
-/* ----------------------------------------- */
-/* DURATA (min) DA start/end_time       */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   DURATA DA start/end_time
+----------------------------------------- */
 
 export function durationFromTimestamps(
   start_time: string,
   end_time?: string | null
-) {
-  if (!end_time) return 30;
+): number {
+  if (!start_time || !end_time) return SLOT_MINUTES * 2;
 
   const startM = timeToMinutes(timeFromTs(start_time));
   const endM = timeToMinutes(timeFromTs(end_time));
 
-  const mins = endM - startM;
+  const diff = endM - startM;
 
-  if (!Number.isFinite(mins) || mins <= 0) return 30;
-  // Per l'uso quotidiano, permettiamo anche scatti da 15 min
-  return mins; 
+  if (!Number.isFinite(diff) || diff <= 0) {
+    return SLOT_MINUTES * 2;
+  }
+
+  return snapMinutesToSlot(diff);
 }
 
-/* ----------------------------------------- */
-/* SOMMA DURATE appointment_services    */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   SOMMA DURATE appointment_services
+----------------------------------------- */
 
-export function sumServiceDurationsMinutes(appointment_services: any[]) {
+export function sumServiceDurationsMinutes(
+  appointment_services: any[]
+): number {
   const sum = (appointment_services || [])
     .map((r) => Number(r?.duration_minutes ?? 0))
     .reduce((a, b) => a + b, 0);
 
-  return sum > 0 ? sum : 30;
+  return sum > 0 ? sum : SLOT_MINUTES * 2;
 }
 
-/* ----------------------------------------- */
-/* GENERA 7 GIORNI SETTIMANA (lun-dom)  */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   SETTIMANA LUN → DOM (NO UTC SHIFT)
+----------------------------------------- */
 
 export function generateWeekDaysFromDate(
   dateString: string
 ): { label: string; date: string }[] {
-  const base = new Date(`${dateString}T00:00:00`);
+  const base = parseLocal(`${dateString}T00:00:00`);
   const day = base.getDay() || 7; // lun=1..dom=7
 
   const days: { label: string; date: string }[] = [];
@@ -152,7 +208,9 @@ export function generateWeekDaysFromDate(
     d.setDate(base.getDate() - (day - i));
 
     days.push({
-      date: d.toISOString().split("T")[0],
+      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+        d.getDate()
+      )}`,
       label: d.toLocaleDateString("it-IT", {
         weekday: "short",
         day: "numeric",
@@ -164,9 +222,9 @@ export function generateWeekDaysFromDate(
   return days;
 }
 
-/* ----------------------------------------- */
-/* PROSSIMO SLOT LIBERO (usa start_time)    */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   PROSSIMO SLOT LIBERO (base semplice)
+----------------------------------------- */
 
 export function findNextAvailable(
   appointments: any[],
@@ -177,19 +235,28 @@ export function findNextAvailable(
     (appointments || [])
       .map((a) => String(a?.start_time || ""))
       .filter((s) => s.startsWith(day))
-      .map((ts) => (ts.split("T")[1] || "").slice(0, 5))
+      .map((ts) => timeFromTs(ts))
   );
 
   for (const h of hours) {
     if (!booked.has(h)) return h;
   }
+
   return null;
 }
 
-/* ----------------------------------------- */
-/* UTILITY INTERNE                      */
-/* ----------------------------------------- */
+/* -----------------------------------------
+   CLAMP GENERICO
+----------------------------------------- */
 
-function pad(n: number) {
+export function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+/* -----------------------------------------
+   INTERNAL
+----------------------------------------- */
+
+function pad(n: number): string {
   return String(n).padStart(2, "0");
 }

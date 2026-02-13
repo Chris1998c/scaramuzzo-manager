@@ -21,20 +21,37 @@ function safeName(c: any) {
   return full || "Cliente";
 }
 
-// ✅ robust: prende HH:MM anche se start_time ha secondi o Z
+// prende HH:MM anche se start_time ha secondi/Z
 function timeFromTsSafe(ts: string) {
   const s = String(ts || "");
   const parts = s.split("T");
   if (parts.length < 2) return "08:00";
-  const t = parts[1];
+  const t = parts[1] || "";
   return String(t).slice(0, 5) || "08:00";
 }
 
+/** Date locale (no UTC shift) */
 function parseLocal(ts: string) {
   const [date, time] = String(ts).split("T");
   const [y, m, d] = String(date).split("-").map(Number);
   const [hh, mm, ss] = String(time || "00:00:00").split(":").map(Number);
   return new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, ss || 0, 0);
+}
+
+/** format “YYYY-MM-DDTHH:mm:ss” senza Z */
+function toNoZ(dt: Date) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  const hh = String(dt.getHours()).padStart(2, "0");
+  const mm = String(dt.getMinutes()).padStart(2, "0");
+  const ss = String(dt.getSeconds()).padStart(2, "0");
+  return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
+}
+
+function toStrOrNull(v: unknown): string | null {
+  if (v === null || v === undefined || v === "") return null;
+  return String(v);
 }
 
 export default function EditAppointmentModal({
@@ -61,8 +78,8 @@ export default function EditAppointmentModal({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string>("");
 
-  // ✅ ore coerenti con griglia/box (15 min)
-  const hours = useMemo(() => generateHours("08:00", "20:00", SLOT_MINUTES), []);
+  // ore coerenti con griglia (15m) — fino a 20:30
+  const hours = useMemo(() => generateHours("08:00", "20:30", SLOT_MINUTES), []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -88,7 +105,7 @@ export default function EditAppointmentModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, activeSalonId, appointment?.id]);
 
-  // ✅ filtro search in tempo reale (e mantiene lista completa)
+  // filtro clienti
   useEffect(() => {
     const q = qCustomer.toLowerCase().trim();
     if (!q) {
@@ -103,16 +120,6 @@ export default function EditAppointmentModal({
       })
     );
   }, [qCustomer, customers]);
-
-  function toNoZ(dt: Date) {
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth() + 1).padStart(2, "0");
-    const d = String(dt.getDate()).padStart(2, "0");
-    const hh = String(dt.getHours()).padStart(2, "0");
-    const mm = String(dt.getMinutes()).padStart(2, "0");
-    const ss = String(dt.getSeconds()).padStart(2, "0");
-    return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
-  }
 
   async function loadCustomers() {
     const { data, error } = await supabase
@@ -137,12 +144,17 @@ export default function EditAppointmentModal({
   }
 
   async function loadStaffForSalon() {
-    const sid = activeSalonId == null ? null : Number(activeSalonId);
+    if (!activeSalonId) {
+      setStaff([{ id: null, name: "Disponibile" }]);
+      return;
+    }
 
-    let q = supabase.from("staff").select("id, name, active, salon_id").eq("active", true);
-    if (sid != null) q = q.eq("salon_id", sid);
-
-    const { data, error } = await q.order("name", { ascending: true });
+    const { data, error } = await supabase
+      .from("staff")
+      .select("id, name")
+      .eq("salon_id", activeSalonId)
+      .eq("active", true)
+      .order("name", { ascending: true });
 
     if (error) {
       console.error(error);
@@ -150,60 +162,86 @@ export default function EditAppointmentModal({
       return;
     }
 
-    const available = [{ id: null, name: "Disponibile" }];
-    setStaff(available.concat(data || []));
+    setStaff([{ id: null, name: "Disponibile" }, ...(data || [])]);
   }
 
+  // aggiorna appointment + shift coerente delle righe appointment_services
   async function updateAppointment() {
     if (!appointment?.id) return;
     if (saving) return;
 
     setErr("");
 
-    const customer_id = customer ? String(customer) : null; // UUID string
-    if (!customer_id) {
-      setErr("Seleziona un cliente valido.");
-      return;
-    }
+    const customer_id = customer ? String(customer) : null;
+    if (!customer_id) return setErr("Seleziona un cliente valido.");
 
-    if (!time) {
-      setErr("Seleziona un orario.");
-      return;
-    }
+    if (!time) return setErr("Seleziona un orario.");
 
     setSaving(true);
 
-    // ✅ mantieni durata originale (end-start)
-    const oldStart = parseLocal(appointment.start_time);
-    const oldEnd = appointment.end_time
-      ? parseLocal(appointment.end_time)
-      : new Date(oldStart.getTime() + SLOT_MINUTES * 60_000);
+    try {
+      // durata originale appointment (end-start)
+      const oldStart = parseLocal(appointment.start_time);
+      const oldEnd = appointment.end_time
+        ? parseLocal(appointment.end_time)
+        : new Date(oldStart.getTime() + SLOT_MINUTES * 60_000);
 
-    const durationMs = Math.max(SLOT_MINUTES * 60_000, oldEnd.getTime() - oldStart.getTime());
-    const newStart = parseLocal(`${selectedDay}T${time}:00`);
-    const newEnd = new Date(newStart.getTime() + durationMs);
+      const durationMs = Math.max(SLOT_MINUTES * 60_000, oldEnd.getTime() - oldStart.getTime());
 
+      const newStart = parseLocal(`${selectedDay}T${time}:00`);
+      const newEnd = new Date(newStart.getTime() + durationMs);
 
-    const payload: any = {
-      customer_id,
-      staff_id: staffId ? String(staffId) : null,
-      notes: notes?.trim() || null,
-      start_time: toNoZ(newStart),
-      end_time: toNoZ(newEnd),
+      // delta per spostare anche le righe appointment_services
+      const deltaMs = newStart.getTime() - oldStart.getTime();
 
-    };
+      // 1) update appointment
+      const payload = {
+        customer_id,
+        staff_id: staffId ? String(staffId) : null,
+        notes: notes?.trim() || null,
+        start_time: toNoZ(newStart),
+        end_time: toNoZ(newEnd),
+      };
 
-    const { error } = await supabase.from("appointments").update(payload).eq("id", appointment.id);
+      const { error: upErr } = await supabase
+        .from("appointments")
+        .update(payload)
+        .eq("id", appointment.id);
 
-    setSaving(false);
+      if (upErr) throw upErr;
 
-    if (error) {
-      setErr(error.message);
-      return;
+      // 2) shift appointment_services start_time (se esistono)
+      //    (se delta=0, skip)
+      if (deltaMs !== 0) {
+        const { data: lines, error: linesErr } = await supabase
+          .from("appointment_services")
+          .select("id, start_time")
+          .eq("appointment_id", appointment.id)
+          .order("start_time", { ascending: true });
+
+        if (linesErr) throw linesErr;
+
+        for (const l of lines || []) {
+          const ls = parseLocal(l.start_time);
+          const shifted = new Date(ls.getTime() + deltaMs);
+
+          const { error: lineUpErr } = await supabase
+            .from("appointment_services")
+            .update({ start_time: toNoZ(shifted) })
+            .eq("id", Number(l.id));
+
+          if (lineUpErr) throw lineUpErr;
+        }
+      }
+
+      onUpdated?.();
+      close();
+    } catch (e: any) {
+      console.error(e);
+      setErr(e?.message || "Errore salvataggio");
+    } finally {
+      setSaving(false);
     }
-
-    onUpdated?.();
-    close();
   }
 
   async function deleteAppointment() {
@@ -216,17 +254,26 @@ export default function EditAppointmentModal({
     setSaving(true);
     setErr("");
 
-    const { error } = await supabase.from("appointments").delete().eq("id", appointment.id);
+    try {
+      // sicurezza: elimina prima le righe (se non hai ON DELETE CASCADE)
+      const { error: delLinesErr } = await supabase
+        .from("appointment_services")
+        .delete()
+        .eq("appointment_id", appointment.id);
 
-    setSaving(false);
+      if (delLinesErr) throw delLinesErr;
 
-    if (error) {
-      setErr(error.message);
-      return;
+      const { error: delErr } = await supabase.from("appointments").delete().eq("id", appointment.id);
+      if (delErr) throw delErr;
+
+      onUpdated?.();
+      close();
+    } catch (e: any) {
+      console.error(e);
+      setErr(e?.message || "Errore eliminazione");
+    } finally {
+      setSaving(false);
     }
-
-    onUpdated?.();
-    close();
   }
 
   async function portaInSala() {
@@ -236,25 +283,34 @@ export default function EditAppointmentModal({
     setSaving(true);
     setErr("");
 
-    const { error } = await supabase
-      .from("appointments")
-      .update({ status: "in_sala" })
-      .eq("id", appointment.id);
+    try {
+      // preferito: RPC già usata altrove (ServiceBox)
+      const { data, error } = await supabase.rpc("appointment_checkin", {
+        p_appointment_id: Number(appointment.id),
+      });
 
-    setSaving(false);
+      // fallback se RPC non presente
+      if (error) {
+        const { error: upErr } = await supabase
+          .from("appointments")
+          .update({ status: "in_progress" })
+          .eq("id", appointment.id);
+        if (upErr) throw upErr;
+      } else {
+        if (!data?.ok) {
+          // se la tua RPC non ritorna {ok:true}, non blocchiamo: consideriamo ok
+        }
+      }
 
-    if (error) {
-      setErr(error.message);
-      return;
+      onUpdated?.();
+      close();
+      router.push(`/dashboard/cassa/${appointment.id}`);
+    } catch (e: any) {
+      console.error(e);
+      setErr(e?.message || "Errore Porta in sala");
+    } finally {
+      setSaving(false);
     }
-
-    onUpdated?.();
-    close();
-
-    // ✅ default gestionale
-    router.push(`/dashboard/cassa/${appointment.id}`);
-    // se la tua route è /cassa/[id], cambia in:
-    // router.push(`/cassa/${appointment.id}`);
   }
 
   function goToCash() {
