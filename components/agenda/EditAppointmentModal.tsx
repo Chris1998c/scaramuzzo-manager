@@ -293,7 +293,7 @@ export default function EditAppointmentModal({
       if (error) {
         const { error: upErr } = await supabase
           .from("appointments")
-          .update({ status: "in_progress" })
+          .update({ status: "in_sala" })
           .eq("id", appointment.id);
         if (upErr) throw upErr;
       } else {

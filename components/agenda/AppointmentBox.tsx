@@ -21,7 +21,7 @@ interface Props {
 
 function statusMeta(status: string | null | undefined) {
   const s = String(status || "scheduled");
-  if (s === "in_progress")
+  if (s === "in_sala")
     return { label: "IN SALA", cls: "bg-[#f3d8b6] text-[#1A0F0A]" };
   if (s === "done")
     return {
@@ -244,7 +244,7 @@ export default function AppointmentBox({
     onUpdated?.();
   }
 
-  const isInSala = String(appointment.status) === "in_progress";
+  const isInSala = String(appointment.status) === "in_sala";
   const isDone = String(appointment.status) === "done";
 
   return (
