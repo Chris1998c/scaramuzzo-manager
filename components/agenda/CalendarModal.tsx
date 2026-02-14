@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
@@ -20,16 +20,19 @@ function toYmd(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-/** ✅ parse robusto anche se arriva con Z o senza */
+/** parse robusto e stabile (estrae YYYY-MM-DD se presente) */
 function parseTsSafe(ts: string) {
   const s = String(ts || "");
-  // Se è ISO con Z, Date() lo capisce; se è naive "YYYY-MM-DDTHH:mm:ss" spesso lo tratta come locale
-  // Noi vogliamo comunque estrarre la data "YYYY-MM-DD" in modo stabile.
   const head = s.split("T")[0];
   if (/^\d{4}-\d{2}-\d{2}$/.test(head)) return head;
   const d = new Date(s);
-  if (Number.isFinite(d.getTime())) return toYmd(d);
-  return head || "";
+  return Number.isFinite(d.getTime()) ? toYmd(d) : "";
+}
+
+function monthKey(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
 
 export default function CalendarModal({
@@ -41,75 +44,103 @@ export default function CalendarModal({
   const supabase = useMemo(() => createClient(), []);
   const { activeSalonId } = useActiveSalon();
 
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [appointmentsByDay, setAppointmentsByDay] = useState<Record<string, number>>({});
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const base = selectedDate ? new Date(`${selectedDate}T12:00:00`) : new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
 
-  useEffect(() => {
-    if (!isOpen || !selectedDate) return;
+  const [appointmentsByDay, setAppointmentsByDay] = useState<Record<string, number>>(
+    {}
+  );
 
-    const d = new Date(`${selectedDate}T00:00:00`);
-    if (Number.isFinite(d.getTime())) {
-      setCurrentMonth(new Date(d.getFullYear(), d.getMonth(), 1));
-    }
-  }, [isOpen, selectedDate]);
+  // cache per evitare refetch continuo quando apri/chiudi o navighi avanti/indietro
+  const cacheRef = useRef<Record<string, Record<string, number>>>({});
+  const lastReqRef = useRef(0);
 
+  // quando apri o cambia selectedDate, porta il mese su quello giusto
   useEffect(() => {
     if (!isOpen) return;
-    if (activeSalonId == null) return;
+    if (!selectedDate) return;
 
-    void loadAppointmentsForMonth(currentMonth);
-  }, [isOpen, currentMonth, activeSalonId]);
+    const d = new Date(`${selectedDate}T12:00:00`);
+    if (!Number.isFinite(d.getTime())) return;
 
+    setCurrentMonth((prev) => {
+      const next = new Date(d.getFullYear(), d.getMonth(), 1);
+      return prev.getFullYear() === next.getFullYear() && prev.getMonth() === next.getMonth()
+        ? prev
+        : next;
+    });
+  }, [isOpen, selectedDate]);
 
-  async function loadAppointmentsForMonth(date: Date) {
+  // carica conteggi mese (solo quando aperto)
+  useEffect(() => {
+    if (!isOpen) return;
     if (activeSalonId == null) {
       setAppointmentsByDay({});
       return;
     }
 
-    const y = date.getFullYear();
-    const m1 = date.getMonth() + 1; // 1..12
+    const mk = monthKey(currentMonth);
+    const cacheKey = `${activeSalonId}-${mk}`;
 
-    const start = `${y}-${String(m1).padStart(2, "0")}-01T00:00:00`;
-    const lastDay = new Date(y, m1, 0).getDate();
-    const end = `${y}-${String(m1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}T23:59:59`;
-
-    const { data, error } = await supabase
-      .from("appointments")
-      .select("start_time")
-      .eq("salon_id", Number(activeSalonId))
-      .gte("start_time", start)
-      .lte("start_time", end);
-
-    if (error) {
-      console.error(error);
-      setAppointmentsByDay({});
+    // cache hit
+    const cached = cacheRef.current[cacheKey];
+    if (cached) {
+      setAppointmentsByDay(cached);
       return;
     }
 
-    const grouped: Record<string, number> = {};
-    (data || []).forEach((a: any) => {
-      if (!a?.start_time) return;
-      const key = parseTsSafe(a.start_time);
-      if (!key) return;
-      grouped[key] = (grouped[key] || 0) + 1;
-    });
+    const reqId = ++lastReqRef.current;
 
-    setAppointmentsByDay(grouped);
-  }
+    (async () => {
+      const y = currentMonth.getFullYear();
+      const m1 = currentMonth.getMonth() + 1; // 1..12
+      const start = `${y}-${String(m1).padStart(2, "0")}-01T00:00:00`;
+
+      const lastDay = new Date(y, m1, 0).getDate();
+      const end = `${y}-${String(m1).padStart(2, "0")}-${String(lastDay).padStart(
+        2,
+        "0"
+      )}T23:59:59`;
+
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("start_time")
+        .eq("salon_id", Number(activeSalonId))
+        .gte("start_time", start)
+        .lte("start_time", end);
+
+      // se nel frattempo hai cambiato mese/salone, ignora
+      if (reqId !== lastReqRef.current) return;
+
+      if (error) {
+        console.error(error);
+        setAppointmentsByDay({});
+        return;
+      }
+
+      const grouped: Record<string, number> = {};
+      for (const a of data || []) {
+        const key = a?.start_time ? parseTsSafe(a.start_time) : "";
+        if (!key) continue;
+        grouped[key] = (grouped[key] || 0) + 1;
+      }
+
+      cacheRef.current[cacheKey] = grouped;
+      setAppointmentsByDay(grouped);
+    })();
+  }, [isOpen, currentMonth, activeSalonId, supabase]);
 
   function changeMonth(offset: number) {
-    const newMonth = new Date(currentMonth);
-    newMonth.setMonth(currentMonth.getMonth() + offset);
-    setCurrentMonth(newMonth);
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
   }
 
   function generateCalendarDays() {
     const y = currentMonth.getFullYear();
     const m0 = currentMonth.getMonth(); // 0..11
 
-    // JS: getDay() dom=0..sab=6. Noi vogliamo lun=1..dom=7
-    const jsFirst = new Date(y, m0, 1).getDay();
+    const jsFirst = new Date(y, m0, 1).getDay(); // dom=0..sab=6
     const firstDay = jsFirst === 0 ? 7 : jsFirst; // lun=1..dom=7
 
     const daysInMonth = new Date(y, m0 + 1, 0).getDate();
@@ -118,9 +149,13 @@ export default function CalendarModal({
     for (let i = 1; i < firstDay; i++) days.push(null);
 
     for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${y}-${String(m0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      days.push(dateStr);
+      days.push(`${y}-${String(m0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
     }
+
+    // riempi fino a griglia intera (6 righe) per estetica stabile
+    while (days.length % 7 !== 0) days.push(null);
+    while (days.length < 42) days.push(null);
+
     return days;
   }
 
@@ -137,11 +172,10 @@ export default function CalendarModal({
   return (
     <div
       className="fixed inset-0 z-[200] flex items-start justify-center pt-[10vh] bg-black/65 backdrop-blur-sm p-4"
-      onClick={close}
+      onMouseDown={close}
     >
       <motion.div
-        onClick={(e) => e.stopPropagation()}
-
+        onMouseDown={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: 10, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         className="w-full max-w-2xl rounded-3xl border border-[#5c3a21]/60 bg-[#140b07]/85
@@ -158,8 +192,7 @@ export default function CalendarModal({
 
           <button
             onClick={close}
-            className="rounded-2xl p-2 bg-black/25 border border-white/10 text-white/70
-                       hover:bg-black/35 transition"
+            className="rounded-2xl p-2 bg-black/25 border border-white/10 text-white/70 hover:bg-black/35 transition"
             aria-label="Chiudi"
             title="Chiudi"
           >
@@ -171,27 +204,22 @@ export default function CalendarModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#5c3a21]/40">
           <button
             onClick={() => changeMonth(-1)}
-            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2
-                       bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
-                       hover:bg-black/30 transition"
+            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6] hover:bg-black/30 transition"
           >
             <ChevronLeft size={18} />
             Mese prec.
           </button>
 
           <button
-            onClick={() => setCurrentMonth(new Date())}
-            className="rounded-2xl px-4 py-2 bg-[#f3d8b6] text-[#1A0F0A] font-extrabold
-                       hover:opacity-90 transition"
+            onClick={() => setCurrentMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+            className="rounded-2xl px-4 py-2 bg-[#f3d8b6] text-[#1A0F0A] font-extrabold hover:opacity-90 transition"
           >
             Oggi
           </button>
 
           <button
             onClick={() => changeMonth(1)}
-            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2
-                       bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
-                       hover:bg-black/30 transition"
+            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6] hover:bg-black/30 transition"
           >
             Mese succ.
             <ChevronRight size={18} />
@@ -200,21 +228,27 @@ export default function CalendarModal({
 
         {/* WEEKDAYS */}
         <div className="grid grid-cols-7 text-center text-[#f3d8b6]/80 py-3 px-6 text-xs font-extrabold tracking-wider">
-          <div>LUN</div><div>MAR</div><div>MER</div><div>GIO</div><div>VEN</div><div>SAB</div><div>DOM</div>
+          <div>LUN</div>
+          <div>MAR</div>
+          <div>MER</div>
+          <div>GIO</div>
+          <div>VEN</div>
+          <div>SAB</div>
+          <div>DOM</div>
         </div>
 
         {/* GRID */}
         <div className="px-6 pb-6">
           <div className="grid grid-cols-7 gap-2">
             {days.map((date, idx) => {
-              if (!date) return <div key={idx} className="h-[76px]" />;
+              if (!date) return <div key={`empty-${idx}`} className="h-[76px]" />;
 
               const count = appointmentsByDay[date] || 0;
               const hasAppointments = count > 0;
               const dayNum = Number(date.split("-")[2]);
 
               const isToday = date === today;
-              const isSelected = selectedDate ? date === selectedDate : false;
+              const isSelected = !!selectedDate && date === selectedDate;
 
               return (
                 <button
@@ -227,8 +261,9 @@ export default function CalendarModal({
                     "h-[76px] rounded-2xl border text-left p-3 transition relative overflow-hidden",
                     "shadow-[0_10px_30px_rgba(0,0,0,0.18)]",
                     isSelected
-                      ? "bg-[#f3d8b6]/15 border-[#f3d8b6]/30"
+                      ? "bg-[#f3d8b6]/15 border-[#f3d8b6]/35"
                       : "bg-black/20 border-[#5c3a21]/55 hover:bg-black/25",
+                    isToday && !isSelected ? "ring-1 ring-[#0FA958]/40" : "",
                   ].join(" ")}
                 >
                   <div className="flex items-start justify-between">
@@ -242,8 +277,7 @@ export default function CalendarModal({
                     </div>
 
                     {isToday && (
-                      <span className="text-[10px] font-extrabold tracking-wider px-2 py-1 rounded-xl
-                                       bg-[#0FA958] text-white shadow-[0_10px_30px_rgba(15,169,88,0.18)]">
+                      <span className="text-[10px] font-extrabold tracking-wider px-2 py-1 rounded-xl bg-[#0FA958] text-white">
                         OGGI
                       </span>
                     )}
@@ -251,8 +285,7 @@ export default function CalendarModal({
 
                   <div className="mt-2">
                     {hasAppointments ? (
-                      <span className="inline-flex items-center gap-2 rounded-xl px-2.5 py-1.5
-                                       bg-white/10 border border-white/10 text-xs text-white/85">
+                      <span className="inline-flex items-center gap-2 rounded-xl px-2.5 py-1.5 bg-white/10 border border-white/10 text-xs text-white/85">
                         <span className="h-2 w-2 rounded-full bg-[#f3d8b6]" />
                         {count} app
                       </span>

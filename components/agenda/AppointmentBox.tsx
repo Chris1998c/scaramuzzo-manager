@@ -43,7 +43,9 @@ function statusMeta(status: string | null | undefined) {
 function parseLocal(ts: string) {
   const [date, time] = String(ts).split("T");
   const [y, m, d] = String(date).split("-").map(Number);
-  const [hh, mm, ss] = String(time || "00:00:00").split(":").map(Number);
+  const [hh, mm, ss] = String(time || "00:00:00")
+    .split(":")
+    .map(Number);
   return new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, ss || 0, 0);
 }
 
@@ -70,7 +72,7 @@ function getServiceSegments(appointment: any): Segment[] {
   return lines
     .slice()
     .sort((a: any, b: any) =>
-      String(a?.start_time ?? "").localeCompare(String(b?.start_time ?? ""))
+      String(a?.start_time ?? "").localeCompare(String(b?.start_time ?? "")),
     )
     .map((line: any): Segment => {
       const svc = line?.services;
@@ -89,7 +91,7 @@ function getServiceSegments(appointment: any): Segment[] {
 function uniqueColors(segments: Segment[]) {
   return Array.from(new Set(segments.map((seg: Segment) => seg.color))).slice(
     0,
-    6
+    6,
   );
 }
 
@@ -151,7 +153,7 @@ export default function AppointmentBox({
 
   const sumSeg = segments.reduce(
     (sum: number, seg: Segment) => sum + (Number(seg.duration) || 0),
-    0
+    0,
   );
   const denom =
     sumSeg > 0 ? sumSeg : Math.max(SLOT_MINUTES, Math.round(durationMin));
@@ -160,25 +162,40 @@ export default function AppointmentBox({
     : [{ name: "Servizio", color: accent, duration: denom }];
 
   // PORTA IN SALA / CASSA
+  // PORTA IN SALA (usa SEMPRE la route API, non RPC)
   async function handlePortaInSala() {
     if (!appointment?.id) return;
+
+    // se già in_sala o done: idempotenza lato UI (comunque la route è idempotente)
+    const s = String(appointment.status || "");
+    if (s === "in_sala" || s === "done") {
+      setOpenActions(false);
+      return;
+    }
 
     setOpenActions(false);
     setCheckingIn(true);
 
     try {
-      const { data, error } = await supabase.rpc("appointment_checkin", {
-        p_appointment_id: Number(appointment.id),
+      const res = await fetch("/api/agenda/porta-in-sala", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointment_id: Number(appointment.id) }),
       });
 
-      if (error) throw error;
-      if (!data?.ok) throw new Error("checkin failed");
+      const json = await res.json().catch(() => ({}) as any);
+      if (!res.ok)
+        throw new Error(json?.error || "Errore durante Porta in sala");
 
+      // refresh griglia
       onUpdated?.();
-      router.push(`/dashboard/cassa/${appointment.id}`);
+
+      // NOTA: qui NON faccio push in cassa (hai già “Vai in cassa” nel menu)
+      // se invece vuoi “Porta in sala” = “porta e apri cassa”, dimmelo e lo mettiamo.
     } catch (e: any) {
       console.error(e);
       alert(e?.message || "Errore durante Porta in sala");
+      
     } finally {
       setCheckingIn(false);
     }
@@ -388,20 +405,56 @@ export default function AppointmentBox({
           >
             <button
               onClick={handlePortaInSala}
+              disabled={checkingIn || isInSala || isDone}
+              className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
+            >
+              {isDone
+                ? "✅ Già chiuso"
+                : isInSala
+                  ? "👤 Già in sala"
+                  : checkingIn
+                    ? "..."
+                    : "👤 Porta in sala"}
+            </button>
+            <button
+              onClick={async () => {
+                setOpenActions(false);
+
+                // Se non è in_sala e non è done, prima porta in sala
+                if (!isInSala && !isDone) {
+                  try {
+                    setCheckingIn(true);
+
+                    const res = await fetch("/api/agenda/porta-in-sala", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        appointment_id: Number(appointment.id),
+                      }),
+                    });
+
+                    const json = await res.json().catch(() => ({}) as any);
+                    if (!res.ok)
+                      throw new Error(
+                        json?.error || "Errore durante Porta in sala",
+                      );
+
+                    onUpdated?.();
+                  } catch (e: any) {
+                    alert(e?.message || "Errore durante Porta in sala");
+                    setCheckingIn(false);
+                    return;
+                  } finally {
+                    setCheckingIn(false);
+                  }
+                }
+
+                router.push(`/dashboard/cassa/${appointment.id}`);
+              }}
               disabled={checkingIn}
               className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
             >
-              👤 {checkingIn ? "..." : "Porta in sala"}
-            </button>
-
-            <button
-              onClick={() => {
-                setOpenActions(false);
-                router.push(`/dashboard/cassa/${appointment.id}`);
-              }}
-              className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5"
-            >
-              💰 Vai in cassa
+              💰 {checkingIn ? "..." : "Vai in cassa"}
             </button>
 
             <button

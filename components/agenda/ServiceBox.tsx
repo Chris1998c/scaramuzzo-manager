@@ -6,7 +6,7 @@ import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { timeFromTs } from "@/lib/appointmentTime";
 import { SLOT_MINUTES, SLOT_PX } from "./utils";
-
+import { toast } from "sonner";
 /* ======================
    TYPES
 ====================== */
@@ -360,7 +360,8 @@ export default function ServiceBox({
     if (!res.ok) {
       x.set(0);
       y.set(0);
-      alert("Errore spostamento: " + (res.error as any)?.message);
+      toast.error("Errore spostamento: " + (res.error as any)?.message);
+
       return;
     }
 
