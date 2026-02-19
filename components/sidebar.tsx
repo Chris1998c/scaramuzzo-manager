@@ -35,7 +35,6 @@ const sections: MenuSection[] = [
       { name: "Dashboard", icon: Home, href: "/dashboard" },
       { name: "Agenda", icon: CalendarDays, href: "/dashboard/agenda" },
       { name: "In Sala", icon: Users, href: "/dashboard/in-sala" },
-      { name: "Cassa", icon: CreditCard, href: "/dashboard/cassa" },
     ],
   },
   {

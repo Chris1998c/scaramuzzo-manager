@@ -100,116 +100,149 @@ export default function CassaPage() {
     }
   }
 
-  useEffect(() => {
-    let cancelled = false;
+useEffect(() => {
+  let cancelled = false;
 
-    async function load() {
-      setLoading(true);
-      setError("");
+  async function load() {
+    setLoading(true);
+    setError("");
 
-      if (!Number.isFinite(appointmentId)) {
-        setError("ID appuntamento non valido");
-        setLoading(false);
-        return;
-      }
-
-      // Appuntamento (+ servizi prenotati)
-      const { data: a, error: aErr } = await supabase
-        .from("appointments")
-        .select(
-          `
-          id, salon_id, customer_id, staff_id, status, sale_id,
-          appointment_services (
-            service:service_id ( id, name, price )
-          )
-        `,
-        )
-        .eq("id", appointmentId)
-        .single();
-
-      if (aErr || !a) {
-        setError("Appuntamento non trovato");
-        setLoading(false);
-        return;
-      }
-
-      // Cliente (se presente)
-      let c = null;
-      if (a.customer_id) {
-        const { data: cd } = await supabase
-          .from("customers")
-          .select("first_name, last_name, phone")
-          .eq("id", a.customer_id)
-          .single();
-        c = cd ?? null;
-      }
-
-      // Listini
-      const [{ data: sv, error: svErr }, { data: pr, error: prErr }] =
-        await Promise.all([
-          supabase
-            .from("services")
-            .select("id, name, price, active")
-            .eq("active", true),
-          supabase
-            .from("products")
-            .select("id, name, price, active")
-            .eq("active", true),
-        ]);
-
-      if (svErr || prErr) {
-        // non blocco totale: possiamo comunque chiudere se i servizi prenotati sono già caricati
-        console.error("Errore listini", svErr, prErr);
-      }
-
-      if (cancelled) return;
-
-      setAppointment(a);
-      setCustomer(c);
-      setServices(sv || []);
-      setProducts(pr || []);
-
-      // Auto-popola dai servizi prenotati (se presenti)
-      if (
-        Array.isArray(a.appointment_services) &&
-        a.appointment_services.length
-      ) {
-        const initialItems: CashItem[] = a.appointment_services
-          .map((as: any) => as?.service)
-          .filter(Boolean)
-          .map((svc: any) => ({
-            kind: "service",
-            id: Number(svc.id),
-            name: String(svc.name ?? "Servizio"),
-            unitPrice: toNum(svc.price, 0),
-            qty: 1,
-            discountEur: 0,
-          }));
-        setItems(initialItems);
-      } else {
-        setItems([]);
-      }
-
-      // Status cassa
-      const sid = Number(a.salon_id);
-      if (Number.isFinite(sid) && sid > 0) {
-        refreshCassaStatus(sid);
-      } else {
-        setCassa({
-          ok: false,
-          is_open: false,
-          error: "salon_id appuntamento non valido",
-        });
-      }
-
+    if (!Number.isFinite(appointmentId)) {
+      setError("ID appuntamento non valido");
       setLoading(false);
+      return;
     }
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [appointmentId, supabase]);
+    // 1) Appuntamento + righe servizi (con price salvato) + nome servizio
+    const { data: a, error: aErr } = await supabase
+      .from("appointments")
+      .select(
+        `
+        id, salon_id, customer_id, staff_id, status, sale_id,
+        appointment_services (
+          id,
+          service_id,
+          price,
+          service:service_id ( id, name )
+        )
+      `,
+      )
+      .eq("id", appointmentId)
+      .single();
+
+    if (aErr || !a) {
+      setError("Appuntamento non trovato");
+      setLoading(false);
+      return;
+    }
+
+    // 2) Cliente
+    let c = null;
+    if (a.customer_id) {
+      const { data: cd } = await supabase
+        .from("customers")
+        .select("first_name, last_name, phone")
+        .eq("id", a.customer_id)
+        .single();
+      c = cd ?? null;
+    }
+
+// 3) Listini (dropdown aggiunta manuale) ✅ PREZZI DA service_prices
+const salonId = Number(a.salon_id);
+const asRows: any[] = Array.isArray(a.appointment_services) ? a.appointment_services : [];
+// prendo i servizi base (senza fidarmi di services.price)
+const [{ data: baseServices, error: svErr }, { data: pr, error: prErr }] =
+  await Promise.all([
+    supabase
+      .from("services")
+      .select("id, name, is_active")
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("products")
+      .select("id, name, price, is_active")
+      .eq("is_active", true)
+      .order("name"),
+  ]);
+
+if (svErr || prErr) console.error("Errore listini", svErr, prErr);
+
+// 4) priceMap completo per TUTTI i servizi del dropdown
+const priceMap = new Map<string, number>();
+
+const allServiceIds = (baseServices || [])
+  .map((s: any) => Number(s.id))
+  .filter((x: any) => Number.isFinite(x) && x > 0);
+
+if (Number.isFinite(salonId) && salonId > 0 && allServiceIds.length) {
+  const { data: sp, error: spErr } = await supabase
+    .from("service_prices")
+    .select("service_id, price")
+    .eq("salon_id", salonId)
+    .in("service_id", allServiceIds);
+
+  if (spErr) {
+    console.error("Errore service_prices", spErr);
+  } else {
+    (sp || []).forEach((p: any) => {
+      priceMap.set(String(p.service_id), Number(p.price));
+    });
+  }
+}
+
+// ✅ services per il dropdown: prezzo = service_prices (fallback 0)
+const mergedServices = (baseServices || []).map((s: any) => ({
+  id: Number(s.id),
+  name: String(s.name ?? "Servizio"),
+  price: priceMap.get(String(s.id)) ?? 0,
+  is_active: true,
+}));
+
+if (cancelled) return;
+
+setAppointment(a);
+setCustomer(c);
+setServices(mergedServices);
+setProducts(pr || []);
+
+
+    // 5) Auto-popola righe: price = salvato, se 0 -> fallback da service_prices (se esiste)
+    if (asRows.length) {
+      const initialItems: CashItem[] = asRows.map((as: any) => {
+        const saved = toNum(as.price, 0);
+        const fallback = priceMap.get(String(as.service_id)) ?? 0;
+        const unitPrice = saved > 0 ? saved : fallback;
+
+        return {
+          kind: "service",
+          id: Number(as.service_id),
+          name: String(as.service?.name ?? "Servizio"),
+          unitPrice,
+          qty: 1,
+          discountEur: 0,
+        };
+      });
+
+      setItems(initialItems);
+    } else {
+      setItems([]);
+    }
+
+    // 6) Status cassa
+    if (Number.isFinite(salonId) && salonId > 0) {
+      refreshCassaStatus(salonId);
+    } else {
+      setCassa({ ok: false, is_open: false, error: "salon_id appuntamento non valido" });
+    }
+
+    setLoading(false);
+  }
+
+  load();
+  return () => {
+    cancelled = true;
+  };
+}, [appointmentId, supabase]);
 
   /* =======================
      HANDLERS

@@ -74,20 +74,20 @@ export default function AgendaModal({
 
   /* ================= INIT ================= */
 
-  useEffect(() => {
-    if (!isOpen) return;
+useEffect(() => {
+  if (!isOpen || !activeSalonId) return;
 
-    setErr("");
-    setSaving(false);
-    setQCustomer("");
-    setCustomerId("");
-    setSelectedServiceIds([]);
-    setServiceAssignments({});
-    setNotes("");
+  setErr("");
+  setSaving(false);
+  setQCustomer("");
+  setCustomerId("");
+  setSelectedServiceIds([]);
+  setServiceAssignments({});
+  setNotes("");
 
-    void Promise.all([loadCustomers(), loadServices(), loadStaff()]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  void Promise.all([loadCustomers(), loadServices(), loadStaff()]);
+}, [isOpen, activeSalonId]);
+
 
   /* ================= FILTER CLIENT ================= */
 
@@ -129,20 +129,61 @@ export default function AgendaModal({
     setFilteredCustomers(list);
   }
 
-  async function loadServices() {
-    const { data, error } = await supabase
-      .from("services")
-      .select("id, name, price, duration, color_code, vat_rate")
-      .eq("active", true)
-      .order("name");
+async function loadServices() {
+  if (!activeSalonId) {
+    setServices([]);
+    console.log("ACTIVE SALON ID:", activeSalonId);
 
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setServices(data || []);
+    return;
   }
+  
+
+  /* 1️⃣ prendo servizi validi per Agenda */
+  const { data: baseServices, error: baseErr } = await supabase
+    .from("services")
+    .select("id,name,duration,color_code,need_processing,vat_rate")
+    .eq("is_active", true)
+    .eq("visible_in_agenda", true)
+    .order("name");
+
+  if (baseErr) {
+    console.error(baseErr);
+    return;
+  }
+
+  if (!baseServices || baseServices.length === 0) {
+    setServices([]);
+    return;
+  }
+
+  /* 2️⃣ prendo prezzi per salone attivo */
+  const serviceIds = baseServices.map((s) => s.id);
+
+  const { data: prices, error: priceErr } = await supabase
+    .from("service_prices")
+    .select("service_id, price")
+    .eq("salon_id", activeSalonId)
+    .in("service_id", serviceIds);
+
+  if (priceErr) {
+    console.error(priceErr);
+    return;
+  }
+
+  const priceMap = new Map<number, number>();
+  (prices || []).forEach((p) => {
+    priceMap.set(p.service_id, Number(p.price));
+  });
+
+  /* 3️⃣ merge finale */
+  const merged = baseServices.map((s) => ({
+    ...s,
+    price: priceMap.get(s.id) ?? 0,
+  }));
+
+  setServices(merged);
+}
+
 
   async function loadStaff() {
     if (!activeSalonId) {
@@ -154,7 +195,8 @@ export default function AgendaModal({
       .from("staff")
       .select("id, name")
       .eq("salon_id", activeSalonId)
-      .eq("active", true)
+      .eq("is_active", true)
+
       .order("name");
 
     if (error) {
