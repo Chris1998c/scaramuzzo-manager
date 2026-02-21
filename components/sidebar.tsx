@@ -42,7 +42,7 @@ const sections: MenuSection[] = [
     items: [
       { name: "Clienti", icon: Users, href: "/dashboard/clienti" },
       { name: "Magazzino", icon: Package, href: "/dashboard/magazzino" },
-      { name: "Report Cassa", icon: FileText, href: "/dashboard/report/cassa" },
+      { name: "Report ", icon: FileText, href: "/dashboard/report" },
     ],
   },
 ];

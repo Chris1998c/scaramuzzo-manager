@@ -132,22 +132,19 @@ useEffect(() => {
 async function loadServices() {
   if (!activeSalonId) {
     setServices([]);
-    console.log("ACTIVE SALON ID:", activeSalonId);
-
     return;
   }
-  
 
-  /* 1️⃣ prendo servizi validi per Agenda */
+  // 1) servizi validi per Agenda
   const { data: baseServices, error: baseErr } = await supabase
     .from("services")
     .select("id,name,duration,color_code,need_processing,vat_rate")
-    .eq("is_active", true)
+    .eq("active", true)
     .eq("visible_in_agenda", true)
     .order("name");
 
   if (baseErr) {
-    console.error(baseErr);
+    console.error("loadServices baseErr:", baseErr);
     return;
   }
 
@@ -156,29 +153,32 @@ async function loadServices() {
     return;
   }
 
-  /* 2️⃣ prendo prezzi per salone attivo */
-  const serviceIds = baseServices.map((s) => s.id);
+  // 2) prezzi per salone attivo
+  const serviceIds = baseServices
+    .map((s: any) => Number(s.id))
+    .filter((x: number) => Number.isFinite(x) && x > 0);
 
   const { data: prices, error: priceErr } = await supabase
     .from("service_prices")
     .select("service_id, price")
-    .eq("salon_id", activeSalonId)
+    .eq("salon_id", Number(activeSalonId))
     .in("service_id", serviceIds);
 
   if (priceErr) {
-    console.error(priceErr);
+    console.error("loadServices priceErr:", priceErr);
     return;
   }
 
-  const priceMap = new Map<number, number>();
-  (prices || []).forEach((p) => {
-    priceMap.set(p.service_id, Number(p.price));
+  // ✅ chiavi SEMPRE stringa per evitare mismatch "75" vs 75
+  const priceMap = new Map<string, number>();
+  (prices || []).forEach((p: any) => {
+    priceMap.set(String(p.service_id), Number(p.price) || 0);
   });
 
-  /* 3️⃣ merge finale */
-  const merged = baseServices.map((s) => ({
+  // 3) merge finale
+  const merged = baseServices.map((s: any) => ({
     ...s,
-    price: priceMap.get(s.id) ?? 0,
+    price: priceMap.get(String(s.id)) ?? 0,
   }));
 
   setServices(merged);
@@ -195,7 +195,7 @@ async function loadServices() {
       .from("staff")
       .select("id, name")
       .eq("salon_id", activeSalonId)
-      .eq("is_active", true)
+      .eq("active", true)
 
       .order("name");
 

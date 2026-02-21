@@ -155,13 +155,13 @@ const [{ data: baseServices, error: svErr }, { data: pr, error: prErr }] =
   await Promise.all([
     supabase
       .from("services")
-      .select("id, name, is_active")
-      .eq("is_active", true)
+      .select("id, name, active")
+      .eq("active", true)
       .order("name"),
     supabase
       .from("products")
-      .select("id, name, price, is_active")
-      .eq("is_active", true)
+      .select("id, name, price, active")
+      .eq("active", true)
       .order("name"),
   ]);
 
@@ -195,7 +195,7 @@ const mergedServices = (baseServices || []).map((s: any) => ({
   id: Number(s.id),
   name: String(s.name ?? "Servizio"),
   price: priceMap.get(String(s.id)) ?? 0,
-  is_active: true,
+  active: true,
 }));
 
 if (cancelled) return;
