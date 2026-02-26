@@ -1,20 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  CalendarDays,
-  Home,
-  Package,
-  X,
-  Users,
-  CreditCard,
-  FileText,
-} from "lucide-react";
+import { CalendarDays, Home, Package, X, Users, FileText } from "lucide-react";
 import { useUI } from "@/lib/ui-store";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
 type MenuItem = {
   name: string;
@@ -42,7 +35,7 @@ const sections: MenuSection[] = [
     items: [
       { name: "Clienti", icon: Users, href: "/dashboard/clienti" },
       { name: "Magazzino", icon: Package, href: "/dashboard/magazzino" },
-      { name: "Report ", icon: FileText, href: "/dashboard/report" },
+      { name: "Report", icon: FileText, href: "/dashboard/report" },
     ],
   },
 ];
@@ -55,6 +48,25 @@ function isActivePath(pathname: string, href: string) {
 export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, closeSidebar } = useUI();
+
+  // ✅ ruolo corrente (source già in app: ActiveSalonProvider)
+  const { role, isReady } = useActiveSalon();
+  const isCoordinator = isReady && role === "coordinator";
+
+  const visibleSections = useMemo(() => {
+    // se non pronto, non “sparire” tutto: mostriamo menu senza Report
+    const canSeeReport = isCoordinator;
+
+    return sections
+      .map((s) => ({
+        ...s,
+        items: s.items.filter((it) => {
+          if (it.href === "/dashboard/report") return canSeeReport;
+          return true;
+        }),
+      }))
+      .filter((s) => s.items.length > 0);
+  }, [isCoordinator]);
 
   const handleNavClick = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) closeSidebar();
@@ -103,7 +115,7 @@ export default function Sidebar() {
 
           {/* Menu */}
           <nav className="flex-1 flex flex-col gap-6">
-            {sections.map((section) => (
+            {visibleSections.map((section) => (
               <div key={section.title}>
                 <div className="text-[10px] font-black tracking-[0.25em] uppercase text-white/30 mb-2">
                   {section.title}
@@ -131,7 +143,9 @@ export default function Sidebar() {
                             size={18}
                             className={[
                               "shrink-0",
-                              active ? "text-[#f3d8b6]" : "text-[#f3d8b6]/70 group-hover:text-[#f3d8b6]",
+                              active
+                                ? "text-[#f3d8b6]"
+                                : "text-[#f3d8b6]/70 group-hover:text-[#f3d8b6]",
                             ].join(" ")}
                           />
                           <span className="truncate text-sm font-bold">{item.name}</span>
@@ -157,9 +171,7 @@ export default function Sidebar() {
 
           {/* Footer mini */}
           <div className="pt-4 border-t border-white/5">
-            <div className="text-[10px] text-white/35 font-bold">
-              © Scaramuzzo Studio SRL
-            </div>
+            <div className="text-[10px] text-white/35 font-bold">© Scaramuzzo Studio SRL</div>
           </div>
         </motion.aside>
       )}

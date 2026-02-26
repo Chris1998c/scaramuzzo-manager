@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
@@ -43,12 +44,7 @@ type ReportRow = {
 
 type StaffOption = { id: number; name: string };
 
-type TabKey =
-  | "turnover"
-  | "daily"
-  | "payments"
-  | "top"
-  | "staff";
+type TabKey = "turnover" | "daily" | "payments" | "top" | "staff";
 
 function todayISO() {
   const d = new Date();
@@ -77,8 +73,21 @@ function pct(part: number, total: number) {
 }
 
 export default function ReportPage() {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const { activeSalonId, isReady } = useActiveSalon();
+  const { activeSalonId, isReady, role } = useActiveSalon();
+
+  // ✅ HARD GUARD UI: solo coordinator vede la pagina (oltre alle API già bloccate)
+  const isCoordinator = isReady && role === "coordinator";
+  useEffect(() => {
+    if (!isReady) return;
+    if (role !== "coordinator") router.replace("/dashboard");
+  }, [isReady, role, router]);
+
+  // mentre stiamo redirigendo o caricando ruolo, non renderizziamo nulla
+  if (!isReady) return null;
+  if (!isCoordinator) return null;
+
   const salonId = activeSalonId ?? 0;
 
   const [tab, setTab] = useState<TabKey>("turnover");
@@ -99,15 +108,15 @@ export default function ReportPage() {
   const [rowsAll, setRowsAll] = useState<ReportRow[]>([]);
 
   const canRun =
-    isReady &&
+    isCoordinator &&
     Number.isFinite(salonId) &&
     salonId > 0 &&
     !!dateFrom &&
     !!dateTo;
 
-  // Staff filter (non blocca pagina se RLS/seed ancora povero)
+  // Staff filter
   useEffect(() => {
-    if (!isReady || salonId <= 0) return;
+    if (!isCoordinator || salonId <= 0) return;
 
     (async () => {
       const { data, error } = await supabase
@@ -125,7 +134,7 @@ export default function ReportPage() {
         }));
       setStaffOptions(opts);
     })();
-  }, [supabase, isReady, salonId]);
+  }, [supabase, isCoordinator, salonId]);
 
   async function runReport() {
     if (!canRun) return;
@@ -136,7 +145,6 @@ export default function ReportPage() {
     const pStaffId = staffId ? Number(staffId) : null;
 
     try {
-      // Totali (RPC)
       const { data: tData, error: tErr } = await supabase.rpc("report_turnover", {
         p_salon_id: salonId,
         p_from: dateFrom,
@@ -166,7 +174,6 @@ export default function ReportPage() {
         }
       );
 
-      // Righe (RPC) — prendiamo “tante” per i report interni (andamento/top/staff)
       const { data: rData, error: rErr } = await supabase.rpc("report_rows", {
         p_salon_id: salonId,
         p_from: dateFrom,
@@ -181,9 +188,7 @@ export default function ReportPage() {
       const list = (rData ?? []) as any[];
       const normalized = list as ReportRow[];
 
-      // ✅ per UI: preview tabella dettagli “umana”
       setRows(normalized.slice(0, 400));
-      // ✅ per calcoli: teniamo più righe (se un giorno saranno migliaia, tanto scarichi CSV/PDF)
       setRowsAll(normalized.slice(0, 5000));
     } catch (e: any) {
       setErr(e?.message ?? "Errore report");
@@ -195,12 +200,11 @@ export default function ReportPage() {
     }
   }
 
-  // auto refresh su range/salone
   useEffect(() => {
     if (!canRun) return;
     runReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salonId, dateFrom, dateTo]);
+  }, [salonId, dateFrom, dateTo, isCoordinator]);
 
   function buildQuery() {
     const p = new URLSearchParams();
@@ -223,7 +227,6 @@ export default function ReportPage() {
     window.open(`/api/reports/salon-turnover/csv?${buildQuery()}`, "_blank", "noopener,noreferrer");
   }
 
-  // ====== REPORT DERIVATI (client, veloci, zero SQL extra) ======
   const daily = useMemo(() => {
     const map = new Map<
       string,
@@ -362,7 +365,7 @@ export default function ReportPage() {
     }
 
     return Array.from(map.values())
-      .filter((x) => x.staff_id !== 0) // togli righe senza staff
+      .filter((x) => x.staff_id !== 0)
       .sort((a, b) => b.gross - a.gross)
       .slice(0, 20)
       .map((x) => ({
@@ -383,7 +386,6 @@ export default function ReportPage() {
     return { gross, cash, card };
   }, [totals]);
 
-  // ====== UI helpers (premium) ======
   const shell = "bg-scz-dark border border-white/10 rounded-2xl shadow-premium";
   const label = "text-[10px] font-black tracking-[0.25em] uppercase text-white/35";
   const title = "text-xl font-extrabold tracking-tight text-scz-gold";
@@ -419,7 +421,7 @@ export default function ReportPage() {
         </div>
       </div>
 
-      {/* TABS (stile premium) */}
+      {/* TABS */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setTab("turnover")}
@@ -453,7 +455,7 @@ export default function ReportPage() {
         </button>
       </div>
 
-      {/* FILTRI (sempre uguali, per tutti i report) */}
+      {/* FILTRI */}
       <div className={[shell, "p-4"].join(" ")}>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div className="flex flex-col gap-1">
@@ -536,7 +538,7 @@ export default function ReportPage() {
         )}
       </div>
 
-      {/* KPI (sempre visibili) */}
+      {/* KPI */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className={[shell, "p-4"].join(" ")}>
           <div className="text-xs text-white/45 font-bold">Lordo</div>
@@ -680,17 +682,13 @@ export default function ReportPage() {
           <div className={[shell, "p-4"].join(" ")}>
             <div className="text-xs text-white/45 font-bold">Contanti</div>
             <div className="text-2xl font-extrabold text-white">{money(paySplit.cash)}</div>
-            <div className="text-xs text-white/45 mt-1">
-              {pct(paySplit.cash, paySplit.gross)} del lordo
-            </div>
+            <div className="text-xs text-white/45 mt-1">{pct(paySplit.cash, paySplit.gross)} del lordo</div>
           </div>
 
           <div className={[shell, "p-4"].join(" ")}>
             <div className="text-xs text-white/45 font-bold">Carta</div>
             <div className="text-2xl font-extrabold text-white">{money(paySplit.card)}</div>
-            <div className="text-xs text-white/45 mt-1">
-              {pct(paySplit.card, paySplit.gross)} del lordo
-            </div>
+            <div className="text-xs text-white/45 mt-1">{pct(paySplit.card, paySplit.gross)} del lordo</div>
           </div>
 
           <div className={[shell, "p-4 md:col-span-2"].join(" ")}>

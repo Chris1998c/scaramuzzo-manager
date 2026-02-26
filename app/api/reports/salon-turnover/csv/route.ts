@@ -1,13 +1,12 @@
 // app/api/reports/salon-turnover/csv/route.ts
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createServerSupabase } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 
 function escCsv(v: any) {
   const s = String(v ?? "");
-  // separatore ; (Italia) + escape doppi apici
   const safe = s.replace(/"/g, '""');
-  // quota sempre per sicurezza
   return `"${safe}"`;
 }
 
@@ -22,18 +21,70 @@ function toCsv(rows: Record<string, any>[]) {
   return lines.join("\n") + "\n";
 }
 
+function roleFromMetadata(user: any): string {
+  return String(user?.user_metadata?.role ?? user?.app_metadata?.role ?? "").trim();
+}
+
+async function getRoleFromDb(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id, roles:roles(name)")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const roleName = (data as any)?.roles?.name;
+  return roleName ? String(roleName).trim() : null;
+}
+
+function normalizePaymentMethod(v: string | null) {
+  if (!v) return null;
+  const s = v.trim();
+  return s === "cash" || s === "card" ? s : null;
+}
+
+function normalizeItemType(v: string | null) {
+  if (!v) return null;
+  const s = v.trim();
+  return s === "service" || s === "product" ? s : null;
+}
+
 export async function GET(req: Request) {
   try {
+    // 0) AUTH + AUTHZ (SOLO COORDINATOR)
+    const supabase = await createServerSupabase();
+    const { data: authData, error: authErr } = await supabase.auth.getUser();
+
+    if (authErr || !authData?.user) {
+      return new Response(JSON.stringify({ error: "Non autenticato" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const user = authData.user;
+    const userId = user.id;
+
+    const dbRole = await getRoleFromDb(userId);
+    const role = (dbRole || roleFromMetadata(user)).trim();
+
+    if (role !== "coordinator") {
+      return new Response(JSON.stringify({ error: "Non autorizzato" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // 1) PARAMS
     const url = new URL(req.url);
 
     const salonIdRaw = url.searchParams.get("salon_id");
     const dateFrom = url.searchParams.get("date_from"); // YYYY-MM-DD
     const dateTo = url.searchParams.get("date_to"); // YYYY-MM-DD
 
-    // filtri opzionali
     const staffIdRaw = url.searchParams.get("staff_id"); // int
-    const paymentMethod = url.searchParams.get("payment_method"); // cash|card
-    const itemType = url.searchParams.get("item_type"); // service|product
+    const paymentMethod = normalizePaymentMethod(url.searchParams.get("payment_method"));
+    const itemType = normalizeItemType(url.searchParams.get("item_type"));
 
     const salonId = salonIdRaw ? Number(salonIdRaw) : NaN;
     const staffId =
@@ -53,12 +104,19 @@ export async function GET(req: Request) {
       });
     }
 
-    // Nome salone per filename
-    const { data: salonRow } = await supabaseAdmin
+    // 2) Nome salone per filename
+    const { data: salonRow, error: salonErr } = await supabaseAdmin
       .from("salons")
       .select("name")
       .eq("id", salonId)
       .maybeSingle();
+
+    if (salonErr) {
+      return new Response(JSON.stringify({ error: salonErr.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     const salonName = salonRow?.name ? String(salonRow.name) : `salon-${salonId}`;
     const safeName = salonName
@@ -66,7 +124,7 @@ export async function GET(req: Request) {
       .replace(/\s+/g, "-")
       .replace(/[^a-z0-9\-]/g, "");
 
-    // 1) Totali
+    // 3) Totali
     const { data: totalsRows, error: totalsErr } = await supabaseAdmin.rpc(
       "report_turnover",
       {
@@ -86,9 +144,10 @@ export async function GET(req: Request) {
       });
     }
 
-    const t0 = Array.isArray(totalsRows) && totalsRows.length > 0 ? totalsRows[0] : null;
+    const t0 =
+      Array.isArray(totalsRows) && totalsRows.length > 0 ? totalsRows[0] : null;
 
-    // 2) Righe
+    // 4) Righe
     const { data: rowsData, error: rowsErr } = await supabaseAdmin.rpc(
       "report_rows",
       {
@@ -108,7 +167,7 @@ export async function GET(req: Request) {
       });
     }
 
-    // CSV “Boss-style”: prima riga TOT, poi righe dettaglio
+    // 5) CSV “Boss-style”
     const out: Record<string, any>[] = [];
 
     out.push({
@@ -131,7 +190,6 @@ export async function GET(req: Request) {
       item_type: itemType ?? "",
     });
 
-    // Riga vuota separatore
     out.push({ TYPE: "ROWS" });
 
     for (const r of rowsData ?? []) {

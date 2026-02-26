@@ -40,14 +40,17 @@ const toInt = (x: unknown, fb = NaN) => {
   return Number.isFinite(n) ? Math.trunc(n) : (fb as number);
 };
 
-const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+const clamp = (n: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, n));
 
-const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const round2 = (n: number) =>
+  Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 const errMsg = (e: unknown) => {
   if (!e) return "unknown";
   if (typeof e === "string") return e;
-  if (typeof e === "object" && "message" in e) return String((e as any).message);
+  if (typeof e === "object" && "message" in e)
+    return String((e as any).message);
   try {
     return JSON.stringify(e);
   } catch {
@@ -56,7 +59,9 @@ const errMsg = (e: unknown) => {
 };
 
 function roleFromMetadata(user: any): string {
-  return String(user?.user_metadata?.role ?? user?.app_metadata?.role ?? "").trim();
+  return String(
+    user?.user_metadata?.role ?? user?.app_metadata?.role ?? "",
+  ).trim();
 }
 
 async function getRoleFromDb(userId: string): Promise<string | null> {
@@ -88,8 +93,8 @@ function normalizeLines(body: CloseBody) {
     (Array.isArray(body.lines) && body.lines.length
       ? body.lines
       : Array.isArray(body.items)
-      ? body.items
-      : []) ?? [];
+        ? body.items
+        : []) ?? [];
 
   return raw
     .map((l) => ({
@@ -104,8 +109,13 @@ function normalizeLines(body: CloseBody) {
         Number.isFinite(l.id) &&
         l.id > 0 &&
         Number.isFinite(l.qty) &&
-        l.qty > 0
-    ) as Array<{ kind: LineKind; id: number; qty: number; discountPct: number }>;
+        l.qty > 0,
+    ) as Array<{
+    kind: LineKind;
+    id: number;
+    qty: number;
+    discountPct: number;
+  }>;
 }
 
 /* =======================
@@ -145,15 +155,25 @@ export async function POST(req: Request) {
 
     const paymentMethod = body.payment_method;
     if (paymentMethod !== "cash" && paymentMethod !== "card") {
-      return NextResponse.json({ error: "Metodo di pagamento non valido" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Metodo di pagamento non valido" },
+        { status: 400 },
+      );
     }
 
     const lines = normalizeLines(body);
     if (!lines.length) {
-      return NextResponse.json({ error: "Nessun servizio o prodotto selezionato" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Nessun servizio o prodotto selezionato" },
+        { status: 400 },
+      );
     }
 
-    const globalDiscountPct = clamp(toNumber(body.global_discount ?? 0, 0), 0, 100);
+    const globalDiscountPct = clamp(
+      toNumber(body.global_discount ?? 0, 0),
+      0,
+      100,
+    );
 
     // 3) DETERMINO SALONE/STAFF/CUSTOMER (da appuntamento o da body)
     let salonId: number | null = null;
@@ -161,7 +181,9 @@ export async function POST(req: Request) {
     let customerId: string | null = null;
     let appointmentId: number | null = null;
 
-    const hasAppointmentId = Number.isFinite(toNumber(body.appointment_id, NaN));
+    const hasAppointmentId = Number.isFinite(
+      toNumber(body.appointment_id, NaN),
+    );
 
     if (hasAppointmentId) {
       appointmentId = toInt(body.appointment_id, NaN);
@@ -172,28 +194,42 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (apptErr || !appt) {
-        return NextResponse.json({ error: "Appuntamento non trovato" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Appuntamento non trovato" },
+          { status: 404 },
+        );
       }
 
       salonId = toInt((appt as any).salon_id, NaN);
       staffId = (appt as any).staff_id ?? null;
       customerId = (appt as any).customer_id ?? null;
     } else {
-      salonId = Number.isFinite(toNumber(body.salon_id, NaN)) ? toInt(body.salon_id, NaN) : null;
+      salonId = Number.isFinite(toNumber(body.salon_id, NaN))
+        ? toInt(body.salon_id, NaN)
+        : null;
     }
 
     if (!salonId || !Number.isFinite(salonId) || salonId <= 0) {
-      return NextResponse.json({ error: "salon_id mancante/invalid" }, { status: 400 });
+      return NextResponse.json(
+        { error: "salon_id mancante/invalid" },
+        { status: 400 },
+      );
     }
 
     // 4) AUTHZ SALONE
     if (role === "reception") {
       const mySalonId = await getReceptionSalonId(userId);
       if (!mySalonId) {
-        return NextResponse.json({ error: "Reception senza staff.salon_id associato" }, { status: 403 });
+        return NextResponse.json(
+          { error: "Reception senza staff.salon_id associato" },
+          { status: 403 },
+        );
       }
       if (salonId !== mySalonId) {
-        return NextResponse.json({ error: "salon_id non consentito per questo utente" }, { status: 403 });
+        return NextResponse.json(
+          { error: "salon_id non consentito per questo utente" },
+          { status: 403 },
+        );
       }
     }
 
@@ -207,37 +243,59 @@ export async function POST(req: Request) {
       .limit(1)
       .maybeSingle();
 
-    if (sessErr) return NextResponse.json({ error: sessErr.message }, { status: 500 });
+    if (sessErr)
+      return NextResponse.json({ error: sessErr.message }, { status: 500 });
     if (!activeSession) {
-      return NextResponse.json({ error: "Cassa chiusa. Aprire la cassa prima di procedere." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Cassa chiusa. Aprire la cassa prima di procedere." },
+        { status: 400 },
+      );
     }
 
     // 6) PREZZI SERVER-SIDE (listino live)
-    const serviceIds = [...new Set(lines.filter((l) => l.kind === "service").map((l) => l.id))];
-    const productIds = [...new Set(lines.filter((l) => l.kind === "product").map((l) => l.id))];
+    const serviceIds = [
+      ...new Set(lines.filter((l) => l.kind === "service").map((l) => l.id)),
+    ];
+    const productIds = [
+      ...new Set(lines.filter((l) => l.kind === "product").map((l) => l.id)),
+    ];
 
     const [svcRes, prodRes] = await Promise.all([
       serviceIds.length
-        ? supabaseAdmin.from("services").select("id, price").in("id", serviceIds)
+        ? supabaseAdmin
+            .from("services")
+            .select("id, price")
+            .in("id", serviceIds)
         : Promise.resolve({ data: [], error: null } as any),
       productIds.length
-        ? supabaseAdmin.from("products").select("id, price").in("id", productIds)
+        ? supabaseAdmin
+            .from("products")
+            .select("id, price")
+            .in("id", productIds)
         : Promise.resolve({ data: [], error: null } as any),
     ]);
 
     if (svcRes.error || prodRes.error) {
-      return NextResponse.json({ error: "Errore nel caricamento prezzi" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Errore nel caricamento prezzi" },
+        { status: 500 },
+      );
     }
 
-    const svcMap = new Map((svcRes.data ?? []).map((s: any) => [s.id, s.price]));
-    const prodMap = new Map((prodRes.data ?? []).map((p: any) => [p.id, p.price]));
+    const svcMap = new Map(
+      (svcRes.data ?? []).map((s: any) => [s.id, s.price]),
+    );
+    const prodMap = new Map(
+      (prodRes.data ?? []).map((p: any) => [p.id, p.price]),
+    );
 
     // 7) TOTALI
     let subtotal = 0;
     let totalDiscount = 0;
 
     const computedItems = lines.map((l) => {
-      const rawUnit = l.kind === "service" ? svcMap.get(l.id) : prodMap.get(l.id);
+      const rawUnit =
+        l.kind === "service" ? svcMap.get(l.id) : prodMap.get(l.id);
       const unitPrice = toNumber(rawUnit, NaN);
 
       if (!Number.isFinite(unitPrice)) {
@@ -273,7 +331,10 @@ export async function POST(req: Request) {
       .single();
 
     if (saleErr || !sale) {
-      return NextResponse.json({ error: saleErr?.message ?? "Errore creazione vendita" }, { status: 500 });
+      return NextResponse.json(
+        { error: saleErr?.message ?? "Errore creazione vendita" },
+        { status: 500 },
+      );
     }
 
     const saleId = (sale as any).id as number;
@@ -289,7 +350,9 @@ export async function POST(req: Request) {
       discount: l.lineDisc,
     }));
 
-    const { error: itemsErr } = await supabaseAdmin.from("sale_items").insert(saleItemsInsert);
+    const { error: itemsErr } = await supabaseAdmin
+      .from("sale_items")
+      .insert(saleItemsInsert);
     if (itemsErr) {
       await supabaseAdmin.from("sales").delete().eq("id", saleId);
       return NextResponse.json({ error: itemsErr.message }, { status: 500 });
@@ -298,10 +361,11 @@ export async function POST(req: Request) {
     // 9) SCARICO MAGAZZINO (enterprise: se fallisce, rollback vendita)
     for (const l of computedItems.filter((i) => i.kind === "product")) {
       const { error: rpcErr } = await supabaseAdmin.rpc("stock_move", {
-        p_product: l.id,
+        p_product_id: l.id,
         p_qty: l.qty,
         p_from_salon: salonId,
         p_to_salon: null,
+        p_movement_type: "sale",
         p_reason: `Vendita #${saleId}`,
       });
 
@@ -311,8 +375,10 @@ export async function POST(req: Request) {
         await supabaseAdmin.from("sales").delete().eq("id", saleId);
 
         return NextResponse.json(
-          { error: `Errore scarico magazzino prodotto ${l.id}: ${rpcErr.message ?? "rpc"}` },
-          { status: 500 }
+          {
+            error: `Errore scarico magazzino prodotto ${l.id}: ${rpcErr.message ?? "rpc"}`,
+          },
+          { status: 500 },
         );
       }
     }
@@ -336,7 +402,7 @@ export async function POST(req: Request) {
             totals: { subtotal, total: finalTotal, discount: totalDiscount },
             warning: `Vendita ok, ma aggiornamento appuntamento fallito: ${apptUpErr.message}`,
           },
-          { status: 200 }
+          { status: 200 },
         );
       }
     }
@@ -350,7 +416,10 @@ export async function POST(req: Request) {
     // best-effort cleanup se abbiamo creato una vendita e poi crashato
     try {
       if (createdSaleId) {
-        await supabaseAdmin.from("sale_items").delete().eq("sale_id", createdSaleId);
+        await supabaseAdmin
+          .from("sale_items")
+          .delete()
+          .eq("sale_id", createdSaleId);
         await supabaseAdmin.from("sales").delete().eq("id", createdSaleId);
       }
     } catch {

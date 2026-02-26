@@ -1,6 +1,7 @@
 // app/api/reports/salon-turnover/pdf/route.ts
 import React from "react";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createServerSupabase } from "@/lib/supabaseServer";
 import { renderPdfToBuffer } from "@/lib/pdf/renderPdf";
 import SalonTurnoverPdf from "@/lib/pdf/templates/SalonTurnoverPdf";
 
@@ -13,22 +14,67 @@ type TemplateRow = {
   net_total: number;
 };
 
+function toInt(x: string | null) {
+  const n = x ? Number(x) : NaN;
+  return Number.isFinite(n) ? Math.trunc(n) : NaN;
+}
+
+function roleFromMetadata(user: any): string {
+  return String(user?.user_metadata?.role ?? user?.app_metadata?.role ?? "").trim();
+}
+
+async function getRoleFromDb(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id, roles:roles(name)")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const roleName = (data as any)?.roles?.name;
+  return roleName ? String(roleName).trim() : null;
+}
+
 export async function GET(req: Request) {
   try {
+    // 0) AUTH
+    const supabase = await createServerSupabase();
+    const { data: authData, error: authErr } = await supabase.auth.getUser();
+
+    if (authErr || !authData?.user) {
+      return new Response(JSON.stringify({ error: "Non autenticato" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const user = authData.user;
+    const userId = user.id;
+
+    // SOLO coordinator (DB source-of-truth, fallback metadata)
+    const dbRole = await getRoleFromDb(userId);
+    const role = (dbRole || roleFromMetadata(user)).trim();
+
+    if (role !== "coordinator") {
+      return new Response(JSON.stringify({ error: "Non autorizzato" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // 1) PARAMS
     const url = new URL(req.url);
 
-    const salonIdRaw = url.searchParams.get("salon_id");
+    const salonId = toInt(url.searchParams.get("salon_id"));
     const dateFrom = url.searchParams.get("date_from"); // YYYY-MM-DD
     const dateTo = url.searchParams.get("date_to"); // YYYY-MM-DD
 
-    // filtri opzionali (enterprise)
-    const staffIdRaw = url.searchParams.get("staff_id"); // int
-    const paymentMethod = url.searchParams.get("payment_method"); // cash|card
-    const itemType = url.searchParams.get("item_type"); // service|product
-
-    const salonId = salonIdRaw ? Number(salonIdRaw) : NaN;
+    // filtri opzionali
+    const staffIdRaw = url.searchParams.get("staff_id");
+    const paymentMethod = url.searchParams.get("payment_method"); // cash|card|null
+    const itemType = url.searchParams.get("item_type"); // service|product|null
     const staffId =
-      staffIdRaw && staffIdRaw.trim().length > 0 ? Number(staffIdRaw) : null;
+      staffIdRaw && staffIdRaw.trim().length > 0 ? toInt(staffIdRaw) : null;
 
     if (!Number.isFinite(salonId) || salonId <= 0 || !dateFrom || !dateTo) {
       return new Response(JSON.stringify({ error: "Missing/invalid params" }), {
@@ -44,7 +90,7 @@ export async function GET(req: Request) {
       });
     }
 
-    // Nome salone (così nel PDF è bello)
+    // 2) Nome salone (per PDF)
     const { data: salonRow, error: salonErr } = await supabaseAdmin
       .from("salons")
       .select("name")
@@ -60,7 +106,7 @@ export async function GET(req: Request) {
 
     const salonName = salonRow?.name ? String(salonRow.name) : `Salon ${salonId}`;
 
-    // 1) Totali via RPC (enterprise)
+    // 3) Totali via RPC
     const { data: totalsRows, error: totalsErr } = await supabaseAdmin.rpc(
       "report_turnover",
       {
@@ -80,7 +126,8 @@ export async function GET(req: Request) {
       });
     }
 
-    const t0 = Array.isArray(totalsRows) && totalsRows.length > 0 ? totalsRows[0] : null;
+    const t0 =
+      Array.isArray(totalsRows) && totalsRows.length > 0 ? totalsRows[0] : null;
 
     const totals =
       t0 ??
@@ -99,7 +146,7 @@ export async function GET(req: Request) {
         gross_products: 0,
       } as any);
 
-    // 2) Righe via RPC (così abbiamo già tutto filtrato e ordinato)
+    // 4) Righe via RPC
     const { data: rowsData, error: rowsErr } = await supabaseAdmin.rpc(
       "report_rows",
       {
@@ -132,7 +179,6 @@ export async function GET(req: Request) {
       };
     });
 
-    // NOTE: NO JSX in route.ts
     const document = React.createElement(SalonTurnoverPdf, {
       salonName,
       dateFrom,
