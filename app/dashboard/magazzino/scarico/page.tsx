@@ -10,7 +10,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
-import { useUI } from "@/lib/ui-store";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 type Role = "coordinator" | "magazzino" | "reception" | "cliente" | string;
@@ -52,7 +52,7 @@ function ScaricoInner() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
-  const { activeSalonId } = useUI(); // cambia dall’header senza refresh
+  const { activeSalonId } = useActiveSalon(); // cambia dall’header senza refresh
 
   const productId = toNumberOrNull(searchParams.get("product"));
 
@@ -105,11 +105,11 @@ function ScaricoInner() {
         const isWarehouse = r === "magazzino" || r === "coordinator";
 
         if (isWarehouse) {
-          // activeSalonId arriva dallo store (header)
-          // se per caso è NaN, fallback centrale
-          const v = Number.isFinite(activeSalonId)
-            ? Number(activeSalonId)
-            : MAGAZZINO_CENTRALE_ID;
+          // activeSalonId arriva dallo switcher header; se non valido, fallback centrale
+          const v =
+            typeof activeSalonId === "number" && Number.isFinite(activeSalonId)
+              ? activeSalonId
+              : MAGAZZINO_CENTRALE_ID;
 
           setCtxSalonId(v);
         } else {
@@ -142,9 +142,10 @@ function ScaricoInner() {
     const isWarehouse = role === "magazzino" || role === "coordinator";
     if (!isWarehouse) return;
 
-    const v = Number.isFinite(activeSalonId)
-      ? Number(activeSalonId)
-      : MAGAZZINO_CENTRALE_ID;
+    const v =
+      typeof activeSalonId === "number" && Number.isFinite(activeSalonId)
+        ? activeSalonId
+        : MAGAZZINO_CENTRALE_ID;
 
     if (ctxSalonId !== v) setCtxSalonId(v);
     // eslint-disable-next-line react-hooks/exhaustive-deps

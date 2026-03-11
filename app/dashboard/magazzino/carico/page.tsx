@@ -11,7 +11,7 @@ import {
   Search,
 } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
-import { useUI } from "@/lib/ui-store";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
 interface ProductRow {
   product_id: number;
@@ -57,7 +57,7 @@ function CaricoInner() {
   const searchParams = useSearchParams();
 
   // 👇 DESTINAZIONE: prende il salone selezionato dall’header (switcher)
-  const { activeSalonId } = useUI();
+  const { activeSalonId } = useActiveSalon();
 
   const productIdFromUrl = toNumberOrNull(searchParams.get("product"));
 
@@ -68,7 +68,8 @@ function CaricoInner() {
 
   // destinazione: se activeSalonId è un salone valido (1..4) lo uso, altrimenti 1
   const [toSalonId, setToSalonId] = useState<number>(() => {
-    const v = Number(activeSalonId);
+    const v =
+      typeof activeSalonId === "number" ? activeSalonId : Number.NaN;
     return SALONI.some((s) => s.id === v) ? v : 1;
   });
 
@@ -83,7 +84,8 @@ function CaricoInner() {
 
   // se cambia lo switcher in header aggiorno destinazione (solo se è un salone 1..4)
   useEffect(() => {
-    const v = Number(activeSalonId);
+    const v =
+      typeof activeSalonId === "number" ? activeSalonId : Number.NaN;
     if (SALONI.some((s) => s.id === v)) setToSalonId(v);
   }, [activeSalonId]);
 
