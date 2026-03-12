@@ -67,6 +67,7 @@ export default function AgendaModal({
   const [serviceAssignments, setServiceAssignments] = useState<
     Record<number, string | null>
   >({});
+  const [qService, setQService] = useState("");
   const [notes, setNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
@@ -84,6 +85,7 @@ useEffect(() => {
   setSelectedServiceIds([]);
   setServiceAssignments({});
   setNotes("");
+  setQService("");
 
   void Promise.all([loadCustomers(), loadServices(), loadStaff()]);
 }, [isOpen, activeSalonId]);
@@ -258,6 +260,16 @@ async function loadServices() {
     [serviceTimeline]
   );
 
+  const filteredServicesForUi = useMemo(() => {
+    const q = qService.toLowerCase().trim();
+    if (!q) return services;
+    return services.filter((s: any) =>
+      String(s.name ?? "")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [qService, services]);
+
   /* ================= SAVE ================= */
 
   async function createAppointment() {
@@ -408,80 +420,135 @@ async function loadServices() {
 
           {/* Servizi */}
           <div className="space-y-5">
-            <div className="flex justify-between items-center">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-[#f3d8b6] font-extrabold text-sm uppercase tracking-wider">
                 <Scissors size={18} /> Servizi
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#f3d8b6]/10 border border-[#f3d8b6]/20">
-                <Clock3 size={14} />
-                <span className="text-xs font-black uppercase">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-scz-dark border border-white/10">
+                <Clock3 size={14} className="text-[#f3d8b6]" />
+                <span className="text-xs font-black uppercase tracking-wider text-white/80">
                   {totalMinutes} min
                 </span>
               </div>
             </div>
 
-            <div className="grid gap-3">
-              {services.map((s) => {
+            {/* Ricerca servizio */}
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"
+                size={16}
+              />
+              <input
+                value={qService}
+                onChange={(e) => setQService(e.target.value)}
+                placeholder="Cerca servizio per nome..."
+                className="w-full rounded-2xl bg-black/40 border border-white/10 pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
+              />
+            </div>
+
+            {/* Servizi selezionati */}
+            {selectedServiceIds.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
+                  Servizi selezionati
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {serviceTimeline.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => toggleService(item.id)}
+                      className="group inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] text-white/80 hover:bg-white/10 transition-colors"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#f3d8b6]" />
+                      <span className="font-bold truncate max-w-[120px]">
+                        {item.name}
+                      </span>
+                      <span className="text-white/40 font-mono text-[10px]">
+                        {item.startTime} · {item.duration}m
+                      </span>
+                      <span className="text-white/40 group-hover:text-red-300 text-xs">
+                        ×
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Lista servizi filtrata */}
+            <div className="grid gap-2 max-h-80 overflow-y-auto custom-scrollbar">
+              {filteredServicesForUi.map((s) => {
                 const active = selectedServiceIds.includes(s.id);
 
                 return (
                   <div
                     key={s.id}
-                    className={`p-4 rounded-2xl border transition ${
+                    className={`rounded-2xl border px-4 py-3 md:px-5 md:py-3.5 flex items-center gap-4 transition-colors ${
                       active
-                        ? "bg-[#f3d8b6]/5 border-[#f3d8b6]/40"
-                        : "bg-white/[0.02] border-white/5"
+                        ? "bg-scz-dark border-[#f3d8b6]/40"
+                        : "bg-black/30 border-white/10 hover:border-white/30"
                     }`}
                   >
-                    <div className="flex justify-between items-center">
-                      <button
-                        onClick={() => toggleService(s.id)}
-                        className="flex items-center gap-4"
-                      >
-                        <div
-                          className="w-1.5 h-10 rounded-full"
-                          style={{ backgroundColor: s.color_code || "#666" }}
-                        />
-                        <div>
-                          <p className="font-bold">
-                            {s.name}
-                          </p>
-                          <p className="text-xs text-white/40">
-                            {s.duration} min • {s.price}€
-                          </p>
-                        </div>
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleService(s.id)}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                    >
+                      <div
+                        className="w-1.5 h-10 rounded-full"
+                        style={{ backgroundColor: s.color_code || "#666" }}
+                      />
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-white truncate">
+                          {s.name}
+                        </p>
+                        <p className="text-[11px] text-white/50">
+                          {s.duration} min · {s.price}€
+                        </p>
+                      </div>
+                    </button>
 
-                      {active && (
-                        <select
-                          value={serviceAssignments[s.id] || ""}
-                          onChange={(e) =>
-                            setServiceAssignments((p) => ({
-                              ...p,
-                              [s.id]: toStrOrNull(e.target.value),
-                            }))
-                          }
-                          className="bg-transparent text-xs text-[#f3d8b6]"
-                        >
-                          <option value="">Auto</option>
-                          {staffList.map((st) => (
-                            <option key={st.id} value={st.id}>
-                              {st.name}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-
-                      <button
-                        onClick={() => toggleService(s.id)}
-                        className="p-2"
+                    {active && (
+                      <select
+                        value={serviceAssignments[s.id] || ""}
+                        onChange={(e) =>
+                          setServiceAssignments((p) => ({
+                            ...p,
+                            [s.id]: toStrOrNull(e.target.value),
+                          }))
+                        }
+                        className="bg-black/40 border border-white/15 rounded-xl px-2 py-1 text-[11px] text-[#f3d8b6] max-w-[130px] outline-none focus:border-[#f3d8b6]/50"
                       >
-                        {active ? <Check /> : <Plus />}
-                      </button>
-                    </div>
+                        <option value="">Auto</option>
+                        {staffList.map((st) => (
+                          <option key={st.id} value={st.id}>
+                            {st.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => toggleService(s.id)}
+                      className={`ml-1 rounded-xl border px-2.5 py-2 text-xs flex items-center justify-center ${
+                        active
+                          ? "bg-[#f3d8b6] border-[#f3d8b6] text-black"
+                          : "bg-black/40 border-white/15 text-white/70 hover:bg-white/10"
+                      }`}
+                    >
+                      {active ? <Check size={14} /> : <Plus size={14} />}
+                    </button>
                   </div>
                 );
               })}
+
+              {filteredServicesForUi.length === 0 && (
+                <div className="text-xs text-white/40 py-4 text-center border border-dashed border-white/20 rounded-2xl">
+                  Nessun servizio trovato per questa ricerca.
+                </div>
+              )}
             </div>
           </div>
 

@@ -59,6 +59,9 @@ interface Props {
   // ✅ STACKING (collision engine)
   laneIndex?: number; // 0..laneCount-1
   laneCount?: number; // >=1
+
+  // Evidenziazione da ?highlight= (link da In Sala → Scheda)
+  isHighlighted?: boolean;
 }
 
 /* ======================
@@ -67,21 +70,27 @@ interface Props {
 
 function statusMeta(status: string | null | undefined) {
   const s = String(status || "scheduled");
-  if (s === "in_sala")
-    return { label: "IN SALA", cls: "bg-[#f3d8b6] text-[#1A0F0A]" };
-  if (s === "done")
+  if (s === "in_sala") {
     return {
-      label: "DONE",
-      cls: "bg-white/10 text-white/70 border border-white/10",
+      label: "IN SALA",
+      cls: "bg-emerald-400 text-black border border-emerald-300/80",
     };
-  if (s === "cancelled")
+  }
+  if (s === "done") {
     return {
-      label: "ANNULL.",
-      cls: "bg-red-500/15 text-red-200 border border-red-400/20",
+      label: "COMPLETATO",
+      cls: "bg-white/10 text-white/80 border border-white/20",
     };
+  }
+  if (s === "cancelled") {
+    return {
+      label: "ANNULLATO",
+      cls: "bg-red-500/15 text-red-200 border border-red-400/40",
+    };
+  }
   return {
-    label: "PRENOT.",
-    cls: "bg-black/25 text-[#f3d8b6] border border-[#5c3a21]/60",
+    label: "PRENOTATO",
+    cls: "bg-black/40 text-[#f3d8b6] border border-white/20",
   };
 }
 
@@ -132,6 +141,7 @@ export default function ServiceBox({
   staffOrder,
   laneIndex = 0,
   laneCount = 1,
+  isHighlighted = false,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -217,6 +227,13 @@ export default function ServiceBox({
 
   const isInSala = String(appointment?.status) === "in_sala";
   const isDone = String(appointment?.status) === "done";
+  const isCancelled = String(appointment?.status) === "cancelled";
+
+  const hasStaff =
+    toIdStr(line.staff_id) != null || toIdStr((appointment as any)?.staff_id) != null;
+
+  const startLabel = timeFromTs(line.start_time);
+  const durationLabel = `${Math.round(durationMin)}m`;
 
   /* ======================
      DB UPDATE (UNIFICATA)
@@ -435,47 +452,66 @@ export default function ServiceBox({
       <div
         className={[
           "relative h-full w-full overflow-visible rounded-2xl",
-          "bg-[#1c0f0a]/92 backdrop-blur-md",
-          "border border-[#f3d8b6]/22",
+          "bg-scz-dark/95 backdrop-blur-md",
+          "border border-white/10",
           "shadow-[0_16px_55px_rgba(0,0,0,0.55)]",
-          isInSala
-            ? "ring-2 ring-[#f3d8b6]/35 shadow-[0_0_70px_rgba(243,216,182,0.16)]"
-            : "ring-1 ring-black/20",
-          isDone ? "opacity-70" : "",
+          isHighlighted
+            ? "ring-2 ring-[#f3d8b6] shadow-[0_0_24px_rgba(243,216,182,0.35)]"
+            : "",
+          !isHighlighted && isInSala
+            ? "ring-2 ring-emerald-400/70 shadow-[0_0_32px_rgba(34,197,94,0.25)]"
+            : "",
+          !isHighlighted && !isInSala ? "ring-1 ring-black/40" : "",
+          isDone ? "opacity-75" : "",
+          isCancelled ? "opacity-60 grayscale" : "",
+          dragging || resizing ? "scale-[1.02] ring-2 ring-white/50" : "",
         ].join(" ")}
-        
       >
-        
         <div className="absolute inset-0 rounded-2xl overflow-hidden">
           <div
             className="absolute left-0 top-0 bottom-0 w-[7px]"
             style={{ backgroundColor: svcColor }}
           />
 
-          <div className="absolute inset-0 left-[7px] opacity-[0.15] pointer-events-none">
+          <div className="absolute inset-0 left-[7px] opacity-[0.18] pointer-events-none">
             <div className="h-full w-full flex flex-col">
               {segments.map((seg: Segment, i: number) => (
                 <div
                   key={`${seg.name}-${i}`}
                   style={{ flex: seg.duration, backgroundColor: seg.color }}
-                  className="w-full border-b border-black/10"
+                  className="w-full border-b border-black/20"
                 />
               ))}
             </div>
           </div>
 
           <div
-            className={`relative z-10 h-full pl-5 pr-10 ${
-              compact ? "py-1 flex items-center" : "py-3"
+            className={`relative z-10 h-full pl-5 pr-9 ${
+              compact ? "py-1.5" : "py-2.5"
             }`}
           >
-            <div className="w-full min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
+            <div className="w-full min-w-0 flex flex-col gap-0.5">
+              {/* Top row: time + duration + status */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="shrink-0 text-[11px] font-mono font-black text-white/90">
+                    {startLabel}
+                  </span>
+                  {!compact && (
+                    <span className="shrink-0 text-[10px] font-mono text-white/60">
+                      {durationLabel}
+                    </span>
+                  )}
+                </div>
                 <span
-                  className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded ${meta.cls}`}
+                  className={`shrink-0 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${meta.cls}`}
                 >
                   {meta.label}
                 </span>
+              </div>
+
+              {/* Cliente */}
+              <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
                 <h4
                   className={`font-extrabold text-[#f3d8b6] truncate ${
                     compact ? "text-[12px]" : "text-[13px]"
@@ -485,15 +521,33 @@ export default function ServiceBox({
                 </h4>
               </div>
 
+              {/* Servizio + staff */}
               <div
-                className={`text-white/80 truncate ${
-                  compact ? "text-[11px]" : "text-[12px]"
+                className={`flex items-center justify-between gap-2 min-w-0 ${
+                  compact ? "mt-0.5" : "mt-1"
                 }`}
               >
-                {svcName}
-                <span className="ml-2 text-white/40 font-mono italic">
-                  {Math.round(durationMin)}m
-                </span>
+                <div
+                  className={`text-white/85 truncate ${
+                    compact ? "text-[11px]" : "text-[12px]"
+                  }`}
+                >
+                  {svcName}
+                </div>
+                <div className="shrink-0 flex items-center gap-1 text-[10px] uppercase tracking-wider">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${
+                      hasStaff
+                        ? "border-emerald-400/40 text-emerald-200 bg-emerald-500/10"
+                        : "border-white/15 text-white/50 bg-black/40"
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                    <span className="font-black">
+                      {hasStaff ? "Staff" : "Da assegnare"}
+                    </span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -525,22 +579,25 @@ export default function ServiceBox({
             e.stopPropagation();
             setOpenActions((v) => !v);
           }}
-          className="absolute top-2 right-2 z-40 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 border border-white/10 text-[#f3d8b6] hover:bg-black/60 transition"
+          className="absolute top-2 right-2 z-40 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/15 text-white/80 hover:bg-black/80 hover:text-[#f3d8b6] transition-colors"
         >
           ⋮
         </button>
 
         {openActions && (
           <div
-            className="absolute right-2 top-10 z-50 w-44 rounded-xl bg-[#140b07] border border-[#5c3a21]/60 shadow-2xl py-1 overflow-hidden"
+            className="absolute right-2 top-10 z-50 w-48 rounded-2xl bg-scz-dark border border-white/10 shadow-[0_16px_55px_rgba(0,0,0,0.75)] py-1.5 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="px-4 pb-1 pt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
+              Azioni appuntamento
+            </div>
             <button
               onClick={handlePortaInSala}
               disabled={checkingIn}
-              className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
+              className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5 border-t border-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              👤 {checkingIn ? "..." : "Porta in sala"}
+              👤 {checkingIn ? "Porta in sala..." : "Porta in sala"}
             </button>
 
             <button
@@ -548,16 +605,16 @@ export default function ServiceBox({
                 setOpenActions(false);
                 router.push(`/dashboard/cassa/${appointment.id}`);
               }}
-              className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5"
+              className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5 border-t border-white/5"
             >
               💰 Vai in cassa
             </button>
 
             <button
               onClick={() => setOpenActions(false)}
-              className="w-full px-4 py-2.5 text-left text-xs text-white/50 hover:bg-white/5"
+              className="w-full px-4 py-2.5 text-left text-xs text-white/60 hover:bg-white/5 border-t border-white/5"
             >
-              🧪 Scheda Tecnica
+              📋 Scheda tecnica
             </button>
           </div>
         )}

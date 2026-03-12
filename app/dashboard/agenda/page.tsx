@@ -59,6 +59,7 @@ function AgendaPageInner() {
   const today = toYmd(new Date());
   const spDate = sp.get("date");
   const currentDate = spDate && /^\d{4}-\d{2}-\d{2}$/.test(spDate) ? spDate : today;
+  const highlightAppointmentId = sp.get("highlight") ?? null;
 
   const [calendarOpen, setCalendarOpen] = useState(false);
 
@@ -68,75 +69,123 @@ function AgendaPageInner() {
     router.replace(`/dashboard/agenda?${params.toString()}`, { scroll: false });
   }
 
+  function clearHighlightParam() {
+    if (!highlightAppointmentId) return;
+    const params = new URLSearchParams(sp.toString());
+    params.delete("highlight");
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/agenda?${qs}` : "/dashboard/agenda", { scroll: false });
+  }
+
   if (!isReady) return <AgendaPageSkeleton />;
 
+  const activeSalonName = allowedSalons.find((s) => s.id === activeSalonId)?.name?.split(" - ")[0] ?? null;
+
   return (
-    <div className="w-full h-screen flex flex-col space-y-2 overflow-hidden pb-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-[#1c110d]/90 backdrop-blur-md border border-[#5c3a21]/50 p-2 rounded-xl shadow-lg">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setDate(today)}
-            className="px-3 py-1.5 bg-[#f3d8b6] hover:bg-[#e2c7a5] text-black text-[10px] font-black rounded-lg transition-all"
-          >
-            OGGI
-          </button>
-
-          <div className="flex items-center bg-black/40 border border-[#5c3a21]/50 rounded-lg p-0.5">
-            <button onClick={() => setDate(addDays(currentDate, -1))} className="p-1 hover:bg-[#f3d8b6]/10 text-[#f3d8b6] rounded-md">
-              <ChevronLeft size={16} />
-            </button>
-            <div className="px-2 min-w-[120px] text-center">
-              <span className="text-[11px] font-bold text-[#f3d8b6] uppercase tracking-tighter">
-                {formatPretty(currentDate)}
-              </span>
-            </div>
-            <button onClick={() => setDate(addDays(currentDate, 1))} className="p-1 hover:bg-[#f3d8b6]/10 text-[#f3d8b6] rounded-md">
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1 bg-black/20 rounded-lg p-0.5 border border-[#5c3a21]/30">
-            <button onClick={() => setDate(addDays(currentDate, -7))} className="p-1 text-[#f3d8b6]/50 hover:text-[#f3d8b6]">
-              <ChevronsLeft size={14} />
-            </button>
-            <button onClick={() => setDate(addDays(currentDate, 7))} className="p-1 text-[#f3d8b6]/50 hover:text-[#f3d8b6]">
-              <ChevronsRight size={14} />
-            </button>
-          </div>
+    <div className="w-full h-screen flex flex-col space-y-4 overflow-hidden pb-4">
+      {/* TOP AREA — Header + Control bar */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] shrink-0">
+        <div className="border-b border-white/10 bg-black/20 px-4 md:px-6 py-4">
+          <h1 className="text-2xl md:text-3xl font-black text-[#f3d8b6] tracking-tight">
+            Agenda
+          </h1>
+          <p className="mt-1 text-sm text-white/50">
+            {activeSalonName ? `${activeSalonName} · ` : ""}
+            {formatPretty(currentDate)}
+          </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push("/dashboard/in-sala")}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#0FA958]/20 hover:bg-[#0FA958]/30 border border-[#0FA958]/40 rounded-lg text-[10px] font-black text-[#0FA958] transition-all"
-          >
-            <Users size={14} />
-            IN SALA
-          </button>
-
-          <div className="relative">
-            <Store size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#f3d8b6]/40" />
-            <select
-              value={activeSalonId || ""}
-              onChange={(e) => setActiveSalonId(Number(e.target.value))}
-              className="pl-7 pr-6 py-1.5 bg-black/40 border border-[#5c3a21]/60 rounded-lg text-[#f3d8b6] font-bold text-[10px] appearance-none outline-none focus:ring-1 focus:ring-[#f3d8b6]/30 transition cursor-pointer"
+        <div className="px-4 md:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setDate(today)}
+              className="h-11 px-4 rounded-xl bg-[#f3d8b6] text-black font-black text-[10px] uppercase tracking-wider hover:opacity-95 transition-opacity"
             >
-              {allowedSalons.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name.split(" - ")[0]}
-                </option>
-              ))}
-            </select>
+              Oggi
+            </button>
+            <div className="flex items-center rounded-xl border border-white/10 bg-black/20 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDate(addDays(currentDate, -1))}
+                className="p-2.5 text-white/70 hover:bg-white/10 hover:text-[#f3d8b6] transition-colors"
+                aria-label="Giorno precedente"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="min-w-[130px] px-3 py-2 text-center border-x border-white/10">
+                <span className="text-[11px] font-bold text-[#f3d8b6] uppercase tracking-tight">
+                  {formatPretty(currentDate)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDate(addDays(currentDate, 1))}
+                className="p-2.5 text-white/70 hover:bg-white/10 hover:text-[#f3d8b6] transition-colors"
+                aria-label="Giorno successivo"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            <div className="flex items-center rounded-xl border border-white/10 bg-black/20 p-0.5">
+              <button
+                type="button"
+                onClick={() => setDate(addDays(currentDate, -7))}
+                className="p-2 text-white/50 hover:text-[#f3d8b6] hover:bg-white/5 rounded-lg transition-colors"
+                aria-label="Settimana precedente"
+              >
+                <ChevronsLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setDate(addDays(currentDate, 7))}
+                className="p-2 text-white/50 hover:text-[#f3d8b6] hover:bg-white/5 rounded-lg transition-colors"
+                aria-label="Settimana successiva"
+              >
+                <ChevronsRight size={16} />
+              </button>
+            </div>
           </div>
-
-          <button onClick={() => setCalendarOpen(true)} className="p-1.5 bg-[#f3d8b6]/10 hover:bg-[#f3d8b6]/20 text-[#f3d8b6] border border-[#f3d8b6]/30 rounded-lg transition-all">
-            <Calendar size={16} />
-          </button>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/in-sala")}
+              className="h-11 px-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 font-bold text-[10px] uppercase tracking-wider hover:bg-emerald-500/20 transition-colors flex items-center gap-2"
+            >
+              <Users size={14} />
+              In sala
+            </button>
+            <div className="relative">
+              <Store size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+              <select
+                value={activeSalonId || ""}
+                onChange={(e) => setActiveSalonId(Number(e.target.value))}
+                className="h-11 pl-9 pr-8 rounded-xl border border-white/10 bg-black/30 text-white/90 font-bold text-[11px] appearance-none outline-none focus:ring-2 focus:ring-[#f3d8b6]/30 focus:border-[#f3d8b6]/40 cursor-pointer"
+              >
+                {allowedSalons.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name.split(" - ")[0]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCalendarOpen(true)}
+              className="h-11 w-11 rounded-xl border border-white/10 bg-black/30 text-white/70 hover:bg-white/10 hover:text-[#f3d8b6] transition-colors flex items-center justify-center shrink-0"
+              aria-label="Scegli data"
+            >
+              <Calendar size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 bg-[#140b07]/40 rounded-xl border border-[#5c3a21]/45 overflow-hidden shadow-2xl">
-        <AgendaGrid currentDate={currentDate} />
+      <div className="flex-1 min-h-0 rounded-xl border border-white/10 bg-scz-darker/50 overflow-hidden">
+        <AgendaGrid
+          currentDate={currentDate}
+          highlightAppointmentId={highlightAppointmentId}
+          onHighlightHandled={clearHighlightParam}
+        />
       </div>
 
       <CalendarModal
@@ -150,9 +199,9 @@ function AgendaPageInner() {
 
 function AgendaPageSkeleton() {
   return (
-    <div className="w-full space-y-4 animate-pulse">
-      <div className="h-16 rounded-2xl bg-[#24140e]/60 border border-[#5c3a21]/50" />
-      <div className="h-[600px] rounded-3xl bg-[#24140e]/40 border border-[#5c3a21]/50" />
+    <div className="w-full flex flex-col space-y-4 animate-pulse">
+      <div className="h-[140px] rounded-2xl bg-scz-dark border border-white/10 shrink-0" />
+      <div className="flex-1 min-h-[400px] rounded-xl bg-scz-darker/50 border border-white/10" />
     </div>
   );
 }

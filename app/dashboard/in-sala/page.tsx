@@ -1,8 +1,8 @@
 // app/dashboard/in-sala/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { toast } from "sonner";
@@ -41,6 +41,8 @@ type CashStatus = {
 export default function InSalaPage() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const pathname = usePathname();
+  const prevPathnameRef = useRef<string | null>(null);
   const { activeSalonId, isReady } = useActiveSalon();
 
   const [loading, setLoading] = useState(true);
@@ -198,213 +200,292 @@ export default function InSalaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, activeSalonId]);
 
+  // Refetch when returning to this page (e.g. after closing sale in Cassa) so list is not stale
+  useEffect(() => {
+    const prev = prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+    if (pathname === "/dashboard/in-sala" && prev != null && prev !== "/dashboard/in-sala") {
+      void refreshAll();
+    }
+  }, [pathname]);
+
   if (!isReady) return null;
 
   const isCassaOpen = Boolean(cash?.is_open);
   const salonName = cash?.salon?.name ?? null;
 
   return (
-    <div className="p-6 text-white">
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-black text-[#f3d8b6]">IN SALA</h1>
-            <p className="text-white/50 text-sm">
-              Appuntamenti attualmente in sala
-              {salonName ? ` — ${salonName}` : ""}
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => router.push("/dashboard/agenda")}
-              className="rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-white/5"
-            >
-              ← Agenda
-            </button>
-            <button
-              onClick={refreshAll}
-              className="rounded-xl bg-[#f3d8b6] px-4 py-2 text-sm font-bold text-black hover:opacity-90"
-            >
-              Aggiorna
-            </button>
-          </div>
-        </div>
-
-        {/* CASSA BAR */}
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3">
-              <div
-                className={`text-[10px] uppercase font-black tracking-[0.2em] px-3 py-1 rounded-full border ${
-                  isCassaOpen
-                    ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
-                    : "bg-red-500/10 text-red-300 border-red-500/20"
-                }`}
-              >
-                {isCassaOpen ? "Cassa aperta" : "Cassa chiusa"}
-              </div>
-
-              {cashLoading ? (
-                <div className="text-white/50 text-xs">Sync...</div>
-              ) : cashErr ? (
-                <div className="text-red-200/80 text-xs truncate">
-                  {cashErr}
-                </div>
-              ) : (
-                <div className="text-white/50 text-xs truncate">
-                  {cash?.session?.opened_at
-                    ? `Aperta: ${timeHHmm(cash.session.opened_at)}`
-                    : ""}
-                  {cash?.session?.session_date
-                    ? ` · Giorno: ${cash.session.session_date}`
-                    : ""}
-                </div>
-              )}
+    <div className="p-6 md:p-8 text-white max-w-6xl mx-auto space-y-7">
+      {/* HERO / HEADER */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+        <div className="border-b border-white/10 bg-black/20 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black text-[#f3d8b6] tracking-tight">
+                In sala
+              </h1>
+              <p className="mt-1 text-sm text-white/50">
+                Control room · appuntamenti in sala
+                {salonName ? ` · ${salonName}` : ""}
+              </p>
             </div>
-
-            {isCassaOpen && cash?.totals ? (
-              <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-                  <div className="text-white/40">Sessione lordo</div>
-                  <div className="font-extrabold text-[#f3d8b6]">
-                    € {fmtEur(cash.totals.session_gross)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-                  <div className="text-white/40">Sessione contanti</div>
-                  <div className="font-extrabold">
-                    € {fmtEur(cash.totals.session_cash)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-                  <div className="text-white/40">Sessione POS</div>
-                  <div className="font-extrabold">
-                    € {fmtEur(cash.totals.session_card)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/30 p-2">
-                  <div className="text-white/40">N. vendite</div>
-                  <div className="font-extrabold">
-                    {cash.totals.session_count_sales}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="flex flex-wrap gap-2 justify-end">
-            <button
-              onClick={loadCashStatus}
-              className="rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-white/5"
-              disabled={cashLoading}
-            >
-              Stato cassa
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  const qs = activeSalonId
-                    ? `?salon_id=${encodeURIComponent(String(activeSalonId))}`
-                    : "";
-                  const res = await fetch(`/api/cassa/report${qs}`, {
-                    method: "GET",
-                    cache: "no-store",
-                  });
-                  const data = await res.json();
-
-                  if (!res.ok) throw new Error(data?.error || "Errore report");
-
-                  const t = data?.totals || {};
-               toast.success(
-  `Report oggi — Lordo € ${(Number(t.gross) || 0).toFixed(2)} · Contanti € ${(Number(t.cash) || 0).toFixed(2)} · POS € ${(Number(t.card) || 0).toFixed(2)} · Vendite ${Number(t.count_sales) || 0}`
-);
-
-                } catch (e: any) {
-                  toast.error("Errore report: " + (e?.message || "Errore"));
-                }
-              }}
-              className="rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-white/5"
-              disabled={cashLoading}
-            >
-              Report oggi
-            </button>
-
-            {!isCassaOpen ? (
+            <div className="flex gap-2">
               <button
-                onClick={() => setOpenCash(true)}
-                className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-extrabold text-black hover:opacity-90"
-                disabled={cashLoading}
+                type="button"
+                onClick={() => router.push("/dashboard/agenda")}
+                className="h-11 px-5 rounded-xl border border-white/10 bg-black/20 text-white/80 font-bold text-[10px] uppercase tracking-wider hover:bg-white/10 transition-colors"
               >
-                Apri cassa
+                ← Agenda
               </button>
-            ) : (
               <button
-                onClick={() => setCloseCash(true)}
-                className="rounded-xl bg-red-400 px-4 py-2 text-sm font-extrabold text-black hover:opacity-90"
-                disabled={cashLoading}
+                type="button"
+                onClick={refreshAll}
+                className="h-11 px-5 rounded-xl bg-[#f3d8b6] text-black font-black text-[10px] uppercase tracking-wider hover:opacity-95 transition-colors"
               >
-                Chiudi cassa
+                Aggiorna
               </button>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
-      {(err || cashErr) && (
-        <div className="mb-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-200">
-          {err || cashErr}
+      {/* STATO CASSA + METRICHE LIVE */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+        <div className="border-b border-white/10 bg-black/20 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+            Stato cassa
+          </div>
+          <span
+            className={`inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+              cashLoading
+                ? "bg-white/10 text-white/50"
+                : isCassaOpen
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                  : "bg-red-500/20 text-red-300 border border-red-500/30"
+            }`}
+          >
+            {cashLoading ? "Sync..." : isCassaOpen ? "Aperta" : "Chiusa"}
+          </span>
         </div>
-      )}
-
-      {loading ? (
-        <div className="text-white/60 text-sm">Caricamento...</div>
-      ) : rows.length === 0 ? (
-        <div className="text-white/60 text-sm">
-          Nessun appuntamento in sala.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {rows.map((a) => {
-            const customer = a?.customers
-              ? `${a.customers.first_name ?? ""} ${a.customers.last_name ?? ""}`.trim()
-              : "Cliente";
-            const staff = a?.staff?.name ? String(a.staff.name) : "—";
-            const start = timeHHmm(a.start_time);
-            const end = timeHHmm(a.end_time);
-
-            return (
-              <div
-                key={a.id}
-                className="rounded-2xl border border-white/10 bg-black/20 p-4 flex items-center justify-between"
+        <div className="p-6 md:p-7 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
+              {cashErr ? (
+                <p className="text-sm font-medium text-red-400/90">{cashErr}</p>
+              ) : (
+                <p className="text-sm text-white/60">
+                  {cash?.session?.opened_at
+                    ? `Aperta alle ${timeHHmm(cash.session.opened_at)}`
+                    : isCassaOpen
+                      ? "Cassa operativa."
+                      : "Apri la cassa per abilitare le vendite."}
+                  {cash?.session?.session_date ? ` · Giorno ${cash.session.session_date}` : ""}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={loadCashStatus}
+                className="h-11 px-5 rounded-xl border border-white/10 bg-black/30 text-white/70 font-bold text-[10px] uppercase tracking-wider hover:bg-white/10 disabled:opacity-50"
+                disabled={cashLoading}
               >
-                <div className="min-w-0">
-                  <div className="text-[#f3d8b6] font-extrabold truncate">
-                    {customer}
-                  </div>
-                  <div className="text-white/60 text-xs mt-0.5">
-                    {start}–{end} · Operatore: {staff}
-                  </div>
-                  {a?.notes && (
-                    <div className="text-white/40 text-xs mt-1 line-clamp-1 italic">
-                      {a.notes}
-                    </div>
-                  )}
-                </div>
+                Stato cassa
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const qs = activeSalonId ? `?salon_id=${encodeURIComponent(String(activeSalonId))}` : "";
+                    const res = await fetch(`/api/cassa/report${qs}`, { method: "GET", cache: "no-store" });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data?.error || "Errore report");
+                    const t = data?.totals || {};
+                    toast.success(
+                      `Report oggi — Lordo € ${(Number(t.gross) || 0).toFixed(2)} · Contanti € ${(Number(t.cash) || 0).toFixed(2)} · POS € ${(Number(t.card) || 0).toFixed(2)} · Vendite ${Number(t.count_sales) || 0}`
+                    );
+                  } catch (e: any) {
+                    toast.error("Errore report: " + (e?.message || "Errore"));
+                  }
+                }}
+                className="h-11 px-5 rounded-xl border border-white/10 bg-black/30 text-white/70 font-bold text-[10px] uppercase tracking-wider hover:bg-white/10 disabled:opacity-50"
+                disabled={cashLoading}
+              >
+                Report oggi
+              </button>
+              {!isCassaOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setOpenCash(true)}
+                  className="h-11 px-5 rounded-xl bg-emerald-500 text-black font-black text-[10px] uppercase tracking-wider hover:opacity-95 disabled:opacity-50"
+                  disabled={cashLoading}
+                >
+                  Apri cassa
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCloseCash(true)}
+                  className="h-11 px-5 rounded-xl bg-red-500/90 text-white font-black text-[10px] uppercase tracking-wider hover:opacity-95 disabled:opacity-50"
+                  disabled={cashLoading}
+                >
+                  Chiudi cassa
+                </button>
+              )}
+            </div>
+          </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => router.push(`/dashboard/cassa/${a.id}`)}
-                    className="rounded-xl bg-[#f3d8b6] px-3 py-2 text-xs font-bold text-black hover:opacity-90"
-                  >
-                    Vai in cassa
-                  </button>
-                </div>
+          {isCassaOpen && cash?.totals && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="text-[10px] font-black uppercase tracking-wider text-white/40">Sessione lordo</div>
+                <div className="mt-1 text-xl font-extrabold text-[#f3d8b6]">€ {fmtEur(cash.totals.session_gross)}</div>
               </div>
-            );
-          })}
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="text-[10px] font-black uppercase tracking-wider text-white/40">Contanti</div>
+                <div className="mt-1 text-xl font-extrabold text-white/90">€ {fmtEur(cash.totals.session_cash)}</div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="text-[10px] font-black uppercase tracking-wider text-white/40">POS</div>
+                <div className="mt-1 text-xl font-extrabold text-white/90">€ {fmtEur(cash.totals.session_card)}</div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="text-[10px] font-black uppercase tracking-wider text-white/40">Vendite</div>
+                <div className="mt-1 text-xl font-extrabold text-white/90">{cash.totals.session_count_sales}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {err && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-6 py-4 text-sm text-red-200 font-medium">
+          {err}
         </div>
       )}
+
+      {/* LIVE SERVICE BOARD — Lista appuntamenti in sala */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+        <div className="border-b border-white/10 bg-black/20 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+              In sala
+            </div>
+            <div className="mt-1 text-sm text-white/50">
+              {loading
+                ? "Caricamento..."
+                : rows.length === 0
+                  ? "Nessun appuntamento in sala"
+                  : `${rows.length} ${rows.length === 1 ? "appuntamento" : "appuntamenti"} in sala`}
+            </div>
+          </div>
+          {!loading && rows.length > 0 && (
+            <span className="rounded-full bg-[#f3d8b6]/10 border border-[#f3d8b6]/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#f3d8b6]">
+              Live
+            </span>
+          )}
+        </div>
+
+        <div className="p-6 md:p-7">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 md:py-20">
+              <div className="w-10 h-10 border-2 border-[#f3d8b6]/30 border-t-[#f3d8b6] rounded-full animate-spin" />
+              <p className="mt-4 text-sm text-white/50 font-medium">Caricamento appuntamenti...</p>
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 md:py-24 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl text-white/20 mb-4">
+                👤
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                Nessun appuntamento in sala
+              </p>
+              <p className="mt-2 text-sm text-white/50 max-w-[280px]">
+                Porta i clienti in sala dall’Agenda per vederli qui e aprire la cassa.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/agenda")}
+                className="mt-6 h-11 px-5 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] bg-[#f3d8b6]/10 border border-[#f3d8b6]/30 text-[#f3d8b6] hover:bg-[#f3d8b6]/20 transition-colors"
+              >
+                Vai all’Agenda
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {rows.map((a) => {
+                const customer = a?.customers
+                  ? `${a.customers.first_name ?? ""} ${a.customers.last_name ?? ""}`.trim()
+                  : "Cliente";
+                const staff = a?.staff?.name ? String(a.staff.name) : "—";
+                const start = timeHHmm(a.start_time);
+                const end = timeHHmm(a.end_time);
+
+                return (
+                  <div
+                    key={a.id}
+                    className="rounded-xl border border-white/10 bg-black/20 p-5 md:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:border-white/15 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-wider text-white/40 mb-0.5">
+                          Cliente
+                        </div>
+                        <div className="text-lg font-bold text-[#f3d8b6] truncate">
+                          {customer}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-wider text-white/40 mb-0.5">
+                          Operatore
+                        </div>
+                        <div className="text-sm font-semibold text-white/90">
+                          {staff}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-wider text-white/40 mb-0.5">
+                          Orario
+                        </div>
+                        <div className="text-sm font-mono text-white/80">
+                          {start} – {end}
+                        </div>
+                      </div>
+                      <div className="flex items-end gap-2">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          In sala
+                        </span>
+                        {a?.notes && (
+                          <span className="text-white/40 text-xs truncate max-w-[120px]" title={a.notes}>
+                            {a.notes}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/dashboard/cassa/${a.id}`)}
+                        className="h-11 px-5 rounded-xl bg-[#f3d8b6] text-black font-black uppercase tracking-[0.15em] text-[10px] hover:opacity-95 active:scale-[0.98] transition-all border border-[#f3d8b6]"
+                      >
+                        Vai in cassa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/dashboard/agenda?highlight=${a.id}`)}
+                        className="h-11 px-5 rounded-xl border border-white/10 bg-black/30 text-white/70 font-bold uppercase tracking-[0.1em] text-[10px] hover:bg-white/10 transition-colors"
+                      >
+                        Scheda
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* MODAL: APRI CASSA */}
       {openCash && (

@@ -54,6 +54,32 @@ function toStrOrNull(v: unknown): string | null {
   return String(v);
 }
 
+function statusMeta(status: string | null | undefined) {
+  const s = String(status || "scheduled");
+  if (s === "in_sala") {
+    return {
+      label: "IN SALA",
+      cls: "bg-emerald-400 text-black border border-emerald-300/80",
+    };
+  }
+  if (s === "done") {
+    return {
+      label: "COMPLETATO",
+      cls: "bg-white/10 text-white/80 border border-white/20",
+    };
+  }
+  if (s === "cancelled") {
+    return {
+      label: "ANNULLATO",
+      cls: "bg-red-500/15 text-red-200 border border-red-400/40",
+    };
+  }
+  return {
+    label: "PRENOTATO",
+    cls: "bg-black/40 text-[#f3d8b6] border border-white/20",
+  };
+}
+
 export default function EditAppointmentModal({
   isOpen,
   close,
@@ -228,7 +254,7 @@ export default function EditAppointmentModal({
           const { error: lineUpErr } = await supabase
             .from("appointment_services")
             .update({ start_time: toNoZ(shifted) })
-            .eq("id", Number(l.id));
+            .eq("id", String(l.id));
 
           if (lineUpErr) throw lineUpErr;
         }
@@ -326,35 +352,71 @@ export default function EditAppointmentModal({
     router.push(`/dashboard/clienti/${cid}`);
   }
 
-  if (!isOpen) return null;
-
   const headerCustomer = appointment?.customers ? safeName(appointment.customers) : "Appuntamento";
+  const headerStatus = statusMeta(appointment?.status);
+  const headerTime = timeFromTsSafe(appointment?.start_time);
+
+  const serviceLines = useMemo(() => {
+    const raw = Array.isArray(appointment?.appointment_services)
+      ? appointment.appointment_services
+      : [];
+    return raw.map((l: any) => ({
+      id: l.id,
+      name: l?.services?.name ?? "Servizio",
+      duration: l?.duration_minutes ?? l?.services?.duration ?? SLOT_MINUTES,
+      color: l?.services?.color_code ?? "#666666",
+      staffId: l?.staff_id ?? null,
+    }));
+  }, [appointment]);
+
+  const staffById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of staff || []) {
+      if (s?.id == null) continue;
+      map.set(String(s.id), String(s.name ?? ""));
+    }
+    return map;
+  }, [staff]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-xl rounded-3xl border border-[#5c3a21]/60 bg-[#140b07]/85
-                   shadow-[0_30px_90px_rgba(0,0,0,0.55)] overflow-hidden text-white"
+        className="w-full max-w-xl rounded-3xl border border-white/10 bg-scz-dark shadow-[0_30px_90px_rgba(0,0,0,0.55)] overflow-hidden text-white"
       >
         {/* header */}
-        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-[#5c3a21]/50">
-          <div className="min-w-0">
-            <div className="text-xs text-[#f3d8b6]/70 tracking-wide">Appuntamento</div>
-            <h2 className="text-2xl font-extrabold text-[#f3d8b6] tracking-tight mt-1 truncate">
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-white/10 bg-black/20">
+          <div className="min-w-0 space-y-1.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+              Appuntamento
+            </div>
+            <h2 className="text-2xl font-extrabold text-[#f3d8b6] tracking-tight truncate">
               {headerCustomer}
             </h2>
-            <div className="text-xs text-white/50 mt-2">
-              ID: <span className="text-white/70">{appointment?.id ?? "-"}</span>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
+              <span>
+                {selectedDay} · {headerTime}
+              </span>
+              <span className="w-px h-3 bg-white/20" />
+              <span>
+                ID: <span className="text-white/80">{appointment?.id ?? "-"}</span>
+              </span>
+              <span className="w-px h-3 bg-white/20" />
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${headerStatus.cls}`}
+              >
+                {headerStatus.label}
+              </span>
             </div>
           </div>
 
           <button
             onClick={close}
             disabled={saving}
-            className="rounded-2xl p-2 bg-black/25 border border-white/10 text-white/70
-                       hover:bg-black/35 transition disabled:opacity-50"
+            className="rounded-2xl p-2 bg-black/40 border border-white/15 text-white/70 hover:bg-black/60 transition disabled:opacity-50"
             aria-label="Chiudi"
             title="Chiudi"
           >
@@ -380,9 +442,7 @@ export default function EditAppointmentModal({
             <button
               onClick={goToSchedeTecniche}
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3
-                         bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6] font-extrabold
-                         hover:bg-black/28 transition disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 bg-black/30 border border-white/15 text-[#f3d8b6] font-extrabold hover:bg-black/40 transition disabled:opacity-50"
             >
               Schede <FlaskConical size={18} />
             </button>
@@ -390,9 +450,7 @@ export default function EditAppointmentModal({
             <button
               onClick={goToCash}
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3
-                         bg-[#f3d8b6] text-[#1A0F0A] font-extrabold
-                         hover:opacity-90 transition disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 bg-[#f3d8b6] text-[#1A0F0A] font-extrabold hover:opacity-90 transition disabled:opacity-50"
             >
               Cassa <Banknote size={18} />
             </button>
@@ -405,76 +463,138 @@ export default function EditAppointmentModal({
           )}
         </div>
 
-        {/* form */}
-        <div className="px-6 py-6 space-y-4">
-          <div className="rounded-3xl bg-black/20 border border-[#5c3a21]/50 p-4">
-            <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
-                placeholder="Cerca cliente (nome / telefono)"
-                className="w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3
-                           text-sm text-white placeholder:text-white/35
-                           focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/25"
-                disabled={saving}
-                value={qCustomer}
-                onChange={(e) => setQCustomer(e.target.value)}
-              />
-
-              <select
-                className="w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3
-                           text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/25"
-                value={customer}
-                disabled={saving}
-                onChange={(e) => setCustomer(e.target.value)}
-              >
-                <option value="">Seleziona Cliente</option>
-                {filteredCustomers.map((c: any) => (
-                  <option key={c.id} value={c.id}>
-                    {c.full_name} {c.phone ? `- ${c.phone}` : ""}
-                  </option>
+        {/* form + servizi */}
+        <div className="px-6 py-6 space-y-5">
+          {/* Servizi appuntamento (read-only) */}
+          <div className="rounded-3xl bg-black/25 border border-white/10 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+                Servizi appuntamento
+              </div>
+              <div className="text-[11px] text-white/60">
+                {serviceLines.length} servizio{serviceLines.length === 1 ? "" : "i"}
+              </div>
+            </div>
+            {serviceLines.length === 0 ? (
+              <div className="text-xs text-white/40 italic">
+                Nessun servizio associato a questo appuntamento.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                {serviceLines.map((l: any) => (
+                  <div
+                    key={l.id}
+                    className="flex items-center gap-3 rounded-2xl bg-black/40 border border-white/10 px-3 py-2.5"
+                  >
+                    <div
+                      className="w-1.5 h-8 rounded-full"
+                      style={{ backgroundColor: l.color }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-white truncate">
+                          {l.name}
+                        </p>
+                        <span className="text-[11px] font-mono text-white/60">
+                          {l.duration}m
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-white/50">
+                        {l.staffId
+                          ? staffById.get(String(l.staffId)) || "Staff assegnato"
+                          : "Da assegnare"}
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </select>
+              </div>
+            )}
+          </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <select
-                  className="w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3
-                             text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/25"
-                  value={time}
+          {/* Dati appuntamento */}
+          <div className="rounded-3xl bg-black/25 border border-white/10 p-4">
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+                  Cliente
+                </div>
+                <input
+                  type="text"
+                  placeholder="Cerca cliente (nome / telefono)"
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
                   disabled={saving}
-                  onChange={(e) => setTime(e.target.value)}
-                >
-                  {hours.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
+                  value={qCustomer}
+                  onChange={(e) => setQCustomer(e.target.value)}
+                />
 
                 <select
-                  className="w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3
-                             text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/25"
-                  value={staffId ?? ""}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
+                  value={customer}
                   disabled={saving}
-                  onChange={(e) => setStaffId(e.target.value === "" ? null : e.target.value)}
+                  onChange={(e) => setCustomer(e.target.value)}
                 >
-                  {staff.map((s: any) => (
-                    <option key={s.id ?? "free"} value={s.id ?? ""}>
-                      {s.name}
+                  <option value="">Seleziona Cliente</option>
+                  {filteredCustomers.map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.full_name} {c.phone ? `- ${c.phone}` : ""}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <textarea
-                placeholder="Note"
-                className="w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60 p-4
-                           text-sm text-white placeholder:text-white/35
-                           focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/25"
-                rows={4}
-                value={notes}
-                disabled={saving}
-                onChange={(e) => setNotes(e.target.value)}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+                    Orario
+                  </div>
+                  <select
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
+                    value={time}
+                    disabled={saving}
+                    onChange={(e) => setTime(e.target.value)}
+                  >
+                    {hours.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+                    Staff
+                  </div>
+                  <select
+                    className="w-full rounded-2xl bg-black/40 border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
+                    value={staffId ?? ""}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setStaffId(e.target.value === "" ? null : e.target.value)
+                    }
+                  >
+                    {staff.map((s: any) => (
+                      <option key={s.id ?? "free"} value={s.id ?? ""}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+                  Note
+                </div>
+                <textarea
+                  placeholder="Note"
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 p-4 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
+                  rows={4}
+                  value={notes}
+                  disabled={saving}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
@@ -482,9 +602,7 @@ export default function EditAppointmentModal({
             <button
               onClick={updateAppointment}
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-                         bg-[#f3d8b6] text-[#1A0F0A] font-extrabold
-                         hover:opacity-90 transition disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 bg-[#f3d8b6] text-[#1A0F0A] font-extrabold hover:opacity-90 transition disabled:opacity-50"
             >
               <Save size={18} />
               Salva modifiche
@@ -493,9 +611,7 @@ export default function EditAppointmentModal({
             <button
               onClick={deleteAppointment}
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-                         bg-red-500/15 text-red-200 border border-red-400/20 font-extrabold
-                         hover:bg-red-500/20 transition disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 bg-red-500/15 text-red-200 border border-red-400/20 font-extrabold hover:bg-red-500/20 transition disabled:opacity-50"
             >
               <Trash2 size={18} />
               Elimina

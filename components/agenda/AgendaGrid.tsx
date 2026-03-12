@@ -47,7 +47,13 @@ function toIdStr(v: any): string | null {
   return String(v);
 }
 
-export default function AgendaGrid({ currentDate }: { currentDate: string }) {
+type AgendaGridProps = {
+  currentDate: string;
+  highlightAppointmentId?: string | null;
+  onHighlightHandled?: () => void;
+};
+
+export default function AgendaGrid({ currentDate, highlightAppointmentId, onHighlightHandled }: AgendaGridProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const { activeSalonId, isReady } = useActiveSalon();
@@ -74,6 +80,21 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
     staffId: string | null;
   } | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
+
+  // Scroll e highlight per ?highlight=<appointmentId>
+  useEffect(() => {
+    if (!highlightAppointmentId || loading) return;
+    const id = String(highlightAppointmentId).trim();
+    if (!id) return;
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-appointment-id="${id}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      }
+      onHighlightHandled?.();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [highlightAppointmentId, loading, onHighlightHandled]);
 
   // resize tick per ricalcolo (solo per ricalcoli memo)
   const [layoutTick, setLayoutTick] = useState(0);
@@ -347,12 +368,24 @@ export default function AgendaGrid({ currentDate }: { currentDate: string }) {
     router.push(`/dashboard/agenda?date=${today}`);
   };
 
+  const displayDateLabel = useMemo(
+    () =>
+      currentDate
+        ? new Date(currentDate + "T00:00:00").toLocaleDateString("it-IT", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          })
+        : "",
+    [currentDate]
+  );
+
   // griglia verticale totale (limite ServiceBox)
   const gridHeightPx = useMemo(() => hours.length * SLOT_PX, [hours]);
 
   if (!isReady || activeSalonId == null) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#0a0503]">
+      <div className="flex h-full w-full items-center justify-center bg-scz-darker">
         <Loader2 className="animate-spin text-[#f3d8b6]" size={40} />
       </div>
     );
@@ -449,77 +482,68 @@ function buildLanes(
 
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0a0503] text-[#f3d8b6] overflow-hidden p-4 md:p-6">
+    <div className="flex flex-col h-full w-full bg-scz-darker text-[#f3d8b6] overflow-hidden p-4 md:p-6">
       {/* TOOLBAR */}
-      <div className="flex flex-shrink-0 flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-[#f3d8b6]/10 rounded-2xl border border-[#f3d8b6]/20">
-            <LayoutGrid className="text-[#f3d8b6]" size={24} />
+      <div className="flex flex-shrink-0 flex-col md:flex-row md:items-center justify-between gap-4 mb-4 md:mb-6">
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="p-2.5 md:p-3 rounded-xl border border-white/10 bg-black/20">
+            <LayoutGrid className="text-[#f3d8b6]" size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter leading-none">
-              Agenda
-            </h1>
-            <p className="text-[10px] font-bold opacity-40 uppercase tracking-[0.3em] mt-1">
-              {currentDate} • {view === "day" ? "Giorno" : "Settimana"}
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+              Vista
+            </div>
+            <p className="text-sm md:text-base font-black text-white/90 mt-0.5">
+              {displayDateLabel || currentDate} · {view === "day" ? "Giorno" : "Settimana"}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-black/40 p-1 rounded-2xl border border-white/5 backdrop-blur-xl">
-          {/* NAV */}
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-1.5 md:p-2">
           <button
             onClick={gotoPrev}
-            className="p-2.5 rounded-xl opacity-60 hover:opacity-100 hover:bg-white/5 transition-all"
+            className="p-2.5 rounded-xl text-white/60 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
             title="Precedente"
           >
             <ChevronLeft size={16} />
           </button>
-
           <button
             onClick={gotoToday}
-            className="px-4 py-2.5 rounded-xl text-[11px] font-black transition-all bg-white/5 hover:bg-white/10"
+            className="h-11 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white/90 transition-colors"
             title="Oggi"
           >
-            OGGI
+            Oggi
           </button>
-
           <button
             onClick={gotoNext}
-            className="p-2.5 rounded-xl opacity-60 hover:opacity-100 hover:bg-white/5 transition-all"
+            className="p-2.5 rounded-xl text-white/60 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
             title="Successivo"
           >
             <ChevronRight size={16} />
           </button>
-
-          <div className="w-px h-6 bg-white/10 mx-1" />
-
-          {/* VIEW */}
+          <div className="w-px h-6 bg-white/10 mx-0.5" />
           <button
             onClick={() => setView("day")}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black transition-all ${view === "day"
-              ? "bg-[#f3d8b6] text-black shadow-2xl"
-              : "opacity-40 hover:opacity-100"
+            className={`flex items-center gap-2 h-11 px-4 md:px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${view === "day"
+              ? "bg-[#f3d8b6] text-black"
+              : "text-white/50 hover:text-white/80 hover:bg-white/10"
               }`}
           >
-            <LayoutGrid size={14} /> GIORNO
+            <LayoutGrid size={14} /> Giorno
           </button>
-
           <button
             onClick={() => setView("week")}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black transition-all ${view === "week"
-              ? "bg-[#f3d8b6] text-black shadow-2xl"
-              : "opacity-40 hover:opacity-100"
+            className={`flex items-center gap-2 h-11 px-4 md:px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${view === "week"
+              ? "bg-[#f3d8b6] text-black"
+              : "text-white/50 hover:text-white/80 hover:bg-white/10"
               }`}
           >
-            <CalendarIcon size={14} /> SETTIMANA
+            <CalendarIcon size={14} /> Settimana
           </button>
-
-          <div className="w-px h-6 bg-white/10 mx-1" />
-
+          <div className="w-px h-6 bg-white/10 mx-0.5" />
           <button
             onClick={() => loadAppointments(activeSalonId)}
-            className="p-2.5 rounded-xl opacity-40 hover:opacity-100 hover:bg-white/5 transition-all"
+            className="p-2.5 rounded-xl text-white/50 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
@@ -527,30 +551,29 @@ function buildLanes(
         </div>
       </div>
 
-      {/* MASTER */}
+      {/* MASTER GRID CONTAINER */}
       <div
         ref={masterRef}
-        className="flex-1 relative bg-[#140b07] rounded-[32px] border border-white/5 shadow-inner overflow-hidden flex flex-col"
+        className="flex-1 min-h-0 relative overflow-hidden flex flex-col rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]"
       >
         {/* HEADER COLONNE */}
-        <div className="flex flex-shrink-0 border-b border-white/5 bg-[#140b07] z-30">
-          <div className="w-20 flex-shrink-0 bg-[#140b07] border-r border-white/5" />
-
-          <div ref={headerRef} className="flex-1 overflow-hidden bg-[#140b07]">
+        <div className="flex flex-shrink-0 border-b border-white/10 bg-black/20 z-30">
+          <div className="w-20 flex-shrink-0 bg-black/20 border-r border-white/10" />
+          <div ref={headerRef} className="flex-1 overflow-hidden bg-black/20">
             <div className={`flex ${shouldScrollX ? "w-max" : "w-full"}`}>
               {view === "day"
                 ? staff.map((s: any, idx: number) => (
                   <div
                     key={s?.id != null ? String(s.id) : `virtual-${s.name}`}
-                    ref={idx === 0 ? dayProbeRef : undefined} // ✅ probe sulla prima colonna
-                    className="flex-shrink-0 p-4 flex flex-col items-center justify-center border-r border-white/5"
+                    ref={idx === 0 ? dayProbeRef : undefined}
+                    className="flex-shrink-0 px-3 md:p-4 flex flex-col items-center justify-center border-r border-white/10"
                     style={{
                       width: shouldScrollX ? colWidth : dayColWidth,
                       flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
                       minWidth: shouldScrollX ? colWidth : undefined,
                     }}
                   >
-                    <span className="text-xs font-black uppercase text-white tracking-widest">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-white/90">
                       {s.name}
                     </span>
                     <div className="flex items-center gap-1.5 mt-1">
@@ -558,7 +581,7 @@ function buildLanes(
                         className={`w-1.5 h-1.5 rounded-full ${s.is_virtual ? "bg-orange-500" : "bg-green-500"
                           }`}
                       />
-                      <span className="text-[9px] font-bold opacity-30 uppercase">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">
                         {s.is_virtual ? "Supporto" : "Operativo"}
                       </span>
                     </div>
@@ -567,17 +590,17 @@ function buildLanes(
                 : weekDays.map((d: any) => (
                   <div
                     key={d.date}
-                    className="flex-shrink-0 p-4 flex flex-col items-center justify-center border-r border-white/5"
+                    className="flex-shrink-0 px-3 md:p-4 flex flex-col items-center justify-center border-r border-white/10"
                     style={{
                       width: colWidth,
                       flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
                       minWidth: shouldScrollX ? colWidth : undefined,
                     }}
                   >
-                    <span className="text-[10px] font-bold opacity-40 uppercase">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
                       {d.label.split(" ")[0]}
                     </span>
-                    <span className="text-sm font-black text-[#f3d8b6]">
+                    <span className="text-sm font-black text-[#f3d8b6] mt-0.5">
                       {d.label.split(" ")[1]}
                     </span>
                   </div>
@@ -587,33 +610,30 @@ function buildLanes(
         </div>
 
         {/* BODY */}
-        <div className="flex-1 flex overflow-hidden relative bg-[#140b07]">
-          {/* TIME COL */}
+        <div className="flex-1 flex overflow-hidden relative bg-scz-dark min-h-0">
           <div
             ref={timeColumnRef}
-            className="w-20 flex-shrink-0 overflow-hidden bg-[#140b07] border-r border-white/5 z-20"
+            className="w-20 flex-shrink-0 overflow-hidden bg-scz-dark border-r border-white/10 z-20"
           >
             {hours.map((h: string) => (
               <div
                 key={h}
                 style={{ height: SLOT_PX }}
-                className="flex flex-col items-center justify-start pt-2 border-b border-white/[0.02]"
+                className="flex flex-col items-center justify-start pt-2 border-b border-white/5"
               >
-                <span className="text-[10px] font-mono font-bold opacity-20">
+                <span className="text-[10px] font-mono font-bold text-white/40">
                   {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
                 </span>
               </div>
             ))}
           </div>
-
-          {/* GRID */}
           <div
             ref={gridContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-auto custom-scrollbar relative bg-[#140b07]"
+            className="flex-1 overflow-auto custom-scrollbar relative bg-scz-dark"
           >
             <div
-              className={`flex relative bg-[#140b07] ${shouldScrollX ? "w-max" : "w-full"
+              className={`flex relative bg-scz-dark ${shouldScrollX ? "w-max" : "w-full"
                 }`}
             >
               {view === "day"
@@ -629,7 +649,7 @@ function buildLanes(
                   return (
                     <div
                       key={mid ?? `virtual-${member?.name ?? "na"}`}
-                      className="relative border-r border-white/[0.03]"
+                      className="relative border-r border-white/5"
                       style={{
                         width: columnWidth,
                         flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
@@ -640,7 +660,7 @@ function buildLanes(
                         <div
                           key={h}
                           style={{ height: SLOT_PX }}
-                          className="border-b border-white/[0.02] hover:bg-[#f3d8b6]/[0.02] transition-colors cursor-crosshair"
+                          className="border-b border-white/5 hover:bg-[#f3d8b6]/5 transition-colors cursor-crosshair"
                           onClick={() =>
                             setSelectedSlot({ time: h, staffId: mid })
                           }
@@ -650,7 +670,11 @@ function buildLanes(
                       <div className="absolute inset-0 pointer-events-none z-10 p-1">
 
                         {laid.map(({ app, line, laneIndex, laneCount }: any) => (
-                          <div key={String(line.id)} className="pointer-events-auto">
+                          <div
+                            key={String(line.id)}
+                            className="pointer-events-auto"
+                            data-appointment-id={app?.id != null ? String(app.id) : undefined}
+                          >
                             <ServiceBox
                               appointment={app}
                               line={line}
@@ -666,6 +690,7 @@ function buildLanes(
                               staffOrder={staffOrder}
                               laneIndex={laneIndex}
                               laneCount={laneCount}
+                              isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
                             />
                           </div>
                         ))}
@@ -680,7 +705,7 @@ function buildLanes(
                   return (
                     <div
                       key={day.date}
-                      className="relative border-r border-white/[0.03]"
+                      className="relative border-r border-white/5"
                       style={{
                         width: colWidth,
                         flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
@@ -691,7 +716,7 @@ function buildLanes(
                         <div
                           key={h}
                           style={{ height: SLOT_PX }}
-                          className="border-b border-white/[0.02] hover:bg-white/[0.02] cursor-crosshair"
+                          className="border-b border-white/5 hover:bg-white/5 cursor-crosshair transition-colors"
                           onClick={() =>
                             setSelectedSlot({ time: h, staffId: null })
                           }
@@ -700,7 +725,11 @@ function buildLanes(
 
                       <div className="absolute inset-0 pointer-events-none z-10 p-1">
                         {dayPairs.map(({ app, line }: any) => (
-                          <div key={line.id} className="pointer-events-auto">
+                          <div
+                            key={line.id}
+                            className="pointer-events-auto"
+                            data-appointment-id={app?.id != null ? String(app.id) : undefined}
+                          >
                             <ServiceBox
                               appointment={app}
                               line={line}
@@ -714,6 +743,7 @@ function buildLanes(
                               gridHeightPx={gridHeightPx}
                               columnStaffId={null}
                               staffOrder={staffOrder}
+                              isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
                             />
                           </div>
                         ))}
@@ -728,10 +758,10 @@ function buildLanes(
 
       {/* LOADING OVERLAY */}
       {loading && (
-        <div className="fixed inset-0 z-[200] bg-black/20 backdrop-blur-[2px] pointer-events-none flex items-center justify-center">
-          <div className="bg-[#1c110d] p-4 rounded-2xl border border-[#f3d8b6]/20 shadow-2xl flex items-center gap-3">
+        <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-[2px] pointer-events-none flex items-center justify-center">
+          <div className="rounded-2xl border border-white/10 bg-scz-dark px-5 py-4 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] flex items-center gap-3">
             <Loader2 className="animate-spin text-[#f3d8b6]" size={20} />
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#f3d8b6]">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">
               Aggiornamento dati...
             </span>
           </div>
