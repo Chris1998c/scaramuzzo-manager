@@ -5,7 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 import { renderPdfToBuffer } from "@/lib/pdf/renderPdf";
-import SalonTurnoverPdf from "@/lib/pdf/templates/SalonTurnoverPdf";
+import SalonTurnoverPdf, { type Totals } from "@/lib/pdf/templates/SalonTurnoverPdf";
 import {
   Document,
   Page,
@@ -278,7 +278,7 @@ export async function GET(req: Request) {
     let turnoverRows: Array<{
       date: string;
       description: string;
-      staff_name?: string | null;
+      staff_name?: string;
       net_total: number;
     }> = [];
 
@@ -419,7 +419,7 @@ export async function GET(req: Request) {
             salonName,
             dateFrom,
             dateTo,
-            totals,
+            totals: totals as Totals,
             rows: turnoverRows,
           })
         : React.createElement(ReportPdfDoc, {

@@ -1,15 +1,15 @@
 // components/reports/ReportRowsTable.tsx
 
 type Row = {
-  sale_item_id?: number | string;
-  id?: number | string;
-  sale_id: number;
-  sale_day: string;
+  sale_item_id?: number | string | null;
+  id?: number | string | null;
+  sale_id: number | string | null;
+  sale_day: string | null;
   payment_method: string | null;
   staff_name: string | null;
   product_name: string | null;
   service_name: string | null;
-  item_type: string;
+  item_type: string | null;
   quantity: number | null;
   price: number;
   item_discount: number | null;
