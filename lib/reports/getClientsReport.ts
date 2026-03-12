@@ -5,6 +5,8 @@ export type ClientsReportFilters = {
   salonId: number;
   dateFrom: string; // YYYY-MM-DD
   dateTo: string;   // YYYY-MM-DD
+  staffId?: number | null;
+  paymentMethod?: string | null;
 };
 
 function isoStart(d: string) {
@@ -26,15 +28,21 @@ function nameOf(c: any) {
 
 export async function getClientsReport(filters: ClientsReportFilters) {
   const supabase = await createServerSupabase();
-  const { salonId, dateFrom, dateTo } = filters;
+  const { salonId, dateFrom, dateTo, staffId = null, paymentMethod = null } = filters;
 
   // 1) Appuntamenti nel periodo (serve per nuove/ritorno/frequenza)
-  const { data: appts, error: apptErr } = await supabase
+  let apptQuery = supabase
     .from("appointments")
-    .select("id, customer_id, start_time, status")
+    .select("id, customer_id, start_time, status, staff_id")
     .eq("salon_id", salonId)
     .gte("start_time", isoStart(dateFrom))
     .lte("start_time", isoEnd(dateTo));
+
+  if (staffId != null) {
+    apptQuery = apptQuery.eq("staff_id", staffId);
+  }
+
+  const { data: appts, error: apptErr } = await apptQuery;
 
   if (apptErr) throw new Error(apptErr.message);
 
@@ -64,11 +72,17 @@ export async function getClientsReport(filters: ClientsReportFilters) {
   const firstVisitMap = new Map<string, string>(); // customerId -> YYYY-MM-DD
   if (customerIds.length) {
     // prendo tutte le date appuntamenti del cliente (storico) e poi min in JS
-    const { data: allAppts, error: allErr } = await supabase
+    let allApptsQuery = supabase
       .from("appointments")
-      .select("customer_id, start_time")
+      .select("customer_id, start_time, staff_id")
       .eq("salon_id", salonId)
       .in("customer_id", customerIds);
+
+    if (staffId != null) {
+      allApptsQuery = allApptsQuery.eq("staff_id", staffId);
+    }
+
+    const { data: allAppts, error: allErr } = await allApptsQuery;
 
     if (allErr) throw new Error(allErr.message);
 
@@ -118,12 +132,18 @@ export async function getClientsReport(filters: ClientsReportFilters) {
   // 6) Top spender: basato su sales nel periodo (se sales ha customer_id)
   // Se customer_id non c’è su sales, lo collegheremo via appointment_id in un secondo step.
   const topSpenders: any[] = [];
-  const { data: sales, error: salesErr } = await supabase
+  let salesQuery = supabase
     .from("sales")
-    .select("id, customer_id, total_amount, date")
+    .select("id, customer_id, total_amount, date, payment_method")
     .eq("salon_id", salonId)
     .gte("date", isoStart(dateFrom))
     .lte("date", isoEnd(dateTo));
+
+  if (paymentMethod) {
+    salesQuery = salesQuery.eq("payment_method", paymentMethod);
+  }
+
+  const { data: sales, error: salesErr } = await salesQuery;
 
   if (salesErr) throw new Error(salesErr.message);
 

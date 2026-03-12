@@ -73,19 +73,15 @@ type TabKey =
   | "servizi"
   | "prodotti";
 
-export default async function ReportPage({
-  searchParams,
-}: {
-  searchParams: {
-    salon_id?: string;
-    date_from?: string;
-    date_to?: string;
-    staff_id?: string;
-    payment_method?: string;
-    item_type?: string;
-    tab?: string;
-  };
-}) {
+type ReportPageSearchParams = Record<string, string | string[] | undefined>;
+
+type ReportPageProps = {
+  searchParams?: Promise<ReportPageSearchParams>;
+};
+
+export default async function ReportPage({ searchParams }: ReportPageProps) {
+  const sp = (await searchParams) ?? {};
+
   const supabase = await createServerSupabase();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData?.user) redirect("/login");
@@ -103,14 +99,14 @@ export default async function ReportPage({
   const role = normalizeRole(dbRole || roleFromMetadata(user));
   if (role !== "coordinator") redirect("/dashboard");
 
-  const salonId = toInt(searchParams.salon_id) ?? 0;
-  const dateFrom = searchParams.date_from ?? startOfMonthISO();
-  const dateTo = searchParams.date_to ?? todayISO();
-  const staffId = toInt(searchParams.staff_id);
-  const paymentMethod = searchParams.payment_method ?? null;
-  const itemType = searchParams.item_type ?? null;
+  const salonId = toInt(sp.salon_id as string | undefined) ?? 0;
+  const dateFrom = (sp.date_from as string | undefined) ?? startOfMonthISO();
+  const dateTo = (sp.date_to as string | undefined) ?? todayISO();
+  const staffId = toInt(sp.staff_id as string | undefined);
+  const paymentMethod = (sp.payment_method as string | undefined) ?? null;
+  const itemType = (sp.item_type as string | undefined) ?? null;
 
-  const tab = (searchParams.tab ?? "turnover") as TabKey;
+  const tab = ((sp.tab as string | undefined) ?? "turnover") as TabKey;
 
   // Staff dropdown (serve sempre)
   const { data: staffRows } = salonId
@@ -188,7 +184,13 @@ export default async function ReportPage({
   // Clienti
   const clientsReport =
     salonId && tab === "clienti"
-      ? await getClientsReport({ salonId, dateFrom, dateTo })
+      ? await getClientsReport({
+          salonId,
+          dateFrom,
+          dateTo,
+          staffId,
+          paymentMethod,
+        })
       : {
           totals: { customers_total: 0, new_customers: 0, returning_customers: 0, repeat_rate: 0 },
           newCustomers: [],
@@ -211,7 +213,13 @@ export default async function ReportPage({
   // Prodotti
   const productsReport =
     salonId && tab === "prodotti"
-      ? await getProductsReport({ salonId, dateFrom, dateTo })
+      ? await getProductsReport({
+          salonId,
+          dateFrom,
+          dateTo,
+          staffId,
+          paymentMethod,
+        })
       : { totals: { products_qty: 0, products_gross: 0, low_stock_count: 0 }, topProducts: [], lowStock: [] };
 
   const { totals, rows, daily, topItems, staffPerformance, previousTotals } = salesAnalytics;
@@ -256,9 +264,40 @@ export default async function ReportPage({
         ))}
       </div>
 
-      {/* === VENDITE === */}
+      {/* === VENDITE: hero + KPI + confronto + filtri attivi === */}
       {needSales && (
-        <>
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-xl font-extrabold tracking-tight text-white md:text-2xl">
+              Vendite & Turnover
+            </h2>
+            <p className="mt-1 text-sm text-white/50">
+              Console direzionale · KPI e confronto periodo
+            </p>
+          </div>
+
+          {/* Filtri attivi (chips) */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/20 bg-black/30 px-3 py-1.5 text-xs font-bold text-white/80">
+              Periodo: {dateFrom} → {dateTo}
+            </span>
+            {staffId != null && (
+              <span className="rounded-full border border-scz-gold/30 bg-scz-gold/10 px-3 py-1.5 text-xs font-bold text-scz-gold">
+                Staff: {staffOptions.find((s) => s.id === staffId)?.name ?? `#${staffId}`}
+              </span>
+            )}
+            {paymentMethod && (
+              <span className="rounded-full border border-white/20 bg-black/30 px-3 py-1.5 text-xs font-bold text-white/80">
+                Pagamento: {paymentMethod === "cash" ? "Contanti" : "Carta"}
+              </span>
+            )}
+            {itemType && (
+              <span className="rounded-full border border-white/20 bg-black/30 px-3 py-1.5 text-xs font-bold text-white/80">
+                Tipo: {itemType === "service" ? "Servizi" : "Prodotti"}
+              </span>
+            )}
+          </div>
+
           <ReportKpiRow totals={totals} />
           <ReportPeriodComparison current={totals} previous={previousTotals} />
 
@@ -266,7 +305,7 @@ export default async function ReportPage({
           {tab === "daily" && <ReportDailyTable rows={daily ?? []} />}
           {tab === "top" && <ReportTopItemsTable rows={topItems ?? []} />}
           {tab === "staff" && <ReportStaffPerformanceTable rows={staffPerformance ?? []} />}
-        </>
+        </section>
       )}
 
       {/* === CASSA === */}

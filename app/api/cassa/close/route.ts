@@ -96,6 +96,19 @@ async function getReceptionSalonId(userId: string): Promise<number | null> {
   return Number.isFinite(sid) && sid > 0 ? sid : null;
 }
 
+async function getAllowedSalonIds(userId: string): Promise<number[]> {
+  const { data, error } = await supabaseAdmin
+    .from("user_salons")
+    .select("salon_id")
+    .eq("user_id", userId);
+
+  if (error || !Array.isArray(data)) return [];
+
+  return (data as { salon_id?: unknown }[])
+    .map((row) => toInt(row.salon_id, NaN))
+    .filter((id) => Number.isFinite(id) && id > 0) as number[];
+}
+
 function normalizeLines(body: CloseBody) {
   const raw =
     (Array.isArray(body.lines) && body.lines.length
@@ -161,6 +174,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
+    const hasAppointmentId = Number.isFinite(toNumber(body.appointment_id, NaN));
+    const hasSalonIdInBody = Number.isFinite(toNumber(body.salon_id, NaN));
+
+    // richiedi almeno appointment_id o salon_id
+    if (!hasAppointmentId && !hasSalonIdInBody) {
+      return NextResponse.json(
+        { error: "Devi specificare appointment_id o salon_id" },
+        { status: 400 }
+      );
+    }
+
     const paymentMethod = body.payment_method;
     if (paymentMethod !== "cash" && paymentMethod !== "card") {
       return NextResponse.json(
@@ -177,6 +201,23 @@ export async function POST(req: Request) {
       );
     }
 
+    const MAX_LINES = 100;
+    const MAX_QTY_PER_LINE = 50;
+
+    if (lines.length > MAX_LINES) {
+      return NextResponse.json(
+        { error: `Troppe righe in cassa (max ${MAX_LINES})` },
+        { status: 400 }
+      );
+    }
+
+    if (lines.some((l) => l.qty > MAX_QTY_PER_LINE)) {
+      return NextResponse.json(
+        { error: `Quantità per riga troppo alta (max ${MAX_QTY_PER_LINE})` },
+        { status: 400 }
+      );
+    }
+
     const globalDiscountPct = clamp(
       toNumber(body.global_discount ?? 0, 0),
       0,
@@ -188,8 +229,6 @@ export async function POST(req: Request) {
     let staffId: number | null = null;
     let customerId: string | null = null;
     let appointmentId: number | null = null;
-
-    const hasAppointmentId = Number.isFinite(toNumber(body.appointment_id, NaN));
 
     if (hasAppointmentId) {
       appointmentId = toInt(body.appointment_id, NaN);
@@ -231,10 +270,21 @@ export async function POST(req: Request) {
         );
       }
 
+      const requestedSalonId = hasSalonIdInBody
+        ? toInt(body.salon_id, NaN)
+        : null;
+
       salonId = toInt((appt as { salon_id?: unknown }).salon_id, NaN);
       staffId = ((appt as { staff_id?: unknown }).staff_id as number | null) ?? null;
       customerId =
         ((appt as { customer_id?: unknown }).customer_id as string | null) ?? null;
+
+      if (requestedSalonId && salonId && requestedSalonId !== salonId) {
+        return NextResponse.json(
+          { error: "salon_id non coerente con l'appuntamento" },
+          { status: 400 }
+        );
+      }
     } else {
       salonId = Number.isFinite(toNumber(body.salon_id, NaN))
         ? toInt(body.salon_id, NaN)
@@ -260,6 +310,15 @@ export async function POST(req: Request) {
       }
 
       if (salonId !== mySalonId) {
+        return NextResponse.json(
+          { error: "salon_id non consentito per questo utente" },
+          { status: 403 }
+        );
+      }
+    } else {
+      const allowedSalonIds = await getAllowedSalonIds(userId);
+
+      if (!allowedSalonIds.length || !allowedSalonIds.includes(salonId)) {
         return NextResponse.json(
           { error: "salon_id non consentito per questo utente" },
           { status: 403 }
@@ -354,6 +413,37 @@ export async function POST(req: Request) {
     const finalTotal = round2(Math.max(0, subtotal - globalDiscountAmount));
     totalDiscount = round2(totalDiscount + globalDiscountAmount);
 
+    // 7.5) GUARDIA MINIMA ANTI-DOPPIO INVIO (solo vendite senza appuntamento)
+    if (!appointmentId) {
+      const now = new Date();
+      const fiveSecondsAgo = new Date(now.getTime() - 5_000).toISOString();
+
+      const { data: recentSales, error: dupErr } = await supabaseAdmin
+        .from("sales")
+        .select("id")
+        .eq("salon_id", salonId)
+        .eq("payment_method", paymentMethod)
+        .eq("total_amount", finalTotal)
+        .gte("date", fiveSecondsAgo)
+        .limit(1);
+
+      if (dupErr) {
+        return NextResponse.json(
+          { error: "Errore controllo doppia vendita", details: dupErr.message },
+          { status: 500 }
+        );
+      }
+
+      if (recentSales && recentSales.length > 0) {
+        return NextResponse.json(
+          {
+            error: "Possibile doppio invio: vendita identica già registrata negli ultimi secondi",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     // 8) CREA VENDITA
     const { data: sale, error: saleErr } = await supabaseAdmin
       .from("sales")
@@ -412,38 +502,44 @@ export async function POST(req: Request) {
       });
 
       if (rpcErr) {
-        await supabaseAdmin.from("sale_items").delete().eq("sale_id", saleId);
-        await supabaseAdmin.from("sales").delete().eq("id", saleId);
-
         return NextResponse.json(
           {
             error: `Errore scarico magazzino prodotto ${l.id}: ${rpcErr.message ?? "rpc"}`,
+            sale_id: saleId,
+            product_id: l.id,
+            partial_stock_moved: true,
+            needs_reconciliation: true,
           },
           { status: 500 }
         );
       }
     }
 
-    // 10) CHIUDE APPUNTAMENTO
+    // 10) CHIUDE APPUNTAMENTO (OBBLIGATORIO SE PRESENTE)
     if (appointmentId) {
-      const { error: apptUpdateErr } = await supabaseAdmin
+      const {
+        data: apptUpdated,
+        error: apptUpdateErr,
+      } = await supabaseAdmin
         .from("appointments")
         .update({
           sale_id: saleId,
           status: "done",
         })
         .eq("id", appointmentId)
-        .is("sale_id", null);
+        .is("sale_id", null)
+        .select("id, sale_id, status")
+        .maybeSingle();
 
-      if (apptUpdateErr) {
+      if (apptUpdateErr || !apptUpdated) {
         return NextResponse.json(
           {
-            ok: true,
+            error: "Vendita creata ma aggiornamento appuntamento fallito",
             sale_id: saleId,
             totals: { subtotal, total: finalTotal, discount: totalDiscount },
-            warning: `Vendita ok, ma aggiornamento appuntamento fallito: ${apptUpdateErr.message}`,
+            details: apptUpdateErr?.message ?? "appointment not updated",
           },
-          { status: 200 }
+          { status: 500 }
         );
       }
     }

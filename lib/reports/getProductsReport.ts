@@ -5,6 +5,8 @@ export type ProductsReportFilters = {
   salonId: number;
   dateFrom: string; // YYYY-MM-DD
   dateTo: string; // YYYY-MM-DD
+  staffId?: number | null;
+  paymentMethod?: string | null;
 };
 
 const DEFAULT_MIN_QTY = 2;
@@ -16,15 +18,15 @@ function n(v: any) {
 
 export async function getProductsReport(filters: ProductsReportFilters) {
   const supabase = await createServerSupabase();
-  const { salonId, dateFrom, dateTo } = filters;
+  const { salonId, dateFrom, dateTo, staffId = null, paymentMethod = null } = filters;
 
-  // 1) Venduto prodotti nel periodo (report_rows filtrato product)
+  // 1) Venduto prodotti nel periodo (report_rows filtrato product + filtri globali)
   const { data: rowsData, error: rowsErr } = await supabase.rpc("report_rows", {
     p_salon_id: salonId,
     p_from: dateFrom,
     p_to: dateTo,
-    p_staff_id: null,
-    p_payment_method: null,
+    p_staff_id: staffId,
+    p_payment_method: paymentMethod,
     p_item_type: "product",
   });
   if (rowsErr) throw new Error(rowsErr.message);

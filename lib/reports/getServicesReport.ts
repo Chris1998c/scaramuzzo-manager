@@ -43,6 +43,10 @@ export async function getServicesReport(filters: TurnoverFilters) {
     }
   >();
 
+  // Totali globali (tutte le righe, non solo top N)
+  let totalQty = 0;
+  let totalGross = 0;
+
   for (const r of rows as any[]) {
     const sid = r.service_id != null ? Number(r.service_id) : null;
     const name = String(r.service_name ?? "Servizio");
@@ -67,6 +71,9 @@ export async function getServicesReport(filters: TurnoverFilters) {
     x.quantity += qty || 0;
     x.gross_total += gross;
     x.net_total += net;
+
+    totalQty += qty || 0;
+    totalGross += gross;
   }
 
   const topServices: ServiceTopRow[] = Array.from(map.entries())
@@ -82,8 +89,8 @@ export async function getServicesReport(filters: TurnoverFilters) {
     .sort((a, b) => b.gross_total - a.gross_total)
     .slice(0, 30);
 
-  const services_qty = topServices.reduce((acc, r) => acc + (Number(r.quantity) || 0), 0);
-  const services_gross_total = topServices.reduce((acc, r) => acc + (Number(r.gross_total) || 0), 0);
+  const services_qty = totalQty;
+  const services_gross_total = totalGross;
   const services_avg_price = services_qty > 0 ? services_gross_total / services_qty : 0;
 
   const totals: ServicesReportTotals = {

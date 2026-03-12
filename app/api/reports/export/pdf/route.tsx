@@ -5,6 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 import { renderPdfToBuffer } from "@/lib/pdf/renderPdf";
+import SalonTurnoverPdf from "@/lib/pdf/templates/SalonTurnoverPdf";
 import {
   Document,
   Page,
@@ -274,6 +275,12 @@ export async function GET(req: Request) {
     let totals: Record<string, any> = {};
     let rowsPreview: Array<{ a: any; b: any; c: any }> = [];
     let rowsTitle = "Preview";
+    let turnoverRows: Array<{
+      date: string;
+      description: string;
+      staff_name?: string | null;
+      net_total: number;
+    }> = [];
 
     if (["turnover", "daily", "top", "staff"].includes(tab)) {
       const sales = await getSalonTurnoverAnalytics({
@@ -293,6 +300,13 @@ export async function GET(req: Request) {
           a: r.sale_day ?? "",
           b: r.product_name ?? r.service_name ?? "Voce",
           c: r.line_total_gross ?? r.line_net ?? "",
+        }));
+
+        turnoverRows = (sales.rows ?? []).map((r: any) => ({
+          date: r.sale_day ?? "",
+          description: r.product_name ?? r.service_name ?? "Voce",
+          staff_name: r.staff_name ? String(r.staff_name) : undefined,
+          net_total: Number(r.line_net ?? r.line_total_gross ?? 0) || 0,
         }));
       } else if (tab === "daily") {
         rowsTitle = "Giornaliero";
@@ -341,7 +355,13 @@ export async function GET(req: Request) {
     }
 
     if (tab === "clienti") {
-      const clients = await getClientsReport({ salonId, dateFrom, dateTo });
+      const clients = await getClientsReport({
+        salonId,
+        dateFrom,
+        dateTo,
+        staffId,
+        paymentMethod,
+      });
       totals = clients.totals ?? {};
       rowsTitle = "Top Spenders";
       rowsPreview = (clients.topSpenders ?? []).slice(0, 35).map((r: any) => ({
@@ -371,7 +391,13 @@ export async function GET(req: Request) {
     }
 
     if (tab === "prodotti") {
-      const products = await getProductsReport({ salonId, dateFrom, dateTo });
+      const products = await getProductsReport({
+        salonId,
+        dateFrom,
+        dateTo,
+        staffId,
+        paymentMethod,
+      });
       totals = products.totals ?? {};
       rowsTitle = "Top Prodotti / Low stock";
       const top = (products.topProducts ?? []).slice(0, 20).map((r: any) => ({
@@ -387,16 +413,25 @@ export async function GET(req: Request) {
       rowsPreview = [...top, ...low].slice(0, 35);
     }
 
-    const document = React.createElement(ReportPdfDoc, {
-      tab,
-      salonName,
-      salonId,
-      dateFrom,
-      dateTo,
-      totals,
-      rowsPreview,
-      rowsTitle,
-    });
+    const document =
+      tab === "turnover"
+        ? React.createElement(SalonTurnoverPdf, {
+            salonName,
+            dateFrom,
+            dateTo,
+            totals,
+            rows: turnoverRows,
+          })
+        : React.createElement(ReportPdfDoc, {
+            tab,
+            salonName,
+            salonId,
+            dateFrom,
+            dateTo,
+            totals,
+            rowsPreview,
+            rowsTitle,
+          });
 
     const buffer = await renderPdfToBuffer(document);
 

@@ -194,7 +194,13 @@ export async function GET(req: Request) {
     }
 
     if (tab === "clienti") {
-      const clients = await getClientsReport({ salonId, dateFrom, dateTo });
+      const clients = await getClientsReport({
+        salonId,
+        dateFrom,
+        dateTo,
+        staffId,
+        paymentMethod,
+      });
       out.push({ TYPE: "TOTALS", ...clients.totals });
       for (const r of clients.newCustomers ?? []) out.push({ TYPE: "NEW_CUSTOMER", ...r });
       for (const r of clients.topSpenders ?? []) out.push({ TYPE: "TOP_SPENDER", ...r });
@@ -214,7 +220,13 @@ export async function GET(req: Request) {
     }
 
     if (tab === "prodotti") {
-      const products = await getProductsReport({ salonId, dateFrom, dateTo });
+      const products = await getProductsReport({
+        salonId,
+        dateFrom,
+        dateTo,
+        staffId,
+        paymentMethod,
+      });
       out.push({ TYPE: "TOTALS", ...products.totals });
       for (const r of products.topProducts ?? []) out.push({ TYPE: "PRODUCT", ...r });
       for (const r of products.lowStock ?? []) out.push({ TYPE: "LOW_STOCK", ...r });
