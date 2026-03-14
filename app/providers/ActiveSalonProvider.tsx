@@ -12,6 +12,8 @@ type ActiveSalonContextValue = {
   canChooseSalon: boolean;               // coordinator + magazzino
   allowedSalonIds: number[];             // lista consentita
   allowedSalons: AllowedSalon[];         // id + name (per la select)
+  /** Per reception: salone da staff.salon_id (source of truth, stesso usato dalle API). Null per altri ruoli o se non in staff. */
+  receptionSalonId: number | null;
   setActiveSalonId: (id: number) => void;
   isReady: boolean;
 };
@@ -30,6 +32,8 @@ type Props = {
   allowedSalonIds: number[];
   allowedSalons: AllowedSalon[];
   defaultSalonId?: number | null;
+  /** Da getUserAccess: staff.salon_id. Usato dalle pagine reception come source of truth (allineato alle API). */
+  staffSalonId?: number | null;
 };
 
 function pickDefaultSalonId(allowedSalonIds: number[], fallback?: number | null) {
@@ -45,6 +49,7 @@ export function ActiveSalonProvider({
   allowedSalonIds,
   allowedSalons,
   defaultSalonId = null,
+  staffSalonId = null,
 }: Props) {
   // ✅ MAGAZZINO + COORDINATOR possono cambiare salone
   const canChooseSalon = role === "coordinator" || role === "magazzino";
@@ -119,10 +124,11 @@ export function ActiveSalonProvider({
       canChooseSalon,
       allowedSalonIds,
       allowedSalons,
+      receptionSalonId: staffSalonId ?? null,
       setActiveSalonId,
       isReady,
     }),
-    [role, activeSalonId, forcedSalonId, canChooseSalon, allowedSalonIds, allowedSalons, isReady]
+    [role, activeSalonId, forcedSalonId, canChooseSalon, allowedSalonIds, allowedSalons, staffSalonId, isReady]
   );
 
   return <ActiveSalonContext.Provider value={value}>{children}</ActiveSalonContext.Provider>;

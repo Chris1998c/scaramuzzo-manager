@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
-import { Repeat } from "lucide-react";
+import { Repeat, ArrowLeft, Package, ArrowRightCircle, AlertCircle } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, toSalonId } from "@/lib/constants";
 import { toast } from "sonner";
@@ -29,7 +30,7 @@ const SALONI = [
 
 export default function TrasferimentiPage() {
   const supabase = useMemo(() => createClient(), []);
-  const { role, activeSalonId, isReady } = useActiveSalon();
+  const { role, activeSalonId, isReady, allowedSalons, receptionSalonId } = useActiveSalon();
 
   const [userSalonId, setUserSalonId] = useState<number | null>(null);
 
@@ -41,7 +42,8 @@ export default function TrasferimentiPage() {
   const [loading, setLoading] = useState(true);
 
   const isWarehouse = role === "magazzino" || role === "coordinator";
-  const disableFromSelect = !isWarehouse;
+  const isReception = role === "reception";
+  const disableFromSelect = !isWarehouse; // reception: "Da" fisso
 
   const toOptions = useMemo(() => {
     if (fromSalon === null) return SALONI.filter((s) => s.id !== MAGAZZINO_CENTRALE_ID);
@@ -75,7 +77,7 @@ export default function TrasferimentiPage() {
     setProducts(((data as ProductRow[]) ?? []).filter((p) => (p.quantity ?? 0) > 0));
   }
 
-  // carica user + default from/to
+  // Inizializzazione from/to: reception usa receptionSalonId (staff.salon_id), non user_metadata
   useEffect(() => {
     let cancelled = false;
 
@@ -85,36 +87,42 @@ export default function TrasferimentiPage() {
       try {
         setLoading(true);
 
+        if (isWarehouse) {
+          const defaultFrom = activeSalonId ?? MAGAZZINO_CENTRALE_ID;
+          if (cancelled) return;
+          setFromSalon(defaultFrom);
+          setToSalon(pickDefaultTo(defaultFrom));
+          setSelected([]);
+          if (defaultFrom != null) await fetchProducts(defaultFrom);
+          else setProducts([]);
+          return;
+        }
+
+        if (isReception) {
+          const defaultFrom = receptionSalonId ?? null;
+          if (cancelled) return;
+          setUserSalonId(defaultFrom);
+          setFromSalon(defaultFrom);
+          setToSalon(pickDefaultTo(defaultFrom));
+          setSelected([]);
+          if (defaultFrom != null) await fetchProducts(defaultFrom);
+          else setProducts([]);
+          return;
+        }
+
+        // cliente: ancora da metadata
         const { data, error } = await supabase.auth.getUser();
         if (error) throw error;
-
         const user = data.user;
         if (!user) return;
-
         const sid = toSalonId(user.user_metadata?.salon_id ?? null);
-
         if (cancelled) return;
         setUserSalonId(sid);
-
-        // DEFAULT DEFINITIVO:
-        // - magazzino/coordinator: from = activeSalonId (se valido) altrimenti 5
-        // - reception/cliente: from = proprio salone (obbligatorio)
-        const defaultFrom = isWarehouse
-          ? (activeSalonId ?? MAGAZZINO_CENTRALE_ID)
-          : sid;
-
-        setFromSalon(defaultFrom);
-
-        const firstTo = pickDefaultTo(defaultFrom);
-        setToSalon(firstTo);
-
+        setFromSalon(sid);
+        setToSalon(pickDefaultTo(sid));
         setSelected([]);
-
-        if (defaultFrom != null) {
-          await fetchProducts(defaultFrom);
-        } else {
-          setProducts([]);
-        }
+        if (sid != null) await fetchProducts(sid);
+        else setProducts([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -124,7 +132,7 @@ export default function TrasferimentiPage() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, isReady, isWarehouse, activeSalonId]);
+  }, [supabase, isReady, isWarehouse, isReception, activeSalonId, receptionSalonId]);
 
   // se warehouse cambia vista dall’header => cambia FROM
   useEffect(() => {
@@ -173,9 +181,8 @@ export default function TrasferimentiPage() {
     if (!selected.length) return;
     if (fromSalon === toSalon) return;
 
-    // BLOCCO DEFINITIVO: reception/cliente NON eseguono trasferimenti
-    if (role === "reception" || role === "cliente") {
-      toast.error("Come reception non puoi eseguire trasferimenti. Chiedi al magazzino.");
+    if (role === "cliente") {
+      toast.error("Non puoi eseguire trasferimenti.");
       return;
     }
 
@@ -212,138 +219,224 @@ export default function TrasferimentiPage() {
     await fetchProducts(fromSalon);
   }
 
-  // reception senza salon_id = blocco definitivo
-  if (!loading && !isWarehouse && userSalonId === null) {
+  const fromName =
+    fromSalon != null
+      ? allowedSalons.find((s) => s.id === fromSalon)?.name ??
+        SALONI.find((s) => s.id === fromSalon)?.name ??
+        `Salone ${fromSalon}`
+      : "—";
+  const toName =
+    toOptions.find((s) => s.id === toSalon)?.name ?? SALONI.find((s) => s.id === toSalon)?.name ?? `Salone ${toSalon}`;
+
+  // reception senza salone (staff.salon_id) = blocco; cliente senza metadata = blocco
+  if (!loading && !isWarehouse && (isReception ? receptionSalonId === null : userSalonId === null)) {
     return (
-      <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3]">
-        <h1 className="text-3xl font-bold mb-3">Trasferimenti</h1>
-        <p className="text-white/70">
+      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 flex gap-4 items-start max-w-xl">
+          <AlertCircle className="text-amber-400 shrink-0 mt-0.5" size={24} />
+          <div>
+            <h1 className="text-xl font-bold text-[#f3d8b6] mb-2">Trasferimenti</h1>
+            <p className="text-white/80">
           Questo utente non ha un <b>salon_id</b> associato. Contatta l’amministratore.
-        </p>
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!isReady || loading || fromSalon === null) {
     return (
-      <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3]">
-        Caricamento…
+      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white flex items-center justify-center">
+        <div className="flex items-center gap-2 text-white/60">
+          <span className="inline-block w-5 h-5 border-2 border-[#f3d8b6]/40 border-t-[#f3d8b6] rounded-full animate-spin" />
+          Caricamento…
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3] space-y-10">
-      <div className="flex items-center gap-4">
-        <Repeat size={44} strokeWidth={1.5} className="text-[#B88A54]" />
-        <h1 className="text-4xl font-bold text-[#B88A54]">Trasferimenti di Magazzino</h1>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#FDF8F3] text-[#341A09] p-6 shadow rounded-2xl">
-        <div>
-          <label className="font-semibold">Da</label>
-          <select
-            className="border p-3 rounded w-full bg-white mt-1 disabled:opacity-60"
-            value={fromSalon}
-            disabled={disableFromSelect}
-            onChange={async (e) => {
-              const v = Number(e.target.value);
-              setFromSalon(v);
-              const firstTo = pickDefaultTo(v);
-              setToSalon(firstTo);
-              setSelected([]);
-              await fetchProducts(v);
-            }}
-          >
-            {SALONI.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-
-          {!isWarehouse && (
-            <p className="text-xs opacity-60 mt-2">Come reception, lavori solo sul tuo salone.</p>
-          )}
-        </div>
-
-        <div>
-          <label className="font-semibold">A</label>
-          <select
-            className="border p-3 rounded w-full bg-white mt-1"
-            value={toSalon}
-            onChange={(e) => setToSalon(Number(e.target.value))}
-          >
-            {toOptions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-[#FDF8F3] text-[#341A09] p-6 rounded-2xl shadow space-y-3">
-          <h2 className="font-semibold text-xl text-[#B88A54]">Disponibili</h2>
-
-          {products.map((p) => (
-            <div key={p.product_id} className="flex justify-between border-b py-2">
-              <span>
-                {p.name} <span className="opacity-60 text-sm">({p.quantity})</span>
-              </span>
-              <button
-                className="px-3 py-1 bg-[#341A09] text-white rounded-lg hover:opacity-90 transition"
-                onClick={() => add(p)}
-              >
-                Aggiungi
-              </button>
+    <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white space-y-6">
+      {/* HERO */}
+      <div className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 md:p-7 bg-black/20 border-b border-white/10">
+          <div className="flex items-start gap-4">
+            <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
+              <Repeat className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
             </div>
-          ))}
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                Magazzino
+              </div>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
+                Trasferimenti
+              </h1>
+              <p className="text-white/60 mt-1">
+                Sposta merce da <span className="font-semibold text-white/90">{fromName}</span> verso la destinazione scelta.
+              </p>
+              <p className="text-white/50 text-sm mt-1">
+                {isWarehouse
+                  ? "Cambia salone Da dallo switcher in alto."
+                  : "Il tuo salone è fisso come origine. Scegli solo la destinazione."}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/magazzino"
+            className="shrink-0 self-start sm:self-center inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
+          >
+            <ArrowLeft size={18} />
+            Indietro
+          </Link>
+        </div>
+      </div>
 
-          {products.length === 0 && (
-            <div className="py-6 text-center opacity-60">Nessun prodotto disponibile</div>
-          )}
+      {/* DA / A */}
+      <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
+        <div className="text-[10px] font-black uppercase tracking-wider text-white/50">
+          Percorso
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-white/70 mb-1.5">Da</label>
+            {isReception ? (
+              <div className="p-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold">
+                {fromName}
+              </div>
+            ) : (
+              <select
+                className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30 disabled:opacity-60"
+                value={fromSalon ?? ""}
+                disabled={disableFromSelect}
+                onChange={async (e) => {
+                  const v = Number(e.target.value);
+                  setFromSalon(v);
+                  const firstTo = pickDefaultTo(v);
+                  setToSalon(firstTo);
+                  setSelected([]);
+                  await fetchProducts(v);
+                }}
+              >
+                {SALONI.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {isReception && (
+              <p className="text-xs text-white/50 mt-1.5">Il tuo salone (fisso)</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-white/70 mb-1.5">A</label>
+            <select
+              className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
+              value={toSalon}
+              onChange={(e) => setToSalon(Number(e.target.value))}
+            >
+              {toOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* DISPONIBILI + TRASFERITI */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center gap-2">
+            <Package className="text-[#f3d8b6]" size={20} strokeWidth={1.7} />
+            <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+              Disponibili
+            </span>
+          </div>
+          <div className="p-4 max-h-[360px] overflow-y-auto">
+            {products.length > 0 ? (
+              <ul className="space-y-0 divide-y divide-white/10">
+                {products.map((p) => (
+                  <li key={p.product_id} className="flex items-center justify-between gap-3 py-3 first:pt-0">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-white truncate">{p.name}</p>
+                      <p className="text-xs text-white/50 mt-0.5">{p.quantity} disponibili</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-[#f3d8b6]/20 border border-[#f3d8b6]/40 text-[#f3d8b6] text-sm font-semibold hover:bg-[#f3d8b6]/30 transition"
+                      onClick={() => add(p)}
+                    >
+                      Aggiungi
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Package className="text-white/25 mb-2" size={32} strokeWidth={1.5} />
+                <p className="text-white/50 text-sm">Nessun prodotto disponibile</p>
+                <p className="text-white/40 text-xs mt-1">Scegli un altro salone Da o attendi carichi.</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="bg-[#FDF8F3] text-[#341A09] p-6 rounded-2xl shadow space-y-3">
-          <h2 className="font-semibold text-xl text-[#B88A54]">Trasferiti</h2>
-
-          {selected.map((s) => {
-            const max = maxFor(s.product_id);
-            return (
-              <div key={s.product_id} className="flex justify-between border-b py-2 items-center">
-                <span>
-                  {s.name} <span className="opacity-60 text-sm">(max {max})</span>
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  max={max}
-                  className="border w-24 p-1 bg-white"
-                  value={s.qty}
-                  onChange={(e) => changeQty(s.product_id, Number(e.target.value))}
-                />
+        <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center gap-2">
+            <ArrowRightCircle className="text-[#f3d8b6]" size={20} strokeWidth={1.7} />
+            <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+              In trasferimento
+            </span>
+          </div>
+          <div className="p-4 max-h-[360px] overflow-y-auto space-y-4">
+            {selected.length > 0 ? (
+              <>
+                <ul className="space-y-0 divide-y divide-white/10">
+                  {selected.map((s) => {
+                    const max = maxFor(s.product_id);
+                    return (
+                      <li key={s.product_id} className="flex items-center justify-between gap-3 py-3 first:pt-0">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-white truncate">{s.name}</p>
+                          <p className="text-xs text-white/50">max {max}</p>
+                        </div>
+                        <input
+                          type="number"
+                          min={1}
+                          max={max}
+                          className="w-20 px-2 py-1.5 rounded-lg bg-black/30 border border-white/10 text-white text-sm text-right focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
+                          value={s.qty}
+                          onChange={(e) => changeQty(s.product_id, Number(e.target.value))}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+                <button
+                  type="button"
+                  className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  onClick={completa}
+                  disabled={!selected.length || fromSalon === toSalon || role === "cliente"}
+                >
+                  Completa Trasferimento → {toName}
+                </button>
+                {isReception && (
+                  <p className="text-xs text-white/50">
+                    Da = tuo salone (fisso). Destinazione in A.
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <ArrowRightCircle className="text-white/25 mb-2" size={32} strokeWidth={1.5} />
+                <p className="text-white/50 text-sm">Nessun articolo selezionato</p>
+                <p className="text-white/40 text-xs mt-1">Aggiungi prodotti dalla colonna Disponibili.</p>
               </div>
-            );
-          })}
-
-          <button
-            className="w-full py-4 mt-5 bg-[#0FA958] text-white rounded-2xl text-lg font-semibold hover:scale-[1.02] transition disabled:opacity-40"
-            onClick={completa}
-            disabled={
-              !selected.length ||
-              fromSalon === toSalon ||
-              role === "reception" ||
-              role === "cliente"
-            }
-          >
-            Completa Trasferimento
-          </button>
-
-          {(role === "reception" || role === "cliente") && (
-            <p className="text-xs opacity-60">Nota: come reception non puoi eseguire trasferimenti.</p>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

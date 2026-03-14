@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getReceptionSalonId } from "@/lib/receptionSalon";
 
 const MAGAZZINO_CENTRALE_ID = 5;
 
@@ -39,41 +40,39 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const meta: any = userData.user.user_metadata ?? {};
-    const role = String(meta?.role ?? "");
+    const role = String(userData.user.user_metadata?.role ?? "");
 
     const allowed = role === "coordinator" || role === "magazzino" || role === "reception";
     if (!allowed) {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }
 
-    // RECEPTION: può scaricare SOLO dal proprio salone
+    // RECEPTION: scarico solo dal proprio salone (source of truth: staff.salon_id)
     if (role === "reception") {
-      // preferisco il salon_id da user_metadata (più veloce e coerente col tuo setup)
-      const mySalonId = Number(meta?.salon_id);
+      const mySalonId = await getReceptionSalonId(userData.user.id);
 
-      if (!Number.isFinite(mySalonId) || mySalonId < 1) {
+      if (!mySalonId || mySalonId < 1) {
         return NextResponse.json(
-          { error: "salon_id mancante sull'utente reception" },
+          { error: "Salone non associato al tuo account. Contatta l'amministratore." },
           { status: 403 }
         );
       }
 
       if (mySalonId !== salonId) {
         return NextResponse.json(
-          { error: "Non puoi scaricare su un altro salone" },
+          { error: "Non puoi scaricare da un altro salone" },
           { status: 403 }
         );
       }
     }
 
-    // RPC UNICA DEFINITIVA:
-    // scarico = movimento in uscita dal salone (from = salonId, to = null)
+    // RPC: scarico = movimento in uscita dal salone (from = salonId, to = null)
     const { error } = await supabaseAdmin.rpc("stock_move", {
-      p_product: productId,
+      p_product_id: productId,
       p_qty: qty,
       p_from_salon: salonId,
       p_to_salon: null,
+      p_movement_type: "scarico",
       p_reason: reason,
     });
 

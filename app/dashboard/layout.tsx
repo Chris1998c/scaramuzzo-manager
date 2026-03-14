@@ -12,10 +12,11 @@ export default async function DashboardLayout({
 
   return (
     <ActiveSalonProvider
-     role={access.role}
+      role={access.role}
       allowedSalonIds={access.allowedSalonIds}
       allowedSalons={access.allowedSalons}
       defaultSalonId={access.defaultSalonId}
+      staffSalonId={access.staffSalonId}
     >
       <DashboardShell>{children}</DashboardShell>
     </ActiveSalonProvider>

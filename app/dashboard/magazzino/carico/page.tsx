@@ -14,11 +14,12 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
 interface ProductRow {
-  product_id: number;
+  product_id?: number;
+  id?: number;
   name: string;
   category: string | null;
   barcode: string | null;
-  quantity: number; // giacenza del MAGAZZINO CENTRALE (ID 5)
+  quantity?: number; // solo per flusso da centrale
 }
 
 const MAGAZZINO_CENTRALE_ID = 5;
@@ -57,7 +58,7 @@ function CaricoInner() {
   const searchParams = useSearchParams();
 
   // 👇 DESTINAZIONE: prende il salone selezionato dall’header (switcher)
-  const { activeSalonId } = useActiveSalon();
+  const { activeSalonId, allowedSalons, isReady, receptionSalonId } = useActiveSalon();
 
   const productIdFromUrl = toNumberOrNull(searchParams.get("product"));
 
@@ -109,13 +110,30 @@ function CaricoInner() {
         const r = String(user.user_metadata?.role ?? "reception");
         setRole(r);
 
-        // Solo magazzino/coordinator possono fare carico
-        if (r !== "magazzino" && r !== "coordinator") {
+        const isReception = r === "reception";
+        const isWarehouse = r === "magazzino" || r === "coordinator";
+        if (!isReception && !isWarehouse) {
           setErrorMsg("Permessi insufficienti per eseguire un carico.");
           return;
         }
 
-        // ✅ se ho product in URL, carico direttamente quel prodotto
+        if (isReception) {
+          // Reception: carico in ingresso — lista da catalogo prodotti
+          await loadListReception();
+          if (productIdFromUrl && productIdFromUrl > 0) {
+            const { data: prod } = await supabase
+              .from("products")
+              .select("id, name, category, barcode")
+              .eq("id", productIdFromUrl)
+              .eq("active", true)
+              .maybeSingle();
+            if (cancelled) return;
+            if (prod) setProduct({ ...(prod as ProductRow), product_id: (prod as { id: number }).id });
+          }
+          return;
+        }
+
+        // Magazzino/coordinator: se ho product in URL, carico da centrale
         if (productIdFromUrl && productIdFromUrl > 0) {
           const { data: prod, error: prodErr } = await supabase
             .from("products_with_stock")
@@ -142,13 +160,42 @@ function CaricoInner() {
           return;
         }
 
-        // ✅ altrimenti carico la lista prodotti per scegliere
         await loadList();
       } catch (err) {
         console.error("Carico init error:", err);
         if (!cancelled) setErrorMsg("Errore nel caricamento della pagina carico.");
       } finally {
         if (!cancelled) setLoading(false);
+      }
+    }
+
+    async function loadListReception() {
+      setLoadingList(true);
+      try {
+        let q = supabase
+          .from("products")
+          .select("id, name, category, barcode")
+          .eq("active", true)
+          .order("name", { ascending: true });
+
+        const s = search.trim();
+        if (s) q = q.ilike("name", `%${s}%`);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        const rows = ((data ?? []) as { id: number; name: string; category: string | null; barcode: string | null }[]).map((r) => ({
+          product_id: r.id,
+          name: r.name,
+          category: r.category,
+          barcode: r.barcode,
+        }));
+        setList(rows as ProductRow[]);
+      } catch (e) {
+        console.error(e);
+        setList([]);
+      } finally {
+        setLoadingList(false);
       }
     }
 
@@ -186,9 +233,34 @@ function CaricoInner() {
   // refresh lista quando cambi search (solo se NON hai prodotto selezionato)
   useEffect(() => {
     if (product) return;
-    if (role !== "magazzino" && role !== "coordinator") return;
+    if (!isReady) return;
 
     const t = setTimeout(async () => {
+      if (role === "reception") {
+        setLoadingList(true);
+        try {
+          let q = supabase.from("products").select("id, name, category, barcode").eq("active", true).order("name", { ascending: true });
+          const s = search.trim();
+          if (s) q = q.ilike("name", `%${s}%`);
+          const { data, error } = await q;
+          if (error) throw error;
+          const rows = ((data ?? []) as { id: number; name: string; category: string | null; barcode: string | null }[]).map((r) => ({
+            product_id: r.id,
+            name: r.name,
+            category: r.category,
+            barcode: r.barcode,
+          }));
+          setList(rows as ProductRow[]);
+        } catch (e) {
+          console.error(e);
+          setList([]);
+        } finally {
+          setLoadingList(false);
+        }
+        return;
+      }
+      if (role !== "magazzino" && role !== "coordinator") return;
+
       setLoadingList(true);
       try {
         let q = supabase
@@ -196,13 +268,10 @@ function CaricoInner() {
           .select("product_id, name, category, barcode, quantity")
           .eq("salon_id", MAGAZZINO_CENTRALE_ID)
           .order("name", { ascending: true });
-
         const s = search.trim();
         if (s) q = q.ilike("name", `%${s}%`);
-
         const { data, error } = await q;
         if (error) throw error;
-
         setList((data as ProductRow[]) || []);
       } catch (e) {
         console.error(e);
@@ -213,33 +282,46 @@ function CaricoInner() {
     }, 250);
 
     return () => clearTimeout(t);
-  }, [search, product, role, supabase]);
+  }, [search, product, role, isReady, supabase]);
 
-  const maxQty = product?.quantity ?? 0;
-  const disabled =
-    !product || submitting || qty <= 0 || qty > maxQty || maxQty <= 0;
+  const isReception = role === "reception";
+  const maxQty = isReception ? undefined : (product?.quantity ?? 0);
+  const disabled = isReception
+    ? !product || submitting || qty <= 0
+    : !product || submitting || qty <= 0 || (maxQty !== undefined && (qty > maxQty || maxQty <= 0));
 
   const handleSelectProduct = (p: ProductRow) => {
     setErrorMsg(null);
     setProduct(p);
-    setQty(clampQty(1, 1, Math.max(1, p.quantity)));
+    const pid = p.product_id ?? (p as { id?: number }).id;
+    setQty(isReception ? 1 : clampQty(1, 1, Math.max(1, p.quantity ?? 0)));
 
-    // ✅ opzionale ma utile: aggiorna URL per deep link
-    const url = `/dashboard/magazzino/carico?product=${p.product_id}`;
+    const url = `/dashboard/magazzino/carico?product=${pid}`;
     router.replace(url);
   };
 
   const handleCarico = async () => {
     if (!product) return;
 
-    // guardrail destinazione: deve essere 1..4
-    if (!SALONI.some((s) => s.id === toSalonId)) {
-      setErrorMsg("Seleziona un salone di destinazione valido.");
-      return;
+    const productId = product.product_id ?? (product as { id?: number }).id;
+    if (!Number.isFinite(productId)) return;
+
+    if (isReception) {
+      if (!receptionSalonId || receptionSalonId < 1 || receptionSalonId >= MAGAZZINO_CENTRALE_ID) {
+        setErrorMsg("Nessun salone associato al tuo account.");
+        return;
+      }
+    } else {
+      if (!SALONI.some((s) => s.id === toSalonId)) {
+        setErrorMsg("Seleziona un salone di destinazione valido.");
+        return;
+      }
     }
 
-    const q = clampQty(Number(qty), 1, product.quantity);
-    if (q > product.quantity) return;
+    const q = isReception
+      ? Math.max(1, Math.floor(Number(qty)) || 1)
+      : clampQty(Number(qty), 1, product.quantity ?? 0);
+    if (!isReception && product.quantity != null && q > product.quantity) return;
 
     setSubmitting(true);
     setErrorMsg(null);
@@ -249,10 +331,10 @@ function CaricoInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          salonId: toSalonId, // DESTINAZIONE
-          productId: product.product_id,
+          salonId: isReception ? receptionSalonId : toSalonId,
+          productId,
           qty: q,
-          reason: "carico_app",
+          reason: isReception ? "carico_ingresso_reception" : "carico_app",
         }),
       });
 
@@ -296,10 +378,12 @@ function CaricoInner() {
               <div className="min-w-0">
                 <div className="text-sm text-[#c9b299]">Magazzino</div>
                 <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                  Carico dal Magazzino Centrale
+                  {isReception ? "Carico in ingresso" : "Carico dal Magazzino Centrale"}
                 </h1>
                 <p className="text-[#c9b299] mt-2 max-w-2xl">
-                  Sposta quantità dal <b>centrale (ID 5)</b> al salone selezionato.
+                  {isReception
+                    ? "Registra merce arrivata al tuo salone. La destinazione è il tuo salone."
+                    : "Sposta quantità dal centrale (ID 5) al salone selezionato."}
                 </p>
               </div>
 
@@ -335,7 +419,7 @@ function CaricoInner() {
               </div>
             </div>
           </div>
-        ) : role !== "magazzino" && role !== "coordinator" ? (
+        ) : !isReception && role !== "magazzino" && role !== "coordinator" ? (
           <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">
             <div className="flex items-start gap-3">
               <div className="rounded-xl p-2 bg-black/20 border border-[#5c3a21]/60">
@@ -344,18 +428,32 @@ function CaricoInner() {
               <div className="min-w-0">
                 <div className="text-[#f3d8b6] font-extrabold">Permessi insufficienti</div>
                 <div className="text-[#c9b299] mt-1 text-sm">
-                  Solo magazzino/coordinator possono eseguire carichi.
+                  Solo magazzino/coordinator possono eseguire carichi da centrale.
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : isReception && (!receptionSalonId || receptionSalonId < 1 || receptionSalonId >= MAGAZZINO_CENTRALE_ID) ? (
+          <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-[#f3d8b6] shrink-0 mt-0.5" size={20} />
+              <div className="min-w-0">
+                <div className="text-[#f3d8b6] font-extrabold">Salone non associato</div>
+                <div className="text-[#c9b299] mt-1 text-sm">
+                  Contatta l&apos;amministratore per associare il tuo account a un salone.
                 </div>
               </div>
             </div>
           </div>
         ) : !product ? (
-          // ✅ PICKER PRODOTTI (quando mancano query param)
+          // PICKER PRODOTTI
           <div className="space-y-4">
             <div className="rounded-2xl bg-[#FFF9F4] border border-black/5 p-5 text-[#341A09]">
               <div className="font-extrabold text-lg">Seleziona un prodotto</div>
               <div className="text-sm opacity-70 mt-1">
-                Lista dal magazzino centrale (ID 5). Cerca e clicca un prodotto per procedere.
+                {isReception
+                  ? "Cerca e clicca un prodotto per registrare il carico in ingresso al tuo salone."
+                  : "Lista dal magazzino centrale (ID 5). Cerca e clicca un prodotto per procedere."}
               </div>
 
               <div className="mt-4 flex items-center gap-3">
@@ -369,22 +467,33 @@ function CaricoInner() {
                   />
                 </div>
 
-                <div className="min-w-[220px]">
-                  <label className="block text-xs font-bold mb-1 opacity-70">
-                    Salone destinazione
-                  </label>
-                  <select
-                    value={toSalonId}
-                    onChange={(e) => setToSalonId(Number(e.target.value))}
-                    className="w-full p-3 rounded-xl border bg-white"
-                  >
-                    {SALONI.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {!isReception && (
+                  <div className="min-w-[220px]">
+                    <label className="block text-xs font-bold mb-1 opacity-70">
+                      Salone destinazione
+                    </label>
+                    <select
+                      value={toSalonId}
+                      onChange={(e) => setToSalonId(Number(e.target.value))}
+                      className="w-full p-3 rounded-xl border bg-white"
+                    >
+                      {SALONI.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {isReception && receptionSalonId != null && (
+                  <div className="min-w-[220px] rounded-xl border bg-white/80 px-4 py-3">
+                    <span className="text-xs font-bold opacity-70">Destinazione</span>
+                    <div className="text-[#341A09] font-semibold">
+                      {allowedSalons.find((s) => s.id === receptionSalonId)?.name ?? `Salone ${receptionSalonId}`}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -410,10 +519,14 @@ function CaricoInner() {
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="text-[#f3d8b6] font-extrabold">
-                          {p.quantity}
-                        </div>
-                        <div className="text-[#c9b299] text-xs">Disponibili</div>
+                        {!isReception && p.quantity != null ? (
+                          <>
+                            <div className="text-[#f3d8b6] font-extrabold">{p.quantity}</div>
+                            <div className="text-[#c9b299] text-xs">Disponibili</div>
+                          </>
+                        ) : isReception ? (
+                          <div className="text-[#c9b299] text-xs">Carico in ingresso</div>
+                        ) : null}
                       </div>
                     </button>
                   ))}
@@ -443,12 +556,12 @@ function CaricoInner() {
                     {product.barcode ?? "—"}
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span>Disponibili (centrale)</span>
-                  <span className="text-[#f3d8b6] font-extrabold">
-                    {product.quantity}
-                  </span>
-                </div>
+                {!isReception && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Disponibili (centrale)</span>
+                    <span className="text-[#f3d8b6] font-extrabold">{product.quantity}</span>
+                  </div>
+                )}
               </div>
 
               <button
@@ -461,7 +574,7 @@ function CaricoInner() {
                 Cambia prodotto
               </button>
 
-              {product.quantity <= 0 && (
+              {!isReception && product.quantity != null && product.quantity <= 0 && (
                 <div className="mt-4 rounded-xl bg-black/15 border border-[#5c3a21]/50 p-3 text-sm text-[#c9b299]">
                   Nessuna giacenza disponibile nel magazzino centrale.
                 </div>
@@ -471,36 +584,49 @@ function CaricoInner() {
             {/* RIGHT: form */}
             <div className="lg:col-span-2 rounded-2xl bg-[#FFF9F4] border border-black/5 p-6 text-[#341A09]">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-extrabold block mb-2">Salone destinazione</label>
-                  <select
-                    value={toSalonId}
-                    onChange={(e) => setToSalonId(Number(e.target.value))}
-                    className="w-full p-3 rounded-xl border bg-white"
-                  >
-                    {SALONI.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {isReception ? (
+                  <div>
+                    <label className="font-extrabold block mb-2">Destinazione</label>
+                    <div className="p-3 rounded-xl border bg-white/80 font-semibold">
+                      {allowedSalons.find((s) => s.id === receptionSalonId)?.name ?? `Salone ${receptionSalonId}`}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="font-extrabold block mb-2">Salone destinazione</label>
+                    <select
+                      value={toSalonId}
+                      onChange={(e) => setToSalonId(Number(e.target.value))}
+                      className="w-full p-3 rounded-xl border bg-white"
+                    >
+                      {SALONI.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="font-extrabold block mb-2">Quantità da caricare</label>
                   <input
                     type="number"
                     min={1}
-                    max={Math.max(1, product.quantity)}
+                    max={isReception ? 99999 : Math.max(1, product.quantity ?? 0)}
                     value={qty}
                     onChange={(e) =>
-                      setQty(clampQty(Number(e.target.value), 1, product.quantity))
+                      setQty(
+                        isReception
+                          ? Math.max(1, Math.floor(Number(e.target.value)) || 1)
+                          : clampQty(Number(e.target.value), 1, product.quantity ?? 0)
+                      )
                     }
                     className="w-full p-3 rounded-xl border bg-white"
                   />
-                  <p className="mt-2 text-sm opacity-70">
-                    Max: {product.quantity}
-                  </p>
+                  {!isReception && product.quantity != null && (
+                    <p className="mt-2 text-sm opacity-70">Max: {product.quantity}</p>
+                  )}
                 </div>
               </div>
 

@@ -52,7 +52,7 @@ function ScaricoInner() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
-  const { activeSalonId } = useActiveSalon(); // cambia dall’header senza refresh
+  const { role: providerRole, isReady, activeSalonId, receptionSalonId } = useActiveSalon(); // cambia dall'header senza refresh
 
   const productId = toNumberOrNull(searchParams.get("product"));
 
@@ -71,11 +71,13 @@ function ScaricoInner() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // 1) Load user + decide ruolo + set ctx
+  // 1) Inizializzazione ctx: reception usa receptionSalonId (staff.salon_id), non user_metadata
   useEffect(() => {
     let cancelled = false;
 
-    async function initUser() {
+    async function initCtx() {
+      if (!isReady) return;
+
       try {
         setLoading(true);
         setErrorMsg(null);
@@ -85,56 +87,55 @@ function ScaricoInner() {
           return;
         }
 
-        const { data, error } = await supabase.auth.getUser();
-        if (error) throw error;
-
-        const user = data.user;
-        if (!user) {
-          setErrorMsg("Utente non autenticato.");
-          return;
-        }
-
-        const r: Role = String(user.user_metadata?.role ?? "reception");
-        const sid = toNumberOrNull(user.user_metadata?.salon_id ?? null);
-
-        if (cancelled) return;
-
+        const r: Role = String(providerRole ?? "reception");
         setRole(r);
-        setUserSalonId(sid);
 
         const isWarehouse = r === "magazzino" || r === "coordinator";
 
         if (isWarehouse) {
-          // activeSalonId arriva dallo switcher header; se non valido, fallback centrale
           const v =
             typeof activeSalonId === "number" && Number.isFinite(activeSalonId)
               ? activeSalonId
               : MAGAZZINO_CENTRALE_ID;
-
+          if (cancelled) return;
           setCtxSalonId(v);
-        } else {
-          // reception: obbligatorio il suo salone
-          if (sid == null) {
+          setUserSalonId(null);
+        } else if (r === "reception") {
+          if (receptionSalonId == null) {
             setCtxSalonId(null);
-            setErrorMsg("salon_id non presente sull’utente.");
+            setUserSalonId(null);
+            setErrorMsg("Salone non associato al tuo account. Contatta l'amministratore.");
             return;
           }
+          if (cancelled) return;
+          setCtxSalonId(receptionSalonId);
+          setUserSalonId(receptionSalonId);
+        } else {
+          const { data, error } = await supabase.auth.getUser();
+          if (error) throw error;
+          const user = data.user;
+          if (!user) {
+            setErrorMsg("Utente non autenticato.");
+            return;
+          }
+          const sid = toNumberOrNull(user.user_metadata?.salon_id ?? null);
+          if (cancelled) return;
+          setUserSalonId(sid);
           setCtxSalonId(sid);
         }
       } catch (err) {
-        console.error("Scarico init user error:", err);
-        if (!cancelled) setErrorMsg("Errore nel caricamento utente.");
+        console.error("Scarico init error:", err);
+        if (!cancelled) setErrorMsg("Errore nel caricamento.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
-    initUser();
+    initCtx();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, productId]);
+  }, [isReady, productId, providerRole, activeSalonId, receptionSalonId, supabase]);
 
   // 2) Se cambia activeSalonId, aggiorna ctx SOLO per magazzino/coordinator
   useEffect(() => {
@@ -250,8 +251,8 @@ function ScaricoInner() {
   const titleSalon =
     role === "magazzino" || role === "coordinator"
       ? salonLabel(ctxSalonId ?? MAGAZZINO_CENTRALE_ID)
-      : userSalonId != null
-      ? salonLabel(userSalonId)
+      : ctxSalonId != null
+      ? salonLabel(ctxSalonId)
       : "Salone";
 
   return (

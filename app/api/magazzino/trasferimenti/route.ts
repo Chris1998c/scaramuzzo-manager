@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { getReceptionSalonId } from "@/lib/receptionSalon";
 
 type TransferItem = { id: number | string; qty: number | string };
 
@@ -16,25 +17,11 @@ export async function POST(req: Request) {
     const supabase = await createServerSupabase();
     const body = await req.json().catch(() => null);
 
-    const fromSalon = Number(body?.fromSalon);
-    const toSalon = Number(body?.toSalon);
+    let fromSalon = Number(body?.fromSalon);
+    let toSalon = Number(body?.toSalon);
     const items: TransferItem[] = Array.isArray(body?.items) ? body.items : [];
     const details = body?.details ?? null;
     const executeNow = Boolean(body?.executeNow);
-
-    // VALIDAZIONI SALONI (1..5)
-    if (!isValidSalonId(fromSalon)) {
-      return NextResponse.json({ error: "fromSalon non valido" }, { status: 400 });
-    }
-    if (!isValidSalonId(toSalon)) {
-      return NextResponse.json({ error: "toSalon non valido" }, { status: 400 });
-    }
-    if (fromSalon === toSalon) {
-      return NextResponse.json(
-        { error: "fromSalon e toSalon non possono essere uguali" },
-        { status: 400 }
-      );
-    }
 
     if (items.length === 0) {
       return NextResponse.json({ error: "items mancanti" }, { status: 400 });
@@ -46,9 +33,39 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
+    const userId = userData.user.id;
     const role = String(userData.user.user_metadata?.role ?? "");
-    if (role !== "magazzino" && role !== "coordinator") {
+    const isReception = role === "reception";
+    const isWarehouse = role === "magazzino" || role === "coordinator";
+
+    if (!isReception && !isWarehouse) {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
+    }
+
+    // RECEPTION: from_salon = solo proprio salone (ignora body)
+    if (isReception) {
+      const mySalonId = await getReceptionSalonId(userId);
+      if (!mySalonId || !isValidSalonId(mySalonId)) {
+        return NextResponse.json(
+          { error: "Salone non associato al tuo account. Contatta l'amministratore." },
+          { status: 403 }
+        );
+      }
+      fromSalon = mySalonId;
+    }
+
+    // VALIDAZIONI SALONI
+    if (!isValidSalonId(fromSalon)) {
+      return NextResponse.json({ error: "fromSalon non valido" }, { status: 400 });
+    }
+    if (!isValidSalonId(toSalon)) {
+      return NextResponse.json({ error: "toSalon non valido" }, { status: 400 });
+    }
+    if (fromSalon === toSalon) {
+      return NextResponse.json(
+        { error: "fromSalon e toSalon non possono essere uguali" },
+        { status: 400 }
+      );
     }
 
     // NORMALIZZA ITEMS
