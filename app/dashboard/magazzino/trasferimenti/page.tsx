@@ -20,11 +20,12 @@ interface SelectedItem {
   qty: number;
 }
 
+// Label locali per select; coerenti con movimenti/trasferimenti-[id] (Corigliano, Cosenza, …)
 const SALONI = [
-  { id: 1, name: "Scaramuzzo Corigliano" },
-  { id: 2, name: "Scaramuzzo Cosenza" },
-  { id: 3, name: "Scaramuzzo Castrovillari" },
-  { id: 4, name: "Scaramuzzo Roma" },
+  { id: 1, name: "Corigliano" },
+  { id: 2, name: "Cosenza" },
+  { id: 3, name: "Castrovillari" },
+  { id: 4, name: "Roma" },
   { id: 5, name: "Magazzino Centrale" },
 ];
 

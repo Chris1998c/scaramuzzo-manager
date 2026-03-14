@@ -2,8 +2,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-
-const MAGAZZINO_CENTRALE_ID = Number(process.env.MAGAZZINO_CENTRALE_ID ?? 5);
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 export async function POST(req: Request) {
   try {
@@ -37,10 +36,6 @@ export async function POST(req: Request) {
     const role = String(userData.user.user_metadata?.role ?? "");
     if (role !== "magazzino" && role !== "coordinator") {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
-    }
-
-    if (!Number.isFinite(MAGAZZINO_CENTRALE_ID) || MAGAZZINO_CENTRALE_ID <= 0) {
-      return NextResponse.json({ error: "MAGAZZINO_CENTRALE_ID non valido" }, { status: 500 });
     }
 
     // crea prodotto (service role)

@@ -1,9 +1,15 @@
 "use client";
 
+/**
+ * Route: /dashboard/magazzino/trasferimenti/[id]
+ * Nota: [id] è il product_id, non l’id del trasferimento.
+ * Mostra lo storico movimenti (carico/scarico/trasferimento) per quel prodotto (read-only).
+ * Route legacy/interna; nessun link dalla UI principale.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 interface Movement {
   id: number;
@@ -121,8 +127,10 @@ export default function TrasferimentoDetailPage() {
 
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] text-[#FDF8F3] min-h-screen">
-      <h1 className="text-3xl font-bold mb-2">Dettaglio — {title}</h1>
-      <p className="opacity-70 mb-8">Storico movimenti per questo prodotto (read-only).</p>
+      <h1 className="text-3xl font-bold mb-2">Storico movimenti — {title}</h1>
+      <p className="opacity-70 mb-8">
+        Movimenti (carico / scarico / trasferimento) per prodotto ID {productId}. Read-only.
+      </p>
 
       <div className="bg-[#FFF9F4] text-[#341A09] p-6 rounded-xl shadow">
         <table className="w-full text-sm">

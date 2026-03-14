@@ -81,13 +81,13 @@ function appointmentsInLastDays(
 function hasRecentProductPurchases(
   saleItems: ClientIntelligencePayload["recentPurchases"]["saleItems"]
 ): boolean {
-  return saleItems.some((i) => i.product_id != null && i.product_id !== "");
+  return saleItems.some((i) => i.product_id != null);
 }
 
 function hasRecentServicePurchases(
   saleItems: ClientIntelligencePayload["recentPurchases"]["saleItems"]
 ): boolean {
-  return saleItems.some((i) => i.service_id != null && i.service_id !== "");
+  return saleItems.some((i) => i.service_id != null);
 }
 
 /** Tipi di servizio presenti nelle schede (normalizzati). */

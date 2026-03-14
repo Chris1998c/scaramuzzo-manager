@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 interface ProductRow {
   product_id?: number;
@@ -22,9 +23,7 @@ interface ProductRow {
   quantity?: number; // solo per flusso da centrale
 }
 
-const MAGAZZINO_CENTRALE_ID = 5;
-
-// saloni “operativi” (non includo il centrale qui perché è solo sorgente)
+// Saloni destinazione carico (solo 1..4, centrale è sorgente)
 const SALONI: { id: number; name: string }[] = [
   { id: 1, name: "Corigliano" },
   { id: 2, name: "Cosenza" },
@@ -154,7 +153,8 @@ function CaricoInner() {
           setProduct(p);
 
           if (p?.quantity && p.quantity > 0) {
-            setQty((q) => clampQty(q, 1, p.quantity));
+            const maxQ: number = p.quantity;
+            setQty((q) => clampQty(q, 1, maxQ));
           }
 
           return;
