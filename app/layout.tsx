@@ -11,7 +11,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="it">
       <body className="min-h-screen font-sans bg-[var(--bg)] text-[var(--text)]">
         {children}
-        <Toaster richColors position="top-right" />
+        <Toaster position="top-right" richColors closeButton expand duration={3500} />
       </body>
     </html>
   );

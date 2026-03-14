@@ -282,7 +282,7 @@ export default function ServiceBox({
       router.push(`/dashboard/cassa/${appointment.id}`);
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || "Errore durante Porta in sala");
+      toast.error(e?.message || "Errore durante Porta in sala");
     } finally {
       setCheckingIn(false);
     }
@@ -296,7 +296,7 @@ export default function ServiceBox({
 
       const res = await updateLine({ duration_minutes: newDuration });
       if (!res.ok) {
-        alert("Errore resize: " + (res.error as any)?.message);
+        toast.error("Errore resize: " + (res.error as any)?.message);
         return;
       }
 

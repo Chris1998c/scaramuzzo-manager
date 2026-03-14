@@ -5,14 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   Calendar,
   Store,
-  LayoutDashboard,
   Users,
 } from "lucide-react";
 

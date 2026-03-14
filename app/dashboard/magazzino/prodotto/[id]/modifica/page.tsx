@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { toast } from "sonner";
+import { ConfirmWithInputDialog } from "@/components/ui/ConfirmWithInputDialog";
 
 interface Product {
   id: number;
@@ -35,6 +37,7 @@ export default function ModificaProdottoPage({ params }: { params: { id: string 
   const [product, setProduct] = useState<Product | null>(null);
   const [stock, setStock] = useState<StockRow[]>([]);
   const [salons, setSalons] = useState<SalonRow[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,31 +107,30 @@ export default function ModificaProdottoPage({ params }: { params: { id: string 
       .eq("id", productId);
 
     if (error) {
-      alert("Errore durante il salvataggio");
+      toast.error("Errore durante il salvataggio");
       console.error(error);
       return;
     }
 
-    alert("Prodotto aggiornato");
+    toast.success("Prodotto aggiornato");
   }
 
-  async function elimina() {
-    if (!confirm("Vuoi eliminare definitivamente il prodotto?")) return;
+  function openDeleteConfirm() {
+    setShowDeleteConfirm(true);
+  }
 
-    const conferma = prompt('Scrivi "ELIMINA" per confermare');
-    if (conferma !== "ELIMINA") return;
-
+  async function performDeleteProduct() {
     const { error } = await supabase.from("products").delete().eq("id", productId);
 
     if (error) {
       // fallback: disattiva
       await supabase.from("products").update({ active: false }).eq("id", productId);
-      alert("Prodotto disattivato");
+      toast.error("Prodotto disattivato");
       router.push("/dashboard/magazzino/inventario");
       return;
     }
 
-    alert("Prodotto eliminato");
+    toast.success("Prodotto eliminato");
     router.push("/dashboard/magazzino/inventario");
   }
 
@@ -196,12 +198,23 @@ export default function ModificaProdottoPage({ params }: { params: { id: string 
         </button>
 
         <button
-          onClick={elimina}
+          onClick={openDeleteConfirm}
           className="w-full bg-red-700 text-white p-4 rounded-2xl text-xl font-bold"
         >
           Elimina Prodotto
         </button>
       </div>
+
+      <ConfirmWithInputDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={performDeleteProduct}
+        title="Elimina prodotto"
+        description="Vuoi eliminare definitivamente questo prodotto? Scrivi ELIMINA nel campo sotto per confermare. L'operazione non può essere annullata."
+        confirmLabel="Elimina"
+        requiredText="ELIMINA"
+        variant="danger"
+      />
 
       <div className="mt-12 bg-white p-6 rounded-xl shadow-xl text-[#341A09]">
         <h2 className="text-2xl font-bold mb-4">Giacenze</h2>

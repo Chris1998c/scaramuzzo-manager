@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { timeFromTs } from "@/lib/appointmentTime";
+import { toast } from "sonner";
 import { SLOT_MINUTES, SLOT_PX } from "./utils";
 
 type Segment = { name: string; color: string; duration: number };
@@ -194,7 +195,7 @@ export default function AppointmentBox({
       // se invece vuoi “Porta in sala” = “porta e apri cassa”, dimmelo e lo mettiamo.
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || "Errore durante Porta in sala");
+      toast.error(e?.message || "Errore durante Porta in sala");
       
     } finally {
       setCheckingIn(false);
@@ -223,7 +224,7 @@ export default function AppointmentBox({
 
     setSaving(false);
     if (error) {
-      alert("Errore spostamento: " + error.message);
+      toast.error("Errore spostamento: " + error.message);
       return;
     }
     onUpdated?.();
@@ -255,7 +256,7 @@ export default function AppointmentBox({
 
     setSaving(false);
     if (error) {
-      alert("Errore resize: " + error.message);
+      toast.error("Errore resize: " + error.message);
       return;
     }
     onUpdated?.();
@@ -441,7 +442,7 @@ export default function AppointmentBox({
 
                     onUpdated?.();
                   } catch (e: any) {
-                    alert(e?.message || "Errore durante Porta in sala");
+                    toast.error(e?.message || "Errore durante Porta in sala");
                     setCheckingIn(false);
                     return;
                   } finally {

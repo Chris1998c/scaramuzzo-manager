@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { Repeat } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, toSalonId } from "@/lib/constants";
+import { toast } from "sonner";
 
 interface ProductRow {
   product_id: number;
@@ -174,7 +175,7 @@ export default function TrasferimentiPage() {
 
     // BLOCCO DEFINITIVO: reception/cliente NON eseguono trasferimenti
     if (role === "reception" || role === "cliente") {
-      alert("Come reception non puoi eseguire trasferimenti. Chiedi al magazzino.");
+      toast.error("Come reception non puoi eseguire trasferimenti. Chiedi al magazzino.");
       return;
     }
 
@@ -182,7 +183,7 @@ export default function TrasferimentiPage() {
     for (const it of selected) {
       const max = maxFor(it.product_id);
       if (it.qty <= 0 || it.qty > max) {
-        alert(`Quantità non valida per "${it.name}" (max ${max})`);
+        toast.error(`Quantità non valida per "${it.name}" (max ${max})`);
         return;
       }
     }
@@ -202,11 +203,11 @@ export default function TrasferimentiPage() {
 
     if (!res.ok || json?.error) {
       console.error(json);
-      alert(json?.error || "Errore trasferimento");
+      toast.error(json?.error || "Errore trasferimento");
       return;
     }
 
-    alert("Trasferimento completato!");
+    toast.success("Trasferimento completato!");
     setSelected([]);
     await fetchProducts(fromSalon);
   }

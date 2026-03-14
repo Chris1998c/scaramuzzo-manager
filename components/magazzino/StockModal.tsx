@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { motion } from "framer-motion";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { toast } from "sonner";
 
 interface Props {
   isOpen: boolean;
@@ -82,7 +83,7 @@ export default function StockModal({
 
       if (error) {
         console.error("stock_move error:", error);
-        alert(error.message);
+        toast.error(error.message);
         return;
       }
 
@@ -93,7 +94,7 @@ export default function StockModal({
       close();
     } catch (e) {
       console.error("StockModal error:", e);
-      alert("Errore durante la movimentazione");
+      toast.error("Errore durante la movimentazione");
     } finally {
       setSaving(false);
     }

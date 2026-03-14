@@ -178,11 +178,10 @@ export default function CalendarModal({
         onMouseDown={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: 10, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-2xl rounded-3xl border border-[#5c3a21]/60 bg-[#140b07]/85
-                   shadow-[0_30px_90px_rgba(0,0,0,0.55)] overflow-hidden text-white"
+        className="w-full max-w-2xl rounded-3xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] overflow-hidden text-white"
       >
         {/* HEADER */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#5c3a21]/50">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-black/20">
           <div className="min-w-0">
             <div className="text-xs text-[#f3d8b6]/70 tracking-wide">Calendario</div>
             <h2 className="text-2xl font-extrabold text-[#f3d8b6] tracking-tight mt-1 capitalize">
@@ -201,10 +200,10 @@ export default function CalendarModal({
         </div>
 
         {/* NAV */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#5c3a21]/40">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/20">
           <button
             onClick={() => changeMonth(-1)}
-            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6] hover:bg-black/30 transition"
+            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 bg-black/20 border border-white/10 text-[#f3d8b6] hover:bg-black/30 transition"
           >
             <ChevronLeft size={18} />
             Mese prec.
@@ -219,7 +218,7 @@ export default function CalendarModal({
 
           <button
             onClick={() => changeMonth(1)}
-            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6] hover:bg-black/30 transition"
+            className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 bg-black/20 border border-white/10 text-[#f3d8b6] hover:bg-black/30 transition"
           >
             Mese succ.
             <ChevronRight size={18} />
@@ -262,7 +261,7 @@ export default function CalendarModal({
                     "shadow-[0_10px_30px_rgba(0,0,0,0.18)]",
                     isSelected
                       ? "bg-[#f3d8b6]/15 border-[#f3d8b6]/35"
-                      : "bg-black/20 border-[#5c3a21]/55 hover:bg-black/25",
+                      : "bg-black/20 border-white/10 hover:bg-black/25",
                     isToday && !isSelected ? "ring-1 ring-[#0FA958]/40" : "",
                   ].join(" ")}
                 >

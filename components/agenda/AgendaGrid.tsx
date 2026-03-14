@@ -11,6 +11,7 @@ import ServiceBox from "./ServiceBox";
 import {
   generateHours,
   generateWeekDaysFromDate,
+  timeFromTs,
   SLOT_MINUTES,
   SLOT_PX,
 } from "./utils";
@@ -45,6 +46,113 @@ function addWeeksISO(dateStr: string, deltaWeeks: number) {
 function toIdStr(v: any): string | null {
   if (v === null || v === undefined || v === "") return null;
   return String(v);
+}
+
+/** Durata in minuti da app (start_time/end_time); fallback 30. */
+function durationMinutesFromApp(app: any): number {
+  const start = app?.start_time;
+  const end = app?.end_time;
+  if (!start || !end) return 30;
+  const a = new Date(String(start).replace("Z", ""));
+  const b = new Date(String(end).replace("Z", ""));
+  const diff = (b.getTime() - a.getTime()) / 60000;
+  return Number.isFinite(diff) && diff >= 15 ? Math.round(diff) : 30;
+}
+
+/** Riga virtuale per appuntamenti senza appointment_services (solo uso interno AgendaGrid). */
+function createPlaceholderLine(app: any): any {
+  return {
+    _placeholder: true,
+    id: `placeholder-${app?.id ?? "na"}`,
+    start_time: app?.start_time ?? "",
+    duration_minutes: durationMinutesFromApp(app),
+    staff_id: app?.staff_id ?? null,
+  };
+}
+
+function isPlaceholderLine(line: any): boolean {
+  return line && (line._placeholder === true || line.id?.startsWith?.("placeholder-"));
+}
+
+/** Badge stato (coerente con ServiceBox, solo per placeholder). */
+function placeholderStatusMeta(status: string | null | undefined) {
+  const s = String(status || "scheduled");
+  if (s === "in_sala") return { label: "IN SALA", cls: "bg-emerald-400 text-black border border-emerald-300/80" };
+  if (s === "done") return { label: "COMPLETATO", cls: "bg-white/10 text-white/80 border border-white/20" };
+  if (s === "cancelled") return { label: "ANNULLATO", cls: "bg-red-500/15 text-red-200 border border-red-400/40" };
+  return { label: "PRENOTATO", cls: "bg-black/40 text-[#f3d8b6] border border-white/20" };
+}
+
+/** Box per appuntamento senza servizi: cliccabile, apre EditAppointmentModal. */
+function PlaceholderAppointmentBox({
+  appointment,
+  line,
+  hours,
+  onClick,
+  colWidth,
+  isHighlighted,
+  laneIndex = 0,
+  laneCount = 1,
+}: {
+  appointment: any;
+  line: any;
+  hours: string[];
+  onClick: () => void;
+  colWidth: number;
+  isHighlighted?: boolean;
+  laneIndex?: number;
+  laneCount?: number;
+}) {
+  const startTime = timeFromTs(line?.start_time ?? "");
+  const startIndex = hours.indexOf(startTime);
+  const safeStartIndex = startIndex >= 0 ? startIndex : 0;
+  const topBase = safeStartIndex * SLOT_PX;
+  const durationMin = Number(line?.duration_minutes) || SLOT_MINUTES;
+  const rawHeight = (durationMin / SLOT_MINUTES) * SLOT_PX;
+  const MIN_HEIGHT = Math.max(56, SLOT_PX * 1.35);
+  const height = Math.max(MIN_HEIGHT, rawHeight);
+
+  const w = Math.max(140, Number(colWidth) || 260);
+  const laneC = Math.max(1, Number(laneCount) || 1);
+  const laneI = Math.max(0, Math.min(laneIndex ?? 0, laneC - 1));
+  const PAD_L = 6;
+  const PAD_R = 6;
+  const GAP = laneC > 1 ? 6 : 0;
+  const usableW = Math.max(60, w - PAD_L - PAD_R);
+  const laneW = usableW / laneC;
+  const boxLeft = PAD_L + laneI * laneW + (GAP ? GAP / 2 : 0);
+  const boxWidth = Math.max(56, laneW - (GAP ? GAP : 0));
+
+  const customerName = appointment?.customers
+    ? `${appointment.customers.first_name ?? ""} ${appointment.customers.last_name ?? ""}`.trim() || "Cliente"
+    : "Cliente";
+  const meta = placeholderStatusMeta(appointment?.status);
+
+  return (
+    <div
+      className={[
+        "absolute z-30 rounded-2xl cursor-pointer",
+        "bg-scz-dark/95 backdrop-blur-md border border-white/10",
+        "shadow-[0_16px_55px_rgba(0,0,0,0.55)]",
+        isHighlighted ? "ring-2 ring-[#f3d8b6] shadow-[0_0_24px_rgba(243,216,182,0.35)]" : "ring-1 ring-black/40",
+      ].join(" ")}
+      style={{ top: topBase, height, left: boxLeft, width: boxWidth }}
+      onClick={() => onClick()}
+      data-appointment-id={appointment?.id != null ? String(appointment.id) : undefined}
+    >
+      <div className="absolute left-0 top-0 bottom-0 w-[7px] bg-white/20 rounded-l-2xl" />
+      <div className="relative z-10 h-full pl-5 pr-3 py-2 flex flex-col justify-center gap-0.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-mono font-black text-white/90">{startTime || "—"}</span>
+          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${meta.cls}`}>
+            {meta.label}
+          </span>
+        </div>
+        <h4 className="font-extrabold text-[#f3d8b6] truncate text-[13px]">{customerName}</h4>
+        <p className="text-[11px] text-white/60">Nessun servizio</p>
+      </div>
+    </div>
+  );
 }
 
 type AgendaGridProps = {
@@ -301,7 +409,7 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     loadAppointments(activeSalonId);
   }, [isReady, activeSalonId, currentDate, view, loadStaff, loadAppointments]);
 
-  // ===== PERF: pre-flatten linee una volta sola =====
+  // ===== PERF: pre-flatten linee una volta sola (include placeholder per app senza servizi) =====
   const dayLinesByStaff = useMemo(() => {
     if (view !== "day")
       return new Map<string | null, Array<{ app: any; line: any }>>();
@@ -311,11 +419,19 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
       const lines = Array.isArray(app?.appointment_services)
         ? app.appointment_services
         : [];
-      for (const line of lines) {
-        const sid = toIdStr(line?.staff_id);
-        const key = sid ?? null;
+      if (lines.length > 0) {
+        for (const line of lines) {
+          const sid = toIdStr(line?.staff_id);
+          const key = sid ?? null;
+          const arr = map.get(key) ?? [];
+          arr.push({ app, line });
+          map.set(key, arr);
+        }
+      } else {
+        const placeholder = createPlaceholderLine(app);
+        const key = toIdStr(app?.staff_id) ?? null;
         const arr = map.get(key) ?? [];
-        arr.push({ app, line });
+        arr.push({ app, line: placeholder });
         map.set(key, arr);
       }
     }
@@ -331,13 +447,17 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
 
     for (const app of appointments || []) {
       const dayKey = String(app?.start_time || "").slice(0, 10);
-      if (!map.has(dayKey)) continue;
+      if (!dayKey || !map.has(dayKey)) continue;
 
       const lines = Array.isArray(app?.appointment_services)
         ? app.appointment_services
         : [];
-      for (const line of lines) {
-        map.get(dayKey)!.push({ app, line });
+      if (lines.length > 0) {
+        for (const line of lines) {
+          map.get(dayKey)!.push({ app, line });
+        }
+      } else {
+        map.get(dayKey)!.push({ app, line: createPlaceholderLine(app) });
       }
     }
     return map;
@@ -675,23 +795,36 @@ function buildLanes(
                             className="pointer-events-auto"
                             data-appointment-id={app?.id != null ? String(app.id) : undefined}
                           >
-                            <ServiceBox
-                              appointment={app}
-                              line={line}
-                              hours={hours}
-                              onClick={() => setEditingAppointment(app)}
-                              onUpdated={() => loadAppointments(activeSalonId)}
-                              enableHorizontal={true}
-                              colWidth={columnWidth}
-                              columnIndex={colIdx}
-                              columnsCount={staff.length}
-                              gridHeightPx={gridHeightPx}
-                              columnStaffId={mid}
-                              staffOrder={staffOrder}
-                              laneIndex={laneIndex}
-                              laneCount={laneCount}
-                              isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
-                            />
+                            {isPlaceholderLine(line) ? (
+                              <PlaceholderAppointmentBox
+                                appointment={app}
+                                line={line}
+                                hours={hours}
+                                onClick={() => setEditingAppointment(app)}
+                                colWidth={columnWidth}
+                                isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
+                                laneIndex={laneIndex}
+                                laneCount={laneCount}
+                              />
+                            ) : (
+                              <ServiceBox
+                                appointment={app}
+                                line={line}
+                                hours={hours}
+                                onClick={() => setEditingAppointment(app)}
+                                onUpdated={() => loadAppointments(activeSalonId)}
+                                enableHorizontal={true}
+                                colWidth={columnWidth}
+                                columnIndex={colIdx}
+                                columnsCount={staff.length}
+                                gridHeightPx={gridHeightPx}
+                                columnStaffId={mid}
+                                staffOrder={staffOrder}
+                                laneIndex={laneIndex}
+                                laneCount={laneCount}
+                                isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
+                              />
+                            )}
                           </div>
                         ))}
 
@@ -730,21 +863,32 @@ function buildLanes(
                             className="pointer-events-auto"
                             data-appointment-id={app?.id != null ? String(app.id) : undefined}
                           >
-                            <ServiceBox
-                              appointment={app}
-                              line={line}
-                              hours={hours}
-                              onClick={() => setEditingAppointment(app)}
-                              onUpdated={() => loadAppointments(activeSalonId)}
-                              enableHorizontal={false}
-                              colWidth={colWidth}
-                              columnIndex={colIdx}
-                              columnsCount={weekDays.length}
-                              gridHeightPx={gridHeightPx}
-                              columnStaffId={null}
-                              staffOrder={staffOrder}
-                              isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
-                            />
+                            {isPlaceholderLine(line) ? (
+                              <PlaceholderAppointmentBox
+                                appointment={app}
+                                line={line}
+                                hours={hours}
+                                onClick={() => setEditingAppointment(app)}
+                                colWidth={colWidth}
+                                isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
+                              />
+                            ) : (
+                              <ServiceBox
+                                appointment={app}
+                                line={line}
+                                hours={hours}
+                                onClick={() => setEditingAppointment(app)}
+                                onUpdated={() => loadAppointments(activeSalonId)}
+                                enableHorizontal={false}
+                                colWidth={colWidth}
+                                columnIndex={colIdx}
+                                columnsCount={weekDays.length}
+                                gridHeightPx={gridHeightPx}
+                                columnStaffId={null}
+                                staffOrder={staffOrder}
+                                isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
+                              />
+                            )}
                           </div>
                         ))}
                       </div>

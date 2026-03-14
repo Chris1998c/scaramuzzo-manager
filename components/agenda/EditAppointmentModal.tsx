@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { X, User, FlaskConical, Banknote, Trash2, Save } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { generateHours, SLOT_MINUTES } from "./utils";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface Props {
   isOpen: boolean;
@@ -103,6 +104,7 @@ export default function EditAppointmentModal({
 
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string>("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // ore coerenti con griglia (15m) — fino a 20:30
   const hours = useMemo(() => generateHours("08:00", "20:30", SLOT_MINUTES), []);
@@ -270,18 +272,18 @@ export default function EditAppointmentModal({
     }
   }
 
-  async function deleteAppointment() {
-    if (!appointment?.id) return;
-    if (saving) return;
+  function openDeleteConfirm() {
+    if (!appointment?.id || saving) return;
+    setShowDeleteConfirm(true);
+  }
 
-    const ok = confirm("Vuoi eliminare questo appuntamento?");
-    if (!ok) return;
+  async function performDeleteAppointment() {
+    if (!appointment?.id) return;
 
     setSaving(true);
     setErr("");
 
     try {
-      // sicurezza: elimina prima le righe (se non hai ON DELETE CASCADE)
       const { error: delLinesErr } = await supabase
         .from("appointment_services")
         .delete()
@@ -356,6 +358,9 @@ export default function EditAppointmentModal({
   const headerStatus = statusMeta(appointment?.status);
   const headerTime = timeFromTsSafe(appointment?.start_time);
 
+  const status = String(appointment?.status ?? "").toLowerCase();
+  const disablePortaInSalaAndCassa = status === "done" || status === "cancelled";
+
   const serviceLines = useMemo(() => {
     const raw = Array.isArray(appointment?.appointment_services)
       ? appointment.appointment_services
@@ -429,11 +434,11 @@ export default function EditAppointmentModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               onClick={portaInSala}
-              disabled={saving}
+              disabled={saving || disablePortaInSalaAndCassa}
               className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3
                          bg-[#0FA958] text-white font-extrabold
                          shadow-[0_10px_35px_rgba(15,169,88,0.22)]
-                         hover:brightness-110 transition disabled:opacity-50"
+                         hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <User size={18} />
               Porta in sala
@@ -449,8 +454,8 @@ export default function EditAppointmentModal({
 
             <button
               onClick={goToCash}
-              disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 bg-[#f3d8b6] text-[#1A0F0A] font-extrabold hover:opacity-90 transition disabled:opacity-50"
+              disabled={saving || disablePortaInSalaAndCassa}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 bg-[#f3d8b6] text-[#1A0F0A] font-extrabold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cassa <Banknote size={18} />
             </button>
@@ -609,7 +614,7 @@ export default function EditAppointmentModal({
             </button>
 
             <button
-              onClick={deleteAppointment}
+              onClick={openDeleteConfirm}
               disabled={saving}
               className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 bg-red-500/15 text-red-200 border border-red-400/20 font-extrabold hover:bg-red-500/20 transition disabled:opacity-50"
             >
@@ -619,6 +624,16 @@ export default function EditAppointmentModal({
           </div>
         </div>
       </motion.div>
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={performDeleteAppointment}
+        title="Elimina appuntamento"
+        description="Vuoi eliminare questo appuntamento? L'operazione non può essere annullata."
+        confirmLabel="Elimina"
+        variant="danger"
+      />
     </div>
   );
 }

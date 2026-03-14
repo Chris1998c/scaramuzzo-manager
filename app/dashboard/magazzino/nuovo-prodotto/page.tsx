@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 type Role = "salone" | "magazzino" | "coordinator";
 
@@ -48,7 +49,7 @@ export default function NuovoProdottoPage() {
     const json = await res.json();
 
     if (!res.ok) {
-      alert(json.error || "Errore creazione prodotto");
+      toast.error(json.error || "Errore creazione prodotto");
       return;
     }
 
@@ -60,7 +61,7 @@ export default function NuovoProdottoPage() {
     setInitialQty("0");
     setDescription("");
 
-    alert("Prodotto creato");
+    toast.success("Prodotto creato");
   }
 
   if (loadingUser) {

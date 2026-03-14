@@ -9,7 +9,6 @@ import {
   Search,
   Plus,
   Check,
-  StickyNote,
   User,
   Scissors,
   Clock3,
@@ -358,10 +357,10 @@ async function loadServices() {
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-2xl rounded-[2.5rem] border border-[#5c3a21]/60 bg-[#140b07] shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-2xl rounded-[2.5rem] border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] overflow-hidden flex flex-col max-h-[92vh]"
       >
         {/* HEADER */}
-        <div className="px-8 py-6 border-b border-[#5c3a21]/40 flex justify-between items-center bg-black/20">
+        <div className="px-8 py-6 border-b border-white/10 flex justify-between items-center bg-black/20">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#f3d8b6]/50 font-black">
               Planning Agenda
@@ -555,7 +554,7 @@ async function loadServices() {
           {/* Note */}
           <div>
             <textarea
-              className="w-full bg-white/5 border border-white/10 rounded-2xl p-4"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
               placeholder="Note..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -564,7 +563,7 @@ async function loadServices() {
         </div>
 
         {/* FOOTER */}
-        <div className="p-6 border-t border-[#5c3a21]/40 bg-black/40 flex gap-4">
+        <div className="p-6 border-t border-white/10 bg-black/20 flex gap-4">
           <button
             disabled={saving}
             onClick={createAppointment}
