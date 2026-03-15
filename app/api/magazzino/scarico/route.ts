@@ -5,6 +5,22 @@ import { getReceptionSalonId } from "@/lib/receptionSalon";
 
 const MAGAZZINO_CENTRALE_ID = 5;
 
+function roleFromMetadata(user: unknown): string {
+  const u = user as { user_metadata?: { role?: unknown }; app_metadata?: { role?: unknown } };
+  return String(u?.user_metadata?.role ?? u?.app_metadata?.role ?? "").trim();
+}
+
+async function getRoleFromDb(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id, roles:roles(name)")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
+  return roleName ? String(roleName).trim() : null;
+}
+
 // Saloni validi: 1..4 + centrale 5
 function isValidSalonId(id: number) {
   return Number.isFinite(id) && id >= 1 && id <= MAGAZZINO_CENTRALE_ID;
@@ -40,7 +56,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const role = String(userData.user.user_metadata?.role ?? "");
+    const userId = userData.user.id;
+    const dbRole = await getRoleFromDb(userId);
+    const role = (dbRole || roleFromMetadata(userData.user)).trim();
 
     const allowed = role === "coordinator" || role === "magazzino" || role === "reception";
     if (!allowed) {
@@ -49,7 +67,7 @@ export async function POST(req: Request) {
 
     // RECEPTION: scarico solo dal proprio salone (source of truth: staff.salon_id)
     if (role === "reception") {
-      const mySalonId = await getReceptionSalonId(userData.user.id);
+      const mySalonId = await getReceptionSalonId(userId);
 
       if (!mySalonId || mySalonId < 1) {
         return NextResponse.json(

@@ -4,6 +4,22 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
+function roleFromMetadata(user: unknown): string {
+  const u = user as { user_metadata?: { role?: unknown }; app_metadata?: { role?: unknown } };
+  return String(u?.user_metadata?.role ?? u?.app_metadata?.role ?? "").trim();
+}
+
+async function getRoleFromDb(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id, roles:roles(name)")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
+  return roleName ? String(roleName).trim() : null;
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -33,7 +49,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const role = String(userData.user.user_metadata?.role ?? "");
+    const userId = userData.user.id;
+    const dbRole = await getRoleFromDb(userId);
+    const role = (dbRole || roleFromMetadata(userData.user)).trim();
     if (role !== "magazzino" && role !== "coordinator") {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }

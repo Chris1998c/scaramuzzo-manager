@@ -144,8 +144,6 @@ function normalizeLines(body: CloseBody) {
 ======================= */
 
 export async function POST(req: Request) {
-  let createdSaleId: number | null = null;
-
   try {
     const supabase = await createServerSupabase();
 
@@ -444,104 +442,45 @@ export async function POST(req: Request) {
       }
     }
 
-    // 8) CREA VENDITA
-    const { data: sale, error: saleErr } = await supabaseAdmin
-      .from("sales")
-      .insert({
-        salon_id: salonId,
-        customer_id: customerId,
-        total_amount: finalTotal,
-        payment_method: paymentMethod,
-        discount: totalDiscount,
-        date: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (saleErr || !sale) {
-      return NextResponse.json(
-        { error: saleErr?.message ?? "Errore creazione vendita" },
-        { status: 500 }
-      );
-    }
-
-    const saleId = (sale as { id: number }).id;
-    createdSaleId = saleId;
-
-    const saleItemsInsert = computedItems.map((l) => ({
-      sale_id: saleId,
-      service_id: l.kind === "service" ? l.id : null,
-      product_id: l.kind === "product" ? l.id : null,
+    // 8) CHIUSURA ATOMICA VIA RPC (sales + sale_items + stock_move + appointment)
+    const pItems = computedItems.map((l) => ({
+      kind: l.kind,
+      ref_id: l.id,
       staff_id: staffId,
       quantity: l.qty,
       price: l.unitPrice,
       discount: l.lineDisc,
     }));
 
-    const { error: itemsErr } = await supabaseAdmin
-      .from("sale_items")
-      .insert(saleItemsInsert);
+    const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc(
+      "close_sale_atomic",
+      {
+        p_salon_id: salonId,
+        p_customer_id: customerId,
+        p_total_amount: finalTotal,
+        p_payment_method: paymentMethod,
+        p_discount: totalDiscount,
+        p_items: pItems,
+        p_appointment_id: appointmentId ?? null,
+      }
+    );
 
-    if (itemsErr) {
-      await supabaseAdmin.from("sales").delete().eq("id", saleId);
+    if (rpcErr) {
       return NextResponse.json(
-        { error: itemsErr.message ?? "Errore inserimento articoli" },
+        { error: rpcErr.message ?? "Errore chiusura cassa" },
         { status: 500 }
       );
     }
 
-    // 9) SCARICO MAGAZZINO
-    for (const l of computedItems.filter((i) => i.kind === "product")) {
-      const { error: rpcErr } = await supabaseAdmin.rpc("stock_move", {
-        p_product_id: l.id,
-        p_qty: l.qty,
-        p_from_salon: salonId,
-        p_to_salon: null,
-        p_movement_type: "sale",
-        p_reason: `Vendita #${saleId}`,
-      });
-
-      if (rpcErr) {
-        return NextResponse.json(
-          {
-            error: `Errore scarico magazzino prodotto ${l.id}: ${rpcErr.message ?? "rpc"}`,
-            sale_id: saleId,
-            product_id: l.id,
-            partial_stock_moved: true,
-            needs_reconciliation: true,
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    // 10) CHIUDE APPUNTAMENTO (OBBLIGATORIO SE PRESENTE)
-    if (appointmentId) {
-      const {
-        data: apptUpdated,
-        error: apptUpdateErr,
-      } = await supabaseAdmin
-        .from("appointments")
-        .update({
-          sale_id: saleId,
-          status: "done",
-        })
-        .eq("id", appointmentId)
-        .is("sale_id", null)
-        .select("id, sale_id, status")
-        .maybeSingle();
-
-      if (apptUpdateErr || !apptUpdated) {
-        return NextResponse.json(
-          {
-            error: "Vendita creata ma aggiornamento appuntamento fallito",
-            sale_id: saleId,
-            totals: { subtotal, total: finalTotal, discount: totalDiscount },
-            details: apptUpdateErr?.message ?? "appointment not updated",
-          },
-          { status: 500 }
-        );
-      }
+    const saleId =
+      Array.isArray(rpcData) && rpcData.length > 0
+        ? (rpcData[0] as { sale_id: number }).sale_id
+        : null;
+    if (saleId == null || !Number.isFinite(saleId)) {
+      return NextResponse.json(
+        { error: "RPC non ha restituito sale_id" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -550,15 +489,6 @@ export async function POST(req: Request) {
       totals: { subtotal, total: finalTotal, discount: totalDiscount },
     });
   } catch (e) {
-    try {
-      if (createdSaleId) {
-        await supabaseAdmin.from("sale_items").delete().eq("sale_id", createdSaleId);
-        await supabaseAdmin.from("sales").delete().eq("id", createdSaleId);
-      }
-    } catch {
-      // ignore cleanup error
-    }
-
     return NextResponse.json({ error: errMsg(e) }, { status: 500 });
   }
 }

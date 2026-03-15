@@ -6,6 +6,22 @@ import { getReceptionSalonId } from "@/lib/receptionSalon";
 
 const MAGAZZINO_CENTRALE_ID = 5;
 
+function roleFromMetadata(user: unknown): string {
+  const u = user as { user_metadata?: { role?: unknown }; app_metadata?: { role?: unknown } };
+  return String(u?.user_metadata?.role ?? u?.app_metadata?.role ?? "").trim();
+}
+
+async function getRoleFromDb(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id, roles:roles(name)")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
+  return roleName ? String(roleName).trim() : null;
+}
+
 // Destinazione carico da centrale: solo saloni veri 1..4 (NO 5)
 function isValidDestinationSalonId(id: number) {
   return Number.isFinite(id) && id >= 1 && id < MAGAZZINO_CENTRALE_ID;
@@ -36,8 +52,8 @@ export async function POST(req: Request) {
     }
 
     const userId = userData.user.id;
-    const meta: any = userData.user.user_metadata ?? {};
-    const role = String(meta?.role ?? "");
+    const dbRole = await getRoleFromDb(userId);
+    const role = (dbRole || roleFromMetadata(userData.user)).trim();
 
     const isReception = role === "reception";
     const isWarehouse = role === "magazzino" || role === "coordinator";

@@ -3,10 +3,20 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
-function roleFromUser(user: any): string {
-  return String(
-    user?.user_metadata?.role ?? user?.app_metadata?.role ?? "",
-  ).trim();
+function roleFromMetadata(user: unknown): string {
+  const u = user as { user_metadata?: { role?: unknown }; app_metadata?: { role?: unknown } };
+  return String(u?.user_metadata?.role ?? u?.app_metadata?.role ?? "").trim();
+}
+
+async function getRoleFromDb(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id, roles:roles(name)")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
+  return roleName ? String(roleName).trim() : null;
 }
 
 export async function POST(req: Request) {
@@ -21,7 +31,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const role = roleFromUser(authData.user);
+    const dbRole = await getRoleFromDb(authData.user.id);
+    const role = (dbRole || roleFromMetadata(authData.user)).trim();
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), {
         status: 403,
