@@ -75,6 +75,19 @@ async function getReceptionSalonId(userId: string): Promise<number | null> {
   return sid && sid > 0 ? sid : null;
 }
 
+async function getAllowedSalonIds(userId: string): Promise<number[]> {
+  const { data, error } = await supabaseAdmin
+    .from("user_salons")
+    .select("salon_id")
+    .eq("user_id", userId);
+
+  if (error || !Array.isArray(data)) return [];
+
+  return (data as { salon_id?: unknown }[])
+    .map((row) => toInt(row.salon_id))
+    .filter((id): id is number => !!id && id > 0);
+}
+
 export async function GET(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -116,6 +129,17 @@ export async function GET(req: Request) {
 
     if (!salonId || salonId <= 0) {
       return NextResponse.json({ error: "salon_id missing/invalid" }, { status: 400 });
+    }
+
+    // AUTHZ salone per coordinator/magazzino
+    if (role !== "reception") {
+      const allowedSalonIds = await getAllowedSalonIds(userId);
+      if (!allowedSalonIds.length || !allowedSalonIds.includes(salonId)) {
+        return NextResponse.json(
+          { error: "salon_id non consentito per questo utente" },
+          { status: 403 },
+        );
+      }
     }
 
     // validate salon exists
@@ -169,7 +193,7 @@ export async function GET(req: Request) {
     if (saleIds.length) {
       const { data: items, error: itemsErr } = await supabaseAdmin
         .from("sale_items")
-        .select("kind, qty, quantity, unit_price, price, discount, discount_pct, discount_percent, total_amount, line_total, amount, total")
+        .select("sale_id, service_id, product_id, quantity, price, discount")
         .in("sale_id", saleIds);
 
       if (itemsErr) return NextResponse.json({ error: itemsErr.message }, { status: 500 });
@@ -178,23 +202,15 @@ export async function GET(req: Request) {
       countItems = saleItems.length;
 
       for (const it of saleItems as any[]) {
-        const kind = String(it?.kind || "").toLowerCase(); // service|product
-        const qty = Math.max(0, toNum(it?.qty ?? it?.quantity, 0));
-        const unitPrice = toNum(it?.unit_price ?? it?.price, 0);
+        const qty = Math.max(0, toNum(it?.quantity, 0));
+        const unitPrice = toNum(it?.price, 0);
+        const discountAmount = toNum(it?.discount, 0);
+        const lineTotal = Math.max(0, round2(unitPrice * qty - discountAmount));
 
-        const discRaw = toNum(it?.discount ?? it?.discount_pct ?? it?.discount_percent, 0);
-        const discountPct = discRaw > 0 && discRaw <= 100 ? discRaw : 0;
-
-        const storedLineTotal = toNum(
-          it?.total_amount ?? it?.line_total ?? it?.amount ?? it?.total,
-          NaN
-        );
-
-        const computed = unitPrice * qty * (1 - discountPct / 100);
-        const lineTotal = Number.isFinite(storedLineTotal) ? storedLineTotal : computed;
-
-        if (kind === "service") servicesGross += lineTotal;
-        if (kind === "product") productsGross += lineTotal;
+        const hasService = it?.service_id != null;
+        const hasProduct = it?.product_id != null;
+        if (hasService) servicesGross += lineTotal;
+        if (hasProduct) productsGross += lineTotal;
       }
     }
 

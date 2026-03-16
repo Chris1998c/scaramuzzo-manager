@@ -74,6 +74,19 @@ async function getReceptionSalonId(userId: string): Promise<number | null> {
   return sid && sid > 0 ? sid : null;
 }
 
+async function getAllowedSalonIds(userId: string): Promise<number[]> {
+  const { data, error } = await supabaseAdmin
+    .from("user_salons")
+    .select("salon_id")
+    .eq("user_id", userId);
+
+  if (error || !Array.isArray(data)) return [];
+
+  return (data as { salon_id?: unknown }[])
+    .map((row) => toInt(row.salon_id))
+    .filter((id): id is number => !!id && id > 0);
+}
+
 async function sumSalesByRange(args: {
   salonId: number;
   startIso: string;
@@ -153,6 +166,17 @@ export async function GET(req: Request) {
         { error: "salon_id missing/invalid" },
         { status: 400 },
       );
+    }
+
+    // AUTHZ salone per coordinator/magazzino
+    if (role !== "reception") {
+      const allowedSalonIds = await getAllowedSalonIds(userId);
+      if (!allowedSalonIds.length || !allowedSalonIds.includes(salonId)) {
+        return NextResponse.json(
+          { error: "salon_id non consentito per questo utente" },
+          { status: 403 },
+        );
+      }
     }
 
     // Validate salon exists (and return name)

@@ -19,6 +19,34 @@ async function getRoleFromDb(userId: string): Promise<string | null> {
   return roleName ? String(roleName).trim() : null;
 }
 
+async function getReceptionSalonId(userId: string): Promise<number | null> {
+  const { data, error } = await supabaseAdmin
+    .from("staff")
+    .select("salon_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const sid = Number((data as any)?.salon_id);
+  return Number.isFinite(sid) && sid > 0 ? sid : null;
+}
+
+async function getAllowedSalonIds(userId: string): Promise<number[]> {
+  const { data, error } = await supabaseAdmin
+    .from("user_salons")
+    .select("salon_id")
+    .eq("user_id", userId);
+
+  if (error || !Array.isArray(data)) return [];
+
+  return (data as { salon_id?: unknown }[])
+    .map((row) => {
+      const n = Number(row.salon_id);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })
+    .filter((id): id is number => id !== null);
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -40,7 +68,8 @@ export async function POST(req: Request) {
       });
     }
     const body = await req.json();
-    const salonId = Number(body?.salon_id);
+    const rawSalonId = Number(body?.salon_id);
+    let salonId = rawSalonId;
 
     if (!Number.isFinite(salonId) || salonId <= 0) {
       return new Response(JSON.stringify({ error: "Invalid salon_id" }), {
@@ -51,13 +80,8 @@ export async function POST(req: Request) {
 
     // ✅ reception può fare Z SOLO del proprio salone
     if (role === "reception") {
-      const { data: staffRow, error: staffErr } = await supabaseAdmin
-        .from("staff")
-        .select("salon_id")
-        .eq("user_id", authData.user.id)
-        .maybeSingle();
-
-      if (staffErr || !staffRow?.salon_id) {
+      const mySalonId = await getReceptionSalonId(authData.user.id);
+      if (!mySalonId) {
         return new Response(
           JSON.stringify({ error: "Reception senza salon_id associato" }),
           {
@@ -67,12 +91,20 @@ export async function POST(req: Request) {
         );
       }
 
-      const mySalonId = Number(staffRow.salon_id);
-      if (
-        !Number.isFinite(mySalonId) ||
-        mySalonId <= 0 ||
-        salonId !== mySalonId
-      ) {
+      if (salonId !== mySalonId) {
+        return new Response(
+          JSON.stringify({
+            error: "salon_id non consentito per questo utente",
+          }),
+          {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+    } else {
+      const allowedSalonIds = await getAllowedSalonIds(authData.user.id);
+      if (!allowedSalonIds.length || !allowedSalonIds.includes(salonId)) {
         return new Response(
           JSON.stringify({
             error: "salon_id non consentito per questo utente",
