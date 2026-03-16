@@ -210,6 +210,46 @@ export async function POST(req: Request) {
 
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
+    // Job fiscale Z (best effort, non blocca la chiusura)
+    let fiscalWarning: string | null = null;
+    let fiscalJob: any | null = null;
+    try {
+      const { data: profile, error: profErr } = await supabaseAdmin.rpc("get_fiscal_profile", {
+        p_salon_id: salonId,
+        p_on_date: nowIso.slice(0, 10),
+      });
+
+      if (profErr || !profile || profile.length === 0) {
+        fiscalWarning = "Fiscal profile non trovato per il salone; Z non richiesta";
+      } else {
+        const fiscal = profile[0] as any;
+        const { data: job, error: jobErr } = await supabaseAdmin
+          .from("fiscal_print_jobs")
+          .insert({
+            salon_id: salonId,
+            created_by: userId,
+            kind: "z_report",
+            printer_model: fiscal.printer_model,
+            printer_serial: fiscal.printer_serial,
+            payload: {
+              requested_at: nowIso,
+              printer_serial: fiscal.printer_serial,
+            },
+            status: "pending",
+          })
+          .select()
+          .single();
+
+        if (jobErr) {
+          fiscalWarning = `Job fiscale Z non creato: ${jobErr.message ?? "errore"}`;
+        } else {
+          fiscalJob = job;
+        }
+      }
+    } catch (e) {
+      fiscalWarning = `Errore creazione job fiscale Z: ${errMsg(e)}`;
+    }
+
     return NextResponse.json({
       ok: true,
       salon: { id: (salonRow as any).id, name: (salonRow as any).name ?? null },
@@ -220,6 +260,8 @@ export async function POST(req: Request) {
         session_card: totals.card,
         session_count_sales: totals.count,
       },
+      fiscal_job: fiscalJob,
+      fiscal_warning: fiscalWarning,
     });
   } catch (e) {
     return NextResponse.json({ error: errMsg(e) }, { status: 500 });
