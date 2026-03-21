@@ -272,11 +272,15 @@ export default function ServiceBox({
     setCheckingIn(true);
 
     try {
-      const { data, error } = await supabase.rpc("appointment_checkin", {
-        p_appointment_id: Number(appointment.id),
+      const res = await fetch("/api/agenda/porta-in-sala", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointment_id: Number(appointment.id) }),
       });
-      if (error) throw error;
-      if (!data?.ok) throw new Error("checkin failed");
+
+      const json = await res.json().catch(() => ({}) as any);
+      if (!res.ok)
+        throw new Error(json?.error || "Errore durante Porta in sala");
 
       onUpdated?.();
       router.push(`/dashboard/cassa/${appointment.id}`);

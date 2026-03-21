@@ -1,6 +1,7 @@
 // lib/reports/getSalonTurnover.ts
 
 import { createServerSupabase } from "@/lib/supabaseServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type TurnoverFilters = {
   salonId: number;
@@ -29,6 +30,8 @@ export type ReportRow = {
   staff_id: number | null;
   staff_name: string | null;
   payment_method: string | null;
+  /** Stato fiscale vendita (solo UI lista: non usato nei totali) */
+  fiscal_status?: string | null;
 };
 
 function normalizeRow(r: any): ReportRow {
@@ -209,8 +212,41 @@ export async function getSalonTurnover(filters: TurnoverFilters) {
     ? rowsData.map((r) => normalizeRow(r))
     : [];
 
+  const saleIds = [
+    ...new Set(
+      normalizedRows
+        .map((r) => r.sale_id)
+        .filter((x) => x != null && x !== "")
+        .map((x) => Number(x))
+        .filter((n) => Number.isFinite(n) && n > 0),
+    ),
+  ];
+
+  const fiscalBySaleId = new Map<number, string>();
+  if (saleIds.length > 0) {
+    const { data: salesFs } = await supabaseAdmin
+      .from("sales")
+      .select("id, fiscal_status")
+      .in("id", saleIds);
+
+    for (const s of salesFs ?? []) {
+      const row = s as { id?: unknown; fiscal_status?: unknown };
+      const id = Number(row.id);
+      if (!Number.isFinite(id)) continue;
+      fiscalBySaleId.set(
+        id,
+        String(row.fiscal_status ?? "pending").trim() || "pending",
+      );
+    }
+  }
+
+  const rowsWithFiscal: ReportRow[] = normalizedRows.map((r) => ({
+    ...r,
+    fiscal_status: fiscalBySaleId.get(Number(r.sale_id)) ?? "pending",
+  }));
+
   return {
     totals,
-    rows: normalizedRows,
+    rows: rowsWithFiscal,
   };
 }

@@ -198,7 +198,7 @@ export async function GET(req: Request) {
     const { data: session, error: sessErr } = await supabaseAdmin
       .from("cash_sessions")
       .select(
-        "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes",
+        "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes, printer_enabled",
       )
       .eq("salon_id", salonId)
       .is("closed_at", null)

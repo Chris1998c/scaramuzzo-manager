@@ -157,7 +157,7 @@ export async function POST(req: Request) {
     const { data: existing, error: exErr } = await supabaseAdmin
       .from("cash_sessions")
       .select(
-        "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes"
+        "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes, printer_enabled"
       )
       .eq("salon_id", salonId)
       .is("closed_at", null)
@@ -175,7 +175,7 @@ export async function POST(req: Request) {
           .update({ opening_cash: openingCash })
           .eq("id", (existing as any).id)
           .select(
-            "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes"
+            "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes, printer_enabled"
           )
           .single();
 
@@ -201,7 +201,7 @@ export async function POST(req: Request) {
         opened_at: now,
       })
       .select(
-        "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes"
+        "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes, printer_enabled"
       )
       .single();
 

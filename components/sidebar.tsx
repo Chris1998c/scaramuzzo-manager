@@ -5,7 +5,15 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarDays, Home, Package, X, Users, FileText } from "lucide-react";
+import {
+  CalendarDays,
+  Home,
+  Package,
+  X,
+  Users,
+  FileText,
+  Settings,
+} from "lucide-react";
 import { useUI } from "@/lib/ui-store";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
@@ -37,6 +45,10 @@ const sections: MenuSection[] = [
       { name: "Magazzino", icon: Package, href: "/dashboard/magazzino" },
       { name: "Report", icon: FileText, href: "/dashboard/report" },
     ],
+  },
+  {
+    title: "Sistema",
+    items: [{ name: "Impostazioni", icon: Settings, href: "/dashboard/impostazioni" }],
   },
 ];
 

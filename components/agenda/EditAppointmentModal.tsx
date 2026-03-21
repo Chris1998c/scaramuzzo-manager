@@ -312,23 +312,15 @@ export default function EditAppointmentModal({
     setErr("");
 
     try {
-      // preferito: RPC già usata altrove (ServiceBox)
-      const { data, error } = await supabase.rpc("appointment_checkin", {
-        p_appointment_id: Number(appointment.id),
+      const res = await fetch("/api/agenda/porta-in-sala", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointment_id: Number(appointment.id) }),
       });
 
-      // fallback se RPC non presente
-      if (error) {
-        const { error: upErr } = await supabase
-          .from("appointments")
-          .update({ status: "in_sala" })
-          .eq("id", appointment.id);
-        if (upErr) throw upErr;
-      } else {
-        if (!data?.ok) {
-          // se la tua RPC non ritorna {ok:true}, non blocchiamo: consideriamo ok
-        }
-      }
+      const json = await res.json().catch(() => ({}) as any);
+      if (!res.ok)
+        throw new Error(json?.error || "Errore durante Porta in sala");
 
       onUpdated?.();
       close();

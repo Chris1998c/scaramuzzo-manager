@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { checkPrintBridgeReachable } from "@/lib/printBridgeHealth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,8 @@ type CloseBody = {
   global_discount?: number; // % (0-100) sul subtotale già scontato per riga
   lines?: CloseLineInput[];
   items?: CloseLineInput[]; // compat
+  /** Solo se `true`: stampa fiscale richiesta (check bridge + job). Omesso/false = solo vendita, fiscal_status pending */
+  printer_enabled?: boolean;
 };
 
 /* =======================
@@ -70,30 +73,25 @@ function roleFromMetadata(user: unknown): string {
   ).trim();
 }
 
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id, roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-
-  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
-  return roleName ? String(roleName).trim() : null;
-}
-
-async function getReceptionSalonId(userId: string): Promise<number | null> {
+/** Allineato a /api/agenda/porta-in-sala: ruolo operativo da public.staff */
+async function getStaffInfo(userId: string): Promise<{
+  role: string | null;
+  salonId: number | null;
+}> {
   const { data, error } = await supabaseAdmin
     .from("staff")
-    .select("salon_id")
+    .select("role, salon_id")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error || !data) return { role: null, salonId: null };
 
-  const sid = toInt((data as { salon_id?: unknown })?.salon_id, NaN);
-  return Number.isFinite(sid) && sid > 0 ? sid : null;
+  const role = (data as { role?: unknown }).role
+    ? String((data as { role?: unknown }).role).trim()
+    : null;
+  const sid = toInt((data as { salon_id?: unknown }).salon_id, NaN);
+  const salonId = Number.isFinite(sid) && sid > 0 ? sid : null;
+  return { role, salonId };
 }
 
 async function getAllowedSalonIds(userId: string): Promise<number[]> {
@@ -156,9 +154,9 @@ export async function POST(req: Request) {
     const user = authData.user;
     const userId = user.id;
 
-    // ruolo: DB come source of truth, fallback metadata
-    const dbRole = await getRoleFromDb(userId);
-    const role = (dbRole || roleFromMetadata(user)) as StaffRole;
+    // ruolo: public.staff come source of truth, fallback metadata (come porta-in-sala)
+    const staffInfo = await getStaffInfo(userId);
+    const role = (staffInfo.role || roleFromMetadata(user)) as StaffRole;
 
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
@@ -171,6 +169,8 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
+
+    const printerEnabled = body.printer_enabled === true;
 
     const hasAppointmentId = Number.isFinite(toNumber(body.appointment_id, NaN));
     const hasSalonIdInBody = Number.isFinite(toNumber(body.salon_id, NaN));
@@ -298,7 +298,7 @@ export async function POST(req: Request) {
 
     // 4) AUTHZ SALONE
     if (role === "reception") {
-      const mySalonId = await getReceptionSalonId(userId);
+      const mySalonId = staffInfo.salonId;
 
       if (!mySalonId) {
         return NextResponse.json(
@@ -348,6 +348,42 @@ export async function POST(req: Request) {
       );
     }
 
+    let fiscalProfileForJob: {
+      printer_model?: string;
+      printer_serial?: string;
+      legal_name?: string;
+      vat_number?: string;
+    } | null = null;
+
+    if (printerEnabled) {
+      const bridge = await checkPrintBridgeReachable();
+      if (!bridge.ok) {
+        return NextResponse.json({ error: bridge.error }, { status: 400 });
+      }
+      const { data: profile, error: profErr } = await supabaseAdmin.rpc(
+        "get_fiscal_profile",
+        {
+          p_salon_id: salonId,
+          p_on_date: new Date().toISOString().slice(0, 10),
+        }
+      );
+      if (profErr || !profile?.length) {
+        return NextResponse.json(
+          {
+            error:
+              "Profilo fiscale non trovato per questo salone. Impossibile stampare.",
+          },
+          { status: 400 }
+        );
+      }
+      fiscalProfileForJob = profile[0] as {
+        printer_model?: string;
+        printer_serial?: string;
+        legal_name?: string;
+        vat_number?: string;
+      };
+    }
+
     // 6) PREZZI SERVER-SIDE
     const serviceIds = [
       ...new Set(lines.filter((l) => l.kind === "service").map((l) => l.id)),
@@ -356,28 +392,69 @@ export async function POST(req: Request) {
       ...new Set(lines.filter((l) => l.kind === "product").map((l) => l.id)),
     ];
 
-    const [svcRes, prodRes] = await Promise.all([
+    const [spRes, prodRes] = await Promise.all([
       serviceIds.length
-        ? supabaseAdmin.from("services").select("id, price").in("id", serviceIds)
+        ? supabaseAdmin
+            .from("service_prices")
+            .select("service_id, price")
+            .eq("salon_id", salonId)
+            .in("service_id", serviceIds)
         : Promise.resolve({ data: [], error: null } as const),
       productIds.length
         ? supabaseAdmin.from("products").select("id, price").in("id", productIds)
         : Promise.resolve({ data: [], error: null } as const),
     ]);
 
-    if (svcRes.error || prodRes.error) {
+    if (spRes.error || prodRes.error) {
       return NextResponse.json(
         { error: "Errore nel caricamento prezzi" },
         { status: 500 }
       );
     }
 
-    const svcMap = new Map<number, number>(
-      (svcRes.data ?? []).map((s) => [s.id, Number(s.price)])
+    const servicePriceMap = new Map<number, number>(
+      (spRes.data ?? []).map((r: { service_id: number; price: unknown }) => [
+        Number(r.service_id),
+        Number(r.price),
+      ])
     );
+
+    if (serviceIds.length) {
+      const missing = serviceIds.filter((id) => !servicePriceMap.has(id));
+      if (missing.length) {
+        return NextResponse.json(
+          {
+            error: `Prezzo mancante in service_prices per questo salone (servizio/i: ${missing.join(", ")})`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const prodRows = (prodRes.data ?? []) as Array<{ id: number; price?: unknown }>;
     const prodMap = new Map<number, number>(
-      (prodRes.data ?? []).map((p) => [p.id, Number(p.price)])
+      prodRows.map((p) => [p.id, Number(p.price)])
     );
+
+    if (productIds.length) {
+      const productRowById = new Map(prodRows.map((p) => [p.id, p]));
+      const badProductIds = productIds.filter((id) => {
+        const row = productRowById.get(id);
+        if (!row) return true;
+        const raw = row.price;
+        if (raw === null || raw === undefined) return true;
+        const n = Number(raw);
+        return Number.isNaN(n) || !Number.isFinite(n);
+      });
+      if (badProductIds.length) {
+        return NextResponse.json(
+          {
+            error: `Prezzo mancante o non valido per questo prodotto (id: ${badProductIds.join(", ")})`,
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     // 7) TOTALI
     let subtotal = 0;
@@ -385,7 +462,7 @@ export async function POST(req: Request) {
 
     const computedItems = lines.map((l) => {
       const rawUnit =
-        l.kind === "service" ? svcMap.get(l.id) : prodMap.get(l.id);
+        l.kind === "service" ? servicePriceMap.get(l.id) : prodMap.get(l.id);
       const unitPrice = toNumber(rawUnit, NaN);
 
       if (!Number.isFinite(unitPrice)) {
@@ -483,9 +560,53 @@ export async function POST(req: Request) {
       );
     }
 
+    let fiscalPrintJobId: number | undefined;
+
+    if (printerEnabled && fiscalProfileForJob) {
+      const fiscal = fiscalProfileForJob;
+      const { data: insertedJob, error: jobErr } = await supabaseAdmin
+        .from("fiscal_print_jobs")
+        .insert({
+          salon_id: salonId,
+          created_by: userId,
+          kind: "sale_receipt",
+          printer_model: fiscal.printer_model,
+          printer_serial: fiscal.printer_serial,
+          payload: {
+            sale_id: saleId,
+            total_amount: finalTotal,
+            payment_method: paymentMethod,
+            legal_name: fiscal.legal_name,
+            vat_number: fiscal.vat_number,
+            printer_serial: fiscal.printer_serial,
+            requested_at: new Date().toISOString(),
+          },
+          status: "pending",
+        })
+        .select("id")
+        .single();
+      if (jobErr) {
+        return NextResponse.json(
+          {
+            error: `Impossibile accodare la stampa fiscale: ${jobErr.message ?? "errore"}. La vendita è stata registrata.`,
+          },
+          { status: 500 }
+        );
+      }
+      if (insertedJob?.id != null) {
+        fiscalPrintJobId = Number(insertedJob.id);
+      }
+      const { error: fsErr } = await supabaseAdmin
+        .from("sales")
+        .update({ fiscal_status: "queued" })
+        .eq("id", saleId);
+      if (fsErr) console.error("sales fiscal_status update", fsErr);
+    }
+
     return NextResponse.json({
       ok: true,
       sale_id: saleId,
+      fiscal_print_job_id: fiscalPrintJobId,
       totals: { subtotal, total: finalTotal, discount: totalDiscount },
     });
   } catch (e) {

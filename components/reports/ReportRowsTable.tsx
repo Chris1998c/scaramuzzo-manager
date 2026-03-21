@@ -14,6 +14,8 @@ type Row = {
   price: number;
   item_discount: number | null;
   line_total_gross: number;
+  /** Da sales.fiscal_status: solo resa UI (Boss: -1 se non stampato) */
+  fiscal_status?: string | null;
 };
 
 function money(n: any) {
@@ -28,6 +30,32 @@ function paymentLabel(pm: string | null) {
   if (p === "cash") return { label: "Contanti", cash: true, card: false };
   if (p === "card") return { label: "Carta", cash: false, card: true };
   return { label: p.charAt(0).toUpperCase() + p.slice(1), cash: false, card: false };
+}
+
+/** Boss-style: numero reale solo se stampato fiscalmente; altrimenti -1 (solo UI) */
+function scontrinoDisplay(
+  saleId: number | string | null,
+  fiscalStatus: string | null | undefined,
+): { text: string; title: string } {
+  const fs = String(fiscalStatus ?? "").toLowerCase().trim();
+  if (fs === "printed") {
+    if (saleId == null || saleId === "") {
+      return { text: "—", title: "Scontrino stampato (ID mancante)" };
+    }
+    return {
+      text: `#${saleId}`,
+      title: "Scontrino stampato",
+    };
+  }
+  return {
+    text: "-1",
+    title:
+      fs === "error"
+        ? "Errore stampa fiscale"
+        : fs === "queued"
+          ? "In coda di stampa"
+          : "Non ancora stampato",
+  };
 }
 
 const thBase =
@@ -111,6 +139,7 @@ export default function ReportRowsTable({ rows }: { rows: Row[] }) {
                     : r.service_name ?? "Servizio";
                 const pm = paymentLabel(r.payment_method);
                 const isProduct = r.item_type === "product";
+                const sc = scontrinoDisplay(r.sale_id, r.fiscal_status);
 
                 return (
                   <tr
@@ -149,8 +178,11 @@ export default function ReportRowsTable({ rows }: { rows: Row[] }) {
                     <td className={`${tdBase} ${tdSecondary}`}>
                       {r.sale_day}
                     </td>
-                    <td className={`${tdBase} ${tdSecondary}`}>
-                      #{r.sale_id}
+                    <td
+                      className={`${tdBase} ${tdSecondary} font-mono tabular-nums`}
+                      title={sc.title}
+                    >
+                      {sc.text}
                     </td>
                     <td className={tdBase}>
                       <span

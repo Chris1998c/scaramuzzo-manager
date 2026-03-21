@@ -79,11 +79,13 @@ const MODULES: Tile[] = [
     color: "purple"
   },
   {
-    kind: "locked",
+    kind: "live",
     title: "Impostazioni",
-    subtitle: "Configurazioni & parametri",
+    subtitle: "Centro di controllo e personalizzazione",
+    href: "/dashboard/impostazioni",
     icon: Settings,
-    tag: "In arrivo",
+    tag: "Sistema",
+    color: "stone",
   },
 ];
 

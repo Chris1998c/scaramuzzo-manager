@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { fetchCashServices } from "@/lib/servicesCatalog";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -69,6 +70,9 @@ export default function CassaPage() {
   // Open cassa UI
   const [openingCash, setOpeningCash] = useState<number>(0);
   const [opening, setOpening] = useState(false);
+
+  /** Allineato a cash_sessions.printer_enabled: se true richiede Print Bridge + job fiscale */
+  const [printerEnabled, setPrinterEnabled] = useState(true);
 
   /* =======================
      LOAD DATA & AUTO-FILL
@@ -147,39 +151,40 @@ useEffect(() => {
       c = cd ?? null;
     }
 
-// 3) Listini (dropdown aggiunta manuale) ✅ PREZZI DA service_prices
+// 3) Catalogo cassa (dropdown): active + visible_in_cash + prezzi salone (fetchCashServices)
 const salonId = Number(a.salon_id);
 const asRows: any[] = Array.isArray(a.appointment_services) ? a.appointment_services : [];
-// prendo i servizi base (senza fidarmi di services.price)
-const [{ data: baseServices, error: svErr }, { data: pr, error: prErr }] =
-  await Promise.all([
-    supabase
-      .from("services")
-      .select("id, name, active")
-      .eq("active", true)
-      .order("name"),
-    supabase
-      .from("products")
-      .select("id, name, price, active")
-      .eq("active", true)
-      .order("name"),
-  ]);
 
-if (svErr || prErr) console.error("Errore listini", svErr, prErr);
+const [cashRows, prResult] = await Promise.all([
+  fetchCashServices(supabase, salonId).catch((e) => {
+    console.error("fetchCashServices", e);
+    return [] as Awaited<ReturnType<typeof fetchCashServices>>;
+  }),
+  supabase
+    .from("products")
+    .select("id, name, price, active")
+    .eq("active", true)
+    .order("name"),
+]);
 
-// 4) priceMap completo per TUTTI i servizi del dropdown
+const pr = prResult.data;
+if (prResult.error) console.error("Errore listini prodotti", prResult.error);
+
+// 4) service_prices per righe appuntamento (fallback) anche se il servizio non è più nel catalogo cassa
+const apptServiceIds = asRows
+  .map((as: any) => Number(as.service_id))
+  .filter((x: number) => Number.isFinite(x) && x > 0);
+const priceLookupIds = [
+  ...new Set([...cashRows.map((s) => s.id), ...apptServiceIds]),
+];
+
 const priceMap = new Map<string, number>();
-
-const allServiceIds = (baseServices || [])
-  .map((s: any) => Number(s.id))
-  .filter((x: any) => Number.isFinite(x) && x > 0);
-
-if (Number.isFinite(salonId) && salonId > 0 && allServiceIds.length) {
+if (Number.isFinite(salonId) && salonId > 0 && priceLookupIds.length) {
   const { data: sp, error: spErr } = await supabase
     .from("service_prices")
     .select("service_id, price")
     .eq("salon_id", salonId)
-    .in("service_id", allServiceIds);
+    .in("service_id", priceLookupIds);
 
   if (spErr) {
     console.error("Errore service_prices", spErr);
@@ -190,11 +195,10 @@ if (Number.isFinite(salonId) && salonId > 0 && allServiceIds.length) {
   }
 }
 
-// ✅ services per il dropdown: prezzo = service_prices (fallback 0)
-const mergedServices = (baseServices || []).map((s: any) => ({
-  id: Number(s.id),
+const mergedServices = cashRows.map((s) => ({
+  id: s.id,
   name: String(s.name ?? "Servizio"),
-  price: priceMap.get(String(s.id)) ?? 0,
+  price: s.price,
   active: true,
 }));
 
@@ -243,6 +247,31 @@ setProducts(pr || []);
     cancelled = true;
   };
 }, [appointmentId, supabase]);
+
+  useEffect(() => {
+    const pe = cassa?.session?.printer_enabled;
+    if (typeof pe === "boolean") setPrinterEnabled(pe);
+  }, [cassa?.session?.printer_enabled]);
+
+  async function setPrinterEnabledPersist(next: boolean) {
+    const salonId = Number(appointment?.salon_id);
+    if (!Number.isFinite(salonId) || salonId <= 0) return;
+    if (!cassa?.is_open) return;
+    setPrinterEnabled(next);
+    try {
+      const res = await fetch("/api/cassa/session-printer", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ salon_id: salonId, printer_enabled: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Errore salvataggio");
+      await refreshCassaStatus(salonId);
+    } catch (e: any) {
+      setPrinterEnabled(!next);
+      toast.error(e?.message || "Errore");
+    }
+  }
 
   /* =======================
      HANDLERS
@@ -390,6 +419,7 @@ setProducts(pr || []);
           payment_method: paymentMethod,
           global_discount: Number(globalDiscountPct.toFixed(4)), // %
           lines,
+          printer_enabled: printerEnabled,
         }),
       });
 
@@ -816,6 +846,25 @@ setProducts(pr || []);
             </div>
           </div>
 
+          {cassa?.is_open && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+              <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-white/90">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-white/20 bg-black/40"
+                  checked={printerEnabled}
+                  onChange={(e) => void setPrinterEnabledPersist(e.target.checked)}
+                />
+                <span>Stampante fiscale attiva</span>
+              </label>
+              <span className="text-[10px] text-white/45 max-w-[220px]">
+                {printerEnabled
+                  ? "Serve Print Bridge raggiungibile dal server."
+                  : "Registrazione vendita senza stampa (fiscale in attesa)."}
+              </span>
+            </div>
+          )}
+
           {/* Metodi di pagamento */}
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 mb-3">
@@ -877,7 +926,7 @@ setProducts(pr || []);
                   Elaborazione...
                 </span>
               ) : cassa?.is_open ? (
-                "Conferma e chiudi scontrino"
+                printerEnabled ? "Registra e stampa" : "Registra"
               ) : (
                 "Apri cassa per chiudere"
               )}
