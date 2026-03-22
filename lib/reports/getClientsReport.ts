@@ -58,7 +58,7 @@ export async function getClientsReport(filters: ClientsReportFilters) {
   if (customerIds.length) {
     const { data: customers, error: custErr } = await supabase
       .from("customers")
-      .select("id, first_name, last_name, name")
+      .select("id, customer_code, first_name, last_name, name")
       .in("id", customerIds);
 
     if (custErr) throw new Error(custErr.message);

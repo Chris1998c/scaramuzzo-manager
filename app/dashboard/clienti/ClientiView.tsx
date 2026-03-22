@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
+import { insertCustomerWithAllocatedCode } from "@/lib/nextCustomerCode";
 import { Plus, Search, X, Users, Download } from "lucide-react";
 
 type Customer = {
   id: string;
+  customer_code: string;
   first_name: string;
   last_name: string;
   phone: string;
@@ -36,13 +38,15 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
     return (
       c.first_name.toLowerCase().includes(q) ||
       c.last_name.toLowerCase().includes(q) ||
-      c.phone.includes(q)
+      c.phone.includes(q) ||
+      c.customer_code.toLowerCase().includes(q)
     );
   });
 
   function exportCSV() {
-    const headers = ["Nome", "Cognome", "Telefono", "Indirizzo"];
+    const headers = ["Codice", "Nome", "Cognome", "Telefono", "Indirizzo"];
     const rows = customers.map((c) => [
+      c.customer_code,
       c.first_name,
       c.last_name,
       c.phone,
@@ -74,41 +78,30 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
 
     setSaving(true);
 
-    const { data, error } = await supabase
-      .from("customers")
-      .insert({
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        phone: form.phone.trim(),
-        address: form.address.trim() ? form.address.trim() : null,
-      })
-      .select("id, first_name, last_name, phone, address, notes")
-      .single();
-    setCustomers(prev =>
+    const { data, error } = await insertCustomerWithAllocatedCode(supabase, {
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      phone: form.phone.trim(),
+      address: form.address.trim() ? form.address.trim() : null,
+    });
 
-      [data as Customer, ...prev].sort((a, b) =>
-        (a.last_name || "").localeCompare(b.last_name || "", "it")
-      )
-
-    );
-    setCustomers(prev =>
-      [data as Customer, ...prev].sort((a, b) =>
-        (a.last_name || "").localeCompare(b.last_name || "", "it")
-      )
-    );
-
-    if (error) {
-      const msg = error.message.toLowerCase();
+    if (error || !data) {
+      const msg = String(error?.message ?? "").toLowerCase();
       if (msg.includes("duplicate") || msg.includes("unique")) {
         setError("Esiste già un cliente con questo numero di telefono.");
       } else {
-        setError(error.message);
+        setError(error?.message ?? "Errore salvataggio.");
       }
       setSaving(false);
       return;
     }
 
-    setCustomers((prev) => [data as Customer, ...prev]);
+    const row = data as Customer;
+    setCustomers((prev) =>
+      [row, ...prev].sort((a, b) =>
+        (a.last_name || "").localeCompare(b.last_name || "", "it"),
+      ),
+    );
     setOpen(false);
     setForm({ first_name: "", last_name: "", phone: "", address: "" });
     setSaving(false);
@@ -178,6 +171,7 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
                 <div className="text-lg font-extrabold text-[#f3d8b6] tracking-tight">
                   {c.first_name} {c.last_name}
                 </div>
+                <div className="text-xs font-mono text-[#f3d8b6]/80 mt-0.5">{c.customer_code}</div>
                 <div className="text-sm text-[#c9b299] mt-1">📞 {c.phone}</div>
                 {c.address && (
                   <div className="text-xs text-[#c9b299]/80 mt-1 truncate">

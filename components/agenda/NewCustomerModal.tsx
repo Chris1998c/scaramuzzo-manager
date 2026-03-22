@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { insertCustomerWithAllocatedCode } from "@/lib/nextCustomerCode";
 import { motion } from "framer-motion";
 import { X, UserPlus, Phone, Mail, User } from "lucide-react";
 
@@ -115,16 +116,12 @@ export default function NewCustomerModal({ isOpen, close, onCreated }: Props) {
         return;
       }
 
-      const { data, error: dbError } = await supabase
-        .from("customers")
-        .insert({
-          first_name: fn,
-          last_name: ln,
-          phone: ph,
-          email: em || null,
-        })
-        .select("*")
-        .single();
+      const { data, error: dbError } = await insertCustomerWithAllocatedCode(supabase, {
+        first_name: fn,
+        last_name: ln,
+        phone: ph,
+        email: em || null,
+      });
 
       if (dbError || !data) throw dbError ?? new Error("Insert failed");
 

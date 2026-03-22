@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import ClienteProfile from "./cliente-profile";
 import SchedeTecniche from "./schede-tecniche";
 import ClientInsightsPanel from "./ClientInsightsPanel";
+import ClienteAnagraficaForm from "./ClienteAnagraficaForm";
 
 type Params = { id: string };
 
@@ -18,43 +19,50 @@ export default async function ClientePage({ params }: { params: Params }) {
 
   const { data: customer, error } = await supabase
     .from("customers")
-    .select("id, first_name, last_name, phone, address")
+    .select("id, customer_code, first_name, last_name, phone, email, address, notes")
     .eq("id", params.id)
     .single();
 
   if (error || !customer) redirect("/dashboard/clienti");
 
+  const c = customer as {
+    id: string;
+    customer_code: string;
+    first_name: string;
+    last_name: string;
+    phone: string;
+    email: string | null;
+    address: string | null;
+    notes: string | null;
+  };
+
   return (
     <div className="space-y-8">
-      {/* TOP HEADER */}
-      <div className="rounded-3xl bg-[#24140e]/70 border border-[#5c3a21]/60 p-6 backdrop-blur-md shadow-[0_0_60px_rgba(0,0,0,0.22)]">
-        <div className="flex items-start justify-between gap-6">
-          <div className="min-w-0">
-            <Link
-              href="/dashboard/clienti"
-              className="inline-flex items-center gap-2 text-sm text-[#c9b299] hover:text-[#f3d8b6] transition"
-            >
-              <ArrowLeft size={16} />
-              Torna ai clienti
-            </Link>
-
-            <h1 className="mt-3 text-3xl font-extrabold text-[#f3d8b6] tracking-tight truncate">
-              {customer.first_name} {customer.last_name}
-            </h1>
-
-            <div className="mt-2 text-[#c9b299] space-y-1 text-sm">
-              <div>📞 {customer.phone}</div>
-              {customer.address && <div>📍 {customer.address}</div>}
-            </div>
-          </div>
-
-          <div className="hidden md:block">
-            <span className="inline-flex px-3 py-1 rounded-full border border-[#5c3a21]/60 bg-black/15 text-xs text-[#f3d8b6]/70">
-              Scheda cliente globale (tutti i saloni)
-            </span>
-          </div>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Link
+          href="/dashboard/clienti"
+          className="inline-flex items-center gap-2 text-sm text-[#c9b299] hover:text-[#f3d8b6] transition"
+        >
+          <ArrowLeft size={16} />
+          Torna ai clienti
+        </Link>
+        <span className="inline-flex px-3 py-1 rounded-full border border-[#5c3a21]/60 bg-black/15 text-xs text-[#f3d8b6]/70">
+          Scheda cliente globale (tutti i saloni)
+        </span>
       </div>
+
+      <ClienteAnagraficaForm
+        initial={{
+          id: c.id,
+          customer_code: c.customer_code,
+          first_name: c.first_name,
+          last_name: c.last_name,
+          phone: c.phone,
+          email: c.email,
+          address: c.address,
+          notes: c.notes,
+        }}
+      />
 
       {/* GRID */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

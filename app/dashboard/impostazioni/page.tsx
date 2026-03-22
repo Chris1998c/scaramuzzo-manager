@@ -4,6 +4,12 @@ import { Sparkles } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { fetchServicesForSettings } from "@/lib/servicesCatalog";
+import { fetchProductsForSettings } from "@/lib/productsSettings";
+import { fetchStaffForSettings } from "@/lib/staffSettings";
+import { fetchSalonsForSettings } from "@/lib/salonsSettings";
+import { fetchFiscalSettingsSnapshot } from "@/lib/fiscalSettings";
+import { fetchCustomersDomainSnapshot } from "@/lib/customersDomainSnapshot";
+import type { CustomersDomainSnapshot } from "@/lib/customersDomainTypes";
 import ImpostazioniShell from "@/components/settings/ImpostazioniShell";
 
 export const metadata = {
@@ -42,6 +48,64 @@ export default async function ImpostazioniPage() {
   }));
 
   const canManageServices = access.role === "coordinator";
+  const canManageProducts = access.role === "coordinator";
+  const canManageStaff = access.role === "coordinator";
+
+  let products: Awaited<ReturnType<typeof fetchProductsForSettings>> = [];
+  try {
+    products = await fetchProductsForSettings(supabase);
+  } catch (e) {
+    console.error("Impostazioni: caricamento prodotti", e);
+    products = [];
+  }
+
+  let staff: Awaited<ReturnType<typeof fetchStaffForSettings>> = [];
+  try {
+    staff = await fetchStaffForSettings(supabase);
+  } catch (e) {
+    console.error("Impostazioni: caricamento staff", e);
+    staff = [];
+  }
+
+  let salons: Awaited<ReturnType<typeof fetchSalonsForSettings>> = [];
+  try {
+    salons = await fetchSalonsForSettings(supabase);
+  } catch (e) {
+    console.error("Impostazioni: caricamento saloni", e);
+    salons = [];
+  }
+
+  let fiscalSnapshot: Awaited<ReturnType<typeof fetchFiscalSettingsSnapshot>> = null;
+  try {
+    fiscalSnapshot = await fetchFiscalSettingsSnapshot(supabase, activeSalonId);
+  } catch (e) {
+    console.error("Impostazioni: snapshot fiscale", e);
+    fiscalSnapshot = null;
+  }
+
+  const canUseSessionPrinter = ["reception", "coordinator", "magazzino"].includes(
+    access.role,
+  );
+
+  let customersDomainSnapshot: CustomersDomainSnapshot;
+  try {
+    customersDomainSnapshot = await fetchCustomersDomainSnapshot(supabase);
+  } catch (e) {
+    console.error("Impostazioni: dominio clienti", e);
+    const t = new Date().toISOString();
+    customersDomainSnapshot = {
+      fetchedAt: t,
+      counts: {
+        customers: null,
+        customer_profile: null,
+        customer_notes: null,
+        customer_tech_notes: null,
+        customer_technical_cards: null,
+        technical_sheets: null,
+        customer_service_cards: null,
+      },
+    };
+  }
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
@@ -63,10 +127,18 @@ export default async function ImpostazioniPage() {
 
       <ImpostazioniShell
         initialServices={services}
+        initialProducts={products}
+        initialStaff={staff}
         initialSalonId={activeSalonId}
         initialSalonLabel={salonMeta?.name ?? null}
         categories={categories}
         canManageServices={canManageServices}
+        canManageProducts={canManageProducts}
+        canManageStaff={canManageStaff}
+        initialSalons={salons}
+        initialFiscalSnapshot={fiscalSnapshot}
+        canUseSessionPrinter={canUseSessionPrinter}
+        initialCustomersDomainSnapshot={customersDomainSnapshot}
       />
     </div>
   );

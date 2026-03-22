@@ -12,7 +12,7 @@ export default async function ClientiPage() {
 
   const { data: customers, error } = await supabase
     .from("customers")
-    .select("id, first_name, last_name, phone, address, notes")
+    .select("id, customer_code, first_name, last_name, phone, address, notes")
     .order("last_name", { ascending: true });
 
   if (error) {

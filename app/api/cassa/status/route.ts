@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { fetchFiscalTodayStatusCounts } from "@/lib/fiscalSettings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,6 +149,9 @@ export async function GET(req: Request) {
     // - coordinator/magazzino: ?salon_id= required
     const url = new URL(req.url);
     const qSalon = toInt(url.searchParams.get("salon_id"));
+    const includeFiscalCounts =
+      url.searchParams.get("include_fiscal_counts") === "1" ||
+      url.searchParams.get("include_fiscal_counts") === "true";
     let salonId: number | null = qSalon;
 
     if (role === "reception") {
@@ -265,6 +269,11 @@ export async function GET(req: Request) {
       session_count_sales: tSess.count,
     };
 
+    let fiscal_today: Awaited<ReturnType<typeof fetchFiscalTodayStatusCounts>> | undefined;
+    if (includeFiscalCounts) {
+      fiscal_today = await fetchFiscalTodayStatusCounts(supabaseAdmin, salonId);
+    }
+
     return NextResponse.json({
       ok: true,
       role,
@@ -272,6 +281,7 @@ export async function GET(req: Request) {
       is_open: Boolean(session),
       session: session ?? null,
       totals,
+      ...(fiscal_today ? { fiscal_today } : {}),
     });
   } catch (e) {
     return NextResponse.json({ error: errMsg(e) }, { status: 500 });
