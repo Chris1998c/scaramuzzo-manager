@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
+  MessageCircle,
   Package,
   Palette,
   Pencil,
@@ -27,12 +28,14 @@ import StaffModal from "@/components/settings/StaffModal";
 import FiscaleStampantePanel from "@/components/settings/FiscaleStampantePanel";
 import AspettoPanel from "@/components/settings/AspettoPanel";
 import ClientiImpostazioniPanel from "@/components/settings/ClientiImpostazioniPanel";
+import CanaliWhatsAppPanel from "@/components/settings/CanaliWhatsAppPanel";
 
 type SectionKey =
   | "servizi"
   | "prodotti"
   | "collaboratori"
   | "clienti"
+  | "canali"
   | "fiscale"
   | "aspetto"
   | "saloni";
@@ -73,6 +76,13 @@ const SECTIONS: Array<{
     ready: true,
   },
   {
+    key: "canali",
+    label: "Canali",
+    hint: "WhatsApp per salone (config Meta, senza invii)",
+    icon: MessageCircle,
+    ready: true,
+  },
+  {
     key: "fiscale",
     label: "Fiscale e stampante",
     hint: "Bridge, sessione cassa e stati vendita",
@@ -81,8 +91,8 @@ const SECTIONS: Array<{
   },
   {
     key: "aspetto",
-    label: "Aspetto",
-    hint: "Tema da codice; preferenze salvate sul dispositivo",
+    label: "Interfaccia",
+    hint: "Interfaccia standard; preferenze UI locali (es. sidebar)",
     icon: Palette,
     ready: true,
   },
@@ -312,6 +322,12 @@ export default function ImpostazioniShell({
           />
         ) : section === "clienti" ? (
           <ClientiImpostazioniPanel snapshot={initialCustomersDomainSnapshot} />
+        ) : section === "canali" ? (
+          <CanaliWhatsAppPanel
+            salonId={effectiveSalonId}
+            salonLabel={salonLabel}
+            canManage={canManageServices}
+          />
         ) : section === "fiscale" ? (
           <FiscaleStampantePanel
             initialSalonId={initialSalonId}

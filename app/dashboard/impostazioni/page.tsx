@@ -23,6 +23,8 @@ export default async function ImpostazioniPage() {
   if (!auth?.user) redirect("/login");
 
   const access = await getUserAccess();
+  // Coerenza accessi enterprise: il ruolo "cliente" non deve vedere il centro di controllo.
+  if (access.role === "cliente") redirect("/dashboard");
   const activeSalonId = access.staffSalonId ?? access.defaultSalonId;
   const salonMeta =
     activeSalonId != null

@@ -1,7 +1,9 @@
 // lib/integrations/whatsappClaimOtp.ts
-// WhatsApp Cloud API (Meta Graph): template con parametro body = OTP.
-
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION?.trim() || "v21.0";
+// WhatsApp Cloud API (Meta Graph): OTP claim cliente (delega al core graph).
+import {
+  normalizePhoneForWhatsAppTo,
+  sendWhatsAppTemplateMessage,
+} from "@/lib/integrations/whatsappGraph";
 
 export type SendClaimOtpParams = {
   /** Numero come in anagrafica (normalizzazione lato provider consigliata). */
@@ -14,35 +16,9 @@ export type SendClaimOtpResult =
   | { ok: true; skipped: true; reason: string }
   | { ok: false; error: string };
 
-/** Cifre solo, senza +; formato atteso da Graph API per `to`. */
-function normalizePhoneForWhatsAppTo(phoneRaw: string): string | null {
-  let d = phoneRaw.replace(/\D/g, "");
-  if (d.startsWith("00")) d = d.slice(2);
-  // Esempio IT: cellulare 10 cifre che inizia con 3 → prefisso 39
-  if (d.length === 10 && d.startsWith("3")) d = `39${d}`;
-  if (d.length < 8 || d.length > 15) return null;
-  return d;
-}
-
-function graphMessagesUrl(phoneNumberId: string): string {
-  return `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`;
-}
-
-function summarizeMetaError(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "Risposta Meta non valida.";
-  const err = (payload as { error?: { message?: string; error_user_msg?: string } })
-    .error;
-  const msg =
-    err?.error_user_msg?.trim() ||
-    err?.message?.trim() ||
-    "Invio WhatsApp rifiutato.";
-  return msg.length > 280 ? `${msg.slice(0, 277)}...` : msg;
-}
-
 /**
  * Invia OTP via WhatsApp (template approvato in Meta Business Manager).
  * Se mancano token o phone number id → `skipped` (stesso comportamento dello stub).
- * Con token + id servono anche nome template e lingua (vedi env sotto).
  */
 export async function sendClaimOtpWhatsApp(
   params: SendClaimOtpParams
@@ -83,67 +59,18 @@ export async function sendClaimOtpWhatsApp(
     return { ok: false, error: "OTP non valido per l'invio." };
   }
 
-  const body = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to,
-    type: "template",
-    template: {
-      name: templateName,
-      language: { code: templateLang },
-      components: [
-        {
-          type: "body",
-          parameters: [{ type: "text", text: otp }],
-        },
-      ],
-    },
-  };
+  const send = await sendWhatsAppTemplateMessage({
+    accessToken: token,
+    phoneNumberId: phoneId,
+    toDigits: to,
+    templateName,
+    templateLanguageCode: templateLang,
+    bodyParameters: [otp],
+  });
 
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 15_000);
-
-  try {
-    const res = await fetch(graphMessagesUrl(phoneId), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-
-    const json = (await res.json().catch(() => null)) as Record<
-      string,
-      unknown
-    > | null;
-
-    if (!res.ok) {
-      return {
-        ok: false,
-        error: summarizeMetaError(json),
-      };
-    }
-
-    const messages = json?.messages;
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return {
-        ok: false,
-        error: summarizeMetaError(json),
-      };
-    }
-
-    return { ok: true };
-  } catch (e) {
-    const aborted = e instanceof Error && e.name === "AbortError";
-    return {
-      ok: false,
-      error: aborted
-        ? "Timeout durante l'invio WhatsApp."
-        : "Errore di rete durante l'invio WhatsApp.",
-    };
-  } finally {
-    clearTimeout(t);
+  if (!send.ok) {
+    return { ok: false, error: send.error };
   }
+
+  return { ok: true };
 }

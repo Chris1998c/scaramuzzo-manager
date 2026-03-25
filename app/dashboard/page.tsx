@@ -101,49 +101,110 @@ export default async function DashboardPage() {
   const activeSalonId = access.staffSalonId || access.defaultSalonId;
 
   // 2. Query Dati Reali (Filtrati per Salone se applicabile)
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const toLocalDateTime = (d: Date) =>
+    `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+
+  const startOfDayLocal = toLocalDateTime(startOfDay);
+  const endOfDayLocal = toLocalDateTime(endOfDay);
 
   // Query 1: Incasso (solo completati del salone attivo)
-  let incassoQuery = supabase
-    .from("appointments")
-    .select("price")
-    .eq("date", today)
-    .eq("status", "completed");
-  
-  if (activeSalonId) incassoQuery = incassoQuery.eq("salon_id", activeSalonId);
-  const { data: incassoData } = await incassoQuery;
-  const totaleIncasso = incassoData?.reduce((acc, curr) => acc + (curr.price || 0), 0) || 0;
+  const incassoBaseQuery = supabase
+    .from("sales")
+    .select("total_amount");
+
+  let totaleIncasso = 0;
+  try {
+    let incassoQuery = incassoBaseQuery
+      .gte("date", startOfDayLocal)
+      .lt("date", endOfDayLocal);
+    if (activeSalonId) incassoQuery = incassoQuery.eq("salon_id", activeSalonId);
+
+    const { data: incassoData, error: incassoErr } = await incassoQuery;
+    if (incassoErr) throw incassoErr;
+
+    totaleIncasso = (incassoData ?? []).reduce(
+      (acc, curr) => acc + (Number((curr as any)?.total_amount) || 0),
+      0
+    );
+  } catch (e) {
+    console.error("[dashboard] Incasso Giornaliero query error", e);
+    totaleIncasso = 0;
+  }
 
   // Query 2: Appuntamenti (Totali vs Completati)
-  let appQuery = supabase
-    .from("appointments")
-    .select("*", { count: 'exact', head: true })
-    .eq("date", today);
-  
-  if (activeSalonId) appQuery = appQuery.eq("salon_id", activeSalonId);
-  const { count: totalApp } = await appQuery;
+  let totalApp = 0;
+  let completedApp = 0;
+  try {
+    let appQuery = supabase
+      .from("appointments")
+      .select("*", { count: "exact", head: true })
+      .gte("start_time", startOfDayLocal)
+      .lt("start_time", endOfDayLocal);
 
-  let compQuery = supabase
-    .from("appointments")
-    .select("*", { count: 'exact', head: true })
-    .eq("date", today)
-    .eq("status", "completed");
-  
-  if (activeSalonId) compQuery = compQuery.eq("salon_id", activeSalonId);
-  const { count: completedApp } = await compQuery;
+    if (activeSalonId) appQuery = appQuery.eq("salon_id", activeSalonId);
+
+    const { count: totalCount, error: totalErr } = await appQuery;
+    if (totalErr) throw totalErr;
+    totalApp = totalCount ?? 0;
+
+    let compQuery = supabase
+      .from("appointments")
+      .select("*", { count: "exact", head: true })
+      .gte("start_time", startOfDayLocal)
+      .lt("start_time", endOfDayLocal)
+      .eq("status", "done");
+
+    if (activeSalonId) compQuery = compQuery.eq("salon_id", activeSalonId);
+
+    const { count: doneCount, error: doneErr } = await compQuery;
+    if (doneErr) throw doneErr;
+    completedApp = doneCount ?? 0;
+  } catch (e) {
+    console.error("[dashboard] Stato Agenda query error", e);
+    totalApp = 0;
+    completedApp = 0;
+  }
 
   // Query 3: Magazzino (Sottoscorta - Filter per salone se i prodotti sono divisi)
-  let stockQuery = supabase
-    .from("products")
-    .select("*", { count: 'exact', head: true })
-    .lt("stock", 5);
-  
-  // Se la tua tabella prodotti ha il salon_id, scommenta:
-  // if (activeSalonId) stockQuery = stockQuery.eq("salon_id", activeSalonId);
-  const { count: alertStock } = await stockQuery;
+  let alertStock = 0;
+  try {
+    let stockQuery = supabase
+      .from("products_with_stock")
+      .select("*", { count: "exact", head: true })
+      .lt("quantity", 5);
+
+    if (activeSalonId) stockQuery = stockQuery.eq("salon_id", activeSalonId);
+
+    const { count: stockCount, error: stockErr } = await stockQuery;
+    if (stockErr) throw stockErr;
+    alertStock = stockCount ?? 0;
+  } catch (e) {
+    console.error("[dashboard] Alert Stock query error", e);
+    alertStock = 0;
+  }
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-10 pb-12">
+
+      {access.role === "cliente" ? (
+        <section className="rounded-2xl border border-[#f3d8b6]/25 bg-[#f3d8b6]/10 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <p className="text-sm text-[#f5e7d6]/95 leading-relaxed">
+            <span className="font-bold text-[#f3d8b6]">Collega il tuo profilo cliente</span>
+            {" — "}verifica l&apos;anagrafica con il codice del salone e un codice WhatsApp.
+          </p>
+          <Link
+            href="/cliente/collega"
+            className="shrink-0 inline-flex items-center justify-center rounded-xl bg-[#f3d8b6] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#1c0f0a] hover:brightness-110 transition"
+          >
+            Avvia collegamento
+          </Link>
+        </section>
+      ) : null}
       
       {/* --- HEADER HERO --- */}
       <section className="relative overflow-hidden rounded-[2.5rem] border border-[#5c3a21]/50 bg-[#24140e]/60 p-8 md:p-10 backdrop-blur-xl shadow-2xl">
@@ -162,8 +223,21 @@ export default async function DashboardPage() {
           </div>
 
           <div className="flex flex-wrap gap-4">
-            <QuickActionButton href="/dashboard/agenda" label="Nuovo Appuntamento" icon={CalendarDays} primary />
-            <QuickActionButton href="/dashboard/magazzino" label="Carico Merce" icon={Package} />
+            {access.role !== "cliente" ? (
+              <>
+                <QuickActionButton
+                  href="/dashboard/agenda"
+                  label="Nuovo Appuntamento"
+                  icon={CalendarDays}
+                  primary
+                />
+                <QuickActionButton
+                  href="/dashboard/magazzino"
+                  label="Carico Merce"
+                  icon={Package}
+                />
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -176,7 +250,7 @@ export default async function DashboardPage() {
         <StatCard 
           label="Incasso Giornaliero" 
           value={`€ ${totaleIncasso.toLocaleString('it-IT')}`} 
-          description="Basato su servizi completati" 
+          description="Somma sales di oggi" 
           trend={totaleIncasso > 0 ? "up" : "neutral"} 
         />
         <StatCard 
@@ -196,7 +270,8 @@ export default async function DashboardPage() {
       </section>
 
       {/* --- MODULES GRID --- */}
-      <section className="space-y-6">
+      {access.role !== "cliente" ? (
+        <section className="space-y-6">
         <div className="flex items-center justify-between px-2">
           <h2 className="text-2xl font-bold text-[#f3d8b6]">Moduli Operativi</h2>
           <div className="h-px flex-1 bg-[#5c3a21]/30 mx-6 hidden md:block" />
@@ -208,6 +283,7 @@ export default async function DashboardPage() {
           ))}
         </div>
       </section>
+      ) : null}
     </div>
   );
 }

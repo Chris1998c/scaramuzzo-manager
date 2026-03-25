@@ -10,6 +10,7 @@ import { getAgendaReport } from "@/lib/reports/getAgendaReport";
 import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
+import { getWhatsAppReminderLog } from "@/lib/reports/getWhatsAppReminderLog";
 
 import ReportSalonSync from "./ReportSalonSync";
 import ReportFilters from "@/components/reports/ReportFilters";
@@ -38,6 +39,7 @@ import ReportServicesTopTable from "@/components/reports/ReportServicesTopTable"
 import ReportProductsKpiRow from "@/components/reports/ReportProductsKpiRow";
 import ReportProductsTopTable from "@/components/reports/ReportProductsTopTable";
 import ReportProductsLowStockTable from "@/components/reports/ReportProductsLowStockTable";
+import ReportWhatsAppRemindersTable from "@/components/reports/ReportWhatsAppRemindersTable";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -71,7 +73,8 @@ type TabKey =
   | "agenda"
   | "clienti"
   | "servizi"
-  | "prodotti";
+  | "prodotti"
+  | "whatsapp_reminders";
 
 type ReportPageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -222,6 +225,11 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
         })
       : { totals: { products_qty: 0, products_gross: 0, low_stock_count: 0 }, topProducts: [], lowStock: [] };
 
+  const waReminderLog =
+    salonId && tab === "whatsapp_reminders"
+      ? await getWhatsAppReminderLog({ salonId, dateFrom, dateTo })
+      : { rows: [], totals: { sent: 0, error: 0, processing: 0 } };
+
   const { totals, rows, daily, topItems, staffPerformance, previousTotals } = salesAnalytics;
 
   return (
@@ -250,6 +258,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
             ["clienti", "Clienti"],
             ["servizi", "Servizi"],
             ["prodotti", "Prodotti"],
+            ["whatsapp_reminders", "WhatsApp"],
           ] as Array<[TabKey, string]>
         ).map(([k, label]) => (
           <a
@@ -364,6 +373,14 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
           <ReportProductsLowStockTable rows={productsReport.lowStock as any} />
         </>
       )}
+
+      {/* === WHATSAPP REMINDER (solo lettura) === */}
+      {tab === "whatsapp_reminders" && salonId ? (
+        <ReportWhatsAppRemindersTable
+          rows={waReminderLog.rows}
+          totals={waReminderLog.totals}
+        />
+      ) : null}
     </div>
   );
 }

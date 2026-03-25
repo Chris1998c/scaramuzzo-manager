@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarDays,
   Home,
+  Megaphone,
   Package,
   X,
   Users,
@@ -64,6 +65,7 @@ export default function Sidebar() {
   // ✅ ruolo corrente (source già in app: ActiveSalonProvider)
   const { role, isReady } = useActiveSalon();
   const isCoordinator = isReady && role === "coordinator";
+  const isStaffMarketing = isReady && role !== "cliente";
 
   const visibleSections = useMemo(() => {
     // se non pronto, non “sparire” tutto: mostriamo menu senza Report
@@ -74,11 +76,12 @@ export default function Sidebar() {
         ...s,
         items: s.items.filter((it) => {
           if (it.href === "/dashboard/report") return canSeeReport;
+          if (it.href === "/dashboard/marketing") return isStaffMarketing;
           return true;
         }),
       }))
       .filter((s) => s.items.length > 0);
-  }, [isCoordinator]);
+  }, [isCoordinator, isStaffMarketing]);
 
   const handleNavClick = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) closeSidebar();

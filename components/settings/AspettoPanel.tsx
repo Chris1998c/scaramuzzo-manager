@@ -20,28 +20,23 @@ export default function AspettoPanel() {
       <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.06] px-4 py-3 text-sm text-[#c9b299] leading-relaxed">
         <span className="inline-flex items-center gap-2 font-bold text-rose-200/95">
           <Info size={16} className="shrink-0" />
-          Stato configurazione
+          Interfaccia
         </span>
         <p className="mt-2">
-          Nel database <strong className="text-[#e8dcc8]">non è ancora modellata</strong> alcuna
-          preferenza di tema, colore o branding per utente/salone. Questa sezione non inventa
-          colonne: quando esisterà uno storage reale, qui si potranno collegare i controlli.
+          In questa versione l&apos;interfaccia del gestionale è <strong className="text-[#e8dcc8]">standard</strong>.
+          Le configurazioni operative di agenda, collaboratori e servizi si gestiscono nelle sezioni dedicate.
+          Questa area include solo preferenze UI locali disponibili sul dispositivo (es. sidebar).
         </p>
       </div>
 
       <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.06] px-4 py-3">
         <div className="flex items-center gap-2 text-violet-200/95">
           <Palette size={18} />
-          <span className="text-sm font-bold">Palette applicativa (codice)</span>
+          <span className="text-sm font-bold">Palette applicativa</span>
         </div>
         <p className="mt-2 text-sm text-[#c9b299] leading-relaxed">
-          Il tema è <strong className="text-[#e8dcc8]">unico e scuro</strong>, definito staticamente in{" "}
-          <code className="text-[#f3d8b6]/90">app/globals.css</code> (variabili CSS{" "}
-          <code className="text-white/55">--bg</code>, <code className="text-white/55">--card</code>,{" "}
-          <code className="text-white/55">--text</code>, <code className="text-white/55">--accent</code>
-          ) e integrato con Tailwind (token <code className="text-white/55">scz.dark</code>,{" "}
-          <code className="text-white/55">scz.gold</code>, ecc.). Non è selezionabile dall&apos;utente
-          finché non esiste persistenza dedicata.
+          I colori e lo stile dell&apos;interfaccia sono definiti in modo unico a livello applicativo:
+          non sono personalizzati per salone in questa release.
         </p>
       </div>
 
