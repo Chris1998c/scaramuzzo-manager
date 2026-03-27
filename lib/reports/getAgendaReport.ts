@@ -122,7 +122,6 @@ export async function getAgendaReport(filters: AgendaReportFilters) {
     const { data: staffRows, error: staffErr } = await supabase
       .from("staff")
       .select("id, name")
-      .eq("salon_id", salonId)
       .in("id", staffIds);
 
     if (staffErr) throw new Error(staffErr.message);

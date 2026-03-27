@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import { motion } from "framer-motion";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import {
@@ -192,20 +193,12 @@ async function loadServices() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("staff")
-      .select("id, name")
-      .eq("salon_id", activeSalonId)
-      .eq("active", true)
-
-      .order("name");
-
-    if (error) {
+    try {
+      const rows = await fetchActiveStaffForSalon(supabase, Number(activeSalonId), "id, name");
+      setStaffList(rows as any[]);
+    } catch (error) {
       console.error(error);
-      return;
     }
-
-    setStaffList(data || []);
   }
 
   /* ================= SERVICE LOGIC ================= */

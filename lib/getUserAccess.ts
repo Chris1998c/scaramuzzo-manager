@@ -144,7 +144,26 @@ export async function getUserAccess(): Promise<{
 
   // ✅ fallback: se non hai staff ma hai saloni assegnati, usa quello come “staffSalonId”
   const staffId = staff?.id ?? null;
-  const staffSalonId = staff?.salon_id ?? (defaultSalonId ?? null);
+
+  let staffSalonId: number | null = null;
+  if (staff?.id) {
+    const { data: staffSalonLinks, error: sslErr } = await supabase
+      .from("staff_salons")
+      .select("salon_id")
+      .eq("staff_id", staff.id)
+      .order("salon_id", { ascending: true })
+      .limit(1);
+
+    if (!sslErr && staffSalonLinks?.[0]) {
+      const sid = Number(staffSalonLinks[0].salon_id);
+      if (Number.isFinite(sid) && sid > 0) staffSalonId = sid;
+    }
+  }
+
+  if (staffSalonId === null) {
+    const legacy = staff?.salon_id != null ? Number(staff.salon_id) : NaN;
+    staffSalonId = Number.isFinite(legacy) && legacy > 0 ? legacy : (defaultSalonId ?? null);
+  }
 
   return {
     role,

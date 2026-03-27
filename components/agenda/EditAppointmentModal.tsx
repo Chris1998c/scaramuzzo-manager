@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabaseClient";
+import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import { useRouter } from "next/navigation";
 import { X, User, FlaskConical, Banknote, Trash2, Save } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
@@ -177,20 +178,13 @@ export default function EditAppointmentModal({
       return;
     }
 
-    const { data, error } = await supabase
-      .from("staff")
-      .select("id, name")
-      .eq("salon_id", activeSalonId)
-      .eq("active", true)
-      .order("name", { ascending: true });
-
-    if (error) {
+    try {
+      const rows = await fetchActiveStaffForSalon(supabase, Number(activeSalonId), "id, name");
+      setStaff([{ id: null, name: "Disponibile" }, ...(rows as any[])]);
+    } catch (error) {
       console.error(error);
       setStaff([{ id: null, name: "Disponibile" }]);
-      return;
     }
-
-    setStaff([{ id: null, name: "Disponibile" }, ...(data || [])]);
   }
 
   // aggiorna appointment + shift coerente delle righe appointment_services

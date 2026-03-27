@@ -3,6 +3,12 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import {
+  fetchStaffScheduleForSalon,
+  isoDayOfWeekFromISODateLocal,
+  isStaffVisibleOnAgendaDayForSalon,
+} from "@/lib/staffSchedule";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import AgendaModal from "./AgendaModal";
 import EditAppointmentModal from "./EditAppointmentModal";
@@ -46,6 +52,22 @@ function addWeeksISO(dateStr: string, deltaWeeks: number) {
 function toIdStr(v: any): string | null {
   if (v === null || v === undefined || v === "") return null;
   return String(v);
+}
+
+/** Staff ids on loaded appointments: ogni riga servizio + fallback appointments.staff_id. */
+function collectStaffIdsFromAppointments(appointments: any[]): Set<string> {
+  const ids = new Set<string>();
+  for (const app of appointments || []) {
+    const head = toIdStr(app?.staff_id);
+    if (head) ids.add(head);
+
+    const lines = Array.isArray(app?.appointment_services) ? app.appointment_services : [];
+    for (const line of lines) {
+      const sid = toIdStr(line?.staff_id);
+      if (sid) ids.add(sid);
+    }
+  }
+  return ids;
 }
 
 /** Durata in minuti da app (start_time/end_time); fallback 30. */
@@ -181,6 +203,10 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
   const [staff, setStaff] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Per salone attivo: staff_id → giorni ISO (1–7) con orario; assente → tutti i giorni (legacy). */
+  const [staffScheduleByStaffId, setStaffScheduleByStaffId] = useState<
+    Map<string, Set<number>>
+  >(() => new Map());
 
   // Modali
   const [selectedSlot, setSelectedSlot] = useState<{
@@ -221,17 +247,106 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     [currentDate]
   );
 
-  // ordine colonne staff (include null per "DA ASSEGNARE")
-  const staffOrder = useMemo(
+  /**
+   * Giorno: "DA ASSEGNARE" + colonne da appuntamenti; senza app → pool assignable filtrato per staff_schedule
+   * per collaboratore (con righe per il salone solo nei giorni previsti; senza righe → come prima su tutti i giorni).
+   */
+  const dayGridStaff = useMemo(() => {
+    if (view !== "day") return staff;
+
+    const defaultVirtual = { id: null, name: "DA ASSEGNARE", is_virtual: true };
+    const virtual =
+      staff.length > 0 && staff[0]?.is_virtual === true ? staff[0] : defaultVirtual;
+    const assignable = staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
+
+    const dow = isoDayOfWeekFromISODateLocal(currentDate);
+    const poolAssignable =
+      dow >= 1 && dow <= 7
+        ? assignable.filter((s) => {
+            const id = toIdStr(s?.id);
+            return id ? isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow) : false;
+          })
+        : assignable;
+
+    const neededIds = collectStaffIdsFromAppointments(appointments);
+    const assignableById = new Map<string, any>();
+    for (const s of assignable) {
+      const id = toIdStr(s?.id);
+      if (id) assignableById.set(id, s);
+    }
+
+    let collaborators: any[];
+
+    if (neededIds.size === 0) {
+      collaborators = [...poolAssignable];
+    } else {
+      collaborators = [];
+      for (const id of neededIds) {
+        const row = assignableById.get(id);
+        if (row) collaborators.push(row);
+        else
+          collaborators.push({
+            id: Number(id),
+            name: `Collaboratore (${id})`,
+            is_virtual: false,
+          });
+      }
+    }
+
+    collaborators.sort((a, b) =>
+      String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "it", { sensitivity: "base" })
+    );
+
+    return [virtual, ...collaborators];
+  }, [view, staff, appointments, staffScheduleByStaffId, currentDate]);
+
+  // ordine colonne staff per drag orizzontale / posizionamento (giorno = colonne visibili; settimana = lista completa)
+  const staffOrderFull = useMemo(
     () => staff.map((s: any) => toIdStr(s?.id)),
     [staff]
   );
+
+  const dayStaffOrder = useMemo(
+    () => dayGridStaff.map((s: any) => toIdStr(s?.id)),
+    [dayGridStaff]
+  );
+
+  /** Ordine id staff per ServiceBox in vista settimana: per giorno, stesso filtro per staff_schedule per collaboratore. */
+  const weekStaffOrderByDayDate = useMemo(() => {
+    if (view !== "week") return null;
+
+    const defaultVirtual = { id: null, name: "DA ASSEGNARE", is_virtual: true };
+    const virtual =
+      staff.length > 0 && staff[0]?.is_virtual === true ? staff[0] : defaultVirtual;
+    const assignable = staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
+
+    const out = new Map<string, (string | null)[]>();
+
+    for (const day of weekDays) {
+      const dow = isoDayOfWeekFromISODateLocal(day.date);
+      const pool =
+        dow >= 1 && dow <= 7
+          ? assignable.filter((s) => {
+              const id = toIdStr(s?.id);
+              return id ? isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow) : false;
+            })
+          : assignable;
+
+      const sorted = [...pool].sort((a, b) =>
+        String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "it", { sensitivity: "base" })
+      );
+
+      out.set(day.date, [toIdStr(virtual?.id), ...sorted.map((s) => toIdStr(s?.id))]);
+    }
+
+    return out;
+  }, [view, weekDays, staff, staffScheduleByStaffId]);
 
   /**
    * BASE colWidth "ideale" (usata quando scrollX è attivo)
    */
   const colWidth = useMemo(() => {
-    const count = view === "day" ? staff.length : weekDays.length;
+    const count = view === "day" ? dayGridStaff.length : weekDays.length;
     if (!count) return 280;
 
     const master = masterRef.current;
@@ -240,10 +355,10 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
 
     const ideal = Math.floor(available / count);
     return Math.max(140, Math.min(280, ideal));
-  }, [view, staff.length, weekDays.length, layoutTick]);
+  }, [view, dayGridStaff.length, weekDays.length, layoutTick]);
 
-  // colonne visibili (day = staff, week = 7 giorni)
-  const columnsCount = view === "day" ? staff.length : weekDays.length;
+  // colonne visibili (day = staff del giorno con appuntamenti, week = 7 giorni)
+  const columnsCount = view === "day" ? dayGridStaff.length : weekDays.length;
 
   // larghezza contenuto teorica (usando colWidth base)
   const contentWidth = 80 + columnsCount * colWidth;
@@ -265,9 +380,9 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     // fallback (solo finché non abbiamo misurato)
     const master = masterRef.current;
     const available = (master?.clientWidth ?? 0) - 80;
-    if (!available || !staff.length) return colWidth;
-    return Math.floor(available / staff.length);
-  }, [view, shouldScrollX, colWidth, staff.length, colWidthRealDay, layoutTick]);
+    if (!available || !dayGridStaff.length) return colWidth;
+    return Math.floor(available / dayGridStaff.length);
+  }, [view, shouldScrollX, colWidth, dayGridStaff.length, colWidthRealDay, layoutTick]);
 
   // ✅ misura colonna reale con ResizeObserver (solo day + no scrollX)
   useEffect(() => {
@@ -308,7 +423,19 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [view, shouldScrollX, staff.length, layoutTick]);
+  }, [view, shouldScrollX, dayGridStaff.length, layoutTick]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (activeSalonId == null) return;
+      const m = await fetchStaffScheduleForSalon(supabase, activeSalonId);
+      if (!cancelled) setStaffScheduleByStaffId(m);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSalonId, supabase]);
 
   // ===== DATA LOADING =====
 
@@ -316,20 +443,16 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     async (salonId: number) => {
       const virtual = { id: null, name: "DA ASSEGNARE", is_virtual: true };
 
-      const { data, error } = await supabase
-        .from("staff")
-        .select("*")
-        .eq("salon_id", salonId)
-        .eq("active", true)
-        .order("name");
-
-      if (error) {
+      let rows: Record<string, unknown>[] = [];
+      try {
+        rows = await fetchActiveStaffForSalon(supabase, salonId, "*");
+      } catch (error) {
         console.error("Errore caricamento staff:", error);
         setStaff([virtual]);
         return;
       }
 
-      setStaff([virtual, ...(data || [])]);
+      setStaff([virtual, ...(rows as any[])]);
     },
     [supabase]
   );
@@ -682,7 +805,7 @@ function buildLanes(
           <div ref={headerRef} className="flex-1 overflow-hidden bg-black/20">
             <div className={`flex ${shouldScrollX ? "w-max" : "w-full"}`}>
               {view === "day"
-                ? staff.map((s: any, idx: number) => (
+                ? dayGridStaff.map((s: any, idx: number) => (
                   <div
                     key={s?.id != null ? String(s.id) : `virtual-${s.name}`}
                     ref={idx === 0 ? dayProbeRef : undefined}
@@ -757,7 +880,7 @@ function buildLanes(
                 }`}
             >
               {view === "day"
-                ? staff.map((member: any, colIdx: number) => {
+                ? dayGridStaff.map((member: any, colIdx: number) => {
                   const mid = toIdStr(member?.id);
 
                   const columnWidth = shouldScrollX ? colWidth : dayColWidth;
@@ -816,10 +939,10 @@ function buildLanes(
                                 enableHorizontal={true}
                                 colWidth={columnWidth}
                                 columnIndex={colIdx}
-                                columnsCount={staff.length}
+                                columnsCount={dayGridStaff.length}
                                 gridHeightPx={gridHeightPx}
                                 columnStaffId={mid}
-                                staffOrder={staffOrder}
+                                staffOrder={dayStaffOrder}
                                 laneIndex={laneIndex}
                                 laneCount={laneCount}
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
@@ -885,7 +1008,9 @@ function buildLanes(
                                 columnsCount={weekDays.length}
                                 gridHeightPx={gridHeightPx}
                                 columnStaffId={null}
-                                staffOrder={staffOrder}
+                                staffOrder={
+                                  weekStaffOrderByDayDate?.get(day.date) ?? staffOrderFull
+                                }
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
                               />
                             )}

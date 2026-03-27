@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 
 import { getSalonTurnoverAnalytics } from "@/lib/reports/getSalonTurnoverAnalytics";
 import { getCashSessionsReport } from "@/lib/reports/getCashSessionsReport";
@@ -92,14 +93,8 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
 
   const tab = ((sp.tab as string | undefined) ?? "turnover") as TabKey;
 
-  // Staff dropdown (serve sempre)
-  const { data: staffRows } = salonId
-    ? await supabaseAdmin
-        .from("staff")
-        .select("id, name")
-        .eq("salon_id", salonId)
-        .order("name", { ascending: true })
-    : { data: [] as any[] };
+  // Staff dropdown (serve sempre) — staff_salons + legacy staff.salon_id
+  const staffRows = salonId ? await fetchActiveStaffForSalon(supabaseAdmin, salonId, "id, name") : [];
 
   const staffOptions =
     (staffRows ?? [])
