@@ -64,11 +64,9 @@ function CaricoInner() {
   const searchParams = useSearchParams();
 
   // 👇 DESTINAZIONE: prende il salone selezionato dall’header (switcher)
-  const { activeSalonId, allowedSalons, isReady, receptionSalonId } = useActiveSalon();
+  const { role, activeSalonId, allowedSalons, isReady, receptionSalonId } = useActiveSalon();
 
   const productIdFromUrl = toNumberOrNull(searchParams.get("product"));
-
-  const [role, setRole] = useState<string>("reception");
 
   const [product, setProduct] = useState<ProductRow | null>(null);
   const [qty, setQty] = useState<number>(1);
@@ -104,20 +102,10 @@ function CaricoInner() {
         setLoading(true);
         setErrorMsg(null);
 
-        const { data, error } = await supabase.auth.getUser();
-        if (error) throw error;
+        if (!isReady) return;
 
-        const user = data.user;
-        if (!user) {
-          setErrorMsg("Utente non autenticato.");
-          return;
-        }
-
-        const r = String(user.user_metadata?.role ?? "reception");
-        setRole(r);
-
-        const isReception = r === "reception";
-        const isWarehouse = r === "magazzino" || r === "coordinator";
+        const isReception = role === "reception";
+        const isWarehouse = role === "magazzino" || role === "coordinator";
         if (!isReception && !isWarehouse) {
           setErrorMsg("Permessi insufficienti per eseguire un carico.");
           return;
@@ -235,7 +223,7 @@ function CaricoInner() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productIdFromUrl, supabase]);
+  }, [productIdFromUrl, supabase, isReady, role]);
 
   // refresh lista quando cambi search (solo se NON hai prodotto selezionato)
   useEffect(() => {

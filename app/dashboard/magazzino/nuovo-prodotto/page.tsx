@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-
-type Role = "salone" | "magazzino" | "coordinator";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
 export default function NuovoProdottoPage() {
-  const [role, setRole] = useState<Role>("salone");
-  const [loadingUser, setLoadingUser] = useState(true);
+  const { role, isReady } = useActiveSalon();
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
@@ -18,16 +16,6 @@ export default function NuovoProdottoPage() {
   );
   const [initialQty, setInitialQty] = useState("0");
   const [description, setDescription] = useState("");
-
-  useEffect(() => {
-    const load = async () => {
-      const res = await fetch("/api/auth/me");
-      const json = await res.json();
-      setRole(json?.user?.user_metadata?.role ?? "salone");
-      setLoadingUser(false);
-    };
-    load();
-  }, []);
 
   async function creaProdotto() {
     if (!name || !category) return;
@@ -64,7 +52,7 @@ export default function NuovoProdottoPage() {
     toast.success("Prodotto creato");
   }
 
-  if (loadingUser) {
+  if (!isReady) {
     return (
       <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-white">
         Caricamento…

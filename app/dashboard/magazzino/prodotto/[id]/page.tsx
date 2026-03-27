@@ -10,6 +10,7 @@ import {
   ArrowDown,
   ArrowUp,
 } from "lucide-react";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
 interface Product {
   id: number;
@@ -34,26 +35,23 @@ export default function SchedaProdotto({
   const productId = Number(params.id);
   const supabase = createClient();
 
-  const [role, setRole] = useState("salone");
   const [product, setProduct] = useState<Product | null>(null);
   const [stock, setStock] = useState<StockRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const { role, isReady } = useActiveSalon();
 
   useEffect(() => {
     async function init() {
-      const { data } = await supabase.auth.getUser();
-      const user = data?.user;
-
-      setRole(user?.user_metadata?.role ?? "salone");
-
       await fetchProduct();
       await fetchStock();
 
       setLoading(false);
     }
 
+    if (!isReady) return;
     init();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady]);
 
   async function fetchProduct() {
     const { data } = await supabase
@@ -142,15 +140,10 @@ export default function SchedaProdotto({
           QR Code
         </Link>
 
-        {(role === "magazzino" || role === "coordinator") && (
-          <Link
-            href={`/dashboard/magazzino/prodotto/${productId}/modifica`}
-            className="p-6 rounded-2xl bg-[#341A09] text-white text-center font-semibold hover:scale-105 transition shadow-lg"
-          >
-            <Pencil className="mx-auto mb-3" size={34} />
-            Modifica
-          </Link>
-        )}
+        <div className="p-6 rounded-2xl bg-white/5 border border-white/10 text-white/70 text-center font-semibold select-none">
+          <Pencil className="mx-auto mb-3" size={34} />
+          Modifica disabilitata
+        </div>
       </div>
 
       {/* GIACENZE */}
