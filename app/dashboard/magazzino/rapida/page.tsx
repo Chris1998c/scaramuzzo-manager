@@ -19,6 +19,13 @@ function salonLabel(id: number) {
   return `Salone ${id}`;
 }
 
+function createRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export default function RapidaPage() {
   const supabase = useMemo(() => createClient(), []);
   const { role, activeSalonId, isReady, receptionSalonId, allowedSalons } = useActiveSalon();
@@ -71,12 +78,14 @@ export default function RapidaPage() {
 
     setScaricandoId(productId);
     try {
+      const requestId = createRequestId();
       const res = await fetch("/api/magazzino/rapida", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId,
           qty: 1,
+          request_id: requestId,
           ...(salonId != null && { salonId }),
         }),
       });

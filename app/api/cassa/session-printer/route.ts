@@ -2,11 +2,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type StaffRole = "reception" | "coordinator" | "magazzino";
 
 function errMsg(e: unknown) {
   if (!e) return "unknown";
@@ -25,45 +24,6 @@ function toInt(v: unknown, fb = NaN): number {
   return Number.isFinite(n) ? Math.trunc(n) : fb;
 }
 
-function roleFromMetadata(user: { user_metadata?: unknown; app_metadata?: unknown }) {
-  return String(
-    (user as any)?.user_metadata?.role ?? (user as any)?.app_metadata?.role ?? "",
-  ).trim();
-}
-
-async function getStaffInfo(userId: string): Promise<{
-  role: string | null;
-  salonId: number | null;
-}> {
-  const { data, error } = await supabaseAdmin
-    .from("staff")
-    .select("role, salon_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) return { role: null, salonId: null };
-
-  const role = (data as { role?: unknown }).role
-    ? String((data as { role?: unknown }).role).trim()
-    : null;
-  const sid = toInt((data as { salon_id?: unknown }).salon_id, NaN);
-  const salonId = Number.isFinite(sid) && sid > 0 ? sid : null;
-  return { role, salonId };
-}
-
-async function getAllowedSalonIds(userId: string): Promise<number[]> {
-  const { data, error } = await supabaseAdmin
-    .from("user_salons")
-    .select("salon_id")
-    .eq("user_id", userId);
-
-  if (error || !Array.isArray(data)) return [];
-
-  return (data as { salon_id?: unknown }[])
-    .map((row) => toInt(row.salon_id, NaN))
-    .filter((id) => Number.isFinite(id) && id > 0) as number[];
-}
-
 export async function PATCH(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -72,9 +32,8 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const userId = authData.user.id;
-    const staffInfo = await getStaffInfo(userId);
-    const role = (staffInfo.role || roleFromMetadata(authData.user)) as StaffRole;
+    const access = await getUserAccess();
+    const role = access.role;
 
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
@@ -84,7 +43,7 @@ export async function PATCH(req: Request) {
     let salonId = toInt(body?.salon_id, NaN);
 
     if (role === "reception") {
-      const sid = staffInfo.salonId;
+      const sid = access.staffSalonId;
       if (!sid) {
         return NextResponse.json(
           { error: "Reception senza staff.salon_id associato" },
@@ -98,14 +57,11 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "salon_id missing/invalid" }, { status: 400 });
     }
 
-    if (role !== "reception") {
-      const allowed = await getAllowedSalonIds(userId);
-      if (!allowed.length || !allowed.includes(salonId)) {
-        return NextResponse.json(
-          { error: "salon_id non consentito per questo utente" },
-          { status: 403 },
-        );
-      }
+    if (role !== "reception" && !access.allowedSalonIds.includes(salonId)) {
+      return NextResponse.json(
+        { error: "salon_id non consentito per questo utente" },
+        { status: 403 },
+      );
     }
 
     if (typeof body?.printer_enabled !== "boolean") {

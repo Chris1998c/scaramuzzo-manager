@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabaseServer";
+import { getUserAccess } from "@/lib/getUserAccess";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 import { getSalonTurnoverAnalytics } from "@/lib/reports/getSalonTurnoverAnalytics";
@@ -55,15 +56,6 @@ function toInt(x: string | undefined) {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-function roleFromMetadata(user: any): string | null {
-  const r = String(user?.user_metadata?.role ?? user?.app_metadata?.role ?? "").trim();
-  return r ? r : null;
-}
-
-function normalizeRole(r: string | null) {
-  return (r ?? "").trim().toLowerCase();
-}
-
 type TabKey =
   | "turnover"
   | "daily"
@@ -88,19 +80,8 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
   const supabase = await createServerSupabase();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData?.user) redirect("/login");
-
-  const user = authData.user;
-  const userId = user.id;
-
-  const { data: roleRow } = await supabaseAdmin
-    .from("users")
-    .select("roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-
-  const dbRole = (roleRow as any)?.roles?.[0]?.name ?? null;
-  const role = normalizeRole(dbRole || roleFromMetadata(user));
-  if (role !== "coordinator") redirect("/dashboard");
+  const access = await getUserAccess();
+  if (access.role !== "coordinator") redirect("/dashboard");
 
   const salonId = toInt(sp.salon_id as string | undefined) ?? 0;
   const dateFrom = (sp.date_from as string | undefined) ?? startOfMonthISO();

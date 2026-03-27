@@ -2,11 +2,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type StaffRole = "reception" | "coordinator" | "magazzino";
 
 function errMsg(e: unknown) {
   if (!e) return "unknown";
@@ -24,24 +23,6 @@ function toInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-function roleFromMetadata(user: any): string {
-  return String(user?.user_metadata?.role ?? user?.app_metadata?.role ?? "").trim();
-}
-
-async function getStaffInfo(userId: string): Promise<{ role: string | null; salonId: number | null }> {
-  const { data, error } = await supabaseAdmin
-    .from("staff")
-    .select("role, salon_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) return { role: null, salonId: null };
-
-  const role = (data as any)?.role ? String((data as any).role).trim() : null;
-  const salonId = toInt((data as any)?.salon_id);
-  return { role, salonId: salonId && salonId > 0 ? salonId : null };
-}
-
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -52,9 +33,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const user = authData.user;
-    const userId = user.id;
-
     // BODY
     const body = await req.json().catch(() => null);
     const appointmentId = toInt(body?.appointment_id ?? body?.id);
@@ -62,9 +40,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "appointment_id missing/invalid" }, { status: 400 });
     }
 
-    // STAFF (DB source-of-truth) + fallback metadata
-    const staffInfo = await getStaffInfo(userId);
-    const role = (staffInfo.role || roleFromMetadata(user)) as StaffRole;
+    const access = await getUserAccess();
+    const role = access.role;
 
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
@@ -85,15 +62,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "salon_id appuntamento non valido" }, { status: 400 });
     }
 
-    // AUTHZ: reception solo sul proprio salone (da staff)
+    // AUTHZ: reception solo sul proprio salone; altri su saloni consentiti
     if (role === "reception") {
-      const mySalonId = staffInfo.salonId;
+      const mySalonId = access.staffSalonId;
       if (!mySalonId) {
         return NextResponse.json({ error: "Reception senza staff.salon_id associato" }, { status: 403 });
       }
       if (apptSalonId !== mySalonId) {
         return NextResponse.json({ error: "salon_id non consentito per questo utente" }, { status: 403 });
       }
+    } else if (!access.allowedSalonIds.includes(apptSalonId)) {
+      return NextResponse.json({ error: "salon_id non consentito per questo utente" }, { status: 403 });
     }
 
     const currentStatus = String((appt as any).status || "").trim();
@@ -101,8 +80,15 @@ export async function POST(req: Request) {
     // DONE: non tocchiamo
     if (currentStatus === "done") {
       return NextResponse.json(
-        { ok: true, appointment_id: appointmentId, status: "done", changed: false, already_done: true },
-        { status: 200 }
+        { error: "Appuntamento già chiuso (done): transizione verso in_sala non consentita" },
+        { status: 409 }
+      );
+    }
+
+    if (currentStatus === "cancelled") {
+      return NextResponse.json(
+        { error: "Appuntamento cancellato: transizione verso in_sala non consentita" },
+        { status: 409 }
       );
     }
 
@@ -120,6 +106,7 @@ export async function POST(req: Request) {
       .update({ status: "in_sala" })
       .eq("id", appointmentId)
       .neq("status", "done")
+      .neq("status", "cancelled")
       .neq("status", "in_sala")
       .select("id, salon_id, status")
       .maybeSingle();
@@ -139,8 +126,14 @@ export async function POST(req: Request) {
       const s2 = String((appt2 as any)?.status || "").trim();
       if (s2 === "done") {
         return NextResponse.json(
-          { ok: true, appointment_id: appointmentId, status: "done", changed: false, already_done: true },
-          { status: 200 }
+          { error: "Appuntamento già chiuso (done): transizione verso in_sala non consentita" },
+          { status: 409 }
+        );
+      }
+      if (s2 === "cancelled") {
+        return NextResponse.json(
+          { error: "Appuntamento cancellato: transizione verso in_sala non consentita" },
+          { status: 409 }
         );
       }
       if (s2 === "in_sala") {

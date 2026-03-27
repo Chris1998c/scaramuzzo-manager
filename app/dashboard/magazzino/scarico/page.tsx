@@ -8,6 +8,7 @@ import {
   PackageMinus,
   ShieldAlert,
   AlertTriangle,
+  Search,
 } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
@@ -32,6 +33,13 @@ function toNumberOrNull(v: any): number | null {
 function clampQty(v: number, min: number, max: number) {
   if (!Number.isFinite(v)) return min;
   return Math.max(min, Math.min(max, v));
+}
+
+function createRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function salonLabel(id: number) {
@@ -66,6 +74,9 @@ function ScaricoInner() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [qty, setQty] = useState<number>(1);
+  const [search, setSearch] = useState("");
+  const [list, setList] = useState<Product[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -81,11 +92,6 @@ function ScaricoInner() {
       try {
         setLoading(true);
         setErrorMsg(null);
-
-        if (!productId || productId <= 0) {
-          setErrorMsg("Parametro prodotto mancante o non valido.");
-          return;
-        }
 
         const r: Role = String(providerRole ?? "reception");
         setRole(r);
@@ -157,7 +163,10 @@ function ScaricoInner() {
     let cancelled = false;
 
     async function fetchProduct() {
-      if (!productId || productId <= 0) return;
+      if (!productId || productId <= 0) {
+        if (!cancelled) setProduct(null);
+        return;
+      }
       if (ctxSalonId == null) return;
 
       try {
@@ -199,6 +208,47 @@ function ScaricoInner() {
     };
   }, [supabase, productId, ctxSalonId]);
 
+  // 4) Picker prodotti quando manca ?product=
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchList() {
+      if (productId && productId > 0) return;
+      if (ctxSalonId == null) {
+        if (!cancelled) setList([]);
+        return;
+      }
+
+      try {
+        setLoadingList(true);
+        let q = supabase
+          .from("products_with_stock")
+          .select("product_id, name, category, barcode, quantity")
+          .eq("salon_id", ctxSalonId)
+          .gt("quantity", 0)
+          .order("name", { ascending: true });
+
+        const s = search.trim();
+        if (s) q = q.ilike("name", `%${s}%`);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        if (!cancelled) setList((data as Product[]) ?? []);
+      } catch (e) {
+        console.error("Scarico fetch list error:", e);
+        if (!cancelled) setList([]);
+      } finally {
+        if (!cancelled) setLoadingList(false);
+      }
+    }
+
+    fetchList();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, productId, ctxSalonId, search]);
+
   const maxQty = product?.quantity ?? 0;
   const disabled =
     !product ||
@@ -218,6 +268,7 @@ function ScaricoInner() {
     setErrorMsg(null);
 
     try {
+      const requestId = createRequestId();
       const res = await fetch("/api/magazzino/scarico", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -226,6 +277,7 @@ function ScaricoInner() {
           productId: product.product_id,
           qty: q,
           reason: "scarico_app",
+          request_id: requestId,
         }),
       });
 
@@ -254,6 +306,8 @@ function ScaricoInner() {
       : ctxSalonId != null
       ? salonLabel(ctxSalonId)
       : "Salone";
+
+  const showPicker = !productId || productId <= 0;
 
   return (
     <div className="min-h-[calc(100vh-64px)] w-full space-y-6">
@@ -312,6 +366,56 @@ function ScaricoInner() {
                 <div className="text-[#f3d8b6] font-extrabold">Errore</div>
                 <div className="text-[#c9b299] mt-1 text-sm">{errorMsg}</div>
               </div>
+            </div>
+          </div>
+        ) : showPicker ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-[#FFF9F4] border border-black/5 p-5 text-[#341A09]">
+              <div className="font-extrabold text-lg">Seleziona un prodotto</div>
+              <div className="text-sm opacity-70 mt-1">
+                Scegli un prodotto dalla giacenza del salone attivo per procedere con lo scarico.
+              </div>
+              <div className="mt-4 relative">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60"
+                  size={18}
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Cerca prodotto..."
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 overflow-hidden">
+              {loadingList ? (
+                <div className="p-6 text-[#c9b299]">Caricamento prodotti…</div>
+              ) : list.length === 0 ? (
+                <div className="p-6 text-[#c9b299]">Nessun prodotto disponibile in questo salone.</div>
+              ) : (
+                <div className="divide-y divide-[#5c3a21]/40">
+                  {list.map((p) => (
+                    <button
+                      key={p.product_id}
+                      onClick={() => router.replace(`/dashboard/magazzino/scarico?product=${p.product_id}`)}
+                      className="w-full text-left px-5 py-4 hover:bg-black/20 transition flex items-center justify-between gap-4"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-[#f3d8b6] font-extrabold truncate">{p.name}</div>
+                        <div className="text-[#c9b299] text-sm opacity-90">
+                          {p.category ?? "—"} • {p.barcode ?? "—"}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-[#f3d8b6] font-extrabold">{p.quantity}</div>
+                        <div className="text-[#c9b299] text-xs">Disponibili</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : !product ? (

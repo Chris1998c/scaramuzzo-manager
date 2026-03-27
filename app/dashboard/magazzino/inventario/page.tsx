@@ -176,6 +176,35 @@ export default function InventarioPage() {
     }
   }
 
+  function csvCell(v: unknown): string {
+    const s = String(v ?? "");
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+
+  function handleExportCsv() {
+    if (ctxSalonId == null) return;
+    const rows = [
+      ["Prodotto", "Categoria", "Barcode", "Giacenza"],
+      ...sortedProducts.map((p) => [
+        p.name,
+        p.category ?? "",
+        p.barcode ?? "",
+        String(p.quantity),
+      ]),
+    ];
+    const csv = rows.map((r) => r.map(csvCell).join(";")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `inventario-salone-${ctxSalonId}-${date}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white space-y-6">
       {/* HERO */}
@@ -202,25 +231,39 @@ export default function InventarioPage() {
               </p>
             </div>
           </div>
-          <button
-            className="shrink-0 self-start sm:self-center px-6 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-            onClick={async () => {
-              if (ctxSalonId == null) return;
-              try {
-                setLoading(true);
-                setErrMsg(null);
-                const rows = await fetchProducts(ctxSalonId, filter, category);
-                setProducts(rows);
-              } catch (e: any) {
-                console.error(e);
-                setErrMsg(e?.message ?? "Errore aggiornamento inventario.");
-              } finally {
-                setLoading(false);
-              }
-            }}
-          >
-            Aggiorna
-          </button>
+          <div className="shrink-0 self-start sm:self-center flex flex-wrap gap-2">
+            <button
+              className="px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
+              onClick={() => window.print()}
+            >
+              Stampa
+            </button>
+            <button
+              className="px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
+              onClick={handleExportCsv}
+            >
+              Esporta CSV
+            </button>
+            <button
+              className="px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
+              onClick={async () => {
+                if (ctxSalonId == null) return;
+                try {
+                  setLoading(true);
+                  setErrMsg(null);
+                  const rows = await fetchProducts(ctxSalonId, filter, category);
+                  setProducts(rows);
+                } catch (e: any) {
+                  console.error(e);
+                  setErrMsg(e?.message ?? "Errore aggiornamento inventario.");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Aggiorna
+            </button>
+          </div>
         </div>
       </div>
 

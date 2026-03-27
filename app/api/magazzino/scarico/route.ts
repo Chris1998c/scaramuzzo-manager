@@ -1,29 +1,55 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getReceptionSalonId } from "@/lib/receptionSalon";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 const MAGAZZINO_CENTRALE_ID = 5;
-
-function roleFromMetadata(user: unknown): string {
-  const u = user as { user_metadata?: { role?: unknown }; app_metadata?: { role?: unknown } };
-  return String(u?.user_metadata?.role ?? u?.app_metadata?.role ?? "").trim();
-}
-
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id, roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error || !data) return null;
-  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
-  return roleName ? String(roleName).trim() : null;
-}
+const DEDUPE_WINDOW_MS = 5 * 60 * 1000;
 
 // Saloni validi: 1..4 + centrale 5
 function isValidSalonId(id: number) {
   return Number.isFinite(id) && id >= 1 && id <= MAGAZZINO_CENTRALE_ID;
+}
+
+function normalizeRequestId(v: unknown): string | null {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(s)
+    ? s
+    : null;
+}
+
+function requestMarker(requestId: string): string {
+  return `[rid:${requestId}]`;
+}
+
+function appendReasonMarker(reason: string, requestId: string | null): string {
+  if (!requestId) return reason;
+  const marker = requestMarker(requestId);
+  return reason.includes(marker) ? reason : `${reason} ${marker}`.trim();
+}
+
+async function findDuplicateMovement(args: {
+  requestId: string;
+  productId: number;
+  fromSalon: number | null;
+  toSalon: number | null;
+}): Promise<{ id: number } | null> {
+  const cutoffIso = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+  const marker = requestMarker(args.requestId);
+  let q = supabaseAdmin
+    .from("stock_movements")
+    .select("id")
+    .eq("product_id", args.productId)
+    .gte("created_at", cutoffIso)
+    .ilike("reason", `%${marker}%`)
+    .order("id", { ascending: false })
+    .limit(1);
+  q = args.fromSalon == null ? q.is("from_salon", null) : q.eq("from_salon", args.fromSalon);
+  q = args.toSalon == null ? q.is("to_salon", null) : q.eq("to_salon", args.toSalon);
+  const { data, error } = await q.maybeSingle();
+  if (error || !data) return null;
+  return { id: Number((data as { id: number }).id) };
 }
 
 export async function POST(req: Request) {
@@ -34,10 +60,12 @@ export async function POST(req: Request) {
     const salonId = Number(body?.salonId);
     const productId = Number(body?.productId);
     const qty = Number(body?.qty);
+    const requestId = normalizeRequestId(body?.request_id);
     const reason =
       body?.reason && String(body.reason).trim()
         ? String(body.reason).trim()
         : "scarico_app";
+    const reasonWithMarker = appendReasonMarker(reason, requestId);
 
     // VALIDAZIONI
     if (!isValidSalonId(salonId)) {
@@ -56,9 +84,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const userId = userData.user.id;
-    const dbRole = await getRoleFromDb(userId);
-    const role = (dbRole || roleFromMetadata(userData.user)).trim();
+    const access = await getUserAccess();
+    const role = access.role;
 
     const allowed = role === "coordinator" || role === "magazzino" || role === "reception";
     if (!allowed) {
@@ -67,7 +94,7 @@ export async function POST(req: Request) {
 
     // RECEPTION: scarico solo dal proprio salone (source of truth: staff.salon_id)
     if (role === "reception") {
-      const mySalonId = await getReceptionSalonId(userId);
+      const mySalonId = access.staffSalonId;
 
       if (!mySalonId || mySalonId < 1) {
         return NextResponse.json(
@@ -82,6 +109,23 @@ export async function POST(req: Request) {
           { status: 403 }
         );
       }
+    } else if (!access.allowedSalonIds.includes(salonId)) {
+      return NextResponse.json(
+        { error: "salonId non consentito per questo utente" },
+        { status: 403 }
+      );
+    }
+
+    if (requestId) {
+      const dup = await findDuplicateMovement({
+        requestId,
+        productId,
+        fromSalon: salonId,
+        toSalon: null,
+      });
+      if (dup) {
+        return NextResponse.json({ ok: true, idempotent: true, duplicate_movement_id: dup.id }, { status: 200 });
+      }
     }
 
     // RPC: scarico = movimento in uscita dal salone (from = salonId, to = null)
@@ -91,7 +135,7 @@ export async function POST(req: Request) {
       p_from_salon: salonId,
       p_to_salon: null,
       p_movement_type: "scarico",
-      p_reason: reason,
+      p_reason: reasonWithMarker,
     });
 
     if (error) {

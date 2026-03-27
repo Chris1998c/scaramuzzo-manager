@@ -3,13 +3,13 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { checkPrintBridgeReachable } from "@/lib/printBridgeHealth";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type PaymentMethod = "cash" | "card";
 type LineKind = "service" | "product";
-type StaffRole = "reception" | "coordinator" | "magazzino";
 
 type CloseLineInput = {
   kind: LineKind;
@@ -62,51 +62,6 @@ const errMsg = (e: unknown) => {
   }
 };
 
-function roleFromMetadata(user: unknown): string {
-  const u = user as {
-    user_metadata?: { role?: unknown };
-    app_metadata?: { role?: unknown };
-  };
-
-  return String(
-    u?.user_metadata?.role ?? u?.app_metadata?.role ?? ""
-  ).trim();
-}
-
-/** Allineato a /api/agenda/porta-in-sala: ruolo operativo da public.staff */
-async function getStaffInfo(userId: string): Promise<{
-  role: string | null;
-  salonId: number | null;
-}> {
-  const { data, error } = await supabaseAdmin
-    .from("staff")
-    .select("role, salon_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) return { role: null, salonId: null };
-
-  const role = (data as { role?: unknown }).role
-    ? String((data as { role?: unknown }).role).trim()
-    : null;
-  const sid = toInt((data as { salon_id?: unknown }).salon_id, NaN);
-  const salonId = Number.isFinite(sid) && sid > 0 ? sid : null;
-  return { role, salonId };
-}
-
-async function getAllowedSalonIds(userId: string): Promise<number[]> {
-  const { data, error } = await supabaseAdmin
-    .from("user_salons")
-    .select("salon_id")
-    .eq("user_id", userId);
-
-  if (error || !Array.isArray(data)) return [];
-
-  return (data as { salon_id?: unknown }[])
-    .map((row) => toInt(row.salon_id, NaN))
-    .filter((id) => Number.isFinite(id) && id > 0) as number[];
-}
-
 function normalizeLines(body: CloseBody) {
   const raw =
     (Array.isArray(body.lines) && body.lines.length
@@ -151,12 +106,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const user = authData.user;
-    const userId = user.id;
-
-    // ruolo: public.staff come source of truth, fallback metadata (come porta-in-sala)
-    const staffInfo = await getStaffInfo(userId);
-    const role = (staffInfo.role || roleFromMetadata(user)) as StaffRole;
+    const userId = authData.user.id;
+    const access = await getUserAccess();
+    const role = access.role;
 
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
@@ -247,8 +199,12 @@ export async function POST(req: Request) {
       // blocca doppia chiusura / doppia vendita
       if ((appt as { sale_id?: unknown }).sale_id != null) {
         return NextResponse.json(
-          { error: "Appuntamento già chiuso in cassa" },
-          { status: 400 }
+          {
+            error: "Appuntamento già chiuso in cassa",
+            already_closed: true,
+            sale_id: (appt as { sale_id?: unknown }).sale_id ?? null,
+          },
+          { status: 409 }
         );
       }
 
@@ -264,6 +220,13 @@ export async function POST(req: Request) {
       if (apptStatus === "done") {
         return NextResponse.json(
           { error: "Appuntamento già chiuso" },
+          { status: 400 }
+        );
+      }
+
+      if (apptStatus !== "in_sala") {
+        return NextResponse.json(
+          { error: "Appuntamento non in sala: chiusura cassa non consentita" },
           { status: 400 }
         );
       }
@@ -298,7 +261,7 @@ export async function POST(req: Request) {
 
     // 4) AUTHZ SALONE
     if (role === "reception") {
-      const mySalonId = staffInfo.salonId;
+      const mySalonId = access.staffSalonId;
 
       if (!mySalonId) {
         return NextResponse.json(
@@ -314,9 +277,7 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      const allowedSalonIds = await getAllowedSalonIds(userId);
-
-      if (!allowedSalonIds.length || !allowedSalonIds.includes(salonId)) {
+      if (!access.allowedSalonIds.includes(salonId)) {
         return NextResponse.json(
           { error: "salon_id non consentito per questo utente" },
           { status: 403 }

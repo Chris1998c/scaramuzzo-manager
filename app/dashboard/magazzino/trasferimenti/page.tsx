@@ -29,6 +29,13 @@ const SALONI = [
   { id: 5, name: "Magazzino Centrale" },
 ];
 
+function createRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export default function TrasferimentiPage() {
   const supabase = useMemo(() => createClient(), []);
   const { role, activeSalonId, isReady, allowedSalons, receptionSalonId } = useActiveSalon();
@@ -204,6 +211,7 @@ export default function TrasferimentiPage() {
         toSalon,
         items: selected.map((x) => ({ id: x.product_id, qty: x.qty })),
         executeNow: true,
+        request_id: createRequestId(),
       }),
     });
 

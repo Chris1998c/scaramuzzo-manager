@@ -26,6 +26,7 @@ export default function MagazzinoPage() {
 
   const [productCount, setProductCount] = useState<number | null>(null);
   const [loadingCount, setLoadingCount] = useState(true);
+  const [countUnavailable, setCountUnavailable] = useState(false);
 
   const isWarehouse = role === "magazzino" || role === "coordinator";
   const isReception = role === "reception";
@@ -51,6 +52,7 @@ export default function MagazzinoPage() {
       try {
         setLoadingCount(true);
         setProductCount(null);
+        setCountUnavailable(false);
 
         const { count, error } = await supabase
           .from("products_with_stock")
@@ -61,13 +63,17 @@ export default function MagazzinoPage() {
 
         if (error) {
           console.error(error);
-          setProductCount(0);
+          setProductCount(null);
+          setCountUnavailable(true);
         } else {
           setProductCount(count ?? 0);
         }
       } catch (e) {
         console.error(e);
-        if (!cancelled) setProductCount(0);
+        if (!cancelled) {
+          setProductCount(null);
+          setCountUnavailable(true);
+        }
       } finally {
         if (!cancelled) setLoadingCount(false);
       }
@@ -123,8 +129,10 @@ export default function MagazzinoPage() {
       ? "Caricamento..."
       : effectiveSalonId == null
         ? "—"
-        : productCount == null
-          ? "Caricamento..."
+        : countUnavailable
+          ? "Dato non disponibile"
+          : productCount == null
+            ? "Caricamento..."
           : `${productCount} prodotti`;
 
   const showMissingSalonBanner =

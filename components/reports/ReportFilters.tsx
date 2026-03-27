@@ -65,13 +65,42 @@ export default function ReportFilters({
   function exportPdf() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("salon_id", String(salonId));
-    window.open(`/api/reports/export/pdf?${params.toString()}`, "_blank");
+    void downloadExport("pdf", `/api/reports/export/pdf?${params.toString()}`);
   }
 
   function exportCsv() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("salon_id", String(salonId));
-    window.open(`/api/reports/export/csv?${params.toString()}`, "_blank");
+    void downloadExport("csv", `/api/reports/export/csv?${params.toString()}`);
+  }
+
+  async function downloadExport(kind: "pdf" | "csv", url: string) {
+    try {
+      const res = await fetch(url, { method: "GET" });
+      if (!res.ok) {
+        let msg = `Errore export ${kind.toUpperCase()}`;
+        try {
+          const payload = await res.json();
+          if (payload?.error) msg = String(payload.error);
+        } catch {
+          // noop
+        }
+        window.alert(msg);
+        return;
+      }
+
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `report-export.${kind}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch {
+      window.alert(`Errore di rete durante export ${kind.toUpperCase()}`);
+    }
   }
 
   return (

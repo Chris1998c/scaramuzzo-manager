@@ -1,7 +1,7 @@
 // app/api/report/export/csv/route.ts
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 import { getSalonTurnoverAnalytics } from "@/lib/reports/getSalonTurnoverAnalytics";
 import { getCashSessionsReport } from "@/lib/reports/getCashSessionsReport";
@@ -22,6 +22,17 @@ type TabKey =
   | "clienti"
   | "servizi"
   | "prodotti";
+const SUPPORTED_EXPORT_TABS = new Set<TabKey>([
+  "turnover",
+  "daily",
+  "top",
+  "staff",
+  "cassa",
+  "agenda",
+  "clienti",
+  "servizi",
+  "prodotti",
+]);
 
 function escCsv(v: any) {
   const s = String(v ?? "");
@@ -43,22 +54,6 @@ function toInt(x: string | null) {
   return Number.isFinite(n) ? Math.trunc(n) : NaN;
 }
 
-function roleFromMetadata(user: any): string {
-  return String(user?.user_metadata?.role ?? user?.app_metadata?.role ?? "").trim();
-}
-
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const roleName = (data as any)?.roles?.[0]?.name;
-  return roleName ? String(roleName).trim() : null;
-}
-
 function normalizePaymentMethod(v: string | null) {
   if (!v) return null;
   const s = v.trim();
@@ -69,20 +64,14 @@ function normalizeItemType(v: string | null) {
   const s = v.trim();
   return s === "service" || s === "product" ? s : null;
 }
-function normalizeTab(v: string | null): TabKey {
-  const s = (v ?? "").trim();
-  const allowed: TabKey[] = [
-    "turnover",
-    "daily",
-    "top",
-    "staff",
-    "cassa",
-    "agenda",
-    "clienti",
-    "servizi",
-    "prodotti",
-  ];
-  return allowed.includes(s as any) ? (s as TabKey) : "turnover";
+function parseTab(v: string | null): TabKey | null {
+  const s = (v ?? "").trim() as TabKey;
+  return SUPPORTED_EXPORT_TABS.has(s) ? s : null;
+}
+
+function isIsoDate(v: string | null): v is string {
+  if (!v) return false;
+  return /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
 
 async function createRouteSupabase() {
@@ -118,10 +107,8 @@ export async function GET(req: Request) {
       });
     }
 
-    const user = authData.user;
-    const dbRole = await getRoleFromDb(user.id);
-    const role = (dbRole || roleFromMetadata(user)).trim().toLowerCase();
-    if (role !== "coordinator") {
+    const access = await getUserAccess();
+    if (access.role !== "coordinator") {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), {
         status: 403,
         headers: { "Content-Type": "application/json" },
@@ -130,19 +117,52 @@ export async function GET(req: Request) {
 
     // PARAMS
     const url = new URL(req.url);
-    const tab = normalizeTab(url.searchParams.get("tab"));
+    const tabRaw = url.searchParams.get("tab");
+    const tab = parseTab(tabRaw);
     const salonId = toInt(url.searchParams.get("salon_id"));
     const dateFrom = url.searchParams.get("date_from");
     const dateTo = url.searchParams.get("date_to");
 
     const staffIdRaw = url.searchParams.get("staff_id");
-    const staffId = staffIdRaw && staffIdRaw.trim().length > 0 ? toInt(staffIdRaw) : null;
+    const hasStaffId = !!staffIdRaw && staffIdRaw.trim().length > 0;
+    const staffId = hasStaffId ? toInt(staffIdRaw) : null;
 
     const paymentMethod = normalizePaymentMethod(url.searchParams.get("payment_method"));
     const itemType = normalizeItemType(url.searchParams.get("item_type"));
 
-    if (!Number.isFinite(salonId) || salonId <= 0 || !dateFrom || !dateTo) {
+    if (!tab) {
+      return new Response(
+        JSON.stringify({
+          error: "Tab export non supportata",
+          supported_tabs: [...SUPPORTED_EXPORT_TABS],
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (!Number.isFinite(salonId) || salonId <= 0) {
       return new Response(JSON.stringify({ error: "Missing/invalid params" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (!access.allowedSalonIds.includes(salonId)) {
+      return new Response(JSON.stringify({ error: "salon_id non consentito per questo utente" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
+      return new Response(JSON.stringify({ error: "date_from/date_to non valide" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (hasStaffId && (!Number.isFinite(staffId) || (staffId ?? 0) <= 0)) {
+      return new Response(JSON.stringify({ error: "staff_id non valido" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });

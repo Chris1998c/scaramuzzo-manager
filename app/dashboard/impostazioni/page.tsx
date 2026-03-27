@@ -32,11 +32,13 @@ export default async function ImpostazioniPage() {
       : null;
 
   let services: Awaited<ReturnType<typeof fetchServicesForSettings>> = [];
+  let servicesUnavailable = false;
   try {
     services = await fetchServicesForSettings(supabase, activeSalonId ?? 0);
   } catch (e) {
     console.error("Impostazioni: caricamento servizi", e);
     services = [];
+    servicesUnavailable = true;
   }
 
   const { data: catRows } = await supabase
@@ -54,35 +56,43 @@ export default async function ImpostazioniPage() {
   const canManageStaff = access.role === "coordinator";
 
   let products: Awaited<ReturnType<typeof fetchProductsForSettings>> = [];
+  let productsUnavailable = false;
   try {
     products = await fetchProductsForSettings(supabase);
   } catch (e) {
     console.error("Impostazioni: caricamento prodotti", e);
     products = [];
+    productsUnavailable = true;
   }
 
   let staff: Awaited<ReturnType<typeof fetchStaffForSettings>> = [];
+  let staffUnavailable = false;
   try {
     staff = await fetchStaffForSettings(supabase);
   } catch (e) {
     console.error("Impostazioni: caricamento staff", e);
     staff = [];
+    staffUnavailable = true;
   }
 
   let salons: Awaited<ReturnType<typeof fetchSalonsForSettings>> = [];
+  let salonsUnavailable = false;
   try {
     salons = await fetchSalonsForSettings(supabase);
   } catch (e) {
     console.error("Impostazioni: caricamento saloni", e);
     salons = [];
+    salonsUnavailable = true;
   }
 
   let fiscalSnapshot: Awaited<ReturnType<typeof fetchFiscalSettingsSnapshot>> = null;
+  let fiscalUnavailable = false;
   try {
     fiscalSnapshot = await fetchFiscalSettingsSnapshot(supabase, activeSalonId);
   } catch (e) {
     console.error("Impostazioni: snapshot fiscale", e);
     fiscalSnapshot = null;
+    fiscalUnavailable = true;
   }
 
   const canUseSessionPrinter = ["reception", "coordinator", "magazzino"].includes(
@@ -90,6 +100,7 @@ export default async function ImpostazioniPage() {
   );
 
   let customersDomainSnapshot: CustomersDomainSnapshot;
+  let customersDomainUnavailable = false;
   try {
     customersDomainSnapshot = await fetchCustomersDomainSnapshot(supabase);
   } catch (e) {
@@ -107,7 +118,15 @@ export default async function ImpostazioniPage() {
         customer_service_cards: null,
       },
     };
+    customersDomainUnavailable = true;
   }
+  const hasUnavailableData =
+    servicesUnavailable ||
+    productsUnavailable ||
+    staffUnavailable ||
+    salonsUnavailable ||
+    fiscalUnavailable ||
+    customersDomainUnavailable;
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
@@ -126,6 +145,13 @@ export default async function ImpostazioniPage() {
         </div>
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#f3d8b6]/10 blur-[120px] rounded-full pointer-events-none" />
       </header>
+
+      {hasUnavailableData ? (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200/90">
+          Alcuni dati non sono disponibili in questo momento. Puoi continuare a usare le impostazioni
+          già caricate; riprova più tardi per completare il caricamento.
+        </div>
+      ) : null}
 
       <ImpostazioniShell
         initialServices={services}

@@ -97,8 +97,17 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
 
   const access = await getUserAccess();
-  // Usiamo il defaultSalonId se l'utente non ha ancora scelto (o staffSalonId)
-  const activeSalonId = access.staffSalonId || access.defaultSalonId;
+  // Allineamento minimo col layer report: forziamo un salone valido consentito.
+  const activeSalonId =
+    access.staffSalonId ??
+    access.defaultSalonId ??
+    access.allowedSalonIds[0] ??
+    null;
+  const activeSalonLabel =
+    activeSalonId == null
+      ? null
+      : access.allowedSalons.find((s) => s.id === activeSalonId)?.name ??
+        `Salone ${activeSalonId}`;
 
   // 2. Query Dati Reali (Filtrati per Salone se applicabile)
   const now = new Date();
@@ -118,6 +127,7 @@ export default async function DashboardPage() {
     .select("total_amount");
 
   let totaleIncasso = 0;
+  let incassoUnavailable = false;
   try {
     let incassoQuery = incassoBaseQuery
       .gte("date", startOfDayLocal)
@@ -133,12 +143,13 @@ export default async function DashboardPage() {
     );
   } catch (e) {
     console.error("[dashboard] Incasso Giornaliero query error", e);
-    totaleIncasso = 0;
+    incassoUnavailable = true;
   }
 
   // Query 2: Appuntamenti (Totali vs Completati)
   let totalApp = 0;
   let completedApp = 0;
+  let agendaUnavailable = false;
   try {
     let appQuery = supabase
       .from("appointments")
@@ -166,26 +177,46 @@ export default async function DashboardPage() {
     completedApp = doneCount ?? 0;
   } catch (e) {
     console.error("[dashboard] Stato Agenda query error", e);
-    totalApp = 0;
-    completedApp = 0;
+    agendaUnavailable = true;
   }
 
-  // Query 3: Magazzino (Sottoscorta - Filter per salone se i prodotti sono divisi)
+  // Query 3: Magazzino (sottoscorta allineata al report prodotti: soglia per prodotto)
   let alertStock = 0;
+  let stockUnavailable = false;
   try {
-    let stockQuery = supabase
-      .from("products_with_stock")
-      .select("*", { count: "exact", head: true })
-      .lt("quantity", 5);
+    if (!activeSalonId) {
+      alertStock = 0;
+    } else {
+      const [{ data: productMeta, error: productErr }, { data: stockRows, error: stockErr }] =
+        await Promise.all([
+          supabase.from("products").select("id, low_stock").eq("active", true),
+          supabase.from("product_stock").select("product_id, quantity").eq("salon_id", activeSalonId),
+        ]);
 
-    if (activeSalonId) stockQuery = stockQuery.eq("salon_id", activeSalonId);
+      if (productErr) throw productErr;
+      if (stockErr) throw stockErr;
 
-    const { count: stockCount, error: stockErr } = await stockQuery;
-    if (stockErr) throw stockErr;
-    alertStock = stockCount ?? 0;
+      const minByProductId = new Map<number, number>();
+      for (const row of productMeta ?? []) {
+        const id = Number((row as any).id);
+        if (!Number.isFinite(id) || id <= 0) continue;
+        const min = Number((row as any).low_stock);
+        minByProductId.set(id, Number.isFinite(min) ? Math.max(0, min) : 2);
+      }
+
+      let lowCount = 0;
+      for (const row of stockRows ?? []) {
+        const productId = Number((row as any).product_id);
+        if (!Number.isFinite(productId) || productId <= 0) continue;
+        const qty = Number((row as any).quantity);
+        const minQty = minByProductId.get(productId) ?? 2;
+        if ((Number.isFinite(qty) ? qty : 0) < minQty) lowCount += 1;
+      }
+      alertStock = lowCount;
+    }
   } catch (e) {
     console.error("[dashboard] Alert Stock query error", e);
-    alertStock = 0;
+    stockUnavailable = true;
   }
 
   return (
@@ -220,6 +251,12 @@ export default async function DashboardPage() {
               Ecco cosa succede oggi nei tuoi saloni. Gestisci appuntamenti, 
               controlla lo stock e monitora le performance in tempo reale.
             </p>
+            {activeSalonLabel && access.role !== "cliente" ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-xs font-bold text-white/70">
+                KPI riferiti a:{" "}
+                <span className="text-white/90">{activeSalonLabel}</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-4">
@@ -250,22 +287,30 @@ export default async function DashboardPage() {
         <StatCard 
           label="Incasso Giornaliero" 
           value={`€ ${totaleIncasso.toLocaleString('it-IT')}`} 
-          description="Somma sales di oggi" 
-          trend={totaleIncasso > 0 ? "up" : "neutral"} 
+          description={incassoUnavailable ? "Dato non disponibile" : "Somma sales di oggi"} 
+          trend={incassoUnavailable ? "neutral" : (totaleIncasso > 0 ? "up" : "neutral")} 
         />
         <StatCard 
           label="Stato Agenda" 
           value={`${completedApp || 0} / ${totalApp || 0}`} 
-          description={`${(totalApp || 0) - (completedApp || 0)} appuntamenti rimasti`} 
+          description={
+            agendaUnavailable
+              ? "Dato non disponibile"
+              : `${(totalApp || 0) - (completedApp || 0)} appuntamenti rimasti`
+          } 
           trend="neutral"
           variant={completedApp === totalApp && totalApp !== 0 ? "default" : "default"}
         />
         <StatCard 
           label="Alert Stock" 
           value={String(alertStock || 0)} 
-          description="Referenze sotto la soglia minima" 
-          trend={alertStock && alertStock > 0 ? "down" : "up"} 
-          variant={alertStock && alertStock > 0 ? "warning" : "default"}
+          description={
+            stockUnavailable
+              ? "Dato non disponibile"
+              : "Referenze sotto la soglia minima (logica report)"
+          } 
+          trend={stockUnavailable ? "neutral" : (alertStock && alertStock > 0 ? "down" : "up")} 
+          variant={stockUnavailable ? "default" : (alertStock && alertStock > 0 ? "warning" : "default")}
         />
       </section>
 

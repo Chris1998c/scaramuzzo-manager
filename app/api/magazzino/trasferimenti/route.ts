@@ -3,29 +3,33 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
-import { getReceptionSalonId } from "@/lib/receptionSalon";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 type TransferItem = { id: number | string; qty: number | string };
-
-function roleFromMetadata(user: unknown): string {
-  const u = user as { user_metadata?: { role?: unknown }; app_metadata?: { role?: unknown } };
-  return String(u?.user_metadata?.role ?? u?.app_metadata?.role ?? "").trim();
-}
-
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id, roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error || !data) return null;
-  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
-  return roleName ? String(roleName).trim() : null;
-}
 
 // Saloni validi: 1..4 + centrale 5
 function isValidSalonId(id: number) {
   return Number.isFinite(id) && id >= 1 && id <= MAGAZZINO_CENTRALE_ID;
+}
+
+function normalizeRequestId(v: unknown): string | null {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(s)
+    ? s
+    : null;
+}
+
+function transferRequestMarker(requestId: string): string {
+  return `[[rid:${requestId}]]`;
+}
+
+function appendTransferMarker(note: string | null, requestId: string | null): string | null {
+  if (!requestId) return note;
+  const marker = transferRequestMarker(requestId);
+  const base = String(note ?? "").trim();
+  if (base.includes(marker)) return base;
+  return base ? `${base} ${marker}` : marker;
 }
 
 export async function POST(req: Request) {
@@ -38,6 +42,7 @@ export async function POST(req: Request) {
     const items: TransferItem[] = Array.isArray(body?.items) ? body.items : [];
     const details = body?.details ?? null;
     const executeNow = Boolean(body?.executeNow);
+    const requestId = normalizeRequestId(body?.request_id);
 
     if (items.length === 0) {
       return NextResponse.json({ error: "items mancanti" }, { status: 400 });
@@ -50,8 +55,8 @@ export async function POST(req: Request) {
     }
 
     const userId = userData.user.id;
-    const dbRole = await getRoleFromDb(userId);
-    const role = (dbRole || roleFromMetadata(userData.user)).trim();
+    const access = await getUserAccess();
+    const role = access.role;
     const isReception = role === "reception";
     const isWarehouse = role === "magazzino" || role === "coordinator";
 
@@ -61,7 +66,7 @@ export async function POST(req: Request) {
 
     // RECEPTION: from_salon = solo proprio salone (ignora body)
     if (isReception) {
-      const mySalonId = await getReceptionSalonId(userId);
+      const mySalonId = access.staffSalonId;
       if (!mySalonId || !isValidSalonId(mySalonId)) {
         return NextResponse.json(
           { error: "Salone non associato al tuo account. Contatta l'amministratore." },
@@ -82,6 +87,20 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "fromSalon e toSalon non possono essere uguali" },
         { status: 400 }
+      );
+    }
+    if (isWarehouse) {
+      if (!access.allowedSalonIds.includes(fromSalon) || !access.allowedSalonIds.includes(toSalon)) {
+        return NextResponse.json(
+          { error: "fromSalon/toSalon non consentiti per questo utente" },
+          { status: 403 }
+        );
+      }
+    }
+    if (isReception && executeNow) {
+      return NextResponse.json(
+        { error: "La reception non puo' eseguire subito un trasferimento" },
+        { status: 403 }
       );
     }
 
@@ -118,6 +137,28 @@ export async function POST(req: Request) {
       details?.note && typeof details.note === "string" && details.note.trim()
         ? details.note.trim()
         : null;
+    const noteWithMarker = appendTransferMarker(note, requestId);
+
+    // Dedupe minimo provvisorio:
+    // usa request_id nel campo note per riconoscere retry ravvicinati senza nuova tabella.
+    if (requestId) {
+      const marker = transferRequestMarker(requestId);
+      const { data: existingTransfer } = await supabaseAdmin
+        .from("transfers")
+        .select("id")
+        .eq("from_salon", fromSalon)
+        .eq("to_salon", toSalon)
+        .ilike("note", `%${marker}%`)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingTransfer) {
+        return NextResponse.json(
+          { ok: true, idempotent: true, transfer_id: (existingTransfer as { id: number }).id },
+          { status: 200 }
+        );
+      }
+    }
 
     // CREA TRANSFER (draft o ready)
     const { data: transfer, error: transferError } = await supabaseAdmin
@@ -127,7 +168,7 @@ export async function POST(req: Request) {
         to_salon: toSalon,
         date,
         causale,
-        note,
+        note: noteWithMarker,
         status: executeNow ? "ready" : "draft",
       })
       .select("id")
@@ -152,6 +193,7 @@ export async function POST(req: Request) {
       .insert(itemsInsert);
 
     if (itemsError) {
+      await supabaseAdmin.from("transfers").delete().eq("id", transfer.id);
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
     }
 
@@ -162,6 +204,7 @@ export async function POST(req: Request) {
       });
 
       if (execError) {
+        console.error("execute_transfer failed", { transferId: transfer.id, error: execError.message });
         return NextResponse.json({ error: execError.message }, { status: 500 });
       }
 
@@ -171,7 +214,10 @@ export async function POST(req: Request) {
         .eq("id", transfer.id);
 
       if (updError) {
-        return NextResponse.json({ error: updError.message }, { status: 500 });
+        console.error("transfers status update failed after execute_transfer", {
+          transferId: transfer.id,
+          error: updError.message,
+        });
       }
     }
 

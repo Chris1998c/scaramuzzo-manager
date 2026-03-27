@@ -1,12 +1,14 @@
 // app/api/agenda/close-appointment/route.ts
+// LEGACY / NON-PRIMARY PATH:
+// Route secondaria: il flusso operativo principale di chiusura passa da /api/cassa/close.
+// Mantenere questa route solo per compatibilita', senza usarla come riferimento per nuove feature.
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type StaffRole = "reception" | "coordinator" | "magazzino";
 
 function errMsg(e: unknown): string {
   if (!e) return "unknown";
@@ -24,34 +26,6 @@ function toInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-function roleFromMetadata(user: any): string {
-  return String(user?.user_metadata?.role ?? user?.app_metadata?.role ?? "").trim();
-}
-
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id, roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const roleName = (data as any)?.roles?.name;
-  return roleName ? String(roleName).trim() : null;
-}
-
-async function getReceptionSalonId(userId: string): Promise<number | null> {
-  const { data, error } = await supabaseAdmin
-    .from("staff")
-    .select("salon_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const sid = toInt((data as any)?.salon_id);
-  return sid && sid > 0 ? sid : null;
-}
-
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -62,12 +36,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const user = authData.user;
-    const userId = user.id;
-
-    // ROLE (DB source-of-truth, fallback metadata)
-    const dbRole = await getRoleFromDb(userId);
-    const role = (dbRole || roleFromMetadata(user)) as StaffRole;
+    const access = await getUserAccess();
+    const role = access.role;
 
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
@@ -81,6 +51,11 @@ export async function POST(req: Request) {
     if (!appointmentId || appointmentId <= 0) {
       return NextResponse.json({ error: "appointment_id invalid" }, { status: 400 });
     }
+
+    console.warn("[legacy-route] /api/agenda/close-appointment invoked", {
+      appointmentId,
+      role,
+    });
 
     // LOAD APPOINTMENT (ADMIN)
     const { data: appt, error: apptErr } = await supabaseAdmin
@@ -98,9 +73,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "appointment salon_id invalid" }, { status: 500 });
     }
 
-    // AUTHZ: reception solo sul proprio salone
+    // AUTHZ: reception solo sul proprio salone; altri su saloni consentiti
     if (role === "reception") {
-      const mySalonId = await getReceptionSalonId(userId);
+      const mySalonId = access.staffSalonId;
       if (!mySalonId) {
         return NextResponse.json(
           { error: "Reception senza staff.salon_id associato" },
@@ -110,6 +85,20 @@ export async function POST(req: Request) {
       if (salonId !== mySalonId) {
         return NextResponse.json({ error: "salon_id non consentito" }, { status: 403 });
       }
+    } else if (!access.allowedSalonIds.includes(salonId)) {
+      return NextResponse.json({ error: "salon_id non consentito" }, { status: 403 });
+    }
+
+    // Legacy safety route:
+    // il flusso principale di chiusura passa da /api/cassa/close;
+    // qui consentiamo solo una chiusura manuale sicura da stato in_sala -> done.
+    const apptStatus = String((appt as any).status ?? "").trim();
+
+    if (apptStatus === "cancelled") {
+      return NextResponse.json(
+        { error: "Appuntamento cancellato: chiusura non consentita" },
+        { status: 409 }
+      );
     }
 
     // Idempotente
@@ -122,6 +111,16 @@ export async function POST(req: Request) {
           sale_id: (appt as any).sale_id ?? null,
         },
         { status: 200 }
+      );
+    }
+
+    if (apptStatus !== "in_sala") {
+      return NextResponse.json(
+        {
+          error:
+            "Transizione non valida: close-appointment consente solo in_sala -> done",
+        },
+        { status: 409 }
       );
     }
 

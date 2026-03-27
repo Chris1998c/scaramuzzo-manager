@@ -1,23 +1,25 @@
 // app/api/auth/logout/route.ts
 import { NextResponse } from "next/server";
+import { createServerSupabase } from "@/lib/supabaseServer";
 
 export async function POST() {
-  const response = NextResponse.redirect(
-    new URL(
-      "/login",
-      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-    )
-  );
+  const supabase = await createServerSupabase();
+  await supabase.auth.signOut();
 
-  response.cookies.set("sb-access-token", "", {
-    path: "/",
-    maxAge: 0,
-  });
+  const response = NextResponse.json({ ok: true });
 
-  response.cookies.set("sb-refresh-token", "", {
-    path: "/",
-    maxAge: 0,
-  });
+  // Cleanup defensivo: elimina anche i cookie legacy/custom.
+  const cookieNames = [
+    "sb-access-token",
+    "sb-refresh-token",
+    ...response.cookies.getAll().map((c) => c.name),
+  ];
+
+  for (const name of cookieNames) {
+    if (name.startsWith("sb-")) {
+      response.cookies.set(name, "", { path: "/", maxAge: 0 });
+    }
+  }
 
   return response;
 }

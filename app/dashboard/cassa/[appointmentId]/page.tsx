@@ -327,10 +327,40 @@ setProducts(pr || []);
     setItems((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  function buildSubmitItems(rows: CashItem[]): CashItem[] {
+    const out: CashItem[] = [];
+    const productIndex = new Map<number, number>();
+
+    for (const row of rows) {
+      if (row.kind === "product") {
+        const idx = productIndex.get(row.id);
+        if (idx != null) {
+          const prev = out[idx];
+          out[idx] = {
+            ...prev,
+            qty: prev.qty + row.qty,
+            // Manteniamo coerenza totale sommando gli sconti riga.
+            discountEur: prev.discountEur + row.discountEur,
+          };
+          continue;
+        }
+        productIndex.set(row.id, out.length);
+      }
+      out.push({ ...row });
+    }
+
+    return out;
+  }
+
   function duplicateItem(idx: number): void {
     setItems((prev) => {
       const it = prev[idx];
       if (!it) return prev;
+      if (it.kind === "product") {
+        return prev.map((row, i) =>
+          i === idx ? { ...row, qty: row.qty + 1 } : row,
+        );
+      }
       return [
         ...prev.slice(0, idx + 1),
         { ...it },
@@ -396,7 +426,7 @@ setProducts(pr || []);
     setClosing(true);
 
     // Convertiamo sconti € -> % per API (backend lavora in percentuale)
-    const lines = items.map((it) => {
+    const lines = buildSubmitItems(items).map((it) => {
       const gross = it.unitPrice * it.qty;
       const discEur = Math.min(it.discountEur, gross);
       const discountPct = gross > 0 ? (discEur / gross) * 100 : 0;

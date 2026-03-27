@@ -2,29 +2,55 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getReceptionSalonId } from "@/lib/receptionSalon";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 const MAGAZZINO_CENTRALE_ID = 5;
-
-function roleFromMetadata(user: unknown): string {
-  const u = user as { user_metadata?: { role?: unknown }; app_metadata?: { role?: unknown } };
-  return String(u?.user_metadata?.role ?? u?.app_metadata?.role ?? "").trim();
-}
-
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id, roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error || !data) return null;
-  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
-  return roleName ? String(roleName).trim() : null;
-}
+const DEDUPE_WINDOW_MS = 5 * 60 * 1000;
 
 // Destinazione carico da centrale: solo saloni veri 1..4 (NO 5)
 function isValidDestinationSalonId(id: number) {
   return Number.isFinite(id) && id >= 1 && id < MAGAZZINO_CENTRALE_ID;
+}
+
+function normalizeRequestId(v: unknown): string | null {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(s)
+    ? s
+    : null;
+}
+
+function requestMarker(requestId: string): string {
+  return `[rid:${requestId}]`;
+}
+
+function appendReasonMarker(reason: string, requestId: string | null): string {
+  if (!requestId) return reason;
+  const marker = requestMarker(requestId);
+  return reason.includes(marker) ? reason : `${reason} ${marker}`.trim();
+}
+
+async function findDuplicateMovement(args: {
+  requestId: string;
+  productId: number;
+  fromSalon: number | null;
+  toSalon: number | null;
+}): Promise<{ id: number } | null> {
+  const cutoffIso = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+  const marker = requestMarker(args.requestId);
+  let q = supabaseAdmin
+    .from("stock_movements")
+    .select("id")
+    .eq("product_id", args.productId)
+    .gte("created_at", cutoffIso)
+    .ilike("reason", `%${marker}%`)
+    .order("id", { ascending: false })
+    .limit(1);
+  q = args.fromSalon == null ? q.is("from_salon", null) : q.eq("from_salon", args.fromSalon);
+  q = args.toSalon == null ? q.is("to_salon", null) : q.eq("to_salon", args.toSalon);
+  const { data, error } = await q.maybeSingle();
+  if (error || !data) return null;
+  return { id: Number((data as { id: number }).id) };
 }
 
 export async function POST(req: Request) {
@@ -34,10 +60,12 @@ export async function POST(req: Request) {
 
     const productId = Number(body?.productId);
     const qty = Number(body?.qty);
+    const requestId = normalizeRequestId(body?.request_id);
     const reason =
       body?.reason && String(body.reason).trim()
         ? String(body.reason).trim()
         : "carico_app";
+    const reasonWithMarker = appendReasonMarker(reason, requestId);
 
     if (!Number.isFinite(productId) || productId <= 0) {
       return NextResponse.json({ error: "productId non valido" }, { status: 400 });
@@ -51,9 +79,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const userId = userData.user.id;
-    const dbRole = await getRoleFromDb(userId);
-    const role = (dbRole || roleFromMetadata(userData.user)).trim();
+    const access = await getUserAccess();
+    const role = access.role;
 
     const isReception = role === "reception";
     const isWarehouse = role === "magazzino" || role === "coordinator";
@@ -64,12 +91,24 @@ export async function POST(req: Request) {
 
     // ——— RECEPTION: carico in ingresso solo nel proprio salone ———
     if (isReception) {
-      const mySalonId = await getReceptionSalonId(userId);
+      const mySalonId = access.staffSalonId;
       if (!mySalonId || mySalonId < 1 || mySalonId >= MAGAZZINO_CENTRALE_ID) {
         return NextResponse.json(
           { error: "Salone non associato al tuo account. Contatta l'amministratore." },
           { status: 403 }
         );
+      }
+
+      if (requestId) {
+        const dup = await findDuplicateMovement({
+          requestId,
+          productId,
+          fromSalon: null,
+          toSalon: mySalonId,
+        });
+        if (dup) {
+          return NextResponse.json({ ok: true, idempotent: true, duplicate_movement_id: dup.id }, { status: 200 });
+        }
       }
 
       const { error } = await supabaseAdmin.rpc("stock_move", {
@@ -78,7 +117,7 @@ export async function POST(req: Request) {
         p_from_salon: null,
         p_to_salon: mySalonId,
         p_movement_type: "carico",
-        p_reason: reason || "carico_ingresso_reception",
+        p_reason: reasonWithMarker || "carico_ingresso_reception",
       });
 
       if (error) {
@@ -95,6 +134,24 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    if (!access.allowedSalonIds.includes(salonId)) {
+      return NextResponse.json(
+        { error: "salonId non consentito per questo utente" },
+        { status: 403 }
+      );
+    }
+
+    if (requestId) {
+      const dup = await findDuplicateMovement({
+        requestId,
+        productId,
+        fromSalon: MAGAZZINO_CENTRALE_ID,
+        toSalon: salonId,
+      });
+      if (dup) {
+        return NextResponse.json({ ok: true, idempotent: true, duplicate_movement_id: dup.id }, { status: 200 });
+      }
+    }
 
     const { error } = await supabaseAdmin.rpc("stock_move", {
       p_product_id: productId,
@@ -102,7 +159,7 @@ export async function POST(req: Request) {
       p_from_salon: MAGAZZINO_CENTRALE_ID,
       p_to_salon: salonId,
       p_movement_type: "trasferimento",
-      p_reason: reason,
+      p_reason: reasonWithMarker,
     });
 
     if (error) {

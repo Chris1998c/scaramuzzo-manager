@@ -1,51 +1,8 @@
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
-
-function roleFromMetadata(user: unknown): string {
-  const u = user as { user_metadata?: { role?: unknown }; app_metadata?: { role?: unknown } };
-  return String(u?.user_metadata?.role ?? u?.app_metadata?.role ?? "").trim();
-}
-
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id, roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error || !data) return null;
-  const roleName = (data as { roles?: { name?: unknown } })?.roles?.name;
-  return roleName ? String(roleName).trim() : null;
-}
-
-async function getReceptionSalonId(userId: string): Promise<number | null> {
-  const { data, error } = await supabaseAdmin
-    .from("staff")
-    .select("salon_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const sid = Number((data as any)?.salon_id);
-  return Number.isFinite(sid) && sid > 0 ? sid : null;
-}
-
-async function getAllowedSalonIds(userId: string): Promise<number[]> {
-  const { data, error } = await supabaseAdmin
-    .from("user_salons")
-    .select("salon_id")
-    .eq("user_id", userId);
-
-  if (error || !Array.isArray(data)) return [];
-
-  return (data as { salon_id?: unknown }[])
-    .map((row) => {
-      const n = Number(row.salon_id);
-      return Number.isFinite(n) && n > 0 ? n : null;
-    })
-    .filter((id): id is number => id !== null);
-}
 
 export async function POST(req: Request) {
   try {
@@ -59,8 +16,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const dbRole = await getRoleFromDb(authData.user.id);
-    const role = (dbRole || roleFromMetadata(authData.user)).trim();
+    const access = await getUserAccess();
+    const role = access.role;
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), {
         status: 403,
@@ -80,7 +37,7 @@ export async function POST(req: Request) {
 
     // ✅ reception può fare Z SOLO del proprio salone
     if (role === "reception") {
-      const mySalonId = await getReceptionSalonId(authData.user.id);
+      const mySalonId = access.staffSalonId;
       if (!mySalonId) {
         return new Response(
           JSON.stringify({ error: "Reception senza salon_id associato" }),
@@ -103,8 +60,7 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      const allowedSalonIds = await getAllowedSalonIds(authData.user.id);
-      if (!allowedSalonIds.length || !allowedSalonIds.includes(salonId)) {
+      if (!access.allowedSalonIds.includes(salonId)) {
         return new Response(
           JSON.stringify({
             error: "salon_id non consentito per questo utente",

@@ -3,11 +3,10 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchFiscalTodayStatusCounts } from "@/lib/fiscalSettings";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type StaffRole = "reception" | "coordinator" | "magazzino";
 
 function errMsg(e: unknown) {
   if (!e) return "unknown";
@@ -26,12 +25,6 @@ function toInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-function roleFromMetadata(user: any): string {
-  return String(
-    user?.user_metadata?.role ?? user?.app_metadata?.role ?? "",
-  ).trim();
-}
-
 function round2(n: number) {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
@@ -48,44 +41,6 @@ function todayRomeISO(): string {
   const m = parts.find((p) => p.type === "month")?.value ?? "01";
   const d = parts.find((p) => p.type === "day")?.value ?? "01";
   return `${y}-${m}-${d}`; // YYYY-MM-DD
-}
-
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  // source-of-truth: users -> roles
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id, roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const roleName = (data as any)?.roles?.name;
-  return roleName ? String(roleName).trim() : null;
-}
-
-async function getReceptionSalonId(userId: string): Promise<number | null> {
-  const { data, error } = await supabaseAdmin
-    .from("staff")
-    .select("salon_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const sid = toInt((data as any)?.salon_id);
-  return sid && sid > 0 ? sid : null;
-}
-
-async function getAllowedSalonIds(userId: string): Promise<number[]> {
-  const { data, error } = await supabaseAdmin
-    .from("user_salons")
-    .select("salon_id")
-    .eq("user_id", userId);
-
-  if (error || !Array.isArray(data)) return [];
-
-  return (data as { salon_id?: unknown }[])
-    .map((row) => toInt(row.salon_id))
-    .filter((id): id is number => !!id && id > 0);
 }
 
 async function sumSalesByRange(args: {
@@ -133,12 +88,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const user = authData.user;
-    const userId = user.id;
-
-    // ROLE (DB as source-of-truth, fallback metadata)
-    const dbRole = await getRoleFromDb(userId);
-    const role = (dbRole || roleFromMetadata(user)) as StaffRole;
+    const access = await getUserAccess();
+    const role = access.role;
 
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
@@ -155,7 +106,7 @@ export async function GET(req: Request) {
     let salonId: number | null = qSalon;
 
     if (role === "reception") {
-      const sid = await getReceptionSalonId(userId);
+      const sid = access.staffSalonId;
       if (!sid) {
         return NextResponse.json(
           { error: "Reception senza staff.salon_id associato" },
@@ -173,14 +124,11 @@ export async function GET(req: Request) {
     }
 
     // AUTHZ salone per coordinator/magazzino
-    if (role !== "reception") {
-      const allowedSalonIds = await getAllowedSalonIds(userId);
-      if (!allowedSalonIds.length || !allowedSalonIds.includes(salonId)) {
-        return NextResponse.json(
-          { error: "salon_id non consentito per questo utente" },
-          { status: 403 },
-        );
-      }
+    if (role !== "reception" && !access.allowedSalonIds.includes(salonId)) {
+      return NextResponse.json(
+        { error: "salon_id non consentito per questo utente" },
+        { status: 403 },
+      );
     }
 
     // Validate salon exists (and return name)

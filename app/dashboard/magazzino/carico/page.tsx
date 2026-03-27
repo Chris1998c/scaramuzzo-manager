@@ -42,6 +42,13 @@ function clampQty(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
 
+function createRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 /** ✅ Wrapper required by Next.js when using useSearchParams() */
 export default function CaricoPage() {
   return (
@@ -327,6 +334,7 @@ function CaricoInner() {
     setErrorMsg(null);
 
     try {
+      const requestId = createRequestId();
       const res = await fetch("/api/magazzino/carico", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -335,6 +343,7 @@ function CaricoInner() {
           productId,
           qty: q,
           reason: isReception ? "carico_ingresso_reception" : "carico_app",
+          request_id: requestId,
         }),
       });
 

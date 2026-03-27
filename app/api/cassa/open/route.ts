@@ -2,11 +2,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type StaffRole = "reception" | "coordinator" | "magazzino";
 
 function errMsg(e: unknown) {
   if (!e) return "unknown";
@@ -45,47 +44,6 @@ function todayRomeISO(): string {
   return `${y}-${m}-${d}`; // YYYY-MM-DD
 }
 
-function roleFromMetadata(user: any): string {
-  return String(user?.user_metadata?.role ?? user?.app_metadata?.role ?? "").trim();
-}
-
-async function getRoleFromDb(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("id, roles:roles(name)")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const roleName = (data as any)?.roles?.name;
-  return roleName ? String(roleName).trim() : null;
-}
-
-async function getReceptionSalonId(userId: string): Promise<number | null> {
-  const { data, error } = await supabaseAdmin
-    .from("staff")
-    .select("salon_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  const sid = toInt((data as any)?.salon_id);
-  return sid && sid > 0 ? sid : null;
-}
-
-async function getAllowedSalonIds(userId: string): Promise<number[]> {
-  const { data, error } = await supabaseAdmin
-    .from("user_salons")
-    .select("salon_id")
-    .eq("user_id", userId);
-
-  if (error || !Array.isArray(data)) return [];
-
-  return (data as { salon_id?: unknown }[])
-    .map((row) => toInt(row.salon_id))
-    .filter((id): id is number => !!id && id > 0);
-}
-
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -95,13 +53,10 @@ export async function POST(req: Request) {
     if (authErr || !authData?.user) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
+    const userId = authData.user.id;
 
-    const user = authData.user;
-    const userId = user.id;
-
-    // ROLE (DB source-of-truth, fallback metadata)
-    const dbRole = await getRoleFromDb(userId);
-    const role = (dbRole || roleFromMetadata(user)) as StaffRole;
+    const access = await getUserAccess();
+    const role = access.role;
 
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
@@ -115,7 +70,7 @@ export async function POST(req: Request) {
     let salonId = toInt(body?.salon_id);
 
     if (role === "reception") {
-      const sid = await getReceptionSalonId(userId);
+      const sid = access.staffSalonId;
       if (!sid) {
         return NextResponse.json(
           { error: "Reception senza staff.salon_id associato" },
@@ -130,14 +85,11 @@ export async function POST(req: Request) {
     }
 
     // AUTHZ salone per coordinator/magazzino
-    if (role !== "reception") {
-      const allowedSalonIds = await getAllowedSalonIds(userId);
-      if (!allowedSalonIds.length || !allowedSalonIds.includes(salonId)) {
-        return NextResponse.json(
-          { error: "salon_id non consentito per questo utente" },
-          { status: 403 },
-        );
-      }
+    if (role !== "reception" && !access.allowedSalonIds.includes(salonId)) {
+      return NextResponse.json(
+        { error: "salon_id non consentito per questo utente" },
+        { status: 403 },
+      );
     }
 
     // validate salon exists (cheap)

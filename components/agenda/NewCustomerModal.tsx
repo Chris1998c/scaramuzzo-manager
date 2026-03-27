@@ -1,4 +1,7 @@
 "use client";
+// LEGACY / NON-PRIMARY PATH:
+// Questo componente non fa parte del flusso operativo principale Agenda/In Sala/Cassa attuale.
+// Non usarlo come riferimento per nuove feature.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
