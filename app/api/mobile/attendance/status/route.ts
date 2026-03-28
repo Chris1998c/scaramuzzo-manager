@@ -1,5 +1,7 @@
+// Stato in/out da attendance_logs (allineato a clock + GET presenze).
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { resolveMobileStaffId } from "@/lib/mobileSession";
 
 type AttendanceStatusBody = {
   staff_id?: number;
@@ -8,15 +10,31 @@ type AttendanceStatusBody = {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as AttendanceStatusBody;
-    const staffId = Number(body.staff_id);
+    const idRes = resolveMobileStaffId(req, body);
+    if (!idRes.ok) return idRes.response;
 
-    if (!Number.isInteger(staffId) || staffId <= 0) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    const staffId = idRes.staffId;
+
+    const { data: staffRow, error: staffErr } = await supabaseAdmin
+      .from("staff")
+      .select("id, mobile_enabled")
+      .eq("id", staffId)
+      .maybeSingle();
+
+    if (staffErr) {
+      console.error("mobile attendance status staff:", staffErr.message);
+      return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
+    }
+    if (!staffRow) {
+      return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+    }
+    if (!staffRow.mobile_enabled) {
+      return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
     }
 
     const { data: latestLog, error: latestLogError } = await supabaseAdmin
-      .from("staff_attendance_logs")
-      .select("event_type")
+      .from("attendance_logs")
+      .select("type")
       .eq("staff_id", staffId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -26,7 +44,7 @@ export async function POST(req: Request) {
       throw latestLogError;
     }
 
-    const status = latestLog?.event_type === "clock_in" ? "in" : "out";
+    const status = latestLog?.type === "in" ? "in" : "out";
 
     return NextResponse.json({
       success: true,

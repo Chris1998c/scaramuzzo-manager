@@ -1,9 +1,22 @@
+// Agenda giornaliera Team: stesso contratto Bearer + compat body.staff_id (lib/mobileSession).
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { resolveMobileStaffId } from "@/lib/mobileSession";
 
 type Body = {
   staff_id?: number;
 };
+
+/** Inizio giornata odierna (Europe/Rome) come `YYYY-MM-DDT00:00:00` per confronto con `timestamp without time zone`. */
+function startOfTodayRomeLocal(): string {
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return `${ymd}T00:00:00`;
+}
 
 type AppointmentRowRaw = {
   id: number;
@@ -50,15 +63,37 @@ function serviceNamesFromAppointment(row: AppointmentRowRaw): string[] {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Body;
-    const staffId = Number(body.staff_id);
+    const idRes = resolveMobileStaffId(req, body);
+    if (!idRes.ok) return idRes.response;
 
-    if (!Number.isInteger(staffId) || staffId <= 0) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    const staffId = idRes.staffId;
+
+    const { data: staffRow, error: staffErr } = await supabaseAdmin
+      .from("staff")
+      .select("id, mobile_enabled")
+      .eq("id", staffId)
+      .maybeSingle();
+
+    if (staffErr) {
+      console.error("my-appointments staff lookup:", staffErr.message);
+      return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
     }
+    if (!staffRow) {
+      return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+    }
+    if (!staffRow.mobile_enabled) {
+      return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
+    }
+
+    const startFrom = startOfTodayRomeLocal();
 
     const [{ data: headRows, error: headErr }, { data: lineRows, error: lineErr }] =
       await Promise.all([
-        supabaseAdmin.from("appointments").select("id").eq("staff_id", staffId),
+        supabaseAdmin
+          .from("appointments")
+          .select("id")
+          .eq("staff_id", staffId)
+          .gte("start_time", startFrom),
         supabaseAdmin
           .from("appointment_services")
           .select("appointment_id")
@@ -79,10 +114,27 @@ export async function POST(req: Request) {
         if (Number.isInteger(id) && id > 0) idSet.add(id);
       }
     }
-    if (!lineErr) {
-      for (const r of lineRows ?? []) {
+    if (!lineErr && lineRows?.length) {
+      const rawLineIds = new Set<number>();
+      for (const r of lineRows) {
         const id = Number((r as { appointment_id?: unknown }).appointment_id);
-        if (Number.isInteger(id) && id > 0) idSet.add(id);
+        if (Number.isInteger(id) && id > 0) rawLineIds.add(id);
+      }
+      if (rawLineIds.size > 0) {
+        const { data: apptIdsFromLines, error: lineFutureErr } = await supabaseAdmin
+          .from("appointments")
+          .select("id")
+          .in("id", Array.from(rawLineIds))
+          .gte("start_time", startFrom);
+
+        if (lineFutureErr) {
+          console.error("my-appointments line appointments date filter:", lineFutureErr.message);
+        } else {
+          for (const r of apptIdsFromLines ?? []) {
+            const id = Number((r as { id?: unknown }).id);
+            if (Number.isInteger(id) && id > 0) idSet.add(id);
+          }
+        }
       }
     }
 
@@ -115,6 +167,7 @@ export async function POST(req: Request) {
         `,
       )
       .in("id", Array.from(idSet))
+      .gte("start_time", startFrom)
       .order("start_time", { ascending: true })
       .order("id", { foreignTable: "appointment_services", ascending: true });
 

@@ -1,18 +1,43 @@
+// LEGACY: POST /api/mobile/dashboard/stats — conteggi globali senza periodo. Spegnere quando la Team usa solo POST /api/mobile/stats.
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { resolveMobileStaffId, romeDayKeyFromIso } from "@/lib/mobileSession";
 
 type StatsBody = {
   staff_id?: number;
 };
 
+async function countWorkedDaysAllTimeFromAttendanceLogs(staffId: number): Promise<number> {
+  const pageSize = 1000;
+  let offset = 0;
+  const days = new Set<string>();
+  for (;;) {
+    const { data, error } = await supabaseAdmin
+      .from("attendance_logs")
+      .select("created_at")
+      .eq("staff_id", staffId)
+      .eq("type", "in")
+      .order("created_at", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    for (const row of rows) {
+      const ts = (row as { created_at?: string | null }).created_at;
+      if (ts) days.add(romeDayKeyFromIso(ts));
+    }
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+  return days.size;
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as StatsBody;
-    const staffId = Number(body.staff_id);
+    const idRes = resolveMobileStaffId(req, body);
+    if (!idRes.ok) return idRes.response;
 
-    if (!Number.isInteger(staffId) || staffId <= 0) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-    }
+    const staffId = idRes.staffId;
 
     const stats = {
       services_count: 0,
@@ -25,7 +50,6 @@ export async function POST(req: Request) {
       { count: servicesCount, error: servicesErr },
       { count: productsCount, error: productsErr },
       { data: saleCustomerRows, error: clientsErr },
-      { data: clockInRows, error: clockErr },
     ] = await Promise.all([
       supabaseAdmin
         .from("sale_items")
@@ -38,11 +62,6 @@ export async function POST(req: Request) {
         .eq("staff_id", staffId)
         .not("product_id", "is", null),
       supabaseAdmin.from("sale_items").select("sales(customer_id)").eq("staff_id", staffId),
-      supabaseAdmin
-        .from("staff_attendance_logs")
-        .select("created_at")
-        .eq("staff_id", staffId)
-        .eq("event_type", "clock_in"),
     ]);
 
     if (!servicesErr && typeof servicesCount === "number") {
@@ -62,13 +81,10 @@ export async function POST(req: Request) {
       stats.clients_count = customerIds.size;
     }
 
-    if (!clockErr && clockInRows) {
-      const days = new Set<string>();
-      for (const row of clockInRows as { created_at: string | null }[]) {
-        const ts = row?.created_at;
-        if (ts) days.add(String(ts).slice(0, 10));
-      }
-      stats.worked_days_count = days.size;
+    try {
+      stats.worked_days_count = await countWorkedDaysAllTimeFromAttendanceLogs(staffId);
+    } catch (e) {
+      console.error("mobile dashboard stats attendance_logs:", e);
     }
 
     return NextResponse.json({ success: true, stats });
