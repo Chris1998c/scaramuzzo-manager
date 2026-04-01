@@ -9,6 +9,13 @@ import { NextResponse } from "next/server";
  * - MOBILE_AUTH_STRICT assente/false: senza Bearer si può ancora usare `body.staff_id` (compat) — log [mobile-auth][compat].
  * - MOBILE_AUTH_STRICT=true: Bearer obbligatorio sulle route che usano resolveMobileStaffId; nessun fallback body-only.
  * - Bearer presente ma invalido/scaduto: 401, nessun fallback al body.
+ *
+ * Inventario route `app/api/mobile/*` (accordo con il repo Manager, non è l’app Team):
+ * - Contratto attuale: login → POST /api/mobile/login; KPI periodo → POST /api/mobile/stats;
+ *   timbratura → POST /api/mobile/attendance/clock; agenda → POST /api/mobile/my-appointments;
+ *   lettura logs/stato presenza → GET/POST sotto `attendance/` (non toggle legacy).
+ * - Legacy espliciti (header `X-SM-API-Class` / `X-SM-Preferred-Replacement` sulle risposte):
+ *   POST /api/mobile/dashboard/stats, POST /api/mobile/attendance/toggle.
  */
 /** 30 giorni — allineato a sessioni mobile tipiche. */
 export const MOBILE_TOKEN_TTL_SEC = 30 * 24 * 60 * 60;

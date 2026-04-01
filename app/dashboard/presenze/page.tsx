@@ -79,8 +79,11 @@ export default async function PresenzePage() {
       .in("staff_id", uniqueStaffIds)
       .order("created_at", { ascending: false });
 
-    if (access.role === "reception" && access.allowedSalonIds.length > 0) {
-      liveQ = liveQ.in("salon_id", access.allowedSalonIds);
+    if (access.role === "reception") {
+      const opSid = access.staffSalonId;
+      if (opSid != null && opSid > 0) {
+        liveQ = liveQ.eq("salon_id", opSid);
+      }
     }
 
     const { data: latestEvents, error: latestEventsError } = await liveQ;

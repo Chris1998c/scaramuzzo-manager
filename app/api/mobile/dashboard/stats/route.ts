@@ -1,7 +1,17 @@
-// LEGACY: POST /api/mobile/dashboard/stats — conteggi globali senza periodo. Spegnere quando la Team usa solo POST /api/mobile/stats.
+/**
+ * @deprecated Mobile LEGACY — POST /api/mobile/dashboard/stats
+ * Conteggi globali senza periodo. Contratto KPI attuale: POST /api/mobile/stats (from/to).
+ * Ogni risposta include `X-SM-API-Class` + `X-SM-Preferred-Replacement`. Rimuovere quando nessun client la chiama.
+ */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveMobileStaffId, romeDayKeyFromIso } from "@/lib/mobileSession";
+
+function markLegacyMobileStats(res: NextResponse): NextResponse {
+  res.headers.set("X-SM-API-Class", "mobile-legacy-dashboard-stats");
+  res.headers.set("X-SM-Preferred-Replacement", "POST /api/mobile/stats");
+  return res;
+}
 
 type StatsBody = {
   staff_id?: number;
@@ -35,7 +45,7 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as StatsBody;
     const idRes = resolveMobileStaffId(req, body);
-    if (!idRes.ok) return idRes.response;
+    if (!idRes.ok) return markLegacyMobileStats(idRes.response);
 
     const staffId = idRes.staffId;
 

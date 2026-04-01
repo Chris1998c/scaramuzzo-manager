@@ -1,4 +1,8 @@
-// app/api/auth/me/route.ts
+/**
+ * GET utente corrente via cookie sessione SSR (`createServerSupabase`).
+ * Il flusso UI Manager non dipende da questa route; utile per diagnosi o script leggeri.
+ * Non è l’auth mobile Team (vedi `POST /api/mobile/login` + Bearer in `lib/mobileSession`).
+ */
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 

@@ -1,6 +1,6 @@
 // app/api/auth/logout/route.ts
-// Logout web SSR: signOut deve aggiornare i cookie sulla Response inviata al browser
-// (non solo cookieStore), altrimenti i chunk sb-* restano e la sessione sembra “random”.
+// Logout web ufficiale (header Manager): invalida la sessione Supabase SSR sulla Response.
+// Pulisce anche i cookie `sb-access-token` / `sb-refresh-token` se impostati da POST /api/auth/login (legacy compat).
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -29,7 +29,7 @@ export async function POST() {
 
   await supabase.auth.signOut();
 
-  // Legacy: route POST /api/auth/login (non usata dalla login page) impostava questi nomi.
+  // Legacy compat: stessi nomi eventualmente usati da POST /api/auth/login (non dalla login page Manager).
   response.cookies.set("sb-access-token", "", { path: "/", maxAge: 0 });
   response.cookies.set("sb-refresh-token", "", { path: "/", maxAge: 0 });
 

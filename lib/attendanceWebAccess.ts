@@ -16,7 +16,7 @@ export type AttendanceWebAccessErr = {
 
 export type AttendanceWebAccess = AttendanceWebAccessOk | AttendanceWebAccessErr;
 
-/** Presenze web: coordinator (tutto il perimetro) o reception (soli saloni assegnati). */
+/** Presenze web: coordinator (nessun filtro salone) o reception (solo salone operativo = staffSalonId). */
 export async function requireAttendanceWebAccess(): Promise<AttendanceWebAccess> {
   const supabase = await createServerSupabase();
   const { data: auth } = await supabase.auth.getUser();
@@ -48,12 +48,17 @@ export async function requireAttendanceWebAccess(): Promise<AttendanceWebAccess>
 
 /**
  * null = nessun filtro salone (coordinator).
- * array vuoto = nessun salone consentito → nessun dato.
- * array non vuoto = filtra per questi salon_id (reception).
+ * array vuoto = nessun dato (reception senza salone operativo risolvibile).
+ * [id] = reception: solo `staffSalonId` (stesso modello di ActiveSalonProvider / API reception).
  */
 export function salonIdsForAttendanceFilter(
   access: Awaited<ReturnType<typeof getUserAccess>>,
 ): number[] | null {
   if (access.role === "coordinator") return null;
-  return access.allowedSalonIds;
+  if (access.role === "reception") {
+    const sid = access.staffSalonId;
+    if (sid != null && Number.isFinite(sid) && sid > 0) return [sid];
+    return [];
+  }
+  return [];
 }

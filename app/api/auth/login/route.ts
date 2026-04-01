@@ -1,8 +1,19 @@
-// app/api/auth/login/route.ts
-// Legacy: login form Manager usa createBrowserClient (lib/supabaseClient) + cookie SSR @supabase/ssr.
-// Questa route non è referenziata nel web UI; tenuta per compat cookie sb-access-token se usata da tool esterni.
+/**
+ * @deprecated Login web ufficiale del Manager: `app/login/page.tsx` → `supabase.auth.signInWithPassword`
+ * sul browser client (`lib/supabaseClient`); middleware legge la sessione Supabase SSR standard.
+ *
+ * Questo POST resta solo per compatibilità con integrazioni che si aspettano cookie `sb-access-token` /
+ * `sb-refresh-token` (custom). Non aggiungere nuove dipendenze. Risposta include `X-SM-API-Class`.
+ */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+
+const LEGACY_AUTH_HEADER = "legacy-web-auth-cookie-login";
+
+function markLegacyAuth(res: NextResponse): NextResponse {
+  res.headers.set("X-SM-API-Class", LEGACY_AUTH_HEADER);
+  return res;
+}
 
 export async function POST(req: Request) {
   const { email, password } = await req.json();
@@ -18,15 +29,17 @@ export async function POST(req: Request) {
   });
 
   if (error || !data.session) {
-    return NextResponse.json(
-      { error: error?.message || "Credenziali non valide" },
-      { status: 400 }
+    return markLegacyAuth(
+      NextResponse.json(
+        { error: error?.message || "Credenziali non valide" },
+        { status: 400 }
+      )
     );
   }
 
   const { access_token, refresh_token } = data.session;
 
-  const res = NextResponse.json({ success: true });
+  const res = markLegacyAuth(NextResponse.json({ success: true }));
 
   // Cookie compatibili con middleware e server
   res.cookies.set("sb-access-token", access_token, {
