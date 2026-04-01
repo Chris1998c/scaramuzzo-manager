@@ -1,21 +1,25 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { 
-  CalendarDays, 
-  Package, 
-  Users, 
-  BarChart3, 
-  Settings, 
-  Sparkles, 
+import { Suspense } from "react";
+import {
+  CalendarDays,
+  ClipboardList,
+  Package,
+  Users,
+  BarChart3,
+  Settings,
+  Sparkles,
   Lock,
   ArrowUpRight,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle2
+  MessageCircle,
+  UserSquare2,
 } from "lucide-react";
 
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import DashboardSalonQuerySync from "@/components/dashboard/DashboardSalonQuerySync";
 // Importa la StatCard dal percorso corretto (occhio al typo "dasboard" se lo hai mantenuto così)
 import { StatCard } from "@/components/dasboard/StatCard";
 
@@ -40,8 +44,12 @@ type LockedTile = {
 
 type Tile = LiveTile | LockedTile;
 
-// --- CONFIGURAZIONE MODULI ---
-const MODULES: Tile[] = [
+type StaffRole = "coordinator" | "reception" | "magazzino" | "cliente";
+
+type ModuleDef = LiveTile & { visibleFor: (role: StaffRole) => boolean };
+
+// --- CONFIGURAZIONE MODULI (filtrati per ruolo in pagina) ---
+const HOME_MODULE_DEFS: ModuleDef[] = [
   {
     kind: "live",
     title: "Agenda",
@@ -49,7 +57,18 @@ const MODULES: Tile[] = [
     href: "/dashboard/agenda",
     icon: CalendarDays,
     tag: "Live",
-    color: "emerald"
+    color: "emerald",
+    visibleFor: (r) => r !== "cliente",
+  },
+  {
+    kind: "live",
+    title: "In sala",
+    subtitle: "Appuntamenti in corso e cassa",
+    href: "/dashboard/in-sala",
+    icon: UserSquare2,
+    tag: "Live",
+    color: "emerald",
+    visibleFor: (r) => r !== "cliente",
   },
   {
     kind: "live",
@@ -58,7 +77,8 @@ const MODULES: Tile[] = [
     href: "/dashboard/magazzino",
     icon: Package,
     tag: "Live",
-    color: "amber"
+    color: "amber",
+    visibleFor: (r) => r !== "cliente",
   },
   {
     kind: "live",
@@ -67,7 +87,28 @@ const MODULES: Tile[] = [
     href: "/dashboard/clienti",
     icon: Users,
     tag: "Live",
-    color: "blue"
+    color: "blue",
+    visibleFor: (r) => canAccessMarketingWeb(r),
+  },
+  {
+    kind: "live",
+    title: "Presenze",
+    subtitle: "Riepilogo timbrature collaboratori",
+    href: "/dashboard/presenze",
+    icon: ClipboardList,
+    tag: "Team",
+    color: "cyan",
+    visibleFor: (r) => r === "coordinator" || r === "reception",
+  },
+  {
+    kind: "live",
+    title: "WhatsApp manuale",
+    subtitle: "Invio messaggi, storico e consensi (non un modulo campagne)",
+    href: "/dashboard/marketing",
+    icon: MessageCircle,
+    tag: "Messaggi",
+    color: "violet",
+    visibleFor: (r) => canAccessMarketingWeb(r),
   },
   {
     kind: "live",
@@ -76,7 +117,8 @@ const MODULES: Tile[] = [
     href: "/dashboard/report",
     icon: BarChart3,
     tag: "Analisi",
-    color: "purple"
+    color: "purple",
+    visibleFor: (r) => r === "coordinator",
   },
   {
     kind: "live",
@@ -86,10 +128,28 @@ const MODULES: Tile[] = [
     icon: Settings,
     tag: "Sistema",
     color: "stone",
+    visibleFor: (r) => r !== "cliente",
   },
 ];
 
-export default async function DashboardPage() {
+type DashboardSearchParams = Record<string, string | string[] | undefined>;
+
+/** Stessa logica di default del client (hub se presente, poi default, poi primo consentito). */
+function pickKpiSalonForChooser(
+  allowedSalonIds: number[],
+  defaultSalonId: number | null | undefined,
+): number | null {
+  if (!allowedSalonIds.length) return null;
+  if (allowedSalonIds.includes(MAGAZZINO_CENTRALE_ID)) return MAGAZZINO_CENTRALE_ID;
+  if (defaultSalonId != null && allowedSalonIds.includes(defaultSalonId)) return defaultSalonId;
+  return allowedSalonIds[0] ?? null;
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<DashboardSearchParams>;
+}) {
   const supabase = await createServerSupabase();
   
   // 1. Controllo Accesso e Salone Attivo
@@ -97,12 +157,36 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
 
   const access = await getUserAccess();
-  // Allineamento minimo col layer report: forziamo un salone valido consentito.
-  const activeSalonId =
-    access.staffSalonId ??
-    access.defaultSalonId ??
-    access.allowedSalonIds[0] ??
-    null;
+  const sp = (await searchParams) ?? {};
+  const rawSalon = sp.salon_id;
+  const querySalon =
+    typeof rawSalon === "string"
+      ? Number(rawSalon)
+      : Array.isArray(rawSalon)
+        ? Number(rawSalon[0])
+        : NaN;
+
+  const baseKpiSalonId =
+    access.staffSalonId ?? access.defaultSalonId ?? access.allowedSalonIds[0] ?? null;
+
+  let activeSalonId: number | null;
+
+  if (access.role === "coordinator" || access.role === "magazzino") {
+    if (
+      Number.isFinite(querySalon) &&
+      querySalon > 0 &&
+      access.allowedSalonIds.includes(querySalon)
+    ) {
+      activeSalonId = querySalon;
+    } else {
+      activeSalonId = pickKpiSalonForChooser(
+        access.allowedSalonIds,
+        access.defaultSalonId ?? null,
+      );
+    }
+  } else {
+    activeSalonId = baseKpiSalonId;
+  }
   const activeSalonLabel =
     activeSalonId == null
       ? null
@@ -222,6 +306,12 @@ export default async function DashboardPage() {
   return (
     <div className="max-w-[1600px] mx-auto space-y-10 pb-12">
 
+      {access.role === "coordinator" || access.role === "magazzino" ? (
+        <Suspense fallback={null}>
+          <DashboardSalonQuerySync />
+        </Suspense>
+      ) : null}
+
       {access.role === "cliente" ? (
         <section className="rounded-2xl border border-[#f3d8b6]/25 bg-[#f3d8b6]/10 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <p className="text-sm text-[#f5e7d6]/95 leading-relaxed">
@@ -264,7 +354,7 @@ export default async function DashboardPage() {
               <>
                 <QuickActionButton
                   href="/dashboard/agenda"
-                  label="Nuovo Appuntamento"
+                  label="Apri agenda"
                   icon={CalendarDays}
                   primary
                 />
@@ -323,9 +413,11 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-          {MODULES.map((m) => (
-            <ModuleCard key={m.title} tile={m} />
-          ))}
+          {HOME_MODULE_DEFS.filter((m) => m.visibleFor(access.role as StaffRole)).map(
+            ({ visibleFor: _v, ...tile }) => (
+              <ModuleCard key={tile.title} tile={tile} />
+            ),
+          )}
         </div>
       </section>
       ) : null}

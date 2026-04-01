@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 import type { StaffSettingsRow } from "@/lib/staffSettings";
 import { STAFF_ROLE_OPTIONS } from "@/lib/staffSettings";
 import { createStaffAction, updateStaffAction } from "@/app/dashboard/impostazioni/staffActions";
@@ -147,6 +148,7 @@ export default function StaffModal({
       setError(result.error);
       return;
     }
+    toast.success(mode === "create" ? "Collaboratore creato." : "Collaboratore aggiornato.");
     onSaved();
     onClose();
   }

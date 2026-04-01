@@ -60,7 +60,7 @@ interface Props {
   laneIndex?: number; // 0..laneCount-1
   laneCount?: number; // >=1
 
-  // Evidenziazione da ?highlight= (link da In Sala → Scheda)
+  // Evidenziazione da ?highlight= (focus appuntamento in agenda)
   isHighlighted?: boolean;
 }
 
@@ -615,10 +615,18 @@ export default function ServiceBox({
             </button>
 
             <button
-              onClick={() => setOpenActions(false)}
-              className="w-full px-4 py-2.5 text-left text-xs text-white/60 hover:bg-white/5 border-t border-white/5"
+              onClick={() => {
+                setOpenActions(false);
+                const cid = appointment?.customer_id ?? appointment?.customers?.id;
+                if (cid == null || cid === "") {
+                  toast.error("Nessun cliente collegato all’appuntamento.");
+                  return;
+                }
+                router.push(`/dashboard/clienti/${cid}`);
+              }}
+              className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5 border-t border-white/5"
             >
-              📋 Scheda tecnica
+              📋 Scheda cliente / tecniche
             </button>
           </div>
         )}

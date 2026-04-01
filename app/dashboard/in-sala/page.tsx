@@ -81,7 +81,7 @@ export default function InSalaPage() {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "id, start_time, end_time, status, notes, customers(id, first_name, last_name), staff(id, name)",
+        "id, customer_id, start_time, end_time, status, notes, customers(id, first_name, last_name), staff(id, name)",
       )
       .eq("salon_id", Number(activeSalonId))
       .eq("status", "in_sala")
@@ -160,6 +160,46 @@ export default function InSalaPage() {
     }
   }
 
+  function notifyCloseSessionResult(data: {
+    already_closed?: boolean;
+    fiscal_warning?: string | null;
+    fiscal_job?: { id?: unknown } | null;
+  }) {
+    if (data?.already_closed) {
+      toast.message("Sessione già chiusa in precedenza.");
+      return;
+    }
+
+    const fw =
+      typeof data.fiscal_warning === "string" && data.fiscal_warning.trim()
+        ? data.fiscal_warning.trim()
+        : null;
+
+    const rawId = data?.fiscal_job != null ? (data.fiscal_job as { id?: unknown }).id : undefined;
+    const jobId =
+      typeof rawId === "number" && Number.isFinite(rawId)
+        ? rawId
+        : typeof rawId === "string" && Number.isFinite(Number(rawId))
+          ? Number(rawId)
+          : null;
+
+    if (fw) {
+      toast.warning(
+        `Sessione cassa chiusa sul gestionale. Nota fiscale / stampa Z: ${fw}${
+          jobId != null ? ` · Job accodato (ID ${jobId}).` : ""
+        }`,
+        { duration: 10_000 },
+      );
+      return;
+    }
+
+    let msg = "Sessione cassa chiusa.";
+    if (jobId != null) {
+      msg += ` Chiusura giornata (Z) accodata per la stampante fiscale — job ${jobId}. Verificare Print Bridge e Epson FP81 RT.`;
+    }
+    toast.success(msg, { duration: jobId != null ? 9_000 : 5_000 });
+  }
+
   async function doCloseCash() {
     if (!activeSalonId) return;
     setCashLoading(true);
@@ -178,6 +218,8 @@ export default function InSalaPage() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Errore chiusura cassa");
+
+      notifyCloseSessionResult(data);
 
       setCloseCash(false);
       setCloseCashNotes("");
@@ -473,10 +515,19 @@ export default function InSalaPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => router.push(`/dashboard/agenda?highlight=${a.id}`)}
+                        onClick={() => {
+                          const cid = a?.customer_id ?? a?.customers?.id;
+                          if (cid == null || cid === "") {
+                            toast.error(
+                              "Nessun cliente collegato. Assegna un cliente dall’agenda, poi riprova.",
+                            );
+                            return;
+                          }
+                          router.push(`/dashboard/clienti/${cid}`);
+                        }}
                         className="h-11 px-5 rounded-xl border border-white/10 bg-black/30 text-white/70 font-bold uppercase tracking-[0.1em] text-[10px] hover:bg-white/10 transition-colors"
                       >
-                        Scheda
+                        Scheda cliente
                       </button>
                     </div>
                   </div>

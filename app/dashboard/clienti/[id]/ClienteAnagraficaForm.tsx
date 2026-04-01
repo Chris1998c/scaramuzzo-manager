@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { Save } from "lucide-react";
@@ -14,14 +14,28 @@ export type ClienteAnagraficaInitial = {
   email: string | null;
   address: string | null;
   notes: string | null;
+  marketing_whatsapp_opt_in: boolean;
+  marketing_consent_at: string | null;
 };
 
 type Props = { initial: ClienteAnagraficaInitial };
+
+function formatConsentAt(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("it-IT", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Rome",
+  }).format(d);
+}
 
 export default function ClienteAnagraficaForm({ initial }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [form, setForm] = useState(initial);
+  const lastSavedOptInRef = useRef(initial.marketing_whatsapp_opt_in);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState(false);
@@ -37,6 +51,19 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
       return;
     }
 
+    const prevOptIn = lastSavedOptInRef.current;
+    let nextConsentAt: string | null = form.marketing_consent_at;
+
+    if (form.marketing_whatsapp_opt_in) {
+      if (!prevOptIn || !form.marketing_consent_at) {
+        nextConsentAt = new Date().toISOString();
+      } else {
+        nextConsentAt = form.marketing_consent_at;
+      }
+    } else {
+      nextConsentAt = form.marketing_consent_at;
+    }
+
     setSaving(true);
     try {
       const { data, error: upErr } = await supabase
@@ -48,9 +75,13 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
           email: form.email?.trim() ? form.email.trim() : null,
           address: form.address?.trim() ? form.address.trim() : null,
           notes: form.notes?.trim() ? form.notes.trim() : null,
+          marketing_whatsapp_opt_in: form.marketing_whatsapp_opt_in,
+          marketing_consent_at: nextConsentAt,
         })
         .eq("id", initial.id)
-        .select("id, customer_code, first_name, last_name, phone, email, address, notes")
+        .select(
+          "id, customer_code, first_name, last_name, phone, email, address, notes, marketing_whatsapp_opt_in, marketing_consent_at",
+        )
         .single();
 
       if (upErr) {
@@ -64,16 +95,31 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
       }
 
       if (data) {
+        const row = data as {
+          id: string;
+          customer_code: string;
+          first_name: string;
+          last_name: string;
+          phone: string;
+          email: string | null;
+          address: string | null;
+          notes: string | null;
+          marketing_whatsapp_opt_in: boolean;
+          marketing_consent_at: string | null;
+        };
         setForm({
-          id: String(data.id),
-          customer_code: String((data as { customer_code: string }).customer_code),
-          first_name: String((data as { first_name: string }).first_name),
-          last_name: String((data as { last_name: string }).last_name),
-          phone: String((data as { phone: string }).phone),
-          email: (data as { email: string | null }).email ?? null,
-          address: (data as { address: string | null }).address ?? null,
-          notes: (data as { notes: string | null }).notes ?? null,
+          id: String(row.id),
+          customer_code: String(row.customer_code),
+          first_name: String(row.first_name),
+          last_name: String(row.last_name),
+          phone: String(row.phone),
+          email: row.email ?? null,
+          address: row.address ?? null,
+          notes: row.notes ?? null,
+          marketing_whatsapp_opt_in: !!row.marketing_whatsapp_opt_in,
+          marketing_consent_at: row.marketing_consent_at,
         });
+        lastSavedOptInRef.current = !!row.marketing_whatsapp_opt_in;
       }
       setOk(true);
       router.refresh();
@@ -165,6 +211,41 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
             rows={3}
             className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white resize-y min-h-[80px]"
           />
+        </div>
+
+        <div className="md:col-span-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-4 space-y-3">
+          <div className="text-sm font-bold text-[#f3d8b6]">Consenso marketing WhatsApp</div>
+          <p className="text-xs text-[#c9b299]/90 leading-relaxed">
+            Solo con questo consenso attivo il cliente può ricevere messaggi promozionali o di
+            riattivazione inviati dalla console WhatsApp manuale (messaggi liberi oltre ai reminder
+            automatici di appuntamento).
+          </p>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.marketing_whatsapp_opt_in}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, marketing_whatsapp_opt_in: e.target.checked }))
+              }
+              className="mt-1 rounded border-[#5c3a21]/60 bg-[#1c0f0a]"
+            />
+            <span className="text-sm text-[#e8dcc8] leading-snug">
+              La cliente ha acconsentito a messaggi WhatsApp con finalità marketing dal salone.
+            </span>
+          </label>
+          {form.marketing_consent_at ? (
+            <p className="text-[11px] text-[#c9b299]/80">
+              Ultimo riferimento temporale registrato:{" "}
+              <span className="font-mono text-[#f3d8b6]/90">
+                {formatConsentAt(form.marketing_consent_at)}
+              </span>
+              {!form.marketing_whatsapp_opt_in ? (
+                <span className="block mt-1 text-amber-200/85">
+                  Il consenso risulta revocato; la data è mantenuta solo come storico interno.
+                </span>
+              ) : null}
+            </p>
+          ) : null}
         </div>
       </div>
 

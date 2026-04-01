@@ -17,6 +17,8 @@ export async function POST(req: Request) {
     const type = body?.type ? String(body.type).trim() : "rivendita";
     const description = body?.description ? String(body.description).trim() : null;
     const initialQty = Number(body?.initialQty) || 0;
+    /** Destinazione giacenza iniziale: se assente/non valida → hub centrale (comportamento legacy). */
+    const rawStockSalon = body?.initialStockSalonId;
 
     if (!name || !category) {
       return NextResponse.json({ error: "Nome e categoria sono obbligatori" }, { status: 400 });
@@ -34,11 +36,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
     }
 
-    const userId = userData.user.id;
     const access = await getUserAccess();
     const role = access.role;
     if (role !== "magazzino" && role !== "coordinator") {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
+    }
+
+    let stockTargetSalonId = MAGAZZINO_CENTRALE_ID;
+    if (rawStockSalon !== undefined && rawStockSalon !== null && rawStockSalon !== "") {
+      const n = Number(rawStockSalon);
+      if (!Number.isFinite(n) || n < 1 || n > MAGAZZINO_CENTRALE_ID) {
+        return NextResponse.json({ error: "Salone destinazione giacenza non valido." }, { status: 400 });
+      }
+      if (!access.allowedSalonIds.includes(n)) {
+        return NextResponse.json({ error: "Non hai accesso a questo salone per la giacenza iniziale." }, { status: 403 });
+      }
+      stockTargetSalonId = n;
     }
 
     // crea prodotto (service role)
@@ -65,13 +78,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // stock iniziale nel CENTRALE via RPC (service role)
+    // Giacenza iniziale: salone richiesto (coerente con header) oppure hub centrale se non indicato.
     if (initialQty > 0) {
       const { error: moveErr } = await supabaseAdmin.rpc("stock_move", {
         p_product_id: Number(product.id),
         p_qty: initialQty,
         p_from_salon: null,
-        p_to_salon: MAGAZZINO_CENTRALE_ID,
+        p_to_salon: stockTargetSalonId,
         p_movement_type: "carico",
         p_reason: "initial_stock",
       });

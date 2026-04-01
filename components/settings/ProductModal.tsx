@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 import type { ProductSettingsRow } from "@/lib/productsSettings";
 import {
   createProductAction,
@@ -111,6 +112,7 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
       setError(result.error);
       return;
     }
+    toast.success(mode === "create" ? "Prodotto creato." : "Prodotto aggiornato.");
     onSaved();
     onClose();
   }

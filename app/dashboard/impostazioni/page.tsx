@@ -17,7 +17,13 @@ export const metadata = {
   description: "Centro di controllo del gestionale",
 };
 
-export default async function ImpostazioniPage() {
+type ImpostazioniSearchParams = Record<string, string | string[] | undefined>;
+
+export default async function ImpostazioniPage({
+  searchParams,
+}: {
+  searchParams?: Promise<ImpostazioniSearchParams>;
+}) {
   const supabase = await createServerSupabase();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth?.user) redirect("/login");
@@ -25,16 +31,35 @@ export default async function ImpostazioniPage() {
   const access = await getUserAccess();
   // Coerenza accessi enterprise: il ruolo "cliente" non deve vedere il centro di controllo.
   if (access.role === "cliente") redirect("/dashboard");
-  const activeSalonId = access.staffSalonId ?? access.defaultSalonId;
+
+  const sp = (await searchParams) ?? {};
+  const rawSalon = sp.salon_id;
+  const querySalon =
+    typeof rawSalon === "string"
+      ? Number(rawSalon)
+      : Array.isArray(rawSalon)
+        ? Number(rawSalon[0])
+        : NaN;
+
+  const baseSalonId = access.staffSalonId ?? access.defaultSalonId ?? null;
+  let dataSalonId = baseSalonId;
+  if (access.role === "coordinator" || access.role === "magazzino") {
+    if (
+      Number.isFinite(querySalon) &&
+      querySalon > 0 &&
+      access.allowedSalonIds.includes(querySalon)
+    ) {
+      dataSalonId = querySalon;
+    }
+  }
+
   const salonMeta =
-    activeSalonId != null
-      ? access.allowedSalons.find((s) => s.id === activeSalonId)
-      : null;
+    dataSalonId != null ? access.allowedSalons.find((s) => s.id === dataSalonId) : null;
 
   let services: Awaited<ReturnType<typeof fetchServicesForSettings>> = [];
   let servicesUnavailable = false;
   try {
-    services = await fetchServicesForSettings(supabase, activeSalonId ?? 0);
+    services = await fetchServicesForSettings(supabase, dataSalonId ?? 0);
   } catch (e) {
     console.error("Impostazioni: caricamento servizi", e);
     services = [];
@@ -88,7 +113,7 @@ export default async function ImpostazioniPage() {
   let fiscalSnapshot: Awaited<ReturnType<typeof fetchFiscalSettingsSnapshot>> = null;
   let fiscalUnavailable = false;
   try {
-    fiscalSnapshot = await fetchFiscalSettingsSnapshot(supabase, activeSalonId);
+    fiscalSnapshot = await fetchFiscalSettingsSnapshot(supabase, dataSalonId);
   } catch (e) {
     console.error("Impostazioni: snapshot fiscale", e);
     fiscalSnapshot = null;
@@ -157,7 +182,7 @@ export default async function ImpostazioniPage() {
         initialServices={services}
         initialProducts={products}
         initialStaff={staff}
-        initialSalonId={activeSalonId}
+        initialSalonId={dataSalonId}
         initialSalonLabel={salonMeta?.name ?? null}
         categories={categories}
         canManageServices={canManageServices}

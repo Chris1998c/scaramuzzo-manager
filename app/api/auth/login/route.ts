@@ -1,4 +1,6 @@
 // app/api/auth/login/route.ts
+// Legacy: login form Manager usa createBrowserClient (lib/supabaseClient) + cookie SSR @supabase/ssr.
+// Questa route non è referenziata nel web UI; tenuta per compat cookie sb-access-token se usata da tool esterni.
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 

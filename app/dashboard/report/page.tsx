@@ -1,8 +1,14 @@
 // app/dashboard/report/page.tsx
 
+import { Suspense, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
+import {
+  normalizeReportTab,
+  pickDefaultSalonIdForReport,
+  type ReportTabKey,
+} from "@/lib/reportSalonResolve";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 
@@ -57,19 +63,32 @@ function toInt(x: string | undefined) {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-type TabKey =
-  | "turnover"
-  | "daily"
-  | "top"
-  | "staff"
-  | "cassa"
-  | "agenda"
-  | "clienti"
-  | "servizi"
-  | "prodotti"
-  | "whatsapp_reminders";
-
 type ReportPageSearchParams = Record<string, string | string[] | undefined>;
+
+function mergeReportRedirectQuery(
+  sp: ReportPageSearchParams,
+  overrides: Record<string, string>,
+): string {
+  const p = new URLSearchParams();
+  for (const [key, raw] of Object.entries(sp)) {
+    if (raw === undefined) continue;
+    const first = Array.isArray(raw) ? raw[0] : raw;
+    if (first === undefined || first === "") continue;
+    p.set(key, String(first));
+  }
+  for (const [k, v] of Object.entries(overrides)) {
+    p.set(k, v);
+  }
+  return p.toString();
+}
+
+function EmptyDataNote({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/25 px-5 py-6 text-center text-sm text-white/55 leading-relaxed">
+      {children}
+    </div>
+  );
+}
 
 type ReportPageProps = {
   searchParams?: Promise<ReportPageSearchParams>;
@@ -84,14 +103,50 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
   const access = await getUserAccess();
   if (access.role !== "coordinator") redirect("/dashboard");
 
-  const salonId = toInt(sp.salon_id as string | undefined) ?? 0;
   const dateFrom = (sp.date_from as string | undefined) ?? startOfMonthISO();
   const dateTo = (sp.date_to as string | undefined) ?? todayISO();
   const staffId = toInt(sp.staff_id as string | undefined);
   const paymentMethod = (sp.payment_method as string | undefined) ?? null;
   const itemType = (sp.item_type as string | undefined) ?? null;
 
-  const tab = ((sp.tab as string | undefined) ?? "turnover") as TabKey;
+  const tab = normalizeReportTab(sp.tab);
+
+  const rawSalon = sp.salon_id;
+  const querySalonNum =
+    typeof rawSalon === "string"
+      ? Number(rawSalon)
+      : Array.isArray(rawSalon)
+        ? Number(rawSalon[0])
+        : NaN;
+
+  const allowedIds = access.allowedSalonIds;
+  let salonId: number;
+
+  if (
+    Number.isFinite(querySalonNum) &&
+    querySalonNum > 0 &&
+    allowedIds.includes(querySalonNum)
+  ) {
+    salonId = querySalonNum;
+  } else {
+    const fb = pickDefaultSalonIdForReport(allowedIds, access.defaultSalonId);
+    if (fb != null) {
+      redirect(
+        `/dashboard/report?${mergeReportRedirectQuery(sp, {
+          salon_id: String(fb),
+          date_from: dateFrom,
+          date_to: dateTo,
+          tab,
+        })}`,
+      );
+    }
+    salonId = 0;
+  }
+
+  const reportSalonLabel =
+    salonId > 0
+      ? access.allowedSalons.find((s) => s.id === salonId)?.name ?? null
+      : null;
 
   // Staff dropdown (serve sempre) — staff_salons + legacy staff.salon_id
   const staffRows = salonId ? await fetchActiveStaffForSalon(supabaseAdmin, salonId, "id, name") : [];
@@ -210,10 +265,13 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
 
   return (
     <div className="space-y-6">
-      <ReportSalonSync />
+      <Suspense fallback={null}>
+        <ReportSalonSync />
+      </Suspense>
 
       <ReportFilters
         salonId={salonId}
+        salonLabel={reportSalonLabel}
         dateFrom={dateFrom}
         dateTo={dateTo}
         staffId={staffId}
@@ -221,6 +279,15 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
         itemType={itemType}
         staffOptions={staffOptions}
       />
+
+      {salonId <= 0 ? (
+        <EmptyDataNote>
+          <span className="font-bold text-amber-100/90">Nessuna sede disponibile</span>
+          <br />
+          Non è possibile generare report senza almeno un salone associato al coordinatore. Verifica
+          le assegnazioni in anagrafica.
+        </EmptyDataNote>
+      ) : null}
 
       <div className="bg-scz-dark border border-white/10 rounded-2xl p-4 flex gap-2 flex-wrap">
         {(
@@ -235,7 +302,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
             ["servizi", "Servizi"],
             ["prodotti", "Prodotti"],
             ["whatsapp_reminders", "WhatsApp"],
-          ] as Array<[TabKey, string]>
+          ] as Array<[ReportTabKey, string]>
         ).map(([k, label]) => (
           <a
             key={k}
@@ -294,7 +361,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       )}
 
       {/* === CASSA === */}
-      {tab === "cassa" && (
+      {tab === "cassa" && salonId > 0 && (
         <>
           <ReportCashKpiRow totals={cashReport.totals as any} />
           <ReportCashSessionsTable rows={cashReport.sessions as any} />
@@ -302,7 +369,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       )}
 
       {/* === AGENDA === */}
-      {tab === "agenda" && (
+      {tab === "agenda" && salonId > 0 && (
         <>
           <ReportAgendaKpiRow totals={agendaReport.totals as any} />
           <ReportAgendaNoShowTable rows={agendaReport.daily as any} />
@@ -311,7 +378,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       )}
 
       {/* === CLIENTI === */}
-      {tab === "clienti" && (
+      {tab === "clienti" && salonId > 0 && (
         <>
           <ReportClientsKpiRow totals={clientsReport.totals as any} />
           <ReportClientsNewCustomersTable rows={clientsReport.newCustomers as any} />
@@ -320,7 +387,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       )}
 
       {/* === SERVIZI === */}
-      {tab === "servizi" && (
+      {tab === "servizi" && salonId > 0 && (
         <>
           <ReportServicesKpiRow
             totals={{
@@ -342,7 +409,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       )}
 
       {/* === PRODOTTI === */}
-      {tab === "prodotti" && (
+      {tab === "prodotti" && salonId > 0 && (
         <>
           <ReportProductsKpiRow totals={productsReport.totals as any} />
           <ReportProductsTopTable rows={productsReport.topProducts as any} />

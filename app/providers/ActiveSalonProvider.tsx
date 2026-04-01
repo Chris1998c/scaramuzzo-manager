@@ -54,8 +54,13 @@ export function ActiveSalonProvider({
   // ✅ MAGAZZINO + COORDINATOR possono cambiare salone
   const canChooseSalon = role === "coordinator" || role === "magazzino";
 
-  // ✅ SOLO reception/cliente forzati al primo consentito
-  const forcedSalonId = !canChooseSalon ? (allowedSalonIds[0] ?? null) : null;
+  // ✅ Reception: salone operativo = staffSalonId (stesso usato da getUserAccess e API es. porta-in-sala), non allowedSalonIds[0].
+  // ✅ Cliente: primo salone consentito come prima.
+  const forcedSalonId = !canChooseSalon
+    ? role === "reception"
+      ? (staffSalonId ?? allowedSalonIds[0] ?? null)
+      : (allowedSalonIds[0] ?? null)
+    : null;
 
   const [activeSalonId, _setActiveSalonId] = useState<number | null>(() => {
     // init sync (no localStorage in init)
@@ -99,6 +104,11 @@ export function ActiveSalonProvider({
     if (effective == null) return;
 
     if (!allowedSalonIds.includes(effective)) {
+      // Reception su staffSalonId: allineamento operativo anche se lista assegnazioni è incoerente (evita tornare al [0]).
+      if (role === "reception" && staffSalonId != null && effective === staffSalonId) {
+        return;
+      }
+
       const fallback = forcedSalonId ?? pickDefaultSalonId(allowedSalonIds, defaultSalonId);
       _setActiveSalonId(fallback);
 
@@ -107,7 +117,7 @@ export function ActiveSalonProvider({
         window.localStorage.setItem("sm_activeSalonId", String(fallback));
       }
     }
-  }, [isReady, activeSalonId, forcedSalonId, allowedSalonIds, canChooseSalon, defaultSalonId]);
+  }, [isReady, activeSalonId, forcedSalonId, allowedSalonIds, canChooseSalon, defaultSalonId, role, staffSalonId]);
 
   const setActiveSalonId = (id: number) => {
     if (!canChooseSalon) return;                 // reception/cliente NON cambiano

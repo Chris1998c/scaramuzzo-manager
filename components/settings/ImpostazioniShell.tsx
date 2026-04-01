@@ -141,8 +141,19 @@ export default function ImpostazioniShell({
 }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const { activeSalonId, isReady, allowedSalons } = useActiveSalon();
+  const { activeSalonId, isReady, allowedSalons, canChooseSalon } = useActiveSalon();
   const [section, setSection] = useState<SectionKey>("servizi");
+
+  // Coordinator/magazzino: allinea ?salon_id= al salone header così il server carica listino/fiscale coerenti al refresh.
+  useEffect(() => {
+    if (!isReady || !canChooseSalon || activeSalonId == null) return;
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("salon_id") === String(activeSalonId)) return;
+    p.set("salon_id", String(activeSalonId));
+    router.replace(`/dashboard/impostazioni?${p.toString()}`);
+    router.refresh();
+  }, [isReady, canChooseSalon, activeSalonId, router]);
 
   const [serviceRows, setServiceRows] = useState<ServiceSettingsRow[]>(initialServices);
   const [productRows, setProductRows] = useState<ProductSettingsRow[]>(initialProducts);
@@ -301,6 +312,7 @@ export default function ImpostazioniShell({
           <ServiziPrezziPanel
             rows={serviceRows}
             salonLabel={salonLabel}
+            canChooseSalonFromHeader={canChooseSalon}
             canManageServices={canManageServices}
             onCreate={openServiceCreate}
             onEdit={openServiceEdit}
@@ -327,6 +339,7 @@ export default function ImpostazioniShell({
             salonId={effectiveSalonId}
             salonLabel={salonLabel}
             canManage={canManageServices}
+            canPickSalonFromHeader={canChooseSalon}
           />
         ) : section === "fiscale" ? (
           <FiscaleStampantePanel
@@ -383,12 +396,14 @@ export default function ImpostazioniShell({
 function ServiziPrezziPanel({
   rows,
   salonLabel,
+  canChooseSalonFromHeader,
   canManageServices,
   onCreate,
   onEdit,
 }: {
   rows: ServiceSettingsRow[];
   salonLabel: string | null;
+  canChooseSalonFromHeader: boolean;
   canManageServices: boolean;
   onCreate: () => void;
   onEdit: (row: ServiceSettingsRow) => void;
@@ -398,14 +413,25 @@ function ServiziPrezziPanel({
       <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-[#c9b299]">
         <span className="font-bold text-emerald-300/95">Listino salone</span>
         <span className="mx-2 text-white/25">·</span>
-        Prezzi da <code className="text-[#f3d8b6]/90">service_prices</code> per il salone attivo
+        Prezzi da <code className="text-[#f3d8b6]/90">service_prices</code> per il salone operativo
         {salonLabel ? (
           <>
             {" "}
             (<span className="text-[#f3d8b6] font-semibold">{salonLabel}</span>)
           </>
         ) : null}
-        . Cambiando salone dall&apos;header, i prezzi si aggiornano automaticamente.
+        .{" "}
+        {canChooseSalonFromHeader ? (
+          <>
+            Cambiando salone dall&apos;header, listino e URL si allineano automaticamente
+            (refresh listino).
+          </>
+        ) : (
+          <>
+            Il tuo ruolo è legato a un salone fissato: non puoi cambiare sede dall&apos;header;
+            vedi sempre il listino di quel salone.
+          </>
+        )}
       </div>
 
       {!canManageServices ? (

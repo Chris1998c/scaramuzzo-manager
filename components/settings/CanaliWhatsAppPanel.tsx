@@ -21,12 +21,15 @@ type Props = {
   salonId: number | null;
   salonLabel: string | null;
   canManage: boolean;
+  /** false = reception / salone fisso: non mostrare “scegli dall’header”. */
+  canPickSalonFromHeader?: boolean;
 };
 
 export default function CanaliWhatsAppPanel({
   salonId,
   salonLabel,
   canManage,
+  canPickSalonFromHeader = true,
 }: Props) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
@@ -126,7 +129,14 @@ export default function CanaliWhatsAppPanel({
   if (salonId == null) {
     return (
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-100/90">
-        Seleziona un salone dall&apos;header per configurare WhatsApp.
+        {canPickSalonFromHeader ? (
+          <>Seleziona un salone dall&apos;header per configurare WhatsApp.</>
+        ) : (
+          <>
+            Nessun salone operativo disponibile per questo profilo. Controlla l&apos;assegnazione
+            staff/salone o contatta un amministratore.
+          </>
+        )}
       </div>
     );
   }
@@ -151,10 +161,14 @@ export default function CanaliWhatsAppPanel({
         <div className="mt-4 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-xs text-[#c9b299]/90 leading-relaxed">
           <span className="font-bold text-amber-200/95">Chiarezza configurazione</span>
           <div className="mt-1">
-            Questo pannello configura il <span className="font-semibold text-[#f3d8b6]">canale WhatsApp del salone</span>.
+            Questo pannello configura il <span className="font-semibold text-[#f3d8b6]">canale WhatsApp del salone</span>{" "}
+            (Meta API, template promemoria appuntamento).
             <br />
-            Il <span className="font-semibold text-[#f3d8b6]">consenso marketing WhatsApp</span> è salvato sulla
-            <span className="font-semibold text-[#f3d8b6]"> scheda del singolo cliente</span> e non è gestito qui.
+            Il <span className="font-semibold text-[#f3d8b6]">consenso marketing WhatsApp</span> (messaggi promozionali
+            dalla console WhatsApp manuale) si gestisce in{" "}
+            <span className="font-semibold text-[#f3d8b6]">Clienti → scheda anagrafica</span>. I reminder automatici
+            ~24h prima dell&apos;appuntamento sono messaggi transazionali su template approvato e non passano da quel
+            consenso.
           </div>
         </div>
       </div>

@@ -7,16 +7,19 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarDays,
+  ClipboardList,
   Home,
-  Megaphone,
+  MessageCircle,
   Package,
   X,
   Users,
+  UserSquare2,
   FileText,
   Settings,
 } from "lucide-react";
 import { useUI } from "@/lib/ui-store";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
+import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 
 type MenuItem = {
   name: string;
@@ -36,7 +39,8 @@ const sections: MenuSection[] = [
     items: [
       { name: "Dashboard", icon: Home, href: "/dashboard" },
       { name: "Agenda", icon: CalendarDays, href: "/dashboard/agenda" },
-      { name: "In Sala", icon: Users, href: "/dashboard/in-sala" },
+      { name: "In sala", icon: UserSquare2, href: "/dashboard/in-sala" },
+      { name: "Presenze", icon: ClipboardList, href: "/dashboard/presenze" },
     ],
   },
   {
@@ -44,6 +48,7 @@ const sections: MenuSection[] = [
     items: [
       { name: "Clienti", icon: Users, href: "/dashboard/clienti" },
       { name: "Magazzino", icon: Package, href: "/dashboard/magazzino" },
+      { name: "WhatsApp manuale", icon: MessageCircle, href: "/dashboard/marketing" },
       { name: "Report", icon: FileText, href: "/dashboard/report" },
     ],
   },
@@ -65,23 +70,26 @@ export default function Sidebar() {
   // ✅ ruolo corrente (source già in app: ActiveSalonProvider)
   const { role, isReady } = useActiveSalon();
   const isCoordinator = isReady && role === "coordinator";
-  const isStaffMarketing = isReady && role !== "cliente";
+  const isReception = isReady && role === "reception";
+  const isStaffNotCliente = isReady && role !== "cliente";
+  const canSeeCrmAndMarketing = isReady && canAccessMarketingWeb(role);
+  const canSeePresenze = isCoordinator || isReception;
 
   const visibleSections = useMemo(() => {
-    // se non pronto, non “sparire” tutto: mostriamo menu senza Report
-    const canSeeReport = isCoordinator;
-
     return sections
       .map((s) => ({
         ...s,
         items: s.items.filter((it) => {
-          if (it.href === "/dashboard/report") return canSeeReport;
-          if (it.href === "/dashboard/marketing") return isStaffMarketing;
+          if (it.href === "/dashboard/report") return isCoordinator;
+          if (it.href === "/dashboard/marketing") return canSeeCrmAndMarketing;
+          if (it.href === "/dashboard/presenze") return canSeePresenze;
+          if (it.href === "/dashboard/clienti") return canSeeCrmAndMarketing;
+          if (it.href === "/dashboard/magazzino") return isStaffNotCliente;
           return true;
         }),
       }))
       .filter((s) => s.items.length > 0);
-  }, [isCoordinator, isStaffMarketing]);
+  }, [isCoordinator, canSeeCrmAndMarketing, isStaffNotCliente, canSeePresenze]);
 
   const handleNavClick = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) closeSidebar();

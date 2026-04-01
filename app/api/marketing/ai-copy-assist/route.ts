@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Sessione non valida" }, { status: 401 });
   }
 
-  if (access.role === "cliente") {
+  if (!canAccessMarketingWeb(access.role)) {
     return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
   }
 
@@ -89,7 +90,10 @@ export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     return NextResponse.json(
-      { error: "Servizio AI non configurato (OPENAI_API_KEY)." },
+      {
+        error:
+          "Assistente testo non disponibile: l’ambiente non ha la configurazione necessaria. Contatta l’amministratore di sistema.",
+      },
       { status: 503 },
     );
   }

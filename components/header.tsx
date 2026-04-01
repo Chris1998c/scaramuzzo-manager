@@ -1,13 +1,22 @@
 "use client";
 
+import { Suspense } from "react";
 import { Menu, LogOut } from "lucide-react";
 import { useUI } from "@/lib/ui-store";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import SalonSwitcher from "@/components/SalonSwitcher";
+import { createClient } from "@/lib/supabaseClient";
 
 function getTitleFromPath(pathname: string): string {
   if (pathname === "/dashboard") return "Dashboard";
   if (pathname.startsWith("/dashboard/agenda")) return "Agenda";
+  if (pathname.startsWith("/dashboard/in-sala")) return "In sala";
+  if (pathname.startsWith("/dashboard/presenze")) return "Presenze";
+  if (pathname.startsWith("/dashboard/marketing")) return "WhatsApp manuale";
+  if (pathname.startsWith("/dashboard/report")) return "Report & KPI";
+  if (pathname.startsWith("/dashboard/clienti")) return "Clienti";
+  if (pathname.startsWith("/dashboard/impostazioni")) return "Impostazioni";
+  if (pathname.startsWith("/dashboard/cassa")) return "Check-out cassa";
   if (pathname === "/dashboard/magazzino") return "Magazzino";
   if (pathname.startsWith("/dashboard/magazzino/inventario")) return "Inventario";
   if (pathname.startsWith("/dashboard/magazzino/carico")) return "Carico";
@@ -16,18 +25,27 @@ function getTitleFromPath(pathname: string): string {
   if (pathname.startsWith("/dashboard/magazzino/trasferimenti")) return "Trasferimenti";
   if (pathname.startsWith("/dashboard/magazzino/movimenti")) return "Movimenti";
   if (pathname.startsWith("/dashboard/magazzino/nuovo-prodotto")) return "Nuovo prodotto";
+  if (pathname.startsWith("/dashboard/magazzino/prodotto")) return "Prodotto";
   return "Scaramuzzo Manager";
 }
 
 export default function Header() {
   const { toggleSidebar } = useUI();
-  const router = useRouter();
   const pathname = usePathname();
   const title = getTitleFromPath(pathname);
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+    } catch {
+      // continua: hard refresh comunque
+    }
+    try {
+      await createClient().auth.signOut();
+    } catch {
+      // sessione client già assente o rete
+    }
+    window.location.href = "/login";
   }
 
   return (
@@ -41,7 +59,9 @@ export default function Header() {
         {/* SALON SWITCHER (solo coordinator, gestito dal provider) */}
         <div className="hidden md:flex items-center gap-2">
           <span className="text-sm text-white/70">Vista:</span>
-          <SalonSwitcher />
+          <Suspense fallback={<span className="text-sm text-white/40">…</span>}>
+            <SalonSwitcher />
+          </Suspense>
         </div>
       </div>
 

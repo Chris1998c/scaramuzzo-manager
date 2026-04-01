@@ -36,6 +36,16 @@ function toSalonId(v: unknown): number | null {
   return Number.isFinite(n) && n >= 1 ? n : null; // ✅ 1..n (qui 1..5)
 }
 
+/** Reception operativa sul salone reale (stesso vincolo API carico: non hub). */
+function isValidReceptionSalonForMovements(id: number | null | undefined): id is number {
+  return (
+    id != null &&
+    Number.isFinite(id) &&
+    id >= 1 &&
+    id < MAGAZZINO_CENTRALE_ID
+  );
+}
+
 export default function MovimentiPage() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -43,8 +53,8 @@ export default function MovimentiPage() {
 
   const [userSalonId, setUserSalonId] = useState<number | null>(null);
 
-  // ✅ contesto: SEMPRE 1..5
-  const [ctxSalonId, setCtxSalonId] = useState<number>(MAGAZZINO_CENTRALE_ID);
+  /** null = contesto non risolto (es. reception senza salone valido) — mai hub come fallback silenzioso. */
+  const [ctxSalonId, setCtxSalonId] = useState<number | null>(null);
 
   const [movements, setMovements] = useState<Movement[]>([]);
   const [search, setSearch] = useState("");
@@ -104,8 +114,8 @@ export default function MovimentiPage() {
 
     if (!isWarehouse) {
       if (role === "reception") {
-        if (receptionSalonId == null) {
-          setCtxSalonId(MAGAZZINO_CENTRALE_ID);
+        if (!isValidReceptionSalonForMovements(receptionSalonId ?? null)) {
+          setCtxSalonId(null);
           return;
         }
         setCtxSalonId(receptionSalonId);
@@ -161,13 +171,18 @@ export default function MovimentiPage() {
   useEffect(() => {
     if (!isReady) return;
     if (loadingUser) return;
+    if (ctxSalonId == null) return;
 
-    if (!isWarehouse && (role === "reception" ? receptionSalonId == null : userSalonId == null))
-      return;
+    if (!isWarehouse) {
+      if (role === "reception" && !isValidReceptionSalonForMovements(receptionSalonId ?? null)) {
+        return;
+      }
+      if (role !== "reception" && userSalonId == null) return;
+    }
 
     fetchMovements(ctxSalonId, search, typeFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, loadingUser, role, receptionSalonId, ctxSalonId, search, typeFilter]);
+  }, [isReady, loadingUser, role, receptionSalonId, userSalonId, ctxSalonId, search, typeFilter]);
 
   function formatDate(dateString: string): string {
     const d = new Date(dateString);
@@ -216,13 +231,38 @@ export default function MovimentiPage() {
     );
   }
 
-  if (!isWarehouse && (role === "reception" ? receptionSalonId === null : userSalonId === null)) {
+  if (
+    !isWarehouse &&
+    (role === "reception"
+      ? !isValidReceptionSalonForMovements(receptionSalonId ?? null)
+      : userSalonId === null)
+  ) {
     return (
       <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
-        <h1 className="text-3xl font-bold mb-3">Movimenti</h1>
-        <p className="text-white/70">
-          Questo utente non ha un <b>salon_id</b> associato. Contatta l’amministratore.
-        </p>
+        <div className="max-w-xl rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100/95">
+          <h1 className="text-2xl font-bold text-[#f3d8b6] mb-2">Movimenti</h1>
+          <p className="text-white/85 leading-relaxed">
+            {role === "reception" ? (
+              <>
+                Il tuo account <b>reception</b> non ha un salone operativo valido (manca o non è
+                compatibile con la sede). Non è possibile mostrare lo storico movimenti. Contatta
+                l’amministratore.
+              </>
+            ) : (
+              <>
+                Questo utente non ha un <b>salon_id</b> associato. Contatta l’amministratore.
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (ctxSalonId == null) {
+    return (
+      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
+        Caricamento…
       </div>
     );
   }
@@ -259,7 +299,7 @@ export default function MovimentiPage() {
           <button
             type="button"
             className="shrink-0 self-start sm:self-center inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-            onClick={() => fetchMovements(ctxSalonId, search, typeFilter)}
+            onClick={() => ctxSalonId != null && fetchMovements(ctxSalonId, search, typeFilter)}
           >
             <RefreshCw size={18} />
             Aggiorna
@@ -299,7 +339,7 @@ export default function MovimentiPage() {
             <button
               type="button"
               className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-              onClick={() => fetchMovements(ctxSalonId, search, typeFilter)}
+              onClick={() => ctxSalonId != null && fetchMovements(ctxSalonId, search, typeFilter)}
             >
               <RefreshCw size={16} />
               Aggiorna

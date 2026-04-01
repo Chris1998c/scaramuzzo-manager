@@ -20,7 +20,6 @@ export default function ReportSalonSync() {
       params.set("salon_id", String(activeSalonId));
       params.delete("staff_id"); // reset filtro staff quando cambia salone
       router.replace(`/dashboard/report?${params.toString()}`);
-      router.refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, activeSalonId]);

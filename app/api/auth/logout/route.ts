@@ -1,25 +1,37 @@
 // app/api/auth/logout/route.ts
+// Logout web SSR: signOut deve aggiornare i cookie sulla Response inviata al browser
+// (non solo cookieStore), altrimenti i chunk sb-* restano e la sessione sembra “random”.
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabaseServer";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 export async function POST() {
-  const supabase = await createServerSupabase();
-  await supabase.auth.signOut();
+  const cookieStore = await cookies();
 
   const response = NextResponse.json({ ok: true });
 
-  // Cleanup defensivo: elimina anche i cookie legacy/custom.
-  const cookieNames = [
-    "sb-access-token",
-    "sb-refresh-token",
-    ...response.cookies.getAll().map((c) => c.name),
-  ];
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    },
+  );
 
-  for (const name of cookieNames) {
-    if (name.startsWith("sb-")) {
-      response.cookies.set(name, "", { path: "/", maxAge: 0 });
-    }
-  }
+  await supabase.auth.signOut();
+
+  // Legacy: route POST /api/auth/login (non usata dalla login page) impostava questi nomi.
+  response.cookies.set("sb-access-token", "", { path: "/", maxAge: 0 });
+  response.cookies.set("sb-refresh-token", "", { path: "/", maxAge: 0 });
 
   return response;
 }

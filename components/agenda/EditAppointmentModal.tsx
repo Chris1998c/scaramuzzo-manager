@@ -9,6 +9,7 @@ import { X, User, FlaskConical, Banknote, Trash2, Save } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { generateHours, SLOT_MINUTES } from "./utils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { toast } from "sonner";
 
 interface Props {
   isOpen: boolean;
@@ -333,9 +334,22 @@ export default function EditAppointmentModal({
     router.push(`/dashboard/cassa/${appointment.id}`);
   }
 
+  function getClienteIdForSchedeLink(): string | null {
+    const fromForm = customer?.trim() ?? "";
+    if (fromForm) return fromForm;
+    const aid = appointment?.customer_id ?? appointment?.customers?.id;
+    if (aid == null || aid === "") return null;
+    return String(aid);
+  }
+
   function goToSchedeTecniche() {
-    const cid = appointment?.customer_id;
-    if (!cid) return;
+    const cid = getClienteIdForSchedeLink();
+    if (!cid) {
+      toast.error(
+        "Nessun cliente collegato a questo appuntamento. Seleziona o crea un cliente nel modulo sopra, salva, poi riprova.",
+      );
+      return;
+    }
     close();
     router.push(`/dashboard/clienti/${cid}`);
   }
@@ -346,6 +360,7 @@ export default function EditAppointmentModal({
 
   const status = String(appointment?.status ?? "").toLowerCase();
   const disablePortaInSalaAndCassa = status === "done" || status === "cancelled";
+  const canOpenClienteSchede = Boolean(getClienteIdForSchedeLink());
 
   const serviceLines = useMemo(() => {
     const raw = Array.isArray(appointment?.appointment_services)
@@ -431,11 +446,17 @@ export default function EditAppointmentModal({
             </button>
 
             <button
+              type="button"
               onClick={goToSchedeTecniche}
-              disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 bg-black/30 border border-white/15 text-[#f3d8b6] font-extrabold hover:bg-black/40 transition disabled:opacity-50"
+              disabled={saving || !canOpenClienteSchede}
+              title={
+                canOpenClienteSchede
+                  ? "Apri scheda cliente e schede tecniche"
+                  : "Collega un cliente all’appuntamento per aprire le schede"
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 bg-black/30 border border-white/15 text-[#f3d8b6] font-extrabold hover:bg-black/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Schede <FlaskConical size={18} />
+              Scheda cliente <FlaskConical size={18} />
             </button>
 
             <button

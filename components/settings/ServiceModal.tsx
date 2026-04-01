@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 import type { ServiceSettingsRow } from "@/lib/servicesCatalog";
 import {
   createServiceWithSalonPriceAction,
@@ -136,6 +137,7 @@ export default function ServiceModal({
       setError(result.error);
       return;
     }
+    toast.success(mode === "create" ? "Servizio creato." : "Servizio aggiornato.");
     onSaved();
     onClose();
   }

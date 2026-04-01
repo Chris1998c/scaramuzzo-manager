@@ -1,10 +1,15 @@
 import { redirect } from "next/navigation";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 import MarketingWhatsAppClient from "@/components/marketing/MarketingWhatsAppClient";
 
 export default async function MarketingPage() {
   const access = await getUserAccess();
-  if (access.role === "cliente") redirect("/dashboard");
+  if (!canAccessMarketingWeb(access.role)) redirect("/dashboard");
 
-  return <MarketingWhatsAppClient />;
+  const aiCopyAssistAvailable = Boolean(process.env.OPENAI_API_KEY?.trim());
+
+  return (
+    <MarketingWhatsAppClient aiCopyAssistAvailable={aiCopyAssistAvailable} />
+  );
 }

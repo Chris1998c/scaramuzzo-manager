@@ -63,8 +63,8 @@ function CaricoInner() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
 
-  // 👇 DESTINAZIONE: prende il salone selezionato dall’header (switcher)
-  const { role, activeSalonId, allowedSalons, isReady, receptionSalonId } = useActiveSalon();
+  const { role, activeSalonId, allowedSalons, allowedSalonIds, isReady, receptionSalonId } =
+    useActiveSalon();
 
   const productIdFromUrl = toNumberOrNull(searchParams.get("product"));
 
@@ -87,12 +87,45 @@ function CaricoInner() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // se cambia lo switcher in header aggiorno destinazione (solo se è un salone 1..4)
+  /** Destinazioni carico (1–4) consentite per l’utente — allineato a POST /api/magazzino/carico. */
+  const warehouseDestSalons = useMemo(() => {
+    const filtered = SALONI.filter((s) => allowedSalonIds.includes(s.id));
+    return filtered.length ? filtered : SALONI;
+  }, [allowedSalonIds]);
+
+  const isWarehouseUi = role === "magazzino" || role === "coordinator";
+  const vistaIsHub = isWarehouseUi && activeSalonId === MAGAZZINO_CENTRALE_ID;
+  const vistaSalonOperativo =
+    isWarehouseUi &&
+    typeof activeSalonId === "number" &&
+    SALONI.some((s) => s.id === activeSalonId) &&
+    allowedSalonIds.includes(activeSalonId);
+  const vistaLabel =
+    activeSalonId == null
+      ? "—"
+      : allowedSalons.find((s) => s.id === activeSalonId)?.name?.split(" - ")[0] ??
+        (activeSalonId === MAGAZZINO_CENTRALE_ID ? "Magazzino Centrale" : `Salone ${activeSalonId}`);
+
+  /** Vista su salone reale → destinazione allineata; Vista hub → nessun allineamento silenzioso (solo copy + select). */
   useEffect(() => {
-    const v =
-      typeof activeSalonId === "number" ? activeSalonId : Number.NaN;
-    if (SALONI.some((s) => s.id === v)) setToSalonId(v);
-  }, [activeSalonId]);
+    if (!isReady || !isWarehouseUi) return;
+    if (
+      typeof activeSalonId === "number" &&
+      SALONI.some((s) => s.id === activeSalonId) &&
+      allowedSalonIds.includes(activeSalonId)
+    ) {
+      setToSalonId(activeSalonId);
+    }
+  }, [activeSalonId, allowedSalonIds, isReady, isWarehouseUi]);
+
+  /** toSalonId sempre tra le destinazioni consentite (es. permessi stretti). */
+  useEffect(() => {
+    if (!isReady || !isWarehouseUi) return;
+    if (!warehouseDestSalons.length) return;
+    if (!warehouseDestSalons.some((s) => s.id === toSalonId)) {
+      setToSalonId(warehouseDestSalons[0].id);
+    }
+  }, [isReady, isWarehouseUi, warehouseDestSalons, toSalonId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -307,8 +340,8 @@ function CaricoInner() {
         return;
       }
     } else {
-      if (!SALONI.some((s) => s.id === toSalonId)) {
-        setErrorMsg("Seleziona un salone di destinazione valido.");
+      if (!warehouseDestSalons.some((s) => s.id === toSalonId)) {
+        setErrorMsg("Seleziona un salone di destinazione consentito.");
         return;
       }
     }
@@ -380,8 +413,36 @@ function CaricoInner() {
                 <p className="text-[#c9b299] mt-2 max-w-2xl">
                   {isReception
                     ? "Registra merce arrivata al tuo salone. La destinazione è il tuo salone."
-                    : "Sposta quantità dal centrale (ID 5) al salone selezionato."}
+                    : "Prelievo dalla giacenza del Magazzino Centrale (ID 5). Il salone che riceve la merce è sempre quello che scegli nel campo «Destinazione del carico»."}
                 </p>
+                {!isReception && isWarehouseUi && (
+                  <div
+                    className={`mt-4 max-w-2xl rounded-xl border px-4 py-3 text-sm leading-relaxed ${
+                      vistaIsHub
+                        ? "border-amber-400/35 bg-amber-500/10 text-amber-100/95"
+                        : "border-white/10 bg-black/25 text-[#c9b299]"
+                    }`}
+                  >
+                    {vistaIsHub ? (
+                      <>
+                        <span className="font-extrabold text-[#f3d8b6]">Vista: {vistaLabel} (hub).</span>{" "}
+                        Qui stai lavorando sull’origine della merce.{" "}
+                        <strong className="text-white/90">Non</strong> coincide con il salone di arrivo: quello è
+                        sempre il valore nel menu &quot;Destinazione del carico&quot; sotto.
+                      </>
+                    ) : vistaSalonOperativo ? (
+                      <>
+                        <span className="font-extrabold text-[#f3d8b6]">Vista: {vistaLabel}.</span> La destinazione
+                        del carico è stata allineata a questo salone; cambiala dal menu se serve inviare altrove.
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-extrabold text-[#f3d8b6]">Vista: {vistaLabel}.</span> Scegli con cura la
+                        destinazione del carico nel menu dedicato (salone che riceve la merce dal centrale).
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <button
@@ -467,14 +528,14 @@ function CaricoInner() {
                 {!isReception && (
                   <div className="min-w-[220px]">
                     <label className="block text-xs font-bold mb-1 opacity-70">
-                      Salone destinazione
+                      Destinazione del carico (salone che riceve)
                     </label>
                     <select
                       value={toSalonId}
                       onChange={(e) => setToSalonId(Number(e.target.value))}
                       className="w-full p-3 rounded-xl border bg-white"
                     >
-                      {SALONI.map((s) => (
+                      {warehouseDestSalons.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
                         </option>
@@ -590,18 +651,25 @@ function CaricoInner() {
                   </div>
                 ) : (
                   <div>
-                    <label className="font-extrabold block mb-2">Salone destinazione</label>
+                    <label className="font-extrabold block mb-2">
+                      Destinazione del carico (salone che riceve)
+                    </label>
                     <select
                       value={toSalonId}
                       onChange={(e) => setToSalonId(Number(e.target.value))}
                       className="w-full p-3 rounded-xl border bg-white"
                     >
-                      {SALONI.map((s) => (
+                      {warehouseDestSalons.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
                         </option>
                       ))}
                     </select>
+                    {vistaIsHub && (
+                      <p className="mt-2 text-xs opacity-75">
+                        Con Vista sul centrale, il salone di arrivo è <strong>solo</strong> quello selezionato qui.
+                      </p>
+                    )}
                   </div>
                 )}
 

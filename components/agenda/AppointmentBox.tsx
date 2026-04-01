@@ -462,10 +462,18 @@ export default function AppointmentBox({
             </button>
 
             <button
-              onClick={() => setOpenActions(false)}
-              className="w-full px-4 py-2.5 text-left text-xs text-white/50 hover:bg-white/5"
+              onClick={() => {
+                setOpenActions(false);
+                const cid = appointment?.customer_id ?? appointment?.customers?.id;
+                if (cid == null || cid === "") {
+                  toast.error("Nessun cliente collegato all’appuntamento.");
+                  return;
+                }
+                router.push(`/dashboard/clienti/${cid}`);
+              }}
+              className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5"
             >
-              🧪 Scheda Tecnica
+              🧪 Scheda cliente / tecniche
             </button>
           </div>
         )}

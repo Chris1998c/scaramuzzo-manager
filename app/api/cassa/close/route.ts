@@ -25,7 +25,7 @@ type CloseBody = {
   global_discount?: number; // % (0-100) sul subtotale già scontato per riga
   lines?: CloseLineInput[];
   items?: CloseLineInput[]; // compat
-  /** Solo se `true`: stampa fiscale richiesta (check bridge + job). Omesso/false = solo vendita, fiscal_status pending */
+  /** Ignorato dal server: la stampa fiscale segue `cash_sessions.printer_enabled` della sessione aperta. */
   printer_enabled?: boolean;
 };
 
@@ -121,8 +121,6 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
-
-    const printerEnabled = body.printer_enabled === true;
 
     const hasAppointmentId = Number.isFinite(toNumber(body.appointment_id, NaN));
     const hasSalonIdInBody = Number.isFinite(toNumber(body.salon_id, NaN));
@@ -288,7 +286,7 @@ export async function POST(req: Request) {
     // 5) CASSA APERTA
     const { data: activeSession, error: sessionErr } = await supabaseAdmin
       .from("cash_sessions")
-      .select("id, session_date, opened_at")
+      .select("id, session_date, opened_at, printer_enabled")
       .eq("salon_id", salonId)
       .is("closed_at", null)
       .order("opened_at", { ascending: false })
@@ -308,6 +306,10 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    const printerEnabled = Boolean(
+      (activeSession as { printer_enabled?: unknown }).printer_enabled
+    );
 
     let fiscalProfileForJob: {
       printer_model?: string;
@@ -557,17 +559,46 @@ export async function POST(req: Request) {
       if (insertedJob?.id != null) {
         fiscalPrintJobId = Number(insertedJob.id);
       }
-      const { error: fsErr } = await supabaseAdmin
+
+      const { data: saleAfterQueued, error: fsErr } = await supabaseAdmin
         .from("sales")
         .update({ fiscal_status: "queued" })
-        .eq("id", saleId);
-      if (fsErr) console.error("sales fiscal_status update", fsErr);
+        .eq("id", saleId)
+        .select("id");
+
+      const queuedOk =
+        !fsErr && Array.isArray(saleAfterQueued) && saleAfterQueued.length > 0;
+
+      if (!queuedOk) {
+        const detail = fsErr?.message ?? "nessuna riga aggiornata";
+        console.error("[cassa/close] sales fiscal_status -> queued failed", fsErr);
+
+        if (fiscalPrintJobId != null) {
+          const { error: delErr } = await supabaseAdmin
+            .from("fiscal_print_jobs")
+            .delete()
+            .eq("id", fiscalPrintJobId);
+          if (delErr) {
+            console.error("[cassa/close] rollback fiscal_print_jobs failed", delErr);
+          }
+        }
+
+        return NextResponse.json(
+          {
+            error: `Vendita registrata ma allineamento stampa fiscale fallito (${detail}). Il job è stato annullato per evitare incoerenze con il callback; fiscal_status resta pending.`,
+            sale_id: saleId,
+            fiscal_job_cancelled: fiscalPrintJobId ?? null,
+          },
+          { status: 500 },
+        );
+      }
     }
 
     return NextResponse.json({
       ok: true,
       sale_id: saleId,
       fiscal_print_job_id: fiscalPrintJobId,
+      printer_enabled: printerEnabled,
       totals: { subtotal, total: finalTotal, discount: totalDiscount },
     });
   } catch (e) {

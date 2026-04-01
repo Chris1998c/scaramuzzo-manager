@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  requireAttendanceWebAccess,
+  salonIdsForAttendanceFilter,
+} from "@/lib/attendanceWebAccess";
 
 type AttendanceEvent = {
   staff_id: number;
@@ -29,11 +33,25 @@ function getDayKey(isoDateTime: string): string {
 }
 
 export async function GET() {
+  const gate = await requireAttendanceWebAccess();
+  if (!gate.ok) return gate.response;
+
+  const salonIds = salonIdsForAttendanceFilter(gate.access);
+  if (salonIds !== null && salonIds.length === 0) {
+    return NextResponse.json({ success: true, rows: [] });
+  }
+
   try {
-    const { data: logs, error: logsError } = await supabaseAdmin
+    let q = supabaseAdmin
       .from("staff_attendance_logs")
       .select("staff_id,salon_id,event_type,created_at")
       .order("created_at", { ascending: true });
+
+    if (salonIds !== null) {
+      q = q.in("salon_id", salonIds);
+    }
+
+    const { data: logs, error: logsError } = await q;
 
     if (logsError) {
       throw logsError;

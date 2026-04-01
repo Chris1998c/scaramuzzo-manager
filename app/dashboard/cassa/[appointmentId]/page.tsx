@@ -449,7 +449,6 @@ setProducts(pr || []);
           payment_method: paymentMethod,
           global_discount: Number(globalDiscountPct.toFixed(4)), // %
           lines,
-          printer_enabled: printerEnabled,
         }),
       });
 
@@ -457,7 +456,27 @@ setProducts(pr || []);
       if (!res.ok)
         throw new Error(data?.error || "Errore durante il salvataggio");
 
-      toast.success("Vendita completata ✅");
+      const rawJob = data?.fiscal_print_job_id;
+      const jobId =
+        typeof rawJob === "number"
+          ? rawJob
+          : rawJob != null && !Number.isNaN(Number(rawJob))
+            ? Number(rawJob)
+            : undefined;
+
+      if (jobId != null) {
+        toast.success("Vendita registrata", {
+          description: `Stampa fiscale in coda (job n. ${jobId}). Il Print Bridge locale elabora la coda verso Epson FP81 RT; lo stato si aggiorna al callback.`,
+          duration: 9500,
+        });
+      } else {
+        toast.success("Vendita registrata", {
+          description:
+            "Stampante di sessione disattivata nel sistema: vendita salvata; nessuna stampa fiscale accodata da questa cassa.",
+          duration: 7000,
+        });
+      }
+
       router.push("/dashboard/in-sala");
     } catch (err: any) {
       toast.error(err?.message || "Errore chiusura");

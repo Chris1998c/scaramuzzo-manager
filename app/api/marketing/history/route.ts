@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Sessione non valida", rows: [] }, { status: 401 });
   }
 
-  if (access.role === "cliente") {
+  if (!canAccessMarketingWeb(access.role)) {
     return NextResponse.json({ error: "Non autorizzato", rows: [] }, { status: 403 });
   }
 

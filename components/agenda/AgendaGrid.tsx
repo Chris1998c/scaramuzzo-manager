@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import {
@@ -186,7 +186,17 @@ type AgendaGridProps = {
 export default function AgendaGrid({ currentDate, highlightAppointmentId, onHighlightHandled }: AgendaGridProps) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { activeSalonId, isReady } = useActiveSalon();
+
+  const navigateAgendaDate = useCallback(
+    (nextDate: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("date", nextDate);
+      router.replace(`/dashboard/agenda?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
 
   // Refs (scroll sync + misura)
   const timeColumnRef = useRef<HTMLDivElement>(null);
@@ -593,22 +603,21 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     if (headerRef.current) headerRef.current.scrollLeft = target.scrollLeft;
   };
 
-  // Nav
+  // Nav (replace + preserva altri query come l’header: niente stack history “a giorni”)
   const gotoPrev = () => {
     const next =
       view === "day" ? addDaysISO(currentDate, -1) : addWeeksISO(currentDate, -1);
-    router.push(`/dashboard/agenda?date=${next}`);
+    navigateAgendaDate(next);
   };
 
   const gotoNext = () => {
     const next =
       view === "day" ? addDaysISO(currentDate, 1) : addWeeksISO(currentDate, 1);
-    router.push(`/dashboard/agenda?date=${next}`);
+    navigateAgendaDate(next);
   };
 
   const gotoToday = () => {
-    const today = isoDate(new Date());
-    router.push(`/dashboard/agenda?date=${today}`);
+    navigateAgendaDate(isoDate(new Date()));
   };
 
   const displayDateLabel = useMemo(

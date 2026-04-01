@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 import {
   normalizePhoneForWhatsAppTo,
   sendWhatsAppTextMessage,
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Sessione non valida" }, { status: 401 });
   }
 
-  if (access.role === "cliente") {
+  if (!canAccessMarketingWeb(access.role)) {
     return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
   }
 
@@ -191,7 +192,7 @@ export async function POST(req: Request) {
 
   const { data: custRows, error: custErr } = await supabaseAdmin
     .from("customers")
-    .select("id, phone")
+    .select("id, phone, marketing_whatsapp_opt_in")
     .in("id", customerIds);
 
   if (custErr) {
@@ -203,9 +204,13 @@ export async function POST(req: Request) {
   }
 
   const phoneById = new Map<string, string>();
+  const marketingOptInById = new Map<string, boolean>();
   for (const row of custRows ?? []) {
-    const r = row as { id?: string; phone?: string };
-    if (r.id) phoneById.set(r.id, r.phone ?? "");
+    const r = row as { id?: string; phone?: string; marketing_whatsapp_opt_in?: boolean };
+    if (r.id) {
+      phoneById.set(r.id, r.phone ?? "");
+      marketingOptInById.set(r.id, r.marketing_whatsapp_opt_in === true);
+    }
   }
 
   type RowResult = {
@@ -232,6 +237,23 @@ export async function POST(req: Request) {
         messageText: message,
         status: "error",
         errorMessage: "Cliente non associato a questo salone",
+      });
+      continue;
+    }
+
+    if (marketingOptInById.get(customerId) !== true) {
+      results.push({
+        customerId,
+        ok: false,
+        error: "Senza consenso marketing WhatsApp",
+      });
+      await insertMarketingWhatsAppLog({
+        salonId,
+        customerId,
+        createdBy,
+        messageText: message,
+        status: "error",
+        errorMessage: "Senza consenso marketing WhatsApp",
       });
       continue;
     }

@@ -1,5 +1,7 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getUserAccess } from "@/lib/getUserAccess";
 
 type DailySummaryRow = {
   staff_id: number;
@@ -36,6 +38,11 @@ function getLiveStatusFromEvent(eventType: string | undefined): LiveStatus {
 }
 
 export default async function PresenzePage() {
+  const access = await getUserAccess();
+  if (access.role !== "coordinator" && access.role !== "reception") {
+    redirect("/dashboard");
+  }
+
   const h = await headers();
   const protocol = h.get("x-forwarded-proto") ?? "http";
   const host = h.get("x-forwarded-host") ?? h.get("host");
@@ -44,9 +51,11 @@ export default async function PresenzePage() {
     throw new Error("Unable to resolve host for attendance summary fetch.");
   }
 
+  const cookie = h.get("cookie") ?? "";
   const response = await fetch(`${protocol}://${host}/api/attendance/daily-summary`, {
     method: "GET",
     cache: "no-store",
+    headers: cookie ? { cookie } : undefined,
   });
 
   let rows: DailySummaryRow[] = [];
@@ -64,11 +73,17 @@ export default async function PresenzePage() {
   const latestEventByStaffId = new Map<number, string>();
 
   if (uniqueStaffIds.length > 0) {
-    const { data: latestEvents, error: latestEventsError } = await supabaseAdmin
+    let liveQ = supabaseAdmin
       .from("staff_attendance_logs")
       .select("staff_id,event_type,created_at")
       .in("staff_id", uniqueStaffIds)
       .order("created_at", { ascending: false });
+
+    if (access.role === "reception" && access.allowedSalonIds.length > 0) {
+      liveQ = liveQ.in("salon_id", access.allowedSalonIds);
+    }
+
+    const { data: latestEvents, error: latestEventsError } = await liveQ;
 
     if (latestEventsError) {
       throw latestEventsError;

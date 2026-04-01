@@ -189,7 +189,8 @@ function AgendaPageInner() {
       <CalendarModal
         isOpen={calendarOpen}
         close={() => setCalendarOpen(false)}
-        onSelectDate={(d) => setDate(d)}  // ✅ aggiorna URL, no state
+        selectedDate={currentDate}
+        onSelectDate={(d) => setDate(d)}
       />
     </div>
   );

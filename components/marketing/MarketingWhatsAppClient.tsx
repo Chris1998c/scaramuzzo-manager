@@ -5,6 +5,7 @@ import { Loader2, Search, Send, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 
 const PAGE_SIZE = 1000;
 const MS_DAY = 86_400_000;
@@ -25,6 +26,7 @@ export type MarketingCustomerRow = {
   first_name: string;
   last_name: string;
   phone: string;
+  marketingWhatsappOptIn: boolean;
   appointmentCount: number;
   lastAppointmentMs: number | null;
   totalSpent: number;
@@ -296,6 +298,16 @@ function segmentCountsFromCustomers(
   return out;
 }
 
+function segmentEligibleCountsFromCustomers(
+  rows: MarketingCustomerRow[],
+): Record<ClientFilterPreset, number> {
+  const out = {} as Record<ClientFilterPreset, number>;
+  for (const { key } of FILTER_OPTIONS) {
+    out[key] = applyPreset(rows, key).filter((r) => r.marketingWhatsappOptIn).length;
+  }
+  return out;
+}
+
 function sortCustomers(
   rows: MarketingCustomerRow[],
   mode: MarketingSortMode,
@@ -445,7 +457,14 @@ export function validateMessage(text: string): {
   return { ok: issues.length === 0, issues };
 }
 
-export default function MarketingWhatsAppClient() {
+export type MarketingWhatsAppClientProps = {
+  /** Da server: true solo se OPENAI_API_KEY è configurata in ambiente. */
+  aiCopyAssistAvailable: boolean;
+};
+
+export default function MarketingWhatsAppClient({
+  aiCopyAssistAvailable,
+}: MarketingWhatsAppClientProps) {
   const supabase = createClient();
   const { activeSalonId, isReady, role, allowedSalons } = useActiveSalon();
 
@@ -517,22 +536,27 @@ export default function MarketingWhatsAppClient() {
 
       const { data, error } = await supabase
         .from("customers")
-        .select("id, first_name, last_name, phone")
+        .select("id, first_name, last_name, phone, marketing_whatsapp_opt_in")
         .in("id", ids)
         .order("last_name", { ascending: true });
 
       if (error) throw new Error(error.message);
 
       const enriched: MarketingCustomerRow[] = (data ?? []).map((row) => {
-        const r = row as Omit<
-          MarketingCustomerRow,
-          | "appointmentCount"
-          | "lastAppointmentMs"
-          | "totalSpent"
-          | "apptsLast30"
-          | "apptsLast60"
-          | "apptsLast90"
-        >;
+        const raw = row as {
+          id: string;
+          first_name: string;
+          last_name: string;
+          phone: string;
+          marketing_whatsapp_opt_in?: boolean;
+        };
+        const r = {
+          id: raw.id,
+          first_name: raw.first_name,
+          last_name: raw.last_name,
+          phone: raw.phone,
+          marketingWhatsappOptIn: raw.marketing_whatsapp_opt_in === true,
+        };
         const a = agg.get(r.id) ?? {
           appointmentCount: 0,
           lastAppointmentMs: null,
@@ -563,7 +587,7 @@ export default function MarketingWhatsAppClient() {
   }, [supabase, salonId]);
 
   useEffect(() => {
-    if (!isReady || role === "cliente") return;
+    if (!isReady || !canAccessMarketingWeb(role)) return;
     void loadCustomers();
   }, [isReady, role, loadCustomers]);
 
@@ -571,6 +595,27 @@ export default function MarketingWhatsAppClient() {
     () => segmentCountsFromCustomers(customers),
     [customers],
   );
+
+  const segmentEligibleCounts = useMemo(
+    () => segmentEligibleCountsFromCustomers(customers),
+    [customers],
+  );
+
+  useEffect(() => {
+    setSelected((prev) => {
+      const allowed = new Set(
+        customers.filter((c) => c.marketingWhatsappOptIn).map((c) => c.id),
+      );
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (allowed.has(id)) next.add(id);
+        else changed = true;
+      }
+      if (!changed && next.size === prev.size) return prev;
+      return next;
+    });
+  }, [customers]);
 
   const loadHistory = useCallback(async () => {
     if (
@@ -614,7 +659,7 @@ export default function MarketingWhatsAppClient() {
   }, [salonId]);
 
   useEffect(() => {
-    if (!isReady || role === "cliente") return;
+    if (!isReady || !canAccessMarketingWeb(role)) return;
     void loadHistory();
   }, [isReady, role, loadHistory]);
 
@@ -674,6 +719,8 @@ export default function MarketingWhatsAppClient() {
   }, [pendingSend, lastContactMap]);
 
   const toggle = (id: string) => {
+    const row = customers.find((c) => c.id === id);
+    if (!row?.marketingWhatsappOptIn) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -683,7 +730,7 @@ export default function MarketingWhatsAppClient() {
   };
 
   const toggleAllVisible = () => {
-    const visIds = sortedRows.map((c) => c.id);
+    const visIds = sortedRows.filter((c) => c.marketingWhatsappOptIn).map((c) => c.id);
     const allSelected = visIds.length && visIds.every((id) => selected.has(id));
     setSelected((prev) => {
       const next = new Set(prev);
@@ -706,9 +753,14 @@ export default function MarketingWhatsAppClient() {
       setSendSummary("Seleziona un salone operativo per inviare.");
       return;
     }
-    const ids = [...selected];
+    const ids = [...selected].filter((id) => {
+      const row = customers.find((c) => c.id === id);
+      return row?.marketingWhatsappOptIn === true;
+    });
     if (!ids.length) {
-      setSendSummary("Seleziona almeno un cliente.");
+      setSendSummary(
+        "Seleziona almeno un cliente con consenso marketing WhatsApp (scheda Clienti → anagrafica).",
+      );
       return;
     }
     const text = message.trim();
@@ -776,7 +828,7 @@ export default function MarketingWhatsAppClient() {
     );
   }
 
-  if (role === "cliente") return null;
+  if (!canAccessMarketingWeb(role)) return null;
 
   const isCentrale = salonId === MAGAZZINO_CENTRALE_ID;
 
@@ -791,7 +843,9 @@ export default function MarketingWhatsAppClient() {
 
   function applyPreparedSelection(preset: ClientFilterPreset, nextMessage: string) {
     setFilterPreset(preset);
-    const ids = applyPreset(customers, preset).map((c) => c.id);
+    const ids = applyPreset(customers, preset)
+      .filter((c) => c.marketingWhatsappOptIn)
+      .map((c) => c.id);
     setSelected(new Set(ids));
     setMessageBeforeAi(null);
     setAiCopyError(null);
@@ -810,6 +864,12 @@ export default function MarketingWhatsAppClient() {
   }
 
   async function handleImproveMessage() {
+    if (!aiCopyAssistAvailable) {
+      setAiCopyError(
+        "Assistente testo non disponibile su questo ambiente. Serve la configurazione lato server.",
+      );
+      return;
+    }
     const draft = message.trim();
     if (!draft || isCentrale) return;
     setAiCopyError(null);
@@ -871,9 +931,16 @@ export default function MarketingWhatsAppClient() {
           WhatsApp — invio manuale
         </h1>
         <p className="text-[#c9b299] mt-2 text-sm leading-relaxed">
-          Clienti con almeno un appuntamento o una vendita registrata nel salone attivo.
-          Statistiche calcolate da appuntamenti e vendite del salone. Messaggio di testo
-          tramite Cloud API (rispettare policy Meta / finestra messaggistica).
+          <strong className="text-[#e8dcc8] font-semibold">Ambito attuale:</strong> prepari il testo,
+          scegli i destinatari (con storico in questo salone) e invii da qui; in basso trovi lo storico
+          invii manuali. <strong className="text-[#e8dcc8] font-semibold">Non è un modulo campagne o
+          promozioni automatizzate</strong> (nessuna pianificazione multi‑step o audience complessa).
+        </p>
+        <p className="text-[#c9b299] mt-2 text-sm leading-relaxed">
+          Solo chi ha il <strong className="text-[#e8dcc8]">consenso marketing WhatsApp</strong> in
+          anagrafica può essere selezionato. I reminder automatici sugli appuntamenti sono gestiti a
+          parte (template Meta). Messaggi di testo via Cloud API — rispettare policy Meta e finestra
+          di messaggistica.
         </p>
       </div>
 
@@ -882,7 +949,7 @@ export default function MarketingWhatsAppClient() {
           <h2 className="text-lg font-bold text-[#f3d8b6] mb-3">Azioni pronte</h2>
           <div className="grid sm:grid-cols-2 gap-3 mb-6">
             {READY_ACTIONS.map((action) => {
-              const count = segmentCounts[action.key] ?? 0;
+              const count = segmentEligibleCounts[action.key] ?? 0;
               return (
                 <div
                   key={`${action.key}-ready-action`}
@@ -910,7 +977,7 @@ export default function MarketingWhatsAppClient() {
 
           <div className="grid sm:grid-cols-2 gap-3">
             {SEGMENT_HINTS.map((hint) => {
-              const count = segmentCounts[hint.key] ?? 0;
+              const count = segmentEligibleCounts[hint.key] ?? 0;
               if (count === 0) return null;
 
               return (
@@ -963,8 +1030,8 @@ export default function MarketingWhatsAppClient() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-bold text-[#f3d8b6]">Clienti</h2>
             <span className="text-xs text-white/45">
-              {selected.size} selezionati · {sortedRows.length} visibili · {customers.length}{" "}
-              nel salone
+              {selected.size} selezionati (solo con consenso) · {sortedRows.length} visibili ·{" "}
+              {customers.length} nel salone
             </span>
           </div>
 
@@ -972,6 +1039,7 @@ export default function MarketingWhatsAppClient() {
             {FILTER_OPTIONS.map(({ key, label }) => {
               const active = filterPreset === key;
               const n = segmentCounts[key];
+              const ne = segmentEligibleCounts[key];
               return (
                 <button
                   key={key}
@@ -985,10 +1053,12 @@ export default function MarketingWhatsAppClient() {
                       : "border-white/10 bg-black/25 text-[#c9b299] hover:border-white/20",
                     "disabled:opacity-45 disabled:pointer-events-none",
                   ].join(" ")}
-                  title={`${n} clienti in questo segmento (intera salone attiva)`}
+                  title={`${ne} con consenso marketing · ${n} nel segmento (salone attivo)`}
                 >
                   {label}{" "}
-                  <span className="text-[10px] font-black opacity-80">({n})</span>
+                  <span className="text-[10px] font-black opacity-80">
+                    ({ne}/{n})
+                  </span>
                 </button>
               );
             })}
@@ -1054,6 +1124,7 @@ export default function MarketingWhatsAppClient() {
                 <tr>
                   <th className="w-10 px-2 py-2" aria-label="Seleziona" />
                   <th className="px-2 py-2">Cliente</th>
+                  <th className="px-2 py-2">Consenso</th>
                   <th className="px-2 py-2 hidden sm:table-cell">Tel.</th>
                   <th className="px-2 py-2 text-right">App.</th>
                   <th className="px-2 py-2 hidden md:table-cell">Ultimo</th>
@@ -1063,7 +1134,7 @@ export default function MarketingWhatsAppClient() {
               <tbody className="text-[#e8dcc8]">
                 {sortedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-[#c9b299]">
+                    <td colSpan={7} className="px-3 py-8 text-center text-[#c9b299]">
                       {loadState === "ready" && customers.length === 0
                         ? "Nessun cliente con storico in questo salone."
                         : emptyBecauseFilter
@@ -1083,7 +1154,12 @@ export default function MarketingWhatsAppClient() {
                         <input
                           type="checkbox"
                           checked={selected.has(c.id)}
-                          disabled={showSendReview}
+                          disabled={showSendReview || !c.marketingWhatsappOptIn}
+                          title={
+                            c.marketingWhatsappOptIn
+                              ? undefined
+                              : "Attiva il consenso marketing in Clienti → scheda anagrafica."
+                          }
                           onChange={() => toggle(c.id)}
                           className="rounded border-white/25 bg-black/40"
                         />
@@ -1113,6 +1189,17 @@ export default function MarketingWhatsAppClient() {
                           })()}
                         </span>
                       </td>
+                      <td className="px-2 py-2 align-middle">
+                        {c.marketingWhatsappOptIn ? (
+                          <span className="inline-flex rounded border border-emerald-500/35 bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-100/95">
+                            Sì
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded border border-white/15 bg-black/30 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white/50">
+                            No
+                          </span>
+                        )}
+                      </td>
                       <td className="px-2 py-2 align-middle text-[#c9b299] font-mono text-[10px] sm:text-xs hidden sm:table-cell">
                         {c.phone}
                       </td>
@@ -1135,6 +1222,25 @@ export default function MarketingWhatsAppClient() {
 
         <section className="lg:col-span-2 rounded-2xl border border-white/10 bg-black/20 p-4 flex flex-col gap-3">
           <h2 className="text-sm font-bold text-[#f3d8b6]">Messaggio</h2>
+          {!aiCopyAssistAvailable ? (
+            <div
+              className="rounded-xl border border-violet-500/25 bg-violet-500/[0.07] px-3 py-2.5 text-[11px] text-violet-100/90 leading-relaxed"
+              role="status"
+            >
+              <span className="font-bold text-violet-200/95">Assistente testo (opzionale)</span>
+              <span className="block mt-1 text-violet-100/85">
+                Non attivo in questo ambiente: manca la configurazione server per l’AI (chiave OpenAI
+                lato deploy). Puoi comunque scrivere e inviare il messaggio normalmente; il pulsante
+                &quot;Migliora messaggio&quot; resta disabilitato finché non viene abilitato
+                l’amministratore di sistema.
+              </span>
+            </div>
+          ) : (
+            <p className="text-[10px] text-white/40 leading-relaxed">
+              Opzionale: &quot;Migliora messaggio&quot; usa un servizio AI sul server per rifinire il
+              tono (non sostituisce il tuo giudizio né le policy Meta).
+            </p>
+          )}
           <textarea
             ref={messageTextareaRef}
             value={message}
@@ -1152,11 +1258,17 @@ export default function MarketingWhatsAppClient() {
             <button
               type="button"
               disabled={
+                !aiCopyAssistAvailable ||
                 aiCopyLoading ||
                 !message.trim() ||
                 salonId == null ||
                 isCentrale ||
                 showSendReview
+              }
+              title={
+                !aiCopyAssistAvailable
+                  ? "Assistente AI non configurato in questo ambiente."
+                  : undefined
               }
               onClick={() => void handleImproveMessage()}
               className="inline-flex items-center gap-1.5 rounded-xl border border-violet-400/35 bg-violet-500/10 px-3 py-2 text-xs font-bold text-violet-200/95 hover:bg-violet-500/20 disabled:opacity-45 disabled:pointer-events-none transition"

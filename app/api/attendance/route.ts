@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  requireAttendanceWebAccess,
+  salonIdsForAttendanceFilter,
+} from "@/lib/attendanceWebAccess";
 
 type AttendanceLogRow = {
   id: number;
@@ -17,12 +21,26 @@ type StaffNameRow = {
 };
 
 export async function GET() {
+  const gate = await requireAttendanceWebAccess();
+  if (!gate.ok) return gate.response;
+
+  const salonIds = salonIdsForAttendanceFilter(gate.access);
+  if (salonIds !== null && salonIds.length === 0) {
+    return NextResponse.json({ success: true, rows: [] });
+  }
+
   try {
-    const { data: logs, error: logsError } = await supabaseAdmin
+    let q = supabaseAdmin
       .from("staff_attendance_logs")
       .select("id,staff_id,salon_id,event_type,created_at,lat,lng")
       .order("created_at", { ascending: false })
       .limit(100);
+
+    if (salonIds !== null) {
+      q = q.in("salon_id", salonIds);
+    }
+
+    const { data: logs, error: logsError } = await q;
 
     if (logsError) {
       throw logsError;

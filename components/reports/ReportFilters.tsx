@@ -7,6 +7,8 @@ type StaffOption = { id: number; name: string };
 
 type Props = {
   salonId: number;
+  /** Nome salone per contesto (coerenza Vista / URL). */
+  salonLabel?: string | null;
   dateFrom: string;
   dateTo: string;
   staffId: number | null;
@@ -17,6 +19,7 @@ type Props = {
 
 export default function ReportFilters({
   salonId,
+  salonLabel,
   dateFrom,
   dateTo,
   staffId,
@@ -113,6 +116,22 @@ export default function ReportFilters({
           <div className="text-xl font-extrabold text-scz-gold">
             Vendite & Performance
           </div>
+          {salonId > 0 && (
+            <p className="mt-2 text-xs text-white/50">
+              Dati per salone:{" "}
+              <span className="font-bold text-white/75">
+                {salonLabel?.trim() || `ID ${salonId}`}
+              </span>{" "}
+              · allineamento con <span className="text-white/60">Vista</span> e URL (
+              <code className="text-white/45">salon_id</code>)
+            </p>
+          )}
+          {salonId <= 0 && (
+            <p className="mt-2 text-xs font-semibold text-amber-200/90">
+              Nessun salone valido: impossibile caricare i report finché non è disponibile almeno una
+              sede.
+            </p>
+          )}
         </div>
 
         <div className="flex gap-2">

@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabaseServer";
+import { getUserAccess } from "@/lib/getUserAccess";
+import { canAccessClientiWeb } from "@/lib/clientiWebAccess";
 import ClientiView from "./ClientiView";
 
 export default async function ClientiPage() {
@@ -9,6 +11,11 @@ export default async function ClientiPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  const access = await getUserAccess();
+  if (!canAccessClientiWeb(access.role)) {
+    redirect("/dashboard");
+  }
 
   const { data: customers, error } = await supabase
     .from("customers")

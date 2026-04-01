@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabaseServer";
+import { getUserAccess } from "@/lib/getUserAccess";
+import { canAccessClientiWeb } from "@/lib/clientiWebAccess";
 import { ArrowLeft } from "lucide-react";
 import ClienteProfile from "./cliente-profile";
 import SchedeTecniche from "./schede-tecniche";
@@ -8,6 +10,10 @@ import ClientInsightsPanel from "./ClientInsightsPanel";
 import ClienteAnagraficaForm from "./ClienteAnagraficaForm";
 
 type Params = { id: string };
+
+function canAccessClientiModule(role: string) {
+  return role === "coordinator" || role === "reception" || role === "magazzino";
+}
 
 export default async function ClientePage({ params }: { params: Params }) {
   const supabase = await createServerSupabase();
@@ -17,9 +23,16 @@ export default async function ClientePage({ params }: { params: Params }) {
 
   if (!user) redirect("/login");
 
+  const access = await getUserAccess();
+  if (!canAccessClientiWeb(access.role)) {
+    redirect("/dashboard");
+  }
+
   const { data: customer, error } = await supabase
     .from("customers")
-    .select("id, customer_code, first_name, last_name, phone, email, address, notes")
+    .select(
+      "id, customer_code, first_name, last_name, phone, email, address, notes, marketing_whatsapp_opt_in, marketing_consent_at",
+    )
     .eq("id", params.id)
     .single();
 
@@ -34,6 +47,8 @@ export default async function ClientePage({ params }: { params: Params }) {
     email: string | null;
     address: string | null;
     notes: string | null;
+    marketing_whatsapp_opt_in: boolean;
+    marketing_consent_at: string | null;
   };
 
   return (
@@ -61,6 +76,8 @@ export default async function ClientePage({ params }: { params: Params }) {
           email: c.email,
           address: c.address,
           notes: c.notes,
+          marketing_whatsapp_opt_in: !!c.marketing_whatsapp_opt_in,
+          marketing_consent_at: c.marketing_consent_at,
         }}
       />
 
