@@ -1,5 +1,7 @@
 // POST /api/cron/appointment-reminders
-// Vercel Cron: reminder WhatsApp transazionale v1 (finestra 23–25 h, fuso Europe/Rome).
+// Reminder WhatsApp transazionale v1 (stessa logica della Edge Function appointment-reminders).
+// Trigger produzione: Supabase pg_cron + pg_net → functions/v1/appointment-reminders (non più Vercel Cron).
+// Questa route resta per test manuali con header Authorization: Bearer CRON_SECRET.
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
