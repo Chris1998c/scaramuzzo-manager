@@ -2,15 +2,18 @@
 
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
-export default function QRProdotto({ params }: { params: { id: string } }) {
+export default function QRProdotto() {
+  const { id } = useParams<{ id: string }>();
   const [qr, setQr] = useState<string>("");
 
   useEffect(() => {
+    if (!id) return;
     async function generateQR() {
       try {
         const dataUrl = await QRCode.toDataURL(
-          `${window.location.origin}/dashboard/magazzino/prodotto/${params.id}`,
+          `${window.location.origin}/dashboard/magazzino/prodotto/${id}`,
           {
             width: 500,
             margin: 1,
@@ -27,7 +30,7 @@ export default function QRProdotto({ params }: { params: { id: string } }) {
     }
 
     generateQR();
-  }, [params.id]);
+  }, [id]);
 
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
@@ -43,7 +46,7 @@ export default function QRProdotto({ params }: { params: { id: string } }) {
 
           <a
             href={qr}
-            download={`prodotto_${params.id}.png`}
+            download={`prodotto_${id}.png`}
             className="mt-6 bg-[#B88A54] px-6 py-3 rounded-xl text-white text-lg shadow hover:scale-105 transition"
           >
             Scarica QR

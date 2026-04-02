@@ -10,6 +10,7 @@ import {
   ArrowDown,
   ArrowUp,
 } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
 interface Product {
@@ -27,12 +28,9 @@ interface StockRow {
   quantity: number;
 }
 
-export default function SchedaProdotto({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const productId = Number(params.id);
+export default function SchedaProdotto() {
+  const { id: idParam } = useParams<{ id: string }>();
+  const productId = Number(idParam);
   const supabase = createClient();
 
   const [product, setProduct] = useState<Product | null>(null);

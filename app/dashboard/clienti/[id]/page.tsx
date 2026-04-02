@@ -15,7 +15,8 @@ function canAccessClientiModule(role: string) {
   return role === "coordinator" || role === "reception" || role === "magazzino";
 }
 
-export default async function ClientePage({ params }: { params: Params }) {
+export default async function ClientePage({ params }: { params: Promise<Params> }) {
+  const { id } = await params;
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -33,7 +34,7 @@ export default async function ClientePage({ params }: { params: Params }) {
     .select(
       "id, customer_code, first_name, last_name, phone, email, address, notes, marketing_whatsapp_opt_in, marketing_consent_at",
     )
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (error || !customer) redirect("/dashboard/clienti");

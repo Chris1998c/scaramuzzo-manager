@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
-export default function ModificaProdottoPage({ params }: { params: { id: string } }) {
-  const productId = Number(params.id);
+export default function ModificaProdottoPage() {
+  const { id: idParam } = useParams<{ id: string }>();
+  const productId = Number(idParam);
   const { role, isReady } = useActiveSalon();
 
   return (
