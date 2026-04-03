@@ -1,13 +1,12 @@
-// Stats periodo Team: contratto ufficiale = Bearer + body from/to; body staff_id solo compat (vedi lib/mobileSession).
+// Stats periodo Team: JWT Bearer obbligatorio; periodo da body (from/to); identità solo dal token.
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { resolveMobileStaffId, romeDayKeyFromIso } from "@/lib/mobileSession";
+import { verifyMobileToken, romeDayKeyFromIso } from "@/lib/mobileSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type StatsBody = {
-  staff_id?: number;
   /** Inclusive calendar day `YYYY-MM-DD` (naive local string, aligned with DB `timestamp without time zone`). */
   from?: string;
   /** Inclusive calendar day `YYYY-MM-DD`. */
@@ -30,6 +29,38 @@ function periodBounds(from: string, to: string): { fromTs: string; toTs: string 
     fromTs: `${from}T00:00:00`,
     toTs: `${to}T23:59:59.999`,
   };
+}
+
+type MobileAuthUserResult =
+  | { ok: true; staffId: number; tokenSalonId: number }
+  | { ok: false; response: NextResponse };
+
+function bearerFromRequest(req: Request): string | null {
+  const h = req.headers.get("authorization")?.trim();
+  if (!h) return null;
+  const m = /^Bearer\s+(.+)$/i.exec(h);
+  return m ? m[1].trim() : null;
+}
+
+/**
+ * Autenticazione mobile per questa route: solo JWT (MOBILE_JWT_SECRET), nessun staff_id da body/query.
+ */
+function getMobileAuthUser(req: Request): MobileAuthUserResult {
+  const token = bearerFromRequest(req);
+  if (!token) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+  const v = verifyMobileToken(token);
+  if (!v.ok) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+  return { ok: true, staffId: v.sid, tokenSalonId: v.salon_id };
 }
 
 /** PostgREST may return a single embedded row as object or one-element array. */
@@ -198,11 +229,11 @@ async function fetchWorkedDaysDistinctInPeriod(
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as StatsBody;
-    const idRes = resolveMobileStaffId(req, body);
-    if (!idRes.ok) return idRes.response;
+    const auth = getMobileAuthUser(req);
+    if (!auth.ok) return auth.response;
 
-    const staffId = idRes.staffId;
+    const body = (await req.json()) as StatsBody;
+    const staffId = auth.staffId;
     const from = String(body.from ?? "").trim();
     const to = String(body.to ?? "").trim();
     const bodySalonId =
@@ -230,13 +261,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
     }
     if (!staffRow) {
-      return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!staffRow.mobile_enabled) {
       return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
     }
 
-    const salonId = staffRow.salon_id as number;
+    const salonIdRaw = staffRow.salon_id;
+    if (salonIdRaw == null || !Number.isInteger(Number(salonIdRaw)) || Number(salonIdRaw) <= 0) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const salonId = Number(salonIdRaw);
+
+    if (auth.tokenSalonId !== salonId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { data: salonRow, error: salonErr } = await supabaseAdmin
+      .from("salons")
+      .select("id")
+      .eq("id", salonId)
+      .maybeSingle();
+
+    if (salonErr) {
+      console.error("mobile stats salon lookup:", salonErr.message);
+      return NextResponse.json({ error: "Failed to verify salon" }, { status: 500 });
+    }
+    if (!salonRow) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     if (bodySalonId != null) {
       if (!Number.isInteger(bodySalonId) || bodySalonId <= 0 || bodySalonId !== salonId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
