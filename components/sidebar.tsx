@@ -68,7 +68,14 @@ export default function Sidebar() {
   const { sidebarOpen, closeSidebar } = useUI();
 
   // ✅ ruolo corrente (source già in app: ActiveSalonProvider)
-  const { role, isReady } = useActiveSalon();
+  const { role, isReady, activeSalonId, allowedSalons } = useActiveSalon();
+
+  const salonBrandLine = useMemo(() => {
+    if (!isReady) return "Scaramuzzo …";
+    if (activeSalonId == null) return "Scaramuzzo —";
+    const name = allowedSalons.find((s) => s.id === activeSalonId)?.name?.trim();
+    return name ? `Scaramuzzo - ${name}` : "Scaramuzzo —";
+  }, [isReady, activeSalonId, allowedSalons]);
   const isCoordinator = isReady && role === "coordinator";
   const isReception = isReady && role === "reception";
   const isStaffNotCliente = isReady && role !== "cliente";
@@ -127,8 +134,11 @@ export default function Sidebar() {
               priority
             />
             <div className="min-w-0">
-              <div className="text-[10px] font-black tracking-[0.25em] text-white/40 uppercase">
-                Scaramuzzo
+              <div
+                className="text-[10px] font-bold text-white/45 leading-snug truncate"
+                title={salonBrandLine}
+              >
+                {salonBrandLine}
               </div>
               <h1 className="text-xl font-extrabold tracking-tight text-scz-gold leading-none">
                 Manager

@@ -13,14 +13,23 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import AgendaModal from "./AgendaModal";
 import EditAppointmentModal from "./EditAppointmentModal";
 import ServiceBox from "./ServiceBox";
+import CalendarModal from "./CalendarModal";
+import {
+  AGENDA_LIST_SELECT,
+  normalizeAgendaRows,
+  type AgendaAppointment,
+  type AgendaServiceLine,
+} from "@/lib/agenda/agendaContract";
 
 import {
+  agendaGridDayStartLabel,
   generateHours,
   generateWeekDaysFromDate,
   timeFromTs,
+  timeToMinutes,
   SLOT_MINUTES,
-  SLOT_PX,
 } from "./utils";
+import { AgendaSlotPxProvider, useAgendaSlotPx } from "./AgendaSlotPxContext";
 import {
   Loader2,
   RefreshCw,
@@ -28,6 +37,7 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  CalendarDays,
 } from "lucide-react";
 
 type ViewMode = "day" | "week";
@@ -54,35 +64,19 @@ function toIdStr(v: any): string | null {
   return String(v);
 }
 
-/** Staff ids on loaded appointments: ogni riga servizio + fallback appointments.staff_id. */
-function collectStaffIdsFromAppointments(appointments: any[]): Set<string> {
-  const ids = new Set<string>();
-  for (const app of appointments || []) {
-    const head = toIdStr(app?.staff_id);
-    if (head) ids.add(head);
-
-    const lines = Array.isArray(app?.appointment_services) ? app.appointment_services : [];
-    for (const line of lines) {
-      const sid = toIdStr(line?.staff_id);
-      if (sid) ids.add(sid);
-    }
-  }
-  return ids;
-}
-
-/** Durata in minuti da app (start_time/end_time); fallback 30. */
-function durationMinutesFromApp(app: any): number {
+/** Durata placeholder: da header start/end; fallback SLOT_MINUTES. */
+function durationMinutesFromApp(app: AgendaAppointment): number {
   const start = app?.start_time;
   const end = app?.end_time;
-  if (!start || !end) return 30;
+  if (!start || !end) return SLOT_MINUTES;
   const a = new Date(String(start).replace("Z", ""));
   const b = new Date(String(end).replace("Z", ""));
   const diff = (b.getTime() - a.getTime()) / 60000;
-  return Number.isFinite(diff) && diff >= 15 ? Math.round(diff) : 30;
+  return Number.isFinite(diff) && diff >= SLOT_MINUTES ? Math.round(diff) : SLOT_MINUTES;
 }
 
 /** Riga virtuale per appuntamenti senza appointment_services (solo uso interno AgendaGrid). */
-function createPlaceholderLine(app: any): any {
+function createPlaceholderLine(app: AgendaAppointment): Record<string, unknown> {
   return {
     _placeholder: true,
     id: `placeholder-${app?.id ?? "na"}`,
@@ -115,23 +109,26 @@ function PlaceholderAppointmentBox({
   isHighlighted,
   laneIndex = 0,
   laneCount = 1,
+  agendaContextDay: _agendaContextDay = null,
 }: {
-  appointment: any;
-  line: any;
+  appointment: AgendaAppointment;
+  line: Record<string, unknown>;
   hours: string[];
   onClick: () => void;
   colWidth: number;
   isHighlighted?: boolean;
   laneIndex?: number;
   laneCount?: number;
+  agendaContextDay?: string | null;
 }) {
-  const startTime = timeFromTs(line?.start_time ?? "");
+  const slotPx = useAgendaSlotPx();
+  const startTime = timeFromTs(String(line?.start_time ?? ""));
   const startIndex = hours.indexOf(startTime);
   const safeStartIndex = startIndex >= 0 ? startIndex : 0;
-  const topBase = safeStartIndex * SLOT_PX;
+  const topBase = safeStartIndex * slotPx;
   const durationMin = Number(line?.duration_minutes) || SLOT_MINUTES;
-  const rawHeight = (durationMin / SLOT_MINUTES) * SLOT_PX;
-  const MIN_HEIGHT = Math.max(56, SLOT_PX * 1.35);
+  const rawHeight = (durationMin / SLOT_MINUTES) * slotPx;
+  const MIN_HEIGHT = Math.max(56, slotPx * 1.35);
   const height = Math.max(MIN_HEIGHT, rawHeight);
 
   const w = Math.max(140, Number(colWidth) || 260);
@@ -145,33 +142,33 @@ function PlaceholderAppointmentBox({
   const boxLeft = PAD_L + laneI * laneW + (GAP ? GAP / 2 : 0);
   const boxWidth = Math.max(56, laneW - (GAP ? GAP : 0));
 
-  const customerName = appointment?.customers
-    ? `${appointment.customers.first_name ?? ""} ${appointment.customers.last_name ?? ""}`.trim() || "Cliente"
-    : "Cliente";
+  const customerName =
+    (appointment?.customers
+      ? `${appointment.customers.first_name ?? ""} ${appointment.customers.last_name ?? ""}`.trim()
+      : "") || "Cliente";
   const meta = placeholderStatusMeta(appointment?.status);
 
   return (
     <div
       className={[
-        "absolute z-30 rounded-2xl cursor-pointer",
-        "bg-scz-dark/95 backdrop-blur-md border border-white/10",
-        "shadow-[0_16px_55px_rgba(0,0,0,0.55)]",
-        isHighlighted ? "ring-2 ring-[#f3d8b6] shadow-[0_0_24px_rgba(243,216,182,0.35)]" : "ring-1 ring-black/40",
+        "absolute z-20 rounded-xl cursor-pointer",
+        "bg-scz-dark border border-white/15 shadow-lg",
+        isHighlighted ? "ring-2 ring-[#f3d8b6]" : "ring-1 ring-white/10",
       ].join(" ")}
       style={{ top: topBase, height, left: boxLeft, width: boxWidth }}
       onClick={() => onClick()}
       data-appointment-id={appointment?.id != null ? String(appointment.id) : undefined}
     >
-      <div className="absolute left-0 top-0 bottom-0 w-[7px] bg-white/20 rounded-l-2xl" />
-      <div className="relative z-10 h-full pl-5 pr-3 py-2 flex flex-col justify-center gap-0.5">
+      <div className="absolute left-0 top-0 bottom-0 w-[5px] bg-white/25 rounded-l-xl" />
+      <div className="relative z-10 h-full pl-4 pr-3 py-2 flex flex-col justify-center gap-0.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-mono font-black text-white/90">{startTime || "—"}</span>
-          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${meta.cls}`}>
+          <span className="text-[12px] font-mono font-bold text-white/90">{startTime || "—"}</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded shrink-0 ${meta.cls}`}>
             {meta.label}
           </span>
         </div>
-        <h4 className="font-extrabold text-[#f3d8b6] truncate text-[13px]">{customerName}</h4>
-        <p className="text-[11px] text-white/60">Nessun servizio</p>
+        <h4 className="font-extrabold text-[#f3d8b6] truncate text-sm">{customerName}</h4>
+        <p className="text-xs text-white/65">Nessun servizio registrato</p>
       </div>
     </div>
   );
@@ -183,7 +180,16 @@ type AgendaGridProps = {
   onHighlightHandled?: () => void;
 };
 
-export default function AgendaGrid({ currentDate, highlightAppointmentId, onHighlightHandled }: AgendaGridProps) {
+export default function AgendaGrid(props: AgendaGridProps) {
+  return (
+    <AgendaSlotPxProvider>
+      <AgendaGridInner {...props} />
+    </AgendaSlotPxProvider>
+  );
+}
+
+function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandled }: AgendaGridProps) {
+  const slotPx = useAgendaSlotPx();
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -211,8 +217,9 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
   // Stati
   const [view, setView] = useState<ViewMode>("day");
   const [staff, setStaff] = useState<any[]>([]);
-  const [appointments, setAppointments] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<AgendaAppointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   /** Per salone attivo: staff_id → giorni ISO (1–7) con orario; assente → tutti i giorni (legacy). */
   const [staffScheduleByStaffId, setStaffScheduleByStaffId] = useState<
     Map<string, Set<number>>
@@ -223,7 +230,17 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     time: string;
     staffId: string | null;
   } | null>(null);
-  const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [editingAppointment, setEditingAppointment] = useState<AgendaAppointment | null>(null);
+
+  /** Evidenza colonna / fascia oraria durante drag appuntamento (solo vista giorno). */
+  const [agendaDragCol, setAgendaDragCol] = useState<number | null>(null);
+  const [agendaDragSlot, setAgendaDragSlot] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(0);
+
+  useEffect(() => {
+    setAgendaDragCol(null);
+    setAgendaDragSlot(null);
+  }, [view]);
 
   // Scroll e highlight per ?highlight=<appointmentId>
   useEffect(() => {
@@ -248,27 +265,40 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const hours = useMemo(
-    () => generateHours("08:00", "20:30", SLOT_MINUTES),
-    []
-  );
+  const hours = useMemo(() => {
+    const start = agendaGridDayStartLabel(activeSalonId ?? 0);
+    return generateHours(start, "20:30", SLOT_MINUTES);
+  }, [activeSalonId]);
   const weekDays = useMemo(
     () => generateWeekDaysFromDate(currentDate),
     [currentDate]
   );
 
-  /**
-   * Giorno: "DA ASSEGNARE" + colonne da appuntamenti; senza app → pool assignable filtrato per staff_schedule
-   * per collaboratore (con righe per il salone solo nei giorni previsti; senza righe → come prima su tutti i giorni).
-   */
+  useEffect(() => {
+    if (view !== "day" || currentDate !== isoDate(new Date())) return;
+    const id = window.setInterval(() => setNowTick((t) => t + 1), 60_000);
+    return () => window.clearInterval(id);
+  }, [view, currentDate]);
+
+  const isAgendaToday = view === "day" && currentDate === isoDate(new Date());
+
+  const currentTimeLineTopPx = useMemo(() => {
+    if (!isAgendaToday || !hours.length) return null;
+    const now = new Date();
+    const nowDec = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    const startM = timeToMinutes(hours[0]);
+    const minutesFromStart = nowDec - startM;
+    const gridMaxPx = hours.length * slotPx;
+    const topPx = (minutesFromStart / SLOT_MINUTES) * slotPx;
+    if (topPx < -1 || topPx > gridMaxPx + 1) return null;
+    return topPx;
+  }, [isAgendaToday, hours, slotPx, nowTick]);
+
   const dayGridStaff = useMemo(() => {
     if (view !== "day") return staff;
 
-    const defaultVirtual = { id: null, name: "DA ASSEGNARE", is_virtual: true };
-    const virtual =
-      staff.length > 0 && staff[0]?.is_virtual === true ? staff[0] : defaultVirtual;
-    const assignable = staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
-
+    const assignable =
+      staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
     const dow = isoDayOfWeekFromISODateLocal(currentDate);
     const poolAssignable =
       dow >= 1 && dow <= 7
@@ -278,37 +308,14 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
           })
         : assignable;
 
-    const neededIds = collectStaffIdsFromAppointments(appointments);
-    const assignableById = new Map<string, any>();
-    for (const s of assignable) {
-      const id = toIdStr(s?.id);
-      if (id) assignableById.set(id, s);
-    }
+    const unassignedCol = [{ id: null, name: "Non assegnato", is_virtual: true }];
 
-    let collaborators: any[];
-
-    if (neededIds.size === 0) {
-      collaborators = [...poolAssignable];
-    } else {
-      collaborators = [];
-      for (const id of neededIds) {
-        const row = assignableById.get(id);
-        if (row) collaborators.push(row);
-        else
-          collaborators.push({
-            id: Number(id),
-            name: `Collaboratore (${id})`,
-            is_virtual: false,
-          });
-      }
-    }
-
-    collaborators.sort((a, b) =>
+    const collaborators = [...poolAssignable].sort((a, b) =>
       String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "it", { sensitivity: "base" })
     );
 
-    return [virtual, ...collaborators];
-  }, [view, staff, appointments, staffScheduleByStaffId, currentDate]);
+    return [...unassignedCol, ...collaborators];
+  }, [view, staff, staffScheduleByStaffId, currentDate]);
 
   // ordine colonne staff per drag orizzontale / posizionamento (giorno = colonne visibili; settimana = lista completa)
   const staffOrderFull = useMemo(
@@ -321,17 +328,12 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     [dayGridStaff]
   );
 
-  /** Ordine id staff per ServiceBox in vista settimana: per giorno, stesso filtro per staff_schedule per collaboratore. */
+  /** Ordine id staff (vista settimana / drag orizzontale disattivato ma API coerente). */
   const weekStaffOrderByDayDate = useMemo(() => {
     if (view !== "week") return null;
-
-    const defaultVirtual = { id: null, name: "DA ASSEGNARE", is_virtual: true };
-    const virtual =
-      staff.length > 0 && staff[0]?.is_virtual === true ? staff[0] : defaultVirtual;
-    const assignable = staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
-
+    const assignable =
+      staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
     const out = new Map<string, (string | null)[]>();
-
     for (const day of weekDays) {
       const dow = isoDayOfWeekFromISODateLocal(day.date);
       const pool =
@@ -341,16 +343,21 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
               return id ? isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow) : false;
             })
           : assignable;
-
       const sorted = [...pool].sort((a, b) =>
         String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "it", { sensitivity: "base" })
       );
-
-      out.set(day.date, [toIdStr(virtual?.id), ...sorted.map((s) => toIdStr(s?.id))]);
+      const ids = sorted.map((s) => toIdStr(s?.id));
+      const hasUn = (appointments || []).some((app) => {
+        const dk = String(app.start_time || "").slice(0, 10);
+        if (dk !== day.date) return false;
+        const lines = app.appointment_services ?? [];
+        if (lines.length === 0) return app.staff_id == null;
+        return lines.some((ln: AgendaServiceLine) => ln.staff_id == null);
+      });
+      out.set(day.date, hasUn ? [null, ...ids] : ids);
     }
-
     return out;
-  }, [view, weekDays, staff, staffScheduleByStaffId]);
+  }, [view, weekDays, staff, staffScheduleByStaffId, appointments]);
 
   /**
    * BASE colWidth "ideale" (usata quando scrollX è attivo)
@@ -367,7 +374,7 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     return Math.max(140, Math.min(280, ideal));
   }, [view, dayGridStaff.length, weekDays.length, layoutTick]);
 
-  // colonne visibili (day = staff del giorno con appuntamenti, week = 7 giorni)
+  // colonne visibili (day = tutti i collaboratori del giorno + non assegnato; week = 7 giorni)
   const columnsCount = view === "day" ? dayGridStaff.length : weekDays.length;
 
   // larghezza contenuto teorica (usando colWidth base)
@@ -451,18 +458,13 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
 
   const loadStaff = useCallback(
     async (salonId: number) => {
-      const virtual = { id: null, name: "DA ASSEGNARE", is_virtual: true };
-
-      let rows: Record<string, unknown>[] = [];
       try {
-        rows = await fetchActiveStaffForSalon(supabase, salonId, "*");
+        const rows = await fetchActiveStaffForSalon(supabase, salonId, "*");
+        setStaff((rows as any[]) ?? []);
       } catch (error) {
         console.error("Errore caricamento staff:", error);
-        setStaff([virtual]);
-        return;
+        setStaff([]);
       }
-
-      setStaff([virtual, ...(rows as any[])]);
     },
     [supabase]
   );
@@ -483,36 +485,9 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
         endRange = `${weekDays[6].date}T23:59:59`;
       }
 
-      const { data, error } = await supabase
+      const { data: raw, error } = await supabase
         .from("appointments")
-        .select(
-          `
-          id,
-          start_time,
-          end_time,
-          status,
-          notes,
-          salon_id,
-          staff_id,
-          customer_id,
-          customers:customer_id (
-            id, first_name, last_name, phone
-          ),
-          appointment_services:appointment_services (
-            id,
-            appointment_id,
-            service_id,
-            staff_id,
-            start_time,
-            duration_minutes,
-            price,
-            vat_rate,
-            services:service_id (
-              id, name, color_code, duration
-            )
-          )
-        `
-        )
+        .select(AGENDA_LIST_SELECT)
         .eq("salon_id", salonId)
         .gte("start_time", startRange)
         .lte("start_time", endRange)
@@ -523,12 +498,18 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
         });
 
       if (error) {
-        console.error("Errore appuntamenti:", error);
+        console.error("Errore appuntamenti:", {
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+          code: error?.code,
+        });
         setAppointments([]);
-      } else {
-        setAppointments(data || []);
+        setLoading(false);
+        return;
       }
 
+      setAppointments(normalizeAgendaRows((raw ?? []) as unknown[]));
       setLoading(false);
     },
     [currentDate, view, supabase, weekDays]
@@ -579,17 +560,18 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
     for (const day of weekDays) map.set(day.date, []);
 
     for (const app of appointments || []) {
-      const dayKey = String(app?.start_time || "").slice(0, 10);
-      if (!dayKey || !map.has(dayKey)) continue;
-
       const lines = Array.isArray(app?.appointment_services)
         ? app.appointment_services
         : [];
       if (lines.length > 0) {
         for (const line of lines) {
+          const dayKey = String(line?.start_time || "").slice(0, 10);
+          if (!dayKey || !map.has(dayKey)) continue;
           map.get(dayKey)!.push({ app, line });
         }
       } else {
+        const dayKey = String(app?.start_time || "").slice(0, 10);
+        if (!dayKey || !map.has(dayKey)) continue;
         map.get(dayKey)!.push({ app, line: createPlaceholderLine(app) });
       }
     }
@@ -633,7 +615,16 @@ export default function AgendaGrid({ currentDate, highlightAppointmentId, onHigh
   );
 
   // griglia verticale totale (limite ServiceBox)
-  const gridHeightPx = useMemo(() => hours.length * SLOT_PX, [hours]);
+  const gridHeightPx = useMemo(() => hours.length * slotPx, [hours, slotPx]);
+
+  // Cambio salone: evita scrollTop “sporco” rispetto alla nuova altezza griglia
+  useEffect(() => {
+    if (activeSalonId == null) return;
+    const grid = gridContainerRef.current;
+    const timeCol = timeColumnRef.current;
+    if (grid) grid.scrollTop = 0;
+    if (timeCol) timeCol.scrollTop = 0;
+  }, [activeSalonId]);
 
   if (!isReady || activeSalonId == null) {
     return (
@@ -672,12 +663,12 @@ function buildLanes(
       const start = minutesFromTimeStr(p.line?.start_time);
 
       const raw =
-        Number(p.line?.duration_minutes ?? p.line?.services?.duration ?? 30) ||
-        30;
+        Number(p.line?.duration_minutes ?? p.line?.services?.duration ?? SLOT_MINUTES) ||
+        SLOT_MINUTES;
 
       // deve matchare ServiceBox MIN_HEIGHT
-      const MIN_HEIGHT_PX = Math.max(56, SLOT_PX * 1.35);
-      const minSlots = Math.ceil(MIN_HEIGHT_PX / SLOT_PX);
+      const MIN_HEIGHT_PX = Math.max(56, slotPx * 1.35);
+      const minSlots = Math.ceil(MIN_HEIGHT_PX / slotPx);
       const minDur = minSlots * SLOT_MINUTES;
 
       const duration = Math.max(raw, minDur);
@@ -734,21 +725,16 @@ function buildLanes(
 
 
   return (
-    <div className="flex flex-col h-full w-full bg-scz-darker text-[#f3d8b6] overflow-hidden p-4 md:p-6">
+    <div className="flex flex-col h-full w-full bg-scz-darker text-[#f3d8b6] overflow-hidden p-3 md:p-5">
       {/* TOOLBAR */}
-      <div className="flex flex-shrink-0 flex-col md:flex-row md:items-center justify-between gap-4 mb-4 md:mb-6">
-        <div className="flex items-center gap-3 md:gap-4">
-          <div className="p-2.5 md:p-3 rounded-xl border border-white/10 bg-black/20">
-            <LayoutGrid className="text-[#f3d8b6]" size={22} />
+      <div className="flex flex-shrink-0 flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-3 mb-2.5 md:mb-4">
+        <div className="min-w-0">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+            Vista
           </div>
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
-              Vista
-            </div>
-            <p className="text-sm md:text-base font-black text-white/90 mt-0.5">
-              {displayDateLabel || currentDate} · {view === "day" ? "Giorno" : "Settimana"}
-            </p>
-          </div>
+          <p className="text-sm md:text-base font-black text-white/90 mt-0.5">
+            {displayDateLabel || currentDate} · {view === "day" ? "Giorno" : "Settimana"}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-1.5 md:p-2">
@@ -794,6 +780,14 @@ function buildLanes(
           </button>
           <div className="w-px h-6 bg-white/10 mx-0.5" />
           <button
+            type="button"
+            onClick={() => setCalendarOpen(true)}
+            className="p-2.5 rounded-xl text-white/50 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
+            title="Scegli data"
+          >
+            <CalendarDays size={16} />
+          </button>
+          <button
             onClick={() => loadAppointments(activeSalonId)}
             className="p-2.5 rounded-xl text-white/50 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
             title="Refresh"
@@ -809,40 +803,39 @@ function buildLanes(
         className="flex-1 min-h-0 relative overflow-hidden flex flex-col rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]"
       >
         {/* HEADER COLONNE */}
-        <div className="flex flex-shrink-0 border-b border-white/10 bg-black/20 z-30">
-          <div className="w-20 flex-shrink-0 bg-black/20 border-r border-white/10" />
+        <div className="flex flex-shrink-0 border-b border-white/[0.22] bg-black/20 z-30">
+          <div className="w-20 flex-shrink-0 bg-black/20 border-r border-white/25" />
           <div ref={headerRef} className="flex-1 overflow-hidden bg-black/20">
             <div className={`flex ${shouldScrollX ? "w-max" : "w-full"}`}>
               {view === "day"
                 ? dayGridStaff.map((s: any, idx: number) => (
                   <div
-                    key={s?.id != null ? String(s.id) : `virtual-${s.name}`}
+                    key={s?.id != null ? String(s.id) : `col-${s.name}`}
                     ref={idx === 0 ? dayProbeRef : undefined}
-                    className="flex-shrink-0 px-3 md:p-4 flex flex-col items-center justify-center border-r border-white/10"
+                    className={[
+                      "flex-shrink-0 flex flex-col items-center justify-center px-2 py-3 border-r border-white/[0.22] transition-[background-color,box-shadow] duration-150",
+                      agendaDragCol != null && agendaDragCol === idx
+                        ? "bg-[#f3d8b6]/[0.14] shadow-[inset_0_0_42px_rgba(243,216,182,0.14)] ring-2 ring-inset ring-[#f3d8b6]/45"
+                        : "",
+                    ].join(" ")}
                     style={{
                       width: shouldScrollX ? colWidth : dayColWidth,
                       flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
                       minWidth: shouldScrollX ? colWidth : undefined,
                     }}
                   >
-                    <span className="text-[10px] font-black uppercase tracking-wider text-white/90">
+                    <span className="text-xs font-black uppercase tracking-wider text-white/90 truncate text-center">
                       {s.name}
                     </span>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${s.is_virtual ? "bg-orange-500" : "bg-green-500"
-                          }`}
-                      />
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">
-                        {s.is_virtual ? "Supporto" : "Operativo"}
-                      </span>
-                    </div>
+                    {s.is_virtual ? (
+                      <span className="text-[10px] text-white/45 mt-0.5">Senza collaboratore</span>
+                    ) : null}
                   </div>
                 ))
                 : weekDays.map((d: any) => (
                   <div
                     key={d.date}
-                    className="flex-shrink-0 px-3 md:p-4 flex flex-col items-center justify-center border-r border-white/10"
+                    className="flex-shrink-0 px-3 md:p-4 flex flex-col items-center justify-center border-r border-white/[0.22]"
                     style={{
                       width: colWidth,
                       flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
@@ -865,15 +858,22 @@ function buildLanes(
         <div className="flex-1 flex overflow-hidden relative bg-scz-dark min-h-0">
           <div
             ref={timeColumnRef}
-            className="w-20 flex-shrink-0 overflow-hidden bg-scz-dark border-r border-white/10 z-20"
+            className="w-20 flex-shrink-0 overflow-hidden bg-scz-dark border-r border-white/25 z-20"
           >
-            {hours.map((h: string) => (
+            {hours.map((h: string, hourIdx: number) => (
               <div
                 key={h}
-                style={{ height: SLOT_PX }}
-                className="flex flex-col items-center justify-start pt-2 border-b border-white/5"
+                style={{ height: slotPx }}
+                className={[
+                  "flex flex-col items-center justify-start pt-0.5 border-b border-white/[0.22] leading-none transition-colors duration-150 hover:bg-white/[0.05]",
+                  view === "day" &&
+                  agendaDragSlot != null &&
+                  agendaDragSlot === hourIdx
+                    ? "bg-[#f3d8b6]/22 shadow-[inset_0_0_20px_rgba(243,216,182,0.12)]"
+                    : "",
+                ].join(" ")}
               >
-                <span className="text-[10px] font-mono font-bold text-white/40">
+                <span className="text-[11px] font-mono font-bold text-white/65 leading-none">
                   {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
                 </span>
               </div>
@@ -901,30 +901,57 @@ function buildLanes(
                   return (
                     <div
                       key={mid ?? `virtual-${member?.name ?? "na"}`}
-                      className="relative border-r border-white/5"
+                      className={[
+                        "relative border-r border-white/[0.22] transition-[background-color,box-shadow] duration-150 bg-scz-dark",
+                        agendaDragCol != null && agendaDragCol === colIdx
+                          ? "bg-[#f3d8b6]/[0.13] shadow-[inset_0_0_48px_rgba(243,216,182,0.16)] ring-2 ring-inset ring-[#f3d8b6]/42"
+                          : "",
+                      ].join(" ")}
                       style={{
                         width: columnWidth,
                         flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
                         minWidth: shouldScrollX ? columnWidth : undefined,
                       }}
                     >
-                      {hours.map((h: string) => (
+                      {hours.map((h: string, hourIdx: number) => {
+                        const dragHere =
+                          agendaDragSlot != null && agendaDragSlot === hourIdx;
+                        return (
                         <div
                           key={h}
-                          style={{ height: SLOT_PX }}
-                          className="border-b border-white/5 hover:bg-[#f3d8b6]/5 transition-colors cursor-crosshair"
+                          role="presentation"
+                          style={{ height: slotPx }}
+                          className={[
+                            "relative z-0 border-b border-white/[0.22] transition-colors duration-150 cursor-crosshair",
+                            dragHere
+                              ? "bg-[#f3d8b6]/18 shadow-[inset_0_1px_0_rgba(243,216,182,0.18)]"
+                              : "hover:bg-white/[0.07] active:bg-white/[0.1]",
+                          ].join(" ")}
                           onClick={() =>
                             setSelectedSlot({ time: h, staffId: mid })
                           }
                         />
-                      ))}
+                        );
+                      })}
 
-                      <div className="absolute inset-0 pointer-events-none z-10 p-1">
+                      {currentTimeLineTopPx != null ? (
+                        <div
+                          className="absolute left-0 right-0 pointer-events-none z-[8]"
+                          style={{ top: currentTimeLineTopPx }}
+                          aria-hidden
+                        >
+                          <div className="relative w-full h-[2px] bg-[#ff6b6b]/30">
+                            <div className="absolute -left-1 -top-[3px] w-2 h-2 rounded-full bg-[#ff6b6b]/70 shadow-[0_0_6px_rgba(255,107,107,0.4)]" />
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="absolute inset-0 z-10 p-1 pointer-events-none">
 
                         {laid.map(({ app, line, laneIndex, laneCount }: any) => (
                           <div
                             key={String(line.id)}
-                            className="pointer-events-auto"
+                            className="pointer-events-auto relative z-20"
                             data-appointment-id={app?.id != null ? String(app.id) : undefined}
                           >
                             {isPlaceholderLine(line) ? (
@@ -937,6 +964,7 @@ function buildLanes(
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
                                 laneIndex={laneIndex}
                                 laneCount={laneCount}
+                                agendaContextDay={currentDate}
                               />
                             ) : (
                               <ServiceBox
@@ -955,6 +983,9 @@ function buildLanes(
                                 laneIndex={laneIndex}
                                 laneCount={laneCount}
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
+                                onAgendaDragColumnChange={setAgendaDragCol}
+                                onAgendaDragSlotChange={setAgendaDragSlot}
+                                agendaContextDay={currentDate}
                               />
                             )}
                           </div>
@@ -970,7 +1001,7 @@ function buildLanes(
                   return (
                     <div
                       key={day.date}
-                      className="relative border-r border-white/5"
+                      className="relative border-r border-white/[0.22] bg-scz-dark"
                       style={{
                         width: colWidth,
                         flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
@@ -980,19 +1011,20 @@ function buildLanes(
                       {hours.map((h: string) => (
                         <div
                           key={h}
-                          style={{ height: SLOT_PX }}
-                          className="border-b border-white/5 hover:bg-white/5 cursor-crosshair transition-colors"
+                          role="presentation"
+                          style={{ height: slotPx }}
+                          className="relative z-0 border-b border-white/[0.22] cursor-crosshair transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
                           onClick={() =>
                             setSelectedSlot({ time: h, staffId: null })
                           }
                         />
                       ))}
 
-                      <div className="absolute inset-0 pointer-events-none z-10 p-1">
+                      <div className="absolute inset-0 z-10 p-1 pointer-events-none">
                         {dayPairs.map(({ app, line }: any) => (
                           <div
                             key={line.id}
-                            className="pointer-events-auto"
+                            className="pointer-events-auto relative z-20"
                             data-appointment-id={app?.id != null ? String(app.id) : undefined}
                           >
                             {isPlaceholderLine(line) ? (
@@ -1003,6 +1035,7 @@ function buildLanes(
                                 onClick={() => setEditingAppointment(app)}
                                 colWidth={colWidth}
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
+                                agendaContextDay={day.date}
                               />
                             ) : (
                               <ServiceBox
@@ -1021,6 +1054,7 @@ function buildLanes(
                                   weekStaffOrderByDayDate?.get(day.date) ?? staffOrderFull
                                 }
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
+                                agendaContextDay={day.date}
                               />
                             )}
                           </div>
@@ -1061,11 +1095,21 @@ function buildLanes(
         <EditAppointmentModal
           isOpen={true}
           appointment={editingAppointment}
-          selectedDay={currentDate}
+          selectedDay={String(editingAppointment.start_time).slice(0, 10)}
           close={() => setEditingAppointment(null)}
           onUpdated={() => loadAppointments(activeSalonId)}
         />
       )}
+
+      <CalendarModal
+        isOpen={calendarOpen}
+        close={() => setCalendarOpen(false)}
+        selectedDate={currentDate}
+        onSelectDate={(d) => {
+          setCalendarOpen(false);
+          navigateAgendaDate(d);
+        }}
+      />
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {

@@ -1,130 +1,98 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { motion, useMotionValue } from "framer-motion";
+import { motion, useMotionValue, useTransform } from "framer-motion";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabaseClient";
-import { timeFromTs } from "@/lib/appointmentTime";
-import { SLOT_MINUTES, SLOT_PX } from "./utils";
+import { SLOT_MINUTES, timeFromTs } from "./utils";
+import { useAgendaSlotPx } from "./AgendaSlotPxContext";
 import { toast } from "sonner";
-/* ======================
-   TYPES
-====================== */
+import {
+  clampDurationMinutes,
+  commitLinePatch,
+  type AgendaServiceLine,
+  parseLocal,
+  toNoZ,
+  normalizeStaffId,
+} from "@/lib/agenda/agendaContract";
+import type { AgendaAppointment } from "@/lib/agenda/agendaContract";
 
-type Segment = { name: string; color: string; duration: number };
+/** Altezza minima card: ~1.35 slot o 56px — leggibilità senza blocchi enormi. */
+const CARD_MIN_HEIGHT_SLOTS = 1.35;
+const CARD_COMPACT_BREAK_PX = 84;
 
-export type ServiceLine = {
-  id: string; // ✅ appointment_services.id (UUID/string)
-  appointment_id: number;
-  service_id: number;
-  staff_id: string | null; // UUID/string o null
-  start_time: string; // "YYYY-MM-DDTHH:mm:ss"
-  duration_minutes: number | null;
-  services?: {
-    id: number;
-    name: string | null;
-    color_code: string | null;
-    duration: number | null;
-  } | null;
-};
-
-interface Props {
-  appointment: any; // contiene customers + status + notes + id
-  line: ServiceLine; // singola riga appointment_services
-  hours: string[];
-  onClick?: () => void;
-  onUpdated?: () => void;
-
-  // --- ORIZZONTALE (Boss-style) ---
-  enableHorizontal?: boolean;
-
-  // larghezza colonna reale (quella usata in AgendaGrid)
-  colWidth: number;
-
-  // indice colonna corrente (0..columnsCount-1)
-  columnIndex: number;
-
-  // numero colonne totali
-  columnsCount: number;
-
-  // altezza totale griglia
-  gridHeightPx: number;
-
-  // id staff della colonna corrente
-  columnStaffId: string | null;
-
-  // ordine colonne (array id string|null nello stesso ordine delle colonne)
-  staffOrder: (string | null)[];
-
-  // ✅ STACKING (collision engine)
-  laneIndex?: number; // 0..laneCount-1
-  laneCount?: number; // >=1
-
-  // Evidenziazione da ?highlight= (focus appuntamento in agenda)
-  isHighlighted?: boolean;
+function accentToTintCss(hex: string): { soft: string; edge: string } {
+  const h = String(hex || "")
+    .replace("#", "")
+    .trim()
+    .slice(0, 6);
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) {
+    return { soft: "rgba(168,117,79,0.12)", edge: "rgba(168,117,79,0.45)" };
+  }
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return {
+    soft: `rgba(${r},${g},${b},0.11)`,
+    edge: `rgba(${r},${g},${b},0.42)`,
+  };
 }
-
-/* ======================
-   HELPERS
-====================== */
 
 function statusMeta(status: string | null | undefined) {
   const s = String(status || "scheduled");
   if (s === "in_sala") {
     return {
-      label: "IN SALA",
-      cls: "bg-emerald-400 text-black border border-emerald-300/80",
+      label: "In sala",
+      cls: "bg-emerald-400/90 text-black",
     };
   }
   if (s === "done") {
     return {
-      label: "COMPLETATO",
-      cls: "bg-white/10 text-white/80 border border-white/20",
+      label: "Completato",
+      cls: "bg-white/10 text-white/70",
     };
   }
   if (s === "cancelled") {
     return {
-      label: "ANNULLATO",
-      cls: "bg-red-500/15 text-red-200 border border-red-400/40",
+      label: "Annullato",
+      cls: "bg-red-500/20 text-red-200",
     };
   }
   return {
-    label: "PRENOTATO",
-    cls: "bg-black/40 text-[#f3d8b6] border border-white/20",
+    label: "Prenotato",
+    cls: "bg-white/5 text-white/75",
   };
 }
 
-function toIdStr(v: any): string | null {
+function toIdStr(v: unknown): string | null {
   if (v === null || v === undefined || v === "") return null;
   return String(v);
-}
-
-/** Date locale (no UTC shift) */
-function parseLocal(ts: string) {
-  const [date, time] = String(ts).split("T");
-  const [y, m, d] = String(date).split("-").map(Number);
-  const [hh, mm, ss] = String(time || "00:00:00").split(":").map(Number);
-  return new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, ss || 0, 0);
-}
-
-/** format “YYYY-MM-DDTHH:mm:ss” senza Z */
-function toNoZ(dt: Date) {
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, "0");
-  const d = String(dt.getDate()).padStart(2, "0");
-  const hh = String(dt.getHours()).padStart(2, "0");
-  const mm = String(dt.getMinutes()).padStart(2, "0");
-  const ss = String(dt.getSeconds()).padStart(2, "0");
-  return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
 }
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-/* ======================
-   COMPONENT
-====================== */
+interface Props {
+  appointment: AgendaAppointment;
+  line: AgendaServiceLine;
+  hours: string[];
+  onClick?: () => void;
+  onUpdated?: () => void;
+  enableHorizontal?: boolean;
+  colWidth: number;
+  columnIndex: number;
+  columnsCount: number;
+  gridHeightPx: number;
+  columnStaffId: string | null;
+  staffOrder: (string | null)[];
+  laneIndex?: number;
+  laneCount?: number;
+  isHighlighted?: boolean;
+  onAgendaDragColumnChange?: (columnIndex: number | null) => void;
+  onAgendaDragSlotChange?: (hourRowIndex: number | null) => void;
+  agendaContextDay?: string | null;
+}
 
 export default function ServiceBox({
   appointment,
@@ -142,10 +110,17 @@ export default function ServiceBox({
   laneIndex = 0,
   laneCount = 1,
   isHighlighted = false,
+  onAgendaDragColumnChange,
+  onAgendaDragSlotChange,
+  agendaContextDay: _agendaContextDay = null,
 }: Props) {
+  const slotPx = useAgendaSlotPx();
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
-  const boxRef = useRef<HTMLDivElement | null>(null);
+  const cardSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const lastDragColRef = useRef<number | null>(null);
+  const lastDragSlotRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
 
   const [checkingIn, setCheckingIn] = useState(false);
   const [openActions, setOpenActions] = useState(false);
@@ -153,140 +128,134 @@ export default function ServiceBox({
   const [resizing, setResizing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // ✅ Motion values: fluidi e senza rerender ad ogni pixel
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
-  // reset motion offsets quando arrivano dati nuovi
   useEffect(() => {
     x.set(0);
     y.set(0);
-  }, [line?.id, line?.start_time, line?.duration_minutes, line?.staff_id, x, y]);
-
-  /* ---------- BASE POSITION (TOP) ---------- */
+  }, [line.id, line.start_time, line.duration_minutes, line.staff_id, x, y]);
 
   const startTime = timeFromTs(line.start_time);
   const startIndex = hours.indexOf(startTime);
   const safeStartIndex = startIndex >= 0 ? startIndex : 0;
-  const topBase = safeStartIndex * SLOT_PX;
+  const topBase = safeStartIndex * slotPx;
 
-  /* ---------- DURATION / HEIGHT ---------- */
+  const durationMin = clampDurationMinutes(line.duration_minutes ?? line.services?.duration);
 
-  const durationMin =
-    Number(line.duration_minutes ?? line.services?.duration ?? SLOT_MINUTES) ||
-    SLOT_MINUTES;
-
-  const rawHeight = (durationMin / SLOT_MINUTES) * SLOT_PX;
-  const MIN_HEIGHT = Math.max(56, SLOT_PX * 1.35);
+  const rawHeight = (durationMin / SLOT_MINUTES) * slotPx;
+  const MIN_HEIGHT = Math.max(56, slotPx * CARD_MIN_HEIGHT_SLOTS);
   const height = Math.max(MIN_HEIGHT, rawHeight);
-  const compact = height < 84;
-
-  /* ---------- GRID LIMITS (REAL BARRIERS) ---------- */
+  const compact = height < CARD_COMPACT_BREAK_PX;
 
   const gridH = Math.max(0, Number(gridHeightPx) || 0);
   const minY = -topBase;
   const maxY = Math.max(minY, gridH - height - topBase);
 
-  // limiti orizzontali reali (colonne)
   const w = Math.max(140, Number(colWidth) || 260);
   const minX = -columnIndex * w;
   const maxX = Math.max(0, columnsCount - 1 - columnIndex) * w;
 
-  /* ---------- STACKING LAYOUT (GOOGLE STYLE) ---------- */
+  const dragLimitsRef = useRef({
+    minY: 0,
+    maxY: 0,
+    minX: 0,
+    maxX: 0,
+    w: 260,
+    slotPx: 26,
+    enableHorizontal: false,
+  });
+  dragLimitsRef.current = { minY, maxY, minX, maxX, w, slotPx, enableHorizontal };
+
+  const ghostOffsetX = useTransform(x, (latest) => {
+    const L = dragLimitsRef.current;
+    if (!L.enableHorizontal) return 0;
+    const cx = clamp(latest, L.minX, L.maxX);
+    const sx = clamp(Math.round(cx / L.w) * L.w, L.minX, L.maxX);
+    return sx - latest;
+  });
+  const ghostOffsetY = useTransform(y, (latest) => {
+    const L = dragLimitsRef.current;
+    const cy = clamp(latest, L.minY, L.maxY);
+    const sy = clamp(Math.round(cy / L.slotPx) * L.slotPx, L.minY, L.maxY);
+    return sy - latest;
+  });
 
   const laneC = Math.max(1, Number(laneCount) || 1);
   const laneI = clamp(Number(laneIndex) || 0, 0, laneC - 1);
-
-  // padding interni colonna (coerente con "left-1 right-1" di prima)
   const PAD_L = 6;
   const PAD_R = 6;
   const GAP = laneC > 1 ? 6 : 0;
-
   const usableW = Math.max(60, w - PAD_L - PAD_R);
   const laneW = usableW / laneC;
-
   const boxLeft = PAD_L + laneI * laneW + (GAP ? GAP / 2 : 0);
   const boxWidth = Math.max(56, laneW - (GAP ? GAP : 0));
 
-  /* ---------- UI DATA ---------- */
+  const customerName =
+    `${appointment.customers.first_name} ${appointment.customers.last_name}`.trim() || "Cliente";
 
-  const customerName = appointment?.customers
-    ? `${appointment.customers.first_name ?? ""} ${
-        appointment.customers.last_name ?? ""
-      }`.trim()
-    : "Cliente";
+  const svcName = String(line.services?.name ?? "Servizio").trim() || "Servizio";
+  const accentColor = String(line.services?.color_code || "").trim() || "#a8754f";
+  const accentTint = useMemo(() => accentToTintCss(accentColor), [accentColor]);
+  const meta = statusMeta(appointment.status);
 
-  const svcName =
-    String(line?.services?.name ?? "Servizio").trim() || "Servizio";
-  const svcColor = line?.services?.color_code || "#a8754f";
-  const meta = statusMeta(appointment?.status);
+  const totalServicesOnAppointment = appointment.appointment_services.length;
+  const extraSvcCount = Math.max(0, totalServicesOnAppointment - 1);
 
-  const segments: Segment[] = [
-    { name: svcName, color: svcColor, duration: durationMin },
-  ];
+  const isInSala = appointment.status === "in_sala";
+  const isDone = appointment.status === "done";
+  const isCancelled = appointment.status === "cancelled";
 
-  const isInSala = String(appointment?.status) === "in_sala";
-  const isDone = String(appointment?.status) === "done";
-  const isCancelled = String(appointment?.status) === "cancelled";
-
-  const hasStaff =
-    toIdStr(line.staff_id) != null || toIdStr((appointment as any)?.staff_id) != null;
+  const hasStaff = line.staff_id != null;
 
   const startLabel = timeFromTs(line.start_time);
-  const durationLabel = `${Math.round(durationMin)}m`;
+  const durationLabel = `${Math.round(durationMin)} min`;
 
-  /* ======================
-     DB UPDATE (UNIFICATA)
-  ======================= */
+  const extraServicesTooltip = useMemo(() => {
+    if (extraSvcCount <= 0) return "";
+    const rows = [...appointment.appointment_services]
+      .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
+      .slice(1)
+      .map((r, i) => {
+        const n = String(r.services?.name ?? "Servizio").trim() || "Servizio";
+        const dm = clampDurationMinutes(r.duration_minutes ?? r.services?.duration);
+        return `${i + 2}. ${n} (${Math.round(dm)} min)`;
+      });
+    return ["Altri servizi:", ...rows].join("\n");
+  }, [appointment.appointment_services, extraSvcCount]);
 
-  const updateLine = useCallback(
-    async (
-      patch: Partial<
-        Pick<ServiceLine, "start_time" | "staff_id" | "duration_minutes">
-      >
-    ) => {
-      if (saving) return { ok: false as const, error: new Error("busy") };
-      setSaving(true);
+  function pulseDragSnap() {
+    const el = cardSurfaceRef.current;
+    if (!el || typeof el.animate !== "function") return;
+    el.animate(
+      [
+        { transform: "scale(1.02)" },
+        { transform: "scale(1.045)" },
+        { transform: "scale(1.02)" },
+      ],
+      { duration: 240, easing: "cubic-bezier(0.33, 1.18, 0.64, 1)" }
+    );
+  }
 
-      const { error } = await supabase
-        .from("appointment_services")
-        .update(patch)
-        .eq("id", String(line.id));
-
-      setSaving(false);
-
-      if (error) return { ok: false as const, error };
-      return { ok: true as const, error: null };
-    },
-    [saving, supabase, line.id]
-  );
-
-  /* ======================
-     ACTIONS
-  ======================= */
+  const lineDurationMinutes = useMemo(() => durationMin, [durationMin]);
 
   async function handlePortaInSala() {
     if (!appointment?.id) return;
-
     setOpenActions(false);
     setCheckingIn(true);
-
     try {
       const res = await fetch("/api/agenda/porta-in-sala", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointment_id: Number(appointment.id) }),
       });
-
-      const json = await res.json().catch(() => ({}) as any);
-      if (!res.ok)
-        throw new Error(json?.error || "Errore durante Porta in sala");
-
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string })?.error || "Errore durante Porta in sala");
       onUpdated?.();
       router.push(`/dashboard/cassa/${appointment.id}`);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      toast.error(e?.message || "Errore durante Porta in sala");
+      toast.error(e instanceof Error ? e.message : "Errore durante Porta in sala");
     } finally {
       setCheckingIn(false);
     }
@@ -294,36 +263,23 @@ export default function ServiceBox({
 
   const resizeServiceBySlots = useCallback(
     async (slotsChanged: number) => {
-      const currentDuration = Number(durationMin) || SLOT_MINUTES;
-      const newDuration = currentDuration + slotsChanged * SLOT_MINUTES;
-      if (newDuration < SLOT_MINUTES) return;
-
-      const res = await updateLine({ duration_minutes: newDuration });
+      const newDurationMinutes = lineDurationMinutes + slotsChanged * SLOT_MINUTES;
+      if (newDurationMinutes < SLOT_MINUTES) return;
+      setSaving(true);
+      const res = await commitLinePatch(supabase, {
+        appointmentId: appointment.id,
+        lineId: line.id,
+        patch: { duration_minutes: newDurationMinutes },
+      });
+      setSaving(false);
       if (!res.ok) {
-        toast.error("Errore resize: " + (res.error as any)?.message);
+        toast.error(res.error.message);
         return;
       }
-
       onUpdated?.();
     },
-    [durationMin, updateLine, onUpdated]
+    [supabase, appointment.id, line.id, lineDurationMinutes, onUpdated]
   );
-
-  /* ======================
-     SNAP LOGIC (Boss-style)
-  ======================= */
-
-  function snapY(px: number) {
-    const snapped = Math.round(px / SLOT_PX) * SLOT_PX;
-    return clamp(snapped, minY, maxY);
-  }
-
-  function snapX(px: number) {
-    if (!enableHorizontal) return 0;
-    const snappedCols = Math.round(px / w);
-    const snapped = snappedCols * w;
-    return clamp(snapped, minX, maxX);
-  }
 
   function currentColIndex(): number {
     const current = toIdStr(columnStaffId ?? line.staff_id);
@@ -331,29 +287,21 @@ export default function ServiceBox({
     return idx >= 0 ? idx : columnIndex;
   }
 
-  function staffIdByVisualIndex(idx: number): string | null {
+  function staffIdByVisualIndex(idx: number): number | null {
     if (!staffOrder.length) return null;
     const safe = clamp(idx, 0, staffOrder.length - 1);
-    return toIdStr(staffOrder[safe]);
+    return normalizeStaffId(staffOrder[safe]);
   }
-
-  /* ======================
-     DRAG END APPLY (PATCH UNICO)
-  ======================= */
 
   const applyDragResult = useCallback(async () => {
     const finalY = Number(y.get()) || 0;
     const finalX = enableHorizontal ? Number(x.get()) || 0 : 0;
-
-    const slotsMoved = Math.round(finalY / SLOT_PX);
-
+    const slotsMoved = Math.round(finalY / slotPx);
     let colsMoved = 0;
     if (enableHorizontal && staffOrder.length) {
       colsMoved = Math.round(finalX / w);
     }
-
-    const needStaffMove =
-      enableHorizontal && colsMoved !== 0 && staffOrder.length;
+    const needStaffMove = enableHorizontal && colsMoved !== 0 && staffOrder.length > 0;
     const needTimeMove = slotsMoved !== 0;
 
     if (!needStaffMove && !needTimeMove) {
@@ -362,55 +310,62 @@ export default function ServiceBox({
       return;
     }
 
-    const patch: any = {};
-
+    const patch: { start_time?: string; staff_id?: number | null } = {};
     if (needStaffMove) {
       const from = currentColIndex();
       const to = from + colsMoved;
       patch.staff_id = staffIdByVisualIndex(to);
     }
-
     if (needTimeMove) {
       const s0 = parseLocal(line.start_time);
       const deltaMin = slotsMoved * SLOT_MINUTES;
-      const newStart = new Date(s0.getTime() + deltaMin * 60_000);
-      patch.start_time = toNoZ(newStart);
+      patch.start_time = toNoZ(new Date(s0.getTime() + deltaMin * 60_000));
     }
 
-    const res = await updateLine(patch);
+    setSaving(true);
+    const res = await commitLinePatch(supabase, {
+      appointmentId: appointment.id,
+      lineId: line.id,
+      patch,
+    });
+    setSaving(false);
+
     if (!res.ok) {
       x.set(0);
       y.set(0);
-      toast.error("Errore spostamento: " + (res.error as any)?.message);
-
+      toast.error(res.error.message);
       return;
     }
 
+    x.set(0);
+    y.set(0);
     onUpdated?.();
   }, [
     enableHorizontal,
-    staffOrder.length,
+    staffOrder,
+    columnIndex,
+    columnStaffId,
     w,
-    currentColIndex,
-    staffIdByVisualIndex,
+    slotPx,
     line.start_time,
-    updateLine,
+    line.id,
+    line.staff_id,
+    appointment.id,
+    supabase,
     onUpdated,
     x,
     y,
   ]);
 
-  /* ======================
-     RENDER
-  ======================= */
-
   return (
     <motion.div
-      ref={boxRef}
       className={[
-        "absolute z-30",
-        "rounded-2xl cursor-pointer",
-        saving ? "pointer-events-none opacity-60" : "",
+        "absolute rounded-xl select-none touch-none",
+        saving
+          ? "pointer-events-none opacity-60 cursor-wait z-20"
+          : dragging
+            ? "cursor-grabbing z-[85]"
+            : "cursor-grab z-20",
       ].join(" ")}
       style={{
         top: topBase,
@@ -421,7 +376,7 @@ export default function ServiceBox({
         y,
       }}
       drag={enableHorizontal ? true : "y"}
-      dragListener={!openActions && !resizing}
+      dragListener={!openActions && !resizing && !saving}
       dragMomentum={false}
       dragElastic={0}
       dragConstraints={{
@@ -434,199 +389,238 @@ export default function ServiceBox({
         if (saving) return;
         setOpenActions(false);
         setDragging(true);
+        lastDragColRef.current = null;
+        lastDragSlotRef.current = null;
+        if (onAgendaDragColumnChange && enableHorizontal) {
+          lastDragColRef.current = columnIndex;
+          onAgendaDragColumnChange(columnIndex);
+        }
+        if (onAgendaDragSlotChange) {
+          lastDragSlotRef.current = safeStartIndex;
+          onAgendaDragSlotChange(safeStartIndex);
+        }
       }}
       onDrag={(_, info) => {
-        const ny = snapY(info.offset.y);
-        y.set(ny);
-
+        const oy = info.offset.y;
+        const cy = clamp(oy, minY, maxY);
+        y.set(cy);
         if (enableHorizontal) {
-          const nx = snapX(info.offset.x);
-          x.set(nx);
+          const ox = info.offset.x;
+          const cx = clamp(ox, minX, maxX);
+          x.set(cx);
+          if (onAgendaDragColumnChange) {
+            const tc = clamp(columnIndex + Math.round(cx / w), 0, columnsCount - 1);
+            if (lastDragColRef.current !== tc) {
+              lastDragColRef.current = tc;
+              onAgendaDragColumnChange(tc);
+              pulseDragSnap();
+            }
+          }
+        } else {
+          x.set(0);
+        }
+        if (onAgendaDragSlotChange) {
+          const ts = clamp(
+            safeStartIndex + Math.round(cy / slotPx),
+            0,
+            Math.max(0, hours.length - 1)
+          );
+          if (lastDragSlotRef.current !== ts) {
+            lastDragSlotRef.current = ts;
+            onAgendaDragSlotChange(ts);
+            pulseDragSnap();
+          }
         }
       }}
       onDragEnd={async () => {
+        onAgendaDragColumnChange?.(null);
+        onAgendaDragSlotChange?.(null);
+        lastDragColRef.current = null;
+        lastDragSlotRef.current = null;
+
+        const rawY = Number(y.get()) || 0;
+        const rawX = enableHorizontal ? Number(x.get()) || 0 : 0;
+        if (Math.abs(rawY) > 8 || (enableHorizontal && Math.abs(rawX) > 8)) {
+          suppressClickRef.current = true;
+        }
+        const sy = clamp(
+          Math.round(clamp(rawY, minY, maxY) / slotPx) * slotPx,
+          minY,
+          maxY
+        );
+        const sx = enableHorizontal
+          ? clamp(Math.round(clamp(rawX, minX, maxX) / w) * w, minX, maxX)
+          : 0;
+        y.set(sy);
+        x.set(sx);
         setDragging(false);
         await applyDragResult();
       }}
       onClick={() => {
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false;
+          return;
+        }
         if (dragging || resizing || saving) return;
         onClick?.();
       }}
     >
+      {dragging && !saving && (
+        <motion.div
+          aria-hidden
+          className="absolute inset-0 z-[1] rounded-xl pointer-events-none border border-dashed border-white/25"
+          style={{ x: ghostOffsetX, y: ghostOffsetY }}
+        />
+      )}
       <div
+        ref={cardSurfaceRef}
         className={[
-          "relative h-full w-full overflow-visible rounded-2xl",
-          "bg-scz-dark/95 backdrop-blur-md",
-          "border border-white/10",
-          "shadow-[0_16px_55px_rgba(0,0,0,0.55)]",
-          isHighlighted
-            ? "ring-2 ring-[#f3d8b6] shadow-[0_0_24px_rgba(243,216,182,0.35)]"
-            : "",
-          !isHighlighted && isInSala
-            ? "ring-2 ring-emerald-400/70 shadow-[0_0_32px_rgba(34,197,94,0.25)]"
-            : "",
-          !isHighlighted && !isInSala ? "ring-1 ring-black/40" : "",
+          "relative z-[2] h-full w-full overflow-visible rounded-xl transition-[opacity,box-shadow] duration-200",
+          "bg-[#14100e] border border-white/[0.08] shadow-sm",
+          dragging && !saving ? "ring-1 ring-white/25" : "",
+          isHighlighted ? "ring-2 ring-[#f3d8b6]" : "ring-1 ring-white/10",
+          isInSala && !isHighlighted ? "ring-1 ring-emerald-500/40" : "",
           isDone ? "opacity-75" : "",
-          isCancelled ? "opacity-60 grayscale" : "",
-          dragging || resizing ? "scale-[1.02] ring-2 ring-white/50" : "",
-        ].join(" ")}
+          isCancelled ? "opacity-55 grayscale" : "",
+          resizing ? "ring-1 ring-white/30" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
-        <div className="absolute inset-0 rounded-2xl overflow-hidden">
+        <div
+          className="absolute inset-0 rounded-xl overflow-hidden flex relative"
+          style={{
+            background: `linear-gradient(105deg, ${accentTint.soft} 0%, #14100e 42%, #14100e 100%)`,
+            boxShadow: `inset 0 0 0 1px ${accentTint.edge}`,
+          }}
+        >
           <div
-            className="absolute left-0 top-0 bottom-0 w-[7px]"
-            style={{ backgroundColor: svcColor }}
+            className="w-[3px] flex-shrink-0 self-stretch"
+            style={{ backgroundColor: accentColor }}
+            aria-hidden
           />
-
-          <div className="absolute inset-0 left-[7px] opacity-[0.18] pointer-events-none">
-            <div className="h-full w-full flex flex-col">
-              {segments.map((seg: Segment, i: number) => (
-                <div
-                  key={`${seg.name}-${i}`}
-                  style={{ flex: seg.duration, backgroundColor: seg.color }}
-                  className="w-full border-b border-black/20"
-                />
-              ))}
-            </div>
-          </div>
-
-          <div
-            className={`relative z-10 h-full pl-5 pr-9 ${
-              compact ? "py-1.5" : "py-2.5"
-            }`}
-          >
-            <div className="w-full min-w-0 flex flex-col gap-0.5">
-              {/* Top row: time + duration + status */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="shrink-0 text-[11px] font-mono font-black text-white/90">
-                    {startLabel}
-                  </span>
-                  {!compact && (
-                    <span className="shrink-0 text-[10px] font-mono text-white/60">
-                      {durationLabel}
-                    </span>
-                  )}
-                </div>
-                <span
-                  className={`shrink-0 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${meta.cls}`}
-                >
-                  {meta.label}
-                </span>
-              </div>
-
-              {/* Cliente */}
-              <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
-                <h4
-                  className={`font-extrabold text-[#f3d8b6] truncate ${
-                    compact ? "text-[12px]" : "text-[13px]"
-                  }`}
-                >
-                  {customerName}
-                </h4>
-              </div>
-
-              {/* Servizio + staff */}
-              <div
-                className={`flex items-center justify-between gap-2 min-w-0 ${
-                  compact ? "mt-0.5" : "mt-1"
+          <div className={`relative z-10 flex-1 min-w-0 pl-2 pr-6 ${compact ? "py-1.5" : "py-1.5"}`}>
+            <div className="w-full min-w-0 flex flex-col gap-0.5 justify-start">
+              <h4
+                title={customerName}
+                className={`font-semibold text-[#f3d8b6] leading-snug line-clamp-2 break-words tracking-tight ${
+                  compact ? "text-[12px]" : "text-[14px]"
                 }`}
               >
-                <div
-                  className={`text-white/85 truncate ${
-                    compact ? "text-[11px]" : "text-[12px]"
-                  }`}
-                >
+                {customerName}
+              </h4>
+              <div className={`text-white/[0.88] min-w-0 leading-snug ${compact ? "text-[11px]" : "text-xs"}`}>
+                <span className="font-medium line-clamp-2 break-words" title={svcName}>
                   {svcName}
-                </div>
-                <div className="shrink-0 flex items-center gap-1 text-[10px] uppercase tracking-wider">
+                </span>
+                {extraSvcCount > 0 ? (
                   <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${
-                      hasStaff
-                        ? "border-emerald-400/40 text-emerald-200 bg-emerald-500/10"
-                        : "border-white/15 text-white/50 bg-black/40"
-                    }`}
+                    className="ml-0.5 font-mono text-[10px] font-semibold tabular-nums text-white/55"
+                    title={extraServicesTooltip || undefined}
                   >
-                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                    <span className="font-black">
-                      {hasStaff ? "Staff" : "Da assegnare"}
-                    </span>
+                    {`+${extraSvcCount}`}
                   </span>
-                </div>
+                ) : null}
+              </div>
+              <div className="mt-0.5 flex flex-nowrap items-center gap-1.5 min-w-0">
+                <span className="min-w-0 truncate text-[11px] font-mono tabular-nums text-white/[0.62]">
+                  {startLabel}
+                  <span className="opacity-35"> · </span>
+                  {durationLabel}
+                </span>
+                <span className={`shrink-0 text-[9px] font-semibold px-1 py-0.5 rounded-sm ${meta.cls}`}>
+                  {meta.label}
+                </span>
+                {!hasStaff ? (
+                  <span className="text-[9px] text-white/40 truncate">Non assegnato</span>
+                ) : null}
               </div>
             </div>
           </div>
 
-          {/* RESIZE HANDLE */}
-          <motion.div
-            className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize z-20 hover:bg-white/5 transition"
-            drag="y"
-            dragMomentum={false}
-            dragElastic={0}
-            dragConstraints={{ top: -1000, bottom: 1000 }}
+          {/* Resize: div + pointer capture (no motion drag annidato sul parent drag x/y) */}
+          <div
+            role="slider"
+            aria-label="Ridimensiona durata"
+            tabIndex={0}
+            className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize z-20 hover:bg-white/[0.06] touch-none"
             onPointerDown={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               setOpenActions(false);
               setResizing(true);
-            }}
-            onDragEnd={async (_: any, info: any) => {
-              setResizing(false);
-              const slotsChanged = Math.round(info.offset.y / SLOT_PX);
-              if (slotsChanged === 0) return;
-              await resizeServiceBySlots(slotsChanged);
+              const startY = e.clientY;
+              const el = e.currentTarget;
+              el.setPointerCapture(e.pointerId);
+              const onUp = (ev: PointerEvent) => {
+                el.releasePointerCapture(ev.pointerId);
+                el.removeEventListener("pointermove", onMove);
+                el.removeEventListener("pointerup", onUp);
+                el.removeEventListener("pointercancel", onUp);
+                setResizing(false);
+                const dy = ev.clientY - startY;
+                const slotsChanged = Math.round(dy / slotPx);
+                if (slotsChanged !== 0) void resizeServiceBySlots(slotsChanged);
+              };
+              const onMove = (ev: PointerEvent) => {
+                ev.preventDefault();
+              };
+              el.addEventListener("pointermove", onMove);
+              el.addEventListener("pointerup", onUp);
+              el.addEventListener("pointercancel", onUp);
             }}
           />
         </div>
 
-        {/* ACTION MENU */}
         <button
+          type="button"
+          aria-label="Azioni appuntamento"
           onClick={(e) => {
             e.stopPropagation();
             setOpenActions((v) => !v);
           }}
-          className="absolute top-2 right-2 z-40 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 border border-white/15 text-white/80 hover:bg-black/80 hover:text-[#f3d8b6] transition-colors"
+          className="absolute top-1 right-1 z-40 h-6 w-6 flex items-center justify-center rounded-md bg-black/50 border border-white/10 text-white/75 hover:text-[#f3d8b6] transition-colors text-sm leading-none"
         >
           ⋮
         </button>
 
         {openActions && (
           <div
-            className="absolute right-2 top-10 z-50 w-48 rounded-2xl bg-scz-dark border border-white/10 shadow-[0_16px_55px_rgba(0,0,0,0.75)] py-1.5 overflow-hidden"
+            className="absolute right-1 top-8 z-50 w-44 rounded-lg bg-[#1c1210] border border-white/12 shadow-xl py-0.5 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-4 pb-1 pt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
-              Azioni appuntamento
-            </div>
             <button
+              type="button"
               onClick={handlePortaInSala}
               disabled={checkingIn}
-              className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5 border-t border-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06] disabled:opacity-50"
             >
-              👤 {checkingIn ? "Porta in sala..." : "Porta in sala"}
+              {checkingIn ? "Porta in sala…" : "Porta in sala"}
             </button>
-
             <button
+              type="button"
               onClick={() => {
                 setOpenActions(false);
                 router.push(`/dashboard/cassa/${appointment.id}`);
               }}
-              className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5 border-t border-white/5"
+              className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06]"
             >
-              💰 Vai in cassa
+              Vai in cassa
             </button>
-
             <button
+              type="button"
               onClick={() => {
                 setOpenActions(false);
-                const cid = appointment?.customer_id ?? appointment?.customers?.id;
+                const cid = appointment.customer_id;
                 if (cid == null || cid === "") {
-                  toast.error("Nessun cliente collegato all’appuntamento.");
+                  toast.error("Nessun cliente collegato.");
                   return;
                 }
                 router.push(`/dashboard/clienti/${cid}`);
               }}
-              className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5 border-t border-white/5"
+              className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06]"
             >
-              📋 Scheda cliente / tecniche
+              Scheda cliente
             </button>
           </div>
         )}

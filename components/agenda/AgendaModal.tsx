@@ -6,6 +6,10 @@ import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import { motion } from "framer-motion";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import {
+  normalizeStaffId,
+  syncAppointmentHeaderFromDb,
+} from "@/lib/agenda/agendaContract";
+import {
   X,
   Search,
   Plus,
@@ -14,6 +18,8 @@ import {
   Scissors,
   Clock3,
 } from "lucide-react";
+import { agendaGridDayStartLabel, generateHours, SLOT_MINUTES } from "./utils";
+import { fetchAgendaServices } from "@/lib/servicesCatalog";
 
 interface Props {
   isOpen: boolean;
@@ -38,6 +44,11 @@ function toNoZ(dt: Date) {
 function toStrOrNull(v: unknown): string | null {
   if (v === null || v === undefined || v === "") return null;
   return String(v);
+}
+
+function numOr(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 /* ================= COMPONENT ================= */
@@ -72,6 +83,17 @@ export default function AgendaModal({
 
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [startTime, setStartTime] = useState<string>("");
+
+  const agendaHours = useMemo(
+    () =>
+      generateHours(
+        agendaGridDayStartLabel(Number(activeSalonId) || 0),
+        "20:30",
+        SLOT_MINUTES
+      ),
+    [activeSalonId]
+  );
 
   /* ================= INIT ================= */
 
@@ -89,6 +111,12 @@ useEffect(() => {
 
   void Promise.all([loadCustomers(), loadServices(), loadStaff()]);
 }, [isOpen, activeSalonId]);
+
+  useEffect(() => {
+    if (!isOpen || !selectedSlot || !agendaHours.length) return;
+    const t = selectedSlot.time;
+    setStartTime(agendaHours.includes(t) ? t : agendaHours[0] ?? t);
+  }, [isOpen, selectedSlot?.time, agendaHours]);
 
 
   /* ================= FILTER CLIENT ================= */
@@ -131,60 +159,19 @@ useEffect(() => {
     setFilteredCustomers(list);
   }
 
-async function loadServices() {
-  if (!activeSalonId) {
-    setServices([]);
-    return;
+  async function loadServices() {
+    if (!activeSalonId) {
+      setServices([]);
+      return;
+    }
+    try {
+      const rows = await fetchAgendaServices(supabase, Number(activeSalonId));
+      setServices(rows);
+    } catch (e) {
+      console.error("AgendaModal loadServices:", e);
+      setServices([]);
+    }
   }
-
-  // 1) servizi validi per Agenda
-  const { data: baseServices, error: baseErr } = await supabase
-    .from("services")
-    .select("id,name,duration,color_code,need_processing,vat_rate")
-    .eq("active", true)
-    .eq("visible_in_agenda", true)
-    .order("name");
-
-  if (baseErr) {
-    console.error("loadServices baseErr:", baseErr);
-    return;
-  }
-
-  if (!baseServices || baseServices.length === 0) {
-    setServices([]);
-    return;
-  }
-
-  // 2) prezzi per salone attivo
-  const serviceIds = baseServices
-    .map((s: any) => Number(s.id))
-    .filter((x: number) => Number.isFinite(x) && x > 0);
-
-  const { data: prices, error: priceErr } = await supabase
-    .from("service_prices")
-    .select("service_id, price")
-    .eq("salon_id", Number(activeSalonId))
-    .in("service_id", serviceIds);
-
-  if (priceErr) {
-    console.error("loadServices priceErr:", priceErr);
-    return;
-  }
-
-  // ✅ chiavi SEMPRE stringa per evitare mismatch "75" vs 75
-  const priceMap = new Map<string, number>();
-  (prices || []).forEach((p: any) => {
-    priceMap.set(String(p.service_id), Number(p.price) || 0);
-  });
-
-  // 3) merge finale
-  const merged = baseServices.map((s: any) => ({
-    ...s,
-    price: priceMap.get(String(s.id)) ?? 0,
-  }));
-
-  setServices(merged);
-}
 
 
   async function loadStaff() {
@@ -223,13 +210,13 @@ async function loadServices() {
   /* ================= TIMELINE ================= */
 
   const serviceTimeline = useMemo(() => {
-    if (!selectedSlot) return [];
+    if (!selectedSlot || !startTime) return [];
 
-    let cursor = new Date(`${currentDate}T${selectedSlot.time}:00`);
+    let cursor = new Date(`${currentDate}T${startTime}:00`);
 
     return selectedServiceIds.map((sid) => {
       const s = services.find((x) => x.id === sid);
-      const duration = Math.max(15, Number(s?.duration ?? 15));
+      const duration = Math.max(SLOT_MINUTES, Number(s?.duration ?? SLOT_MINUTES));
 
       const item = {
         id: sid,
@@ -245,7 +232,7 @@ async function loadServices() {
       cursor = new Date(cursor.getTime() + duration * 60000);
       return item;
     });
-  }, [selectedServiceIds, services, currentDate, selectedSlot]);
+  }, [selectedServiceIds, services, currentDate, selectedSlot, startTime]);
 
   const totalMinutes = useMemo(
     () => serviceTimeline.reduce((acc, s) => acc + s.duration, 0),
@@ -281,16 +268,15 @@ async function loadServices() {
       );
 
       const endDt = new Date(
-        startDt.getTime() + Math.max(15, totalMinutes) * 60000
+        startDt.getTime() + Math.max(SLOT_MINUTES, totalMinutes) * 60000
       );
 
-      /* 1️⃣ APPOINTMENT */
       const { data: appData, error: appErr } = await supabase
         .from("appointments")
         .insert({
           salon_id: activeSalonId,
           customer_id: customerId,
-          staff_id: toStrOrNull(selectedSlot.staffId),
+          staff_id: normalizeStaffId(selectedSlot.staffId),
           start_time: toNoZ(startDt),
           end_time: toNoZ(endDt),
           status: "scheduled",
@@ -299,49 +285,48 @@ async function loadServices() {
         .select("id")
         .single();
 
-      if (appErr) throw appErr;
+      if (appErr) throw new Error(appErr.message);
 
-      const appointmentId = appData.id;
+      const appointmentId = appData.id as number;
 
-      /* 2️⃣ SERVICES LINES */
       let cursorMs = startDt.getTime();
 
       for (const sid of selectedServiceIds) {
         const s = services.find((x) => x.id === sid);
-        const duration = Math.max(15, Number(s?.duration ?? 15));
+        if (!s) throw new Error(`Servizio non disponibile nel catalogo agenda (id ${sid}).`);
+        const duration = Math.max(SLOT_MINUTES, Number(s.duration ?? SLOT_MINUTES));
+        const price = numOr(s.price, 0);
+        const vatRate = numOr(s.vat_rate, 22);
 
-        const payload = {
+        const { error: lineErr } = await supabase.from("appointment_services").insert({
           appointment_id: appointmentId,
           service_id: sid,
-          staff_id: toStrOrNull(serviceAssignments[sid]),
+          staff_id: normalizeStaffId(serviceAssignments[sid]),
           start_time: toNoZ(new Date(cursorMs)),
           duration_minutes: duration,
-          price: Number(s?.price ?? 0),
-          vat_rate: Number.isFinite(Number(s?.vat_rate))
-            ? Number(s?.vat_rate)
-            : 22,
-        };
+          price,
+          vat_rate: vatRate,
+        });
 
-        const { error: lineErr } = await supabase
-          .from("appointment_services")
-          .insert(payload);
-
-        if (lineErr) throw lineErr;
+        if (lineErr) throw new Error(lineErr.message);
 
         cursorMs += duration * 60000;
       }
 
+      const synced = await syncAppointmentHeaderFromDb(supabase, appointmentId);
+      if (!synced.ok) throw synced.error;
+
       onCreated?.();
       close();
-    } catch (e: any) {
-      console.error(e);
-      setErr("Errore durante il salvataggio.");
+    } catch (e: unknown) {
+      console.error("AgendaModal createAppointment failed:", e);
+      setErr(e instanceof Error ? e.message : "Errore durante il salvataggio.");
     } finally {
       setSaving(false);
     }
   }
 
-  if (!isOpen || !selectedSlot) return null;
+  if (!isOpen || !selectedSlot || !startTime) return null;
 
   /* ================= UI ================= */
 
@@ -361,8 +346,23 @@ async function loadServices() {
             <h2 className="text-2xl font-black text-[#f3d8b6] mt-0.5">
               {currentDate}
               <span className="text-white/20 mx-2 font-light">/</span>
-              {selectedSlot.time}
+              {startTime}
             </h2>
+            <label className="mt-3 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
+              Orario inizio (slot griglia)
+              <select
+                value={startTime}
+                disabled={saving}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="mt-1.5 w-full max-w-[11rem] rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
+              >
+                {agendaHours.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <button
             onClick={close}
@@ -488,16 +488,17 @@ async function loadServices() {
                       className="flex items-center gap-3 flex-1 min-w-0 text-left"
                     >
                       <div
-                        className="w-1.5 h-10 rounded-full"
-                        style={{ backgroundColor: s.color_code || "#666" }}
+                        className="w-1.5 h-10 rounded-full shrink-0 opacity-90"
+                        style={{
+                          backgroundColor:
+                            String(s.color_code ?? "#a8754f").trim() || "#a8754f",
+                        }}
                       />
                       <div className="min-w-0">
                         <p className="font-bold text-sm text-white truncate">
                           {s.name}
                         </p>
-                        <p className="text-[11px] text-white/50">
-                          {s.duration} min · {s.price}€
-                        </p>
+                        <p className="text-[11px] text-white/50">{s.duration} min</p>
                       </div>
                     </button>
 

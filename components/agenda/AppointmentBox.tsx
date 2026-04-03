@@ -9,7 +9,9 @@ import { useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { timeFromTs } from "@/lib/appointmentTime";
 import { toast } from "sonner";
-import { SLOT_MINUTES, SLOT_PX } from "./utils";
+import { SLOT_MINUTES } from "./utils";
+import { agendaVisualFromServiceRow } from "@/lib/agendaServiceVisual";
+import { useAgendaSlotPx } from "./AgendaSlotPxContext";
 
 type Segment = { name: string; color: string; duration: number };
 
@@ -82,7 +84,7 @@ function getServiceSegments(appointment: any): Segment[] {
       const svc = line?.services;
 
       const name = String(svc?.name ?? "").trim() || "Servizio";
-      const color = (svc?.color_code as string) || "#a8754f";
+      const color = agendaVisualFromServiceRow(svc ?? {}).accent;
 
       const duration =
         Number(line?.duration_minutes ?? svc?.duration ?? SLOT_MINUTES) ||
@@ -108,6 +110,7 @@ export default function AppointmentBox({
   onUpdated,
   onCashIn,
 }: Props) {
+  const slotPx = useAgendaSlotPx();
   const supabase = useMemo(() => createClient(), []);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -122,7 +125,7 @@ export default function AppointmentBox({
   const startTime = timeFromTs(appointment.start_time);
   const startIndex = hours.indexOf(startTime);
   const safeStartIndex = startIndex >= 0 ? startIndex : 0;
-  const top = safeStartIndex * SLOT_PX;
+  const top = safeStartIndex * slotPx;
 
   // ===== DURATA (min) =====
   const start = parseLocal(appointment.start_time);
@@ -134,8 +137,8 @@ export default function AppointmentBox({
       : SLOT_MINUTES;
 
   // ===== DIMENSIONI BOX =====
-  const rawHeight = (durationMin / SLOT_MINUTES) * SLOT_PX;
-  const MIN_HEIGHT = Math.max(56, SLOT_PX * 1.35);
+  const rawHeight = (durationMin / SLOT_MINUTES) * slotPx;
+  const MIN_HEIGHT = Math.max(56, slotPx * 1.35);
   const height = Math.max(MIN_HEIGHT, rawHeight);
   const compact = height < 84;
 
@@ -286,7 +289,7 @@ export default function AppointmentBox({
       onDragStart={() => !saving && setDragging(true)}
       onDragEnd={async (_: any, info: any) => {
         setDragging(false);
-        const slotsMoved = Math.round(info.offset.y / SLOT_PX);
+        const slotsMoved = Math.round(info.offset.y / slotPx);
         if (slotsMoved === 0) return;
         await shiftAppointmentBySlots(slotsMoved);
       }}
@@ -384,7 +387,7 @@ export default function AppointmentBox({
             dragMomentum={false}
             onDragEnd={async (_: any, info: any) => {
               setResizing(false);
-              const slotsChanged = Math.round(info.offset.y / SLOT_PX);
+              const slotsChanged = Math.round(info.offset.y / slotPx);
               if (slotsChanged === 0) return;
               await resizeAppointmentBySlots(slotsChanged);
             }}

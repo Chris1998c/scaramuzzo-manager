@@ -5,10 +5,15 @@ import Header from "@/components/header";
 import { useUI } from "@/lib/ui-store";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { sidebarOpen } = useUI();
+  const pathname = usePathname();
   const [isDesktop, setIsDesktop] = useState(false);
+
+  const isAgendaRoute =
+    pathname === "/dashboard/agenda" || pathname.startsWith("/dashboard/agenda/");
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth > 768);
@@ -31,7 +36,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <Header />
 
         {/* IMPORTANT: background solido anche qui + min-w-0 */}
-        <main className="p-8 min-w-0 overflow-x-hidden bg-scz-darker">
+        <main
+          className={
+            isAgendaRoute
+              ? "px-3 md:px-4 py-2 md:py-3 min-w-0 overflow-x-hidden bg-scz-darker"
+              : "p-8 min-w-0 overflow-x-hidden bg-scz-darker"
+          }
+        >
           {children}
         </main>
       </motion.div>

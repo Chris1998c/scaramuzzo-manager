@@ -29,28 +29,48 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
     redirect("/dashboard");
   }
 
-  const { data: customer, error } = await supabase
+  const { data: customer, error: fetchError } = await supabase
     .from("customers")
-    .select(
-      "id, customer_code, first_name, last_name, phone, email, address, notes, marketing_whatsapp_opt_in, marketing_consent_at",
-    )
+    .select("id, first_name, last_name, phone, email, address, notes")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
-  if (error || !customer) redirect("/dashboard/clienti");
+  if (fetchError || !customer) {
+    const message = fetchError?.message ?? "Customer not found for id";
+    console.error("[CLIENTE_DETAIL_ERROR]", {
+      requestedId: id,
+      message,
+      queryError: fetchError ?? null,
+    });
+    return (
+      <div className="space-y-6 p-4 min-h-screen bg-[#1A0F0A] text-white">
+        <Link
+          href="/dashboard/clienti"
+          className="inline-flex items-center gap-2 text-sm text-[#c9b299] hover:text-[#f3d8b6] transition"
+        >
+          <ArrowLeft size={16} />
+          Torna ai clienti
+        </Link>
+        <div
+          className="rounded-2xl border-4 border-red-500 bg-red-950/80 p-6 font-mono text-sm space-y-3
+            text-red-100"
+        >
+          <div className="text-lg font-black uppercase tracking-wide text-red-300">
+            CLIENTE NON TROVATO O FETCH FALLITO
+          </div>
+          <div>
+            <span className="text-red-400/90">requestedId:</span> {id}
+          </div>
+          <div>
+            <span className="text-red-400/90">fetchError.message:</span>{" "}
+            {fetchError?.message ?? "(nessun errore PostgREST — riga assente)"}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const c = customer as {
-    id: string;
-    customer_code: string;
-    first_name: string;
-    last_name: string;
-    phone: string;
-    email: string | null;
-    address: string | null;
-    notes: string | null;
-    marketing_whatsapp_opt_in: boolean;
-    marketing_consent_at: string | null;
-  };
+  const c = customer;
 
   return (
     <div className="space-y-8">
@@ -70,15 +90,15 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
       <ClienteAnagraficaForm
         initial={{
           id: c.id,
-          customer_code: c.customer_code,
+          customer_code: "",
           first_name: c.first_name,
           last_name: c.last_name,
           phone: c.phone,
           email: c.email,
           address: c.address,
           notes: c.notes,
-          marketing_whatsapp_opt_in: !!c.marketing_whatsapp_opt_in,
-          marketing_consent_at: c.marketing_consent_at,
+          marketing_whatsapp_opt_in: false,
+          marketing_consent_at: null,
         }}
       />
 

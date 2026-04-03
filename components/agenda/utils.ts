@@ -12,7 +12,28 @@
 ----------------------------------------- */
 
 export const SLOT_MINUTES = 15; // Step ufficiale gestionale
-export const SLOT_PX = 28;      // Altezza slot (coerente con UI compatta)
+
+/** Prima riga griglia (HH:00) per salone — usare anche in modali per coerenza slot. */
+export function agendaGridDayStartLabel(salonId: number): string {
+  let h: number;
+  switch (salonId) {
+    case 1:
+      h = 10;
+      break;
+    case 2:
+    case 3:
+    case 4:
+      h = 9;
+      break;
+    default:
+      h = 8;
+  }
+  return `${String(h).padStart(2, "0")}:00`;
+}
+/** Fallback SSR / fuori provider; in agenda viva usare `useAgendaSlotPx()`. */
+export const SLOT_PX_FALLBACK = 26;
+/** @deprecated Usare useAgendaSlotPx nel client agenda; mantenuto come alias per default getBoxTop. */
+export const SLOT_PX = SLOT_PX_FALLBACK;
 
 /* -----------------------------------------
    DATE / TIME SAFE HELPERS (NO UTC SHIFT)

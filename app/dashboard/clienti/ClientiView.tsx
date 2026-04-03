@@ -16,6 +16,17 @@ type Customer = {
   notes: string | null;
 };
 
+/** Codice da mostrare in UI: mai UUID né eco dell'id tecnico. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function displayableCustomerCode(c: Customer): string | null {
+  const code = String(c.customer_code ?? "").trim();
+  const idStr = String(c.id ?? "").trim();
+  if (!code || code === idStr || UUID_RE.test(code)) return null;
+  return code;
+}
+
 export default function ClientiView({ initial }: { initial: Customer[] }) {
   const supabase = useMemo(() => createClient(), []);
   const [query, setQuery] = useState("");
@@ -152,40 +163,47 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
 
       {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
-        {filtered.map((c) => (
-          <Link
-            key={c.id}
-            href={`/dashboard/clienti/${c.id}`}
-            className="group block rounded-3xl p-6
+        {filtered.map((c) => {
+          const codeLine = displayableCustomerCode(c);
+          return (
+            <Link
+              key={c.id}
+              href={`/dashboard/clienti/${c.id}`}
+              className="group block rounded-3xl p-6
               bg-[#24140e]/70 border border-[#5c3a21]/60 backdrop-blur-md
               shadow-[0_0_40px_rgba(0,0,0,0.18)]
               hover:border-[#f3d8b6]/60 hover:shadow-[0_0_60px_rgba(243,216,182,0.12)]
               hover:-translate-y-0.5 transition"
-          >
-            <div className="flex items-start gap-4">
-              <div className="rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
-                <Users className="text-[#f3d8b6]" size={24} />
-              </div>
-
-              <div className="min-w-0">
-                <div className="text-lg font-extrabold text-[#f3d8b6] tracking-tight">
-                  {c.first_name} {c.last_name}
+            >
+              <div className="flex items-start gap-4">
+                <div className="rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
+                  <Users className="text-[#f3d8b6]" size={24} />
                 </div>
-                <div className="text-xs font-mono text-[#f3d8b6]/80 mt-0.5">{c.customer_code}</div>
-                <div className="text-sm text-[#c9b299] mt-1">📞 {c.phone}</div>
-                {c.address && (
-                  <div className="text-xs text-[#c9b299]/80 mt-1 truncate">
-                    📍 {c.address}
+
+                <div className="min-w-0">
+                  <div className="text-lg font-extrabold text-[#f3d8b6] tracking-tight">
+                    {c.first_name} {c.last_name}
                   </div>
-                )}
+                  {codeLine ? (
+                    <div className="text-xs font-mono text-[#f3d8b6]/80 mt-0.5">{codeLine}</div>
+                  ) : (
+                    <div className="text-xs text-[#c9b299]/75 mt-0.5 tracking-wide">Cliente</div>
+                  )}
+                  <div className="text-sm text-[#c9b299] mt-1">📞 {c.phone}</div>
+                  {c.address && (
+                    <div className="text-xs text-[#c9b299]/80 mt-1 truncate">
+                      📍 {c.address}
+                    </div>
+                  )}
 
-                <div className="mt-4 text-xs text-[#f3d8b6]/60 opacity-0 group-hover:opacity-100 transition">
-                  Apri scheda cliente →
+                  <div className="mt-4 text-xs text-[#f3d8b6]/60 opacity-0 group-hover:opacity-100 transition">
+                    Apri scheda cliente →
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
 
         {filtered.length === 0 && (
           <div className="col-span-full text-center text-white/60 py-16">

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchCashServices } from "@/lib/servicesCatalog";
+import { agendaVisualFromServiceRow } from "@/lib/agendaServiceVisual";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -21,6 +22,8 @@ type CashItem = {
   unitPrice: number;
   qty: number;
   discountEur: number; // UX: € per riga
+  /** Accento tipo servizio (palette Agenda), solo kind=service */
+  accentHex?: string;
 };
 
 type CassaStatusResponse = {
@@ -127,7 +130,12 @@ useEffect(() => {
           id,
           service_id,
           price,
-          service:service_id ( id, name )
+          service:service_id (
+            id,
+            name,
+            category_id,
+            service_categories ( id, name )
+          )
         )
       `,
       )
@@ -200,6 +208,7 @@ const mergedServices = cashRows.map((s) => ({
   name: String(s.name ?? "Servizio"),
   price: s.price,
   active: true,
+  accent: agendaVisualFromServiceRow(s).accent,
 }));
 
 if (cancelled) return;
@@ -224,6 +233,7 @@ setProducts(pr || []);
           unitPrice,
           qty: 1,
           discountEur: 0,
+          accentHex: agendaVisualFromServiceRow(as.service ?? {}).accent,
         };
       });
 
@@ -303,6 +313,14 @@ setProducts(pr || []);
           unitPrice: toNum(source?.price, 0),
           qty: 1,
           discountEur: 0,
+          ...(kind === "service"
+            ? {
+                accentHex:
+                  typeof (source as any)?.accent === "string"
+                    ? (source as any).accent
+                    : agendaVisualFromServiceRow(source ?? {}).accent,
+              }
+            : {}),
         },
       ];
     });
@@ -761,12 +779,26 @@ setProducts(pr || []);
                   const warnZero = it.unitPrice === 0;
                   const warnHighDisc = discPct > 50;
                   const warnQty = it.qty > 99;
+                  const svcTint =
+                    it.kind === "service" && it.accentHex
+                      ? `${it.accentHex}22`
+                      : undefined;
                   return (
                     <tr
                       key={`${it.kind}-${it.id}-${idx}`}
                       className={`border-b border-white/5 transition-colors hover:bg-white/[0.06] group ${
                         idx % 2 === 0 ? "bg-black/5" : "bg-black/10"
                       }`}
+                      style={
+                        it.kind === "service" && it.accentHex
+                          ? {
+                              boxShadow: `inset 3px 0 0 0 ${it.accentHex}`,
+                              background: `linear-gradient(90deg, ${svcTint} 0%, transparent 48%), ${
+                                idx % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(0,0,0,0.18)"
+                              }`,
+                            }
+                          : undefined
+                      }
                     >
                       <td className="px-4 py-3 align-middle">
                         <span
@@ -780,7 +812,7 @@ setProducts(pr || []);
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-white/95 align-middle">
-                        <span className="text-[#f3d8b6]">{it.name}</span>
+                        <span className="text-[#f3d8b6] drop-shadow-sm">{it.name}</span>
                         {(warnZero || warnHighDisc || warnQty) && (
                           <div className="flex flex-wrap gap-1 mt-1">
                             {warnZero && (

@@ -8,13 +8,15 @@ export type ServiceRow = {
   duration: number | null;
   need_processing: boolean | null;
   vat_rate: number | string | null;
+  category_id: number | null;
+  service_categories?: { name: string } | null;
 
   // ✅ prezzo per salone (service_prices)
   price: number;
 };
 
 const BASE_SELECT =
-  "id,name,color_code,duration,need_processing,vat_rate" as const;
+  "id,name,color_code,duration,need_processing,vat_rate,category_id,service_categories(name)" as const;
 
 function toNum(v: any, fb = 0) {
   const n = Number(v);
@@ -64,7 +66,7 @@ export async function fetchAgendaServices(
 
   if (error) throw new Error(`fetchAgendaServices: ${error.message}`);
 
-  const base = (data ?? []) as Array<Omit<ServiceRow, "price">>;
+  const base = (data ?? []) as unknown as Array<Omit<ServiceRow, "price">>;
   return attachPrices(supabase, salonId, base);
 }
 
@@ -82,7 +84,7 @@ export async function fetchCashServices(
 
   if (error) throw new Error(`fetchCashServices: ${error.message}`);
 
-  const base = (data ?? []) as Array<Omit<ServiceRow, "price">>;
+  const base = (data ?? []) as unknown as Array<Omit<ServiceRow, "price">>;
   return attachPrices(supabase, salonId, base);
 }
 
