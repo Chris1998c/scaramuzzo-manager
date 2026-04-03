@@ -69,8 +69,8 @@ export async function getUserAccess(): Promise<{
 
   const role = roleIdToName(u.role_id);
 
-  // 2.5) staff context (NON deve rompere sempre tutto)
-  // - reception: obbligatorio
+  // 2.5) staff context (collaboratori / stylist in public.staff)
+  // - reception: salone da user_salons (role_id=2), tipicamente assente da staff — non richiedere staff
   // - coordinator/magazzino: opzionale (può non essere in staff)
   // - cliente: opzionale
   const { data: staff, error: staffErr } = await supabase
@@ -82,12 +82,6 @@ export async function getUserAccess(): Promise<{
   if (staffErr) {
     // se RLS blocca o altro errore reale: logga ma non crashare a prescindere
     console.error("staff lookup error", { userId, staffErr });
-  }
-
-  if (!staff && role === "reception") {
-    // SOLO reception deve per forza essere collegata a staff
-    console.error("Staff context missing for reception user", userId);
-    throw new Error("Staff not linked to this user (reception)");
   }
 
   // 3) user_salons assegnati
