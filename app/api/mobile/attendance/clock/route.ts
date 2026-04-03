@@ -1,7 +1,7 @@
 // Timbratura con geofence 500m — flusso presenza ufficiale in produzione (attendance_logs).
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { resolveMobileStaffId } from "@/lib/mobileSession";
+import { verifyMobileToken } from "@/lib/mobileSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,10 +9,39 @@ export const dynamic = "force-dynamic";
 const GEOFENCE_MAX_METERS = 500;
 
 type ClockRequestBody = {
-  staff_id?: number;
   lat?: number;
   lng?: number;
 };
+
+type MobileAuthClockResult =
+  | { ok: true; staffId: number; tokenSalonId: number }
+  | { ok: false; response: NextResponse };
+
+function bearerFromRequest(req: Request): string | null {
+  const h = req.headers.get("authorization")?.trim();
+  if (!h) return null;
+  const m = /^Bearer\s+(.+)$/i.exec(h);
+  return m ? m[1].trim() : null;
+}
+
+/** JWT obbligatorio: identità solo dal token, nessun staff_id da body/query. */
+function getMobileAuthUser(req: Request): MobileAuthClockResult {
+  const token = bearerFromRequest(req);
+  if (!token) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+  const v = verifyMobileToken(token);
+  if (!v.ok) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+  return { ok: true, staffId: v.sid, tokenSalonId: v.salon_id };
+}
 
 function toRadians(value: number): number {
   return (value * Math.PI) / 180;
@@ -40,11 +69,11 @@ function getDistanceMeters(
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as ClockRequestBody;
-    const idRes = resolveMobileStaffId(req, body);
-    if (!idRes.ok) return idRes.response;
+    const auth = getMobileAuthUser(req);
+    if (!auth.ok) return auth.response;
 
-    const staffId = idRes.staffId;
+    const body = (await req.json()) as ClockRequestBody;
+    const staffId = auth.staffId;
     const lat = Number(body.lat);
     const lng = Number(body.lng);
 
@@ -63,21 +92,35 @@ export async function POST(req: Request) {
     }
 
     if (!staff) {
-      return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (!staff.mobile_enabled) {
       return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
     }
 
+    const salonIdRaw = staff.salon_id;
+    if (salonIdRaw == null || !Number.isInteger(Number(salonIdRaw)) || Number(salonIdRaw) <= 0) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const salonId = Number(salonIdRaw);
+
+    if (auth.tokenSalonId !== salonId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { data: salon, error: salonError } = await supabaseAdmin
       .from("salons")
-      .select("lat, lng")
-      .eq("id", staff.salon_id)
+      .select("id, lat, lng")
+      .eq("id", salonId)
       .maybeSingle();
 
     if (salonError) {
       throw salonError;
+    }
+
+    if (!salon) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const salonLat = salon?.lat != null ? Number(salon.lat) : NaN;
@@ -118,7 +161,7 @@ export async function POST(req: Request) {
 
     const { error: insertError } = await supabaseAdmin.from("attendance_logs").insert({
       staff_id: staffId,
-      salon_id: staff.salon_id,
+      salon_id: salonId,
       type: newType,
     });
 
