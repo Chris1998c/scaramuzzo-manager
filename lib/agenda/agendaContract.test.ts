@@ -4,6 +4,9 @@ import {
   computeHeaderFromLines,
   commitLinePatch,
   normalizeAgendaRows,
+  parseLocal,
+  snapToAgendaSlot,
+  toNoZ,
 } from "@/lib/agenda/agendaContract";
 import { SLOT_MINUTES } from "@/components/agenda/utils";
 
@@ -257,5 +260,28 @@ describe("commitLinePatch guard", () => {
       patch: {},
     });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe("snapToAgendaSlot", () => {
+  it("12:20 -> 12:15", () => {
+    const out = snapToAgendaSlot(parseLocal("2026-04-03T12:20:44"));
+    expect(toNoZ(out)).toBe("2026-04-03T12:15:00");
+  });
+
+  it("12:23 -> 12:30", () => {
+    const out = snapToAgendaSlot(parseLocal("2026-04-03T12:23:11"));
+    expect(toNoZ(out)).toBe("2026-04-03T12:30:00");
+  });
+
+  it("azzera secondi e millisecondi", () => {
+    const out = snapToAgendaSlot(parseLocal("2026-04-03T12:23:59"));
+    expect(out.getSeconds()).toBe(0);
+    expect(out.getMilliseconds()).toBe(0);
+  });
+
+  it("slot gia valido 12:15 resta 12:15", () => {
+    const out = snapToAgendaSlot(parseLocal("2026-04-03T12:15:00"));
+    expect(toNoZ(out)).toBe("2026-04-03T12:15:00");
   });
 });

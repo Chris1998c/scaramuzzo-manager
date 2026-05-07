@@ -43,6 +43,7 @@ export type AgendaServiceLine = {
   appointment_id: number;
   service_id: number;
   start_time: string;
+  normalized_start_time?: string;
   duration_minutes: number;
   staff_id: number | null;
   services: AgendaServiceEmbed;
@@ -81,6 +82,14 @@ export function toNoZ(dt: Date): string {
   const mm = String(dt.getMinutes()).padStart(2, "0");
   const ss = String(dt.getSeconds()).padStart(2, "0");
   return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
+}
+
+export function snapToAgendaSlot(date: Date, slotMinutes: number = SLOT_MINUTES): Date {
+  const slot = Math.max(1, Number(slotMinutes) || SLOT_MINUTES);
+  const slotMs = slot * 60_000;
+  const snapped = new Date(Math.round(date.getTime() / slotMs) * slotMs);
+  snapped.setSeconds(0, 0);
+  return snapped;
 }
 
 /** Durata riga / header: minimo SLOT_MINUTES, mai NaN. */
@@ -125,6 +134,7 @@ export function computeHeaderFromLines(lines: HeaderLineInput[]): {
   }
   const normalized = lines.map((ln) => ({
     ...ln,
+    start_time: toNoZ(snapToAgendaSlot(parseLocal(ln.start_time))),
     duration_minutes: clampDurationMinutes(ln.duration_minutes),
   }));
   const sorted = [...normalized].sort((a, b) => {
@@ -142,15 +152,15 @@ export function computeHeaderFromLines(lines: HeaderLineInput[]): {
     if (em > maxEndMs) maxEndMs = em;
   }
   return {
-    start_time: toNoZ(new Date(minStartMs)),
-    end_time: toNoZ(new Date(maxEndMs)),
+    start_time: toNoZ(snapToAgendaSlot(new Date(minStartMs))),
+    end_time: toNoZ(snapToAgendaSlot(new Date(maxEndMs))),
     staff_id: normalizeStaffId(first.staff_id),
   };
 }
 
 export function normalizeAgendaRows(raw: unknown[] | null): AgendaAppointment[] {
   if (!raw?.length) return [];
-  const mapped = (raw as Record<string, unknown>[]).map((row) => {
+  const mapped: AgendaAppointment[] = (raw as Record<string, unknown>[]).map((row) => {
     const c = unwrapSingleEmbed<Record<string, unknown>>(row?.customer);
     const linesRaw = Array.isArray(row?.appointment_services)
       ? (row.appointment_services as Record<string, unknown>[])
@@ -181,6 +191,7 @@ export function normalizeAgendaRows(raw: unknown[] | null): AgendaAppointment[] 
           appointment_id: Number(ln.appointment_id ?? aid),
           service_id: Number.isFinite(sid) ? sid : 0,
           start_time: String(ln.start_time ?? ""),
+          normalized_start_time: toNoZ(snapToAgendaSlot(parseLocal(String(ln.start_time ?? "")))),
           duration_minutes: dur,
           staff_id: normalizeStaffId(ln.staff_id),
           services: {
@@ -194,9 +205,7 @@ export function normalizeAgendaRows(raw: unknown[] | null): AgendaAppointment[] 
       }),
     };
   });
-  return mapped.filter(
-    (app): app is AgendaAppointment => Number.isFinite(app.id) && app.id > 0
-  );
+  return mapped.filter((app) => Number.isFinite(app.id) && app.id > 0);
 }
 
 export async function syncAppointmentHeaderFromDb(
@@ -271,7 +280,9 @@ export async function commitLinePatch(
     return { ok: false, error: new Error("commitLinePatch: appointmentId non valido") };
   }
   const clean: Record<string, unknown> = {};
-  if (args.patch.start_time !== undefined) clean.start_time = args.patch.start_time;
+  if (args.patch.start_time !== undefined) {
+    clean.start_time = toNoZ(snapToAgendaSlot(parseLocal(args.patch.start_time)));
+  }
   if (args.patch.duration_minutes !== undefined)
     clean.duration_minutes = clampDurationMinutes(args.patch.duration_minutes);
   if (args.patch.staff_id !== undefined) clean.staff_id = args.patch.staff_id;

@@ -7,7 +7,9 @@ import { motion } from "framer-motion";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import {
   normalizeStaffId,
+  snapToAgendaSlot,
   syncAppointmentHeaderFromDb,
+  toNoZ,
 } from "@/lib/agenda/agendaContract";
 import {
   X,
@@ -27,18 +29,6 @@ interface Props {
   currentDate: string; // yyyy-mm-dd
   selectedSlot: { time: string; staffId: string | null } | null;
   onCreated?: () => void;
-}
-
-/* ================= HELPERS ================= */
-
-function toNoZ(dt: Date) {
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, "0");
-  const d = String(dt.getDate()).padStart(2, "0");
-  const hh = String(dt.getHours()).padStart(2, "0");
-  const mm = String(dt.getMinutes()).padStart(2, "0");
-  const ss = String(dt.getSeconds()).padStart(2, "0");
-  return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
 }
 
 function toStrOrNull(v: unknown): string | null {
@@ -263,12 +253,10 @@ useEffect(() => {
     setErr("");
 
     try {
-      const startDt = new Date(
-        `${currentDate}T${selectedSlot.time}:00`
-      );
+      const startDt = snapToAgendaSlot(new Date(`${currentDate}T${selectedSlot.time}:00`));
 
-      const endDt = new Date(
-        startDt.getTime() + Math.max(SLOT_MINUTES, totalMinutes) * 60000
+      const endDt = snapToAgendaSlot(
+        new Date(startDt.getTime() + Math.max(SLOT_MINUTES, totalMinutes) * 60000)
       );
 
       const { data: appData, error: appErr } = await supabase
@@ -302,7 +290,7 @@ useEffect(() => {
           appointment_id: appointmentId,
           service_id: sid,
           staff_id: normalizeStaffId(serviceAssignments[sid]),
-          start_time: toNoZ(new Date(cursorMs)),
+          start_time: toNoZ(snapToAgendaSlot(new Date(cursorMs))),
           duration_minutes: duration,
           price,
           vat_rate: vatRate,

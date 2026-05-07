@@ -12,6 +12,7 @@ import {
   commitLinePatch,
   type AgendaServiceLine,
   parseLocal,
+  snapToAgendaSlot,
   toNoZ,
   normalizeStaffId,
 } from "@/lib/agenda/agendaContract";
@@ -293,16 +294,9 @@ export default function ServiceBox({
     return normalizeStaffId(staffOrder[safe]);
   }
 
-  const applyDragResult = useCallback(async () => {
-    const finalY = Number(y.get()) || 0;
-    const finalX = enableHorizontal ? Number(x.get()) || 0 : 0;
-    const slotsMoved = Math.round(finalY / slotPx);
-    let colsMoved = 0;
-    if (enableHorizontal && staffOrder.length) {
-      colsMoved = Math.round(finalX / w);
-    }
-    const needStaffMove = enableHorizontal && colsMoved !== 0 && staffOrder.length > 0;
-    const needTimeMove = slotsMoved !== 0;
+  const applyDragResult = useCallback(async (slotDelta: number, colDelta: number, offsetY: number) => {
+    const needStaffMove = enableHorizontal && colDelta !== 0 && staffOrder.length > 0;
+    const needTimeMove = slotDelta !== 0;
 
     if (!needStaffMove && !needTimeMove) {
       x.set(0);
@@ -313,13 +307,24 @@ export default function ServiceBox({
     const patch: { start_time?: string; staff_id?: number | null } = {};
     if (needStaffMove) {
       const from = currentColIndex();
-      const to = from + colsMoved;
+      const to = from + colDelta;
       patch.staff_id = staffIdByVisualIndex(to);
     }
     if (needTimeMove) {
       const s0 = parseLocal(line.start_time);
-      const deltaMin = slotsMoved * SLOT_MINUTES;
-      patch.start_time = toNoZ(new Date(s0.getTime() + deltaMin * 60_000));
+      const deltaMin = slotDelta * SLOT_MINUTES;
+      patch.start_time = toNoZ(snapToAgendaSlot(new Date(s0.getTime() + deltaMin * 60_000)));
+    }
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[agenda drag end]", {
+        lineId: line.id,
+        oldStart: line.start_time,
+        offsetY,
+        slotPx,
+        slotDelta,
+        newStart: patch.start_time,
+        patch,
+      });
     }
 
     setSaving(true);
@@ -432,14 +437,14 @@ export default function ServiceBox({
           }
         }
       }}
-      onDragEnd={async () => {
+      onDragEnd={async (_, info) => {
         onAgendaDragColumnChange?.(null);
         onAgendaDragSlotChange?.(null);
         lastDragColRef.current = null;
         lastDragSlotRef.current = null;
 
-        const rawY = Number(y.get()) || 0;
-        const rawX = enableHorizontal ? Number(x.get()) || 0 : 0;
+        const rawY = Number(info.offset.y) || 0;
+        const rawX = enableHorizontal ? Number(info.offset.x) || 0 : 0;
         if (Math.abs(rawY) > 8 || (enableHorizontal && Math.abs(rawX) > 8)) {
           suppressClickRef.current = true;
         }
@@ -454,7 +459,9 @@ export default function ServiceBox({
         y.set(sy);
         x.set(sx);
         setDragging(false);
-        await applyDragResult();
+        const slotDelta = Math.round(sy / slotPx);
+        const colDelta = enableHorizontal ? Math.round(sx / w) : 0;
+        await applyDragResult(slotDelta, colDelta, rawY);
       }}
       onClick={() => {
         if (suppressClickRef.current) {

@@ -12,6 +12,7 @@ import {
   clampDurationMinutes,
   syncAppointmentHeaderFromDb,
   parseLocal,
+  snapToAgendaSlot,
   toNoZ,
   normalizeStaffId,
 } from "@/lib/agenda/agendaContract";
@@ -205,7 +206,7 @@ export default function EditAppointmentModal({
 
     try {
       const oldStart = parseLocal(appointment.start_time);
-      const newStart = parseLocal(`${selectedDay}T${time}:00`);
+      const newStart = snapToAgendaSlot(parseLocal(`${selectedDay}T${time}:00`));
       const deltaMs = newStart.getTime() - oldStart.getTime();
       const staffNorm = normalizeStaffId(staffId);
       const timeChanged = deltaMs !== 0;
@@ -237,7 +238,7 @@ export default function EditAppointmentModal({
           SLOT_MINUTES * 60_000,
           oldEnd.getTime() - oldStart.getTime()
         );
-        const newEnd = new Date(newStart.getTime() + durationMs);
+        const newEnd = snapToAgendaSlot(new Date(newStart.getTime() + durationMs));
         if (timeChanged || staffChanged) {
           const { error: hErr } = await supabase
             .from("appointments")
@@ -255,7 +256,7 @@ export default function EditAppointmentModal({
           if (staffChanged) patch.staff_id = staffNorm;
           if (timeChanged) {
             const ls = parseLocal(String(l.start_time));
-            patch.start_time = toNoZ(new Date(ls.getTime() + deltaMs));
+            patch.start_time = toNoZ(snapToAgendaSlot(new Date(ls.getTime() + deltaMs)));
           }
           const { error: u } = await supabase.from("appointment_services").update(patch).eq("id", l.id);
           if (u) throw u;
