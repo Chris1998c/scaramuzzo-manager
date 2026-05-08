@@ -23,6 +23,7 @@ type CloseBody = {
   salon_id?: number; // vendita senza appuntamento
   payment_method: PaymentMethod;
   global_discount?: number; // % (0-100) sul subtotale già scontato per riga
+  idempotency_key?: string;
   lines?: CloseLineInput[];
   items?: CloseLineInput[]; // compat
   /** Ignorato dal server: la stampa fiscale segue `cash_sessions.printer_enabled` della sessione aperta. */
@@ -171,6 +172,14 @@ export async function POST(req: Request) {
       0,
       100
     );
+    const headerIdempotencyKey = req.headers.get("idempotency-key");
+    const rawIdempotencyKey =
+      typeof body.idempotency_key === "string"
+        ? body.idempotency_key
+        : headerIdempotencyKey;
+    const idempotencyKey = rawIdempotencyKey?.trim()
+      ? rawIdempotencyKey.trim()
+      : null;
 
     // 3) DETERMINO SALONE / STAFF / CUSTOMER
     let salonId: number | null = null;
@@ -453,6 +462,34 @@ export async function POST(req: Request) {
 
     // 7.5) GUARDIA MINIMA ANTI-DOPPIO INVIO (solo vendite senza appuntamento)
     if (!appointmentId) {
+      if (idempotencyKey) {
+        const { data: existingByKey, error: existingByKeyErr } = await supabaseAdmin
+          .from("sales")
+          .select("id")
+          .eq("salon_id", salonId)
+          .eq("idempotency_key", idempotencyKey)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingByKeyErr) {
+          return NextResponse.json(
+            {
+              error: "Errore controllo idempotenza vendita",
+              details: existingByKeyErr.message,
+            },
+            { status: 500 }
+          );
+        }
+
+        if (existingByKey?.id != null) {
+          return NextResponse.json({
+            ok: true,
+            sale_id: Number(existingByKey.id),
+            idempotent_replay: true,
+          });
+        }
+      }
+
       const now = new Date();
       const fiveSecondsAgo = new Date(now.getTime() - 5_000).toISOString();
 
@@ -502,6 +539,7 @@ export async function POST(req: Request) {
         p_discount: totalDiscount,
         p_items: pItems,
         p_appointment_id: appointmentId ?? null,
+        p_idempotency_key: !appointmentId ? idempotencyKey : null,
       }
     );
 
