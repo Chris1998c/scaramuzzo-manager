@@ -19,6 +19,7 @@ COMMENT ON COLUMN public.salon_whatsapp_settings.appointment_reminder_template_n
 
 COMMENT ON COLUMN public.salon_whatsapp_settings.appointment_reminder_template_lang IS
   'Codice lingua template (es. it); NULL = usa env WHATSAPP_APPOINTMENT_REMINDER_TEMPLATE_LANG.';
+DROP FUNCTION IF EXISTS public.appointments_for_whatsapp_reminder_v1();
 
 CREATE OR REPLACE FUNCTION public.appointments_for_whatsapp_reminder_v1()
 RETURNS TABLE (

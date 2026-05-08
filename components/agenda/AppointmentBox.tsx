@@ -2,11 +2,12 @@
 // LEGACY / NON-PRIMARY PATH:
 // Questo componente non fa parte del flusso operativo principale Agenda/In Sala/Cassa attuale.
 // Non usarlo come riferimento per nuove feature.
+// HARDENING: le mutazioni dirette DB legacy in questo file sono state neutralizzate.
+// Il flusso Agenda corrente usa ServiceBox + API server-side.
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
 import { timeFromTs } from "@/lib/appointmentTime";
 import { toast } from "sonner";
 import { SLOT_MINUTES } from "./utils";
@@ -111,7 +112,13 @@ export default function AppointmentBox({
   onCashIn,
 }: Props) {
   const slotPx = useAgendaSlotPx();
-  const supabase = useMemo(() => createClient(), []);
+  useMemo(() => {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[agenda][legacy] AppointmentBox mounted. This component is legacy and should not be used in primary flow."
+      );
+    }
+  }, []);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
@@ -210,62 +217,24 @@ export default function AppointmentBox({
 
   // DRAG LOGIC
   async function shiftAppointmentBySlots(slotsMoved: number) {
-    if (saving) return;
-    setSaving(true);
-
-    const s0 = parseLocal(appointment.start_time);
-    const e0 = appointment.end_time ? parseLocal(appointment.end_time) : null;
-    const deltaMin = slotsMoved * SLOT_MINUTES;
-
-    const newStart = new Date(s0.getTime() + deltaMin * 60_000);
-    const newEnd = e0 ? new Date(e0.getTime() + deltaMin * 60_000) : null;
-
-    const { error } = await supabase
-      .from("appointments")
-      .update({
-        start_time: toNoZ(newStart),
-        ...(newEnd ? { end_time: toNoZ(newEnd) } : {}),
-      })
-      .eq("id", appointment.id);
-
-    setSaving(false);
-    if (error) {
-      toast.error("Errore spostamento: " + error.message);
-      return;
+    void slotsMoved;
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[agenda][legacy] AppointmentBox drag mutation blocked. Use ServiceBox server-side flow."
+      );
     }
-    onUpdated?.();
+    toast.error("Componente legacy: usa il flusso Agenda principale.");
   }
 
   // RESIZE LOGIC
   async function resizeAppointmentBySlots(slotsChanged: number) {
-    if (saving) return;
-    setSaving(true);
-
-    const s0 = parseLocal(appointment.start_time);
-    const e0 = appointment.end_time
-      ? parseLocal(appointment.end_time)
-      : new Date(s0.getTime() + SLOT_MINUTES * 60_000);
-
-    const currentDuration = (e0.getTime() - s0.getTime()) / 60000;
-    const newDuration = currentDuration + slotsChanged * SLOT_MINUTES;
-
-    if (newDuration < SLOT_MINUTES) {
-      setSaving(false);
-      return;
+    void slotsChanged;
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[agenda][legacy] AppointmentBox resize mutation blocked. Use ServiceBox server-side flow."
+      );
     }
-
-    const newEnd = new Date(s0.getTime() + newDuration * 60_000);
-    const { error } = await supabase
-      .from("appointments")
-      .update({ end_time: toNoZ(newEnd) })
-      .eq("id", appointment.id);
-
-    setSaving(false);
-    if (error) {
-      toast.error("Errore resize: " + error.message);
-      return;
-    }
-    onUpdated?.();
+    toast.error("Componente legacy: usa il flusso Agenda principale.");
   }
 
   const isInSala = String(appointment.status) === "in_sala";

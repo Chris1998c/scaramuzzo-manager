@@ -28,6 +28,7 @@ ALTER TABLE public.appointment_whatsapp_reminders ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE ON public.appointment_whatsapp_reminders TO service_role;
 
 -- Solo service_role (cron server-side); nessuna policy per authenticated.
+DROP FUNCTION IF EXISTS public.appointments_for_whatsapp_reminder_v1();
 
 CREATE OR REPLACE FUNCTION public.appointments_for_whatsapp_reminder_v1()
 RETURNS TABLE (

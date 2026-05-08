@@ -10,7 +10,6 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { agendaGridDayStartLabel, generateHours, SLOT_MINUTES } from "./utils";
 import {
   clampDurationMinutes,
-  syncAppointmentHeaderFromDb,
   parseLocal,
   snapToAgendaSlot,
   toNoZ,
@@ -212,57 +211,21 @@ export default function EditAppointmentModal({
       const timeChanged = deltaMs !== 0;
       const staffChanged = staffNorm !== appointment.staff_id;
 
-      const { error: metaErr } = await supabase
-        .from("appointments")
-        .update({
-          customer_id,
-          notes: notes?.trim() || null,
-        })
-        .eq("id", appointment.id);
-      if (metaErr) throw metaErr;
+      const payload: Record<string, unknown> = {
+        customer_id,
+        notes: notes?.trim() || null,
+      };
+      if (timeChanged) payload.start_time = toNoZ(newStart);
+      if (staffChanged) payload.staff_id = staffNorm;
 
-      const { data: lineRows, error: linesErr } = await supabase
-        .from("appointment_services")
-        .select("id, start_time, duration_minutes, staff_id")
-        .eq("appointment_id", appointment.id)
-        .order("start_time", { ascending: true })
-        .order("id", { ascending: true });
-
-      if (linesErr) throw linesErr;
-
-      if (!lineRows?.length) {
-        const oldEnd = appointment.end_time
-          ? parseLocal(appointment.end_time)
-          : new Date(oldStart.getTime() + SLOT_MINUTES * 60_000);
-        const durationMs = Math.max(
-          SLOT_MINUTES * 60_000,
-          oldEnd.getTime() - oldStart.getTime()
-        );
-        const newEnd = snapToAgendaSlot(new Date(newStart.getTime() + durationMs));
-        if (timeChanged || staffChanged) {
-          const { error: hErr } = await supabase
-            .from("appointments")
-            .update({
-              start_time: toNoZ(newStart),
-              end_time: toNoZ(newEnd),
-              staff_id: staffNorm,
-            })
-            .eq("id", appointment.id);
-          if (hErr) throw hErr;
-        }
-      } else if (timeChanged || staffChanged) {
-        for (const l of lineRows) {
-          const patch: Record<string, unknown> = {};
-          if (staffChanged) patch.staff_id = staffNorm;
-          if (timeChanged) {
-            const ls = parseLocal(String(l.start_time));
-            patch.start_time = toNoZ(snapToAgendaSlot(new Date(ls.getTime() + deltaMs)));
-          }
-          const { error: u } = await supabase.from("appointment_services").update(patch).eq("id", l.id);
-          if (u) throw u;
-        }
-        const synced = await syncAppointmentHeaderFromDb(supabase, Number(appointment.id));
-        if (!synced.ok) throw synced.error;
+      const res = await fetch(`/api/agenda/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; details?: string };
+      if (!res.ok) {
+        throw new Error(json.error || json.details || "Errore salvataggio");
       }
 
       onUpdated?.();
@@ -287,15 +250,13 @@ export default function EditAppointmentModal({
     setErr("");
 
     try {
-      const { error: delLinesErr } = await supabase
-        .from("appointment_services")
-        .delete()
-        .eq("appointment_id", appointment.id);
-
-      if (delLinesErr) throw delLinesErr;
-
-      const { error: delErr } = await supabase.from("appointments").delete().eq("id", appointment.id);
-      if (delErr) throw delErr;
+      const res = await fetch(`/api/agenda/appointments/${appointment.id}`, {
+        method: "DELETE",
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; details?: string };
+      if (!res.ok) {
+        throw new Error(json.error || json.details || "Errore eliminazione");
+      }
 
       onUpdated?.();
       close();
