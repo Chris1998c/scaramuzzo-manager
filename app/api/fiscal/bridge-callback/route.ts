@@ -14,6 +14,15 @@ type JobRow = {
   status: string;
 };
 
+type FinalizeFiscalRpcRow = {
+  ok: boolean;
+  already_finalized: boolean;
+  sale_updated: boolean;
+  new_job_status: string | null;
+  new_sale_status: string | null;
+  skipped_reason: string | null;
+};
+
 function parseOutcome(body: Record<string, unknown> | null): boolean | null {
   if (!body) return null;
   if (body.success === true) return true;
@@ -32,11 +41,6 @@ function readSecret(req: Request): string | null {
     return auth.slice(7).trim();
   }
   return null;
-}
-
-function isTerminalJobStatus(status: string): boolean {
-  const u = status.trim().toLowerCase();
-  return u === "completed" || u === "failed";
 }
 
 export async function POST(req: Request) {
@@ -87,71 +91,57 @@ export async function POST(req: Request) {
   }
 
   const row = job as JobRow;
+  const callbackError =
+    typeof body?.error_message === "string"
+      ? body.error_message
+      : typeof body?.error === "string"
+        ? body.error
+        : null;
 
-  if (isTerminalJobStatus(row.status)) {
-    return NextResponse.json({ ok: true, already_finalized: true }, { status: 200 });
-  }
+  const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc("finalize_fiscal_job_atomic", {
+    p_job_id: row.id,
+    p_success: ok,
+    p_error_message: callbackError,
+  });
 
-  const newJobStatus = ok ? "completed" : "failed";
-
-  const { error: jobUpErr } = await supabaseAdmin
-    .from("fiscal_print_jobs")
-    .update({ status: newJobStatus })
-    .eq("id", jobId);
-
-  if (jobUpErr) {
+  if (rpcErr) {
     return NextResponse.json(
-      { error: jobUpErr.message ?? "Errore aggiornamento job" },
+      { error: rpcErr.message ?? "Errore finalizzazione fiscale" },
       { status: 500 },
     );
   }
 
-  if (row.kind !== "sale_receipt") {
-    return NextResponse.json({ ok: true, sale_updated: false });
+  const out = Array.isArray(rpcData)
+    ? ((rpcData[0] ?? null) as FinalizeFiscalRpcRow | null)
+    : ((rpcData ?? null) as FinalizeFiscalRpcRow | null);
+
+  if (!out) {
+    return NextResponse.json({ error: "Risposta RPC non valida" }, { status: 500 });
   }
 
-  const payload = row.payload as { sale_id?: unknown } | null;
-  const saleIdRaw = payload?.sale_id;
-  const saleId =
-    typeof saleIdRaw === "number"
-      ? saleIdRaw
-      : typeof saleIdRaw === "string"
-        ? Number(saleIdRaw)
-        : NaN;
-
-  if (!Number.isFinite(saleId) || saleId <= 0) {
-    return NextResponse.json({ ok: true, sale_updated: false });
+  if (!out.ok && out.skipped_reason === "job_not_found") {
+    return NextResponse.json({ error: "Job non trovato" }, { status: 404 });
   }
 
-  const { data: sale, error: saleErr } = await supabaseAdmin
-    .from("sales")
-    .select("id, salon_id, fiscal_status")
-    .eq("id", saleId)
-    .maybeSingle();
-
-  if (saleErr || !sale) {
-    return NextResponse.json({ error: "Vendita non trovata" }, { status: 404 });
+  if (!out.ok) {
+    return NextResponse.json(
+      { error: out.skipped_reason ?? "Finalizzazione fiscale non riuscita" },
+      { status: 500 },
+    );
   }
 
-  const s = sale as { id: number; salon_id: number; fiscal_status: string };
-  if (s.salon_id !== row.salon_id) {
-    return NextResponse.json({ error: "sale_id non coerente col job" }, { status: 400 });
+  const response: Record<string, unknown> = {
+    ok: true,
+    already_finalized: !!out.already_finalized,
+    sale_updated: !!out.sale_updated,
+  };
+
+  if (out.new_sale_status) {
+    response.fiscal_status = out.new_sale_status;
+  }
+  if (out.skipped_reason) {
+    response.skipped = out.skipped_reason;
   }
 
-  if (String(s.fiscal_status) !== "queued") {
-    return NextResponse.json({ ok: true, sale_updated: false, skipped: "not_queued" });
-  }
-
-  const newSaleStatus = ok ? "printed" : "error";
-  const { error: upErr } = await supabaseAdmin
-    .from("sales")
-    .update({ fiscal_status: newSaleStatus })
-    .eq("id", saleId)
-    .eq("fiscal_status", "queued");
-
-  if (upErr) {
-    return NextResponse.json({ error: upErr.message ?? "Errore aggiornamento vendita" }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true, sale_updated: true, fiscal_status: newSaleStatus });
+  return NextResponse.json(response, { status: 200 });
 }
