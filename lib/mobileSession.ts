@@ -6,9 +6,8 @@ import { NextResponse } from "next/server";
  * Contratto mobile Team (hardening):
  * - Login: POST /api/mobile/login emette `access_token` (Bearer) se `MOBILE_JWT_SECRET` è impostato.
  * - Route protette: inviare `Authorization: Bearer <access_token>`; l’identità è nel token (sid/salon_id/exp).
- * - MOBILE_AUTH_STRICT assente/false: senza Bearer si può ancora usare `body.staff_id` (compat) — log [mobile-auth][compat].
- * - MOBILE_AUTH_STRICT=true: Bearer obbligatorio sulle route che usano resolveMobileStaffId; nessun fallback body-only.
- * - Bearer presente ma invalido/scaduto: 401, nessun fallback al body.
+ * - Bearer obbligatorio sulle route che usano resolveMobileStaffId; nessun fallback body-only.
+ * - Bearer presente ma invalido/scaduto: 401.
  *
  * Inventario route `app/api/mobile/*` (accordo con il repo Manager, non è l’app Team):
  * - Contratto attuale: login → POST /api/mobile/login; KPI periodo → POST /api/mobile/stats;
@@ -19,20 +18,6 @@ import { NextResponse } from "next/server";
  */
 /** 30 giorni — allineato a sessioni mobile tipiche. */
 export const MOBILE_TOKEN_TTL_SEC = 30 * 24 * 60 * 60;
-
-function isMobileAuthStrict(): boolean {
-  const v = process.env.MOBILE_AUTH_STRICT?.trim().toLowerCase();
-  return v === "true" || v === "1" || v === "yes";
-}
-
-function requestRouteLabel(req: Request): string {
-  try {
-    const u = new URL(req.url);
-    return `${req.method} ${u.pathname}`;
-  } catch {
-    return `${req.method} (path unknown)`;
-  }
-}
 
 const JWT_ALG = "HS256";
 
@@ -143,7 +128,7 @@ export type ResolveMobileStaffIdResult =
 
 /**
  * Identità mobile: preferisce `Authorization: Bearer` (JWT firmato da login).
- * Fallback legacy: `body.staff_id` se manca il token (solo se MOBILE_AUTH_STRICT non è attivo).
+ * Nessun fallback legacy via `body.staff_id`.
  */
 export function resolveMobileStaffId(
   req: Request,
@@ -168,25 +153,8 @@ export function resolveMobileStaffId(
     return { ok: true, staffId: v.sid };
   }
 
-  if (isMobileAuthStrict()) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-
-  const staffId = Number(body.staff_id);
-  if (!Number.isInteger(staffId) || staffId <= 0) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Invalid request body" }, { status: 400 }),
-    };
-  }
-
-  console.warn(
-    "[mobile-auth][compat]",
-    requestRouteLabel(req),
-    "using body staff_id fallback"
-  );
-  return { ok: true, staffId };
+  return {
+    ok: false,
+    response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+  };
 }

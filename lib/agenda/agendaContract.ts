@@ -287,21 +287,21 @@ export async function commitLinePatch(
     clean.duration_minutes = clampDurationMinutes(args.patch.duration_minutes);
   if (args.patch.staff_id !== undefined) clean.staff_id = args.patch.staff_id;
   if (!Object.keys(clean).length) return { ok: true };
-
-  const { data: updatedRows, error } = await client
-    .from("appointment_services")
-    .update(clean)
-    .eq("id", idForEq)
-    .select("id");
-  if (error) return { ok: false, error: new Error(error.message) };
-  if (!updatedRows?.length) {
+  void client;
+  void idForEq;
+  const res = await fetch(`/api/agenda/lines/${encodeURIComponent(String(args.lineId))}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(clean),
+  });
+  const json = (await res.json().catch(() => ({}))) as { error?: string; details?: string };
+  if (!res.ok) {
     return {
       ok: false,
       error: new Error(
-        "commitLinePatch: update non applicato (0 righe su appointment_services). Verifica id riga e policy RLS."
+        json.error || json.details || `commitLinePatch: PATCH /api/agenda/lines failed (${res.status})`
       ),
     };
   }
-
-  return syncAppointmentHeaderFromDb(client, args.appointmentId);
+  return { ok: true };
 }
