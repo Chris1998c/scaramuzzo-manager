@@ -89,6 +89,17 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    if (isReception) {
+      if (toSalon !== MAGAZZINO_CENTRALE_ID) {
+        return NextResponse.json(
+          {
+            error:
+              "La reception può richiedere trasferimenti solo verso il Magazzino Centrale, non verso altri saloni operativi.",
+          },
+          { status: 403 }
+        );
+      }
+    }
     if (isWarehouse) {
       if (!access.allowedSalonIds.includes(fromSalon) || !access.allowedSalonIds.includes(toSalon)) {
         return NextResponse.json(
@@ -206,18 +217,6 @@ export async function POST(req: Request) {
       if (execError) {
         console.error("execute_transfer failed", { transferId: transfer.id, error: execError.message });
         return NextResponse.json({ error: execError.message }, { status: 500 });
-      }
-
-      const { error: updError } = await supabaseAdmin
-        .from("transfers")
-        .update({ status: "executed" })
-        .eq("id", transfer.id);
-
-      if (updError) {
-        console.error("transfers status update failed after execute_transfer", {
-          transferId: transfer.id,
-          error: updError.message,
-        });
       }
     }
 
