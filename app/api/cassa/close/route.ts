@@ -564,13 +564,13 @@ export async function POST(req: Request) {
         .from("sales")
         .update({ fiscal_status: "queued" })
         .eq("id", saleId)
+        .eq("fiscal_status", "pending")
         .select("id");
 
-      const queuedOk =
-        !fsErr && Array.isArray(saleAfterQueued) && saleAfterQueued.length > 0;
-
-      if (!queuedOk) {
-        const detail = fsErr?.message ?? "nessuna riga aggiornata";
+      // Nessuna riga aggiornata è uno scenario valido:
+      // il callback fiscale potrebbe aver già finalizzato lo stato a printed/error.
+      if (fsErr) {
+        const detail = fsErr.message ?? "errore sconosciuto";
         console.error("[cassa/close] sales fiscal_status -> queued failed", fsErr);
 
         if (fiscalPrintJobId != null) {
@@ -591,6 +591,12 @@ export async function POST(req: Request) {
           },
           { status: 500 },
         );
+      }
+
+      if (Array.isArray(saleAfterQueued) && saleAfterQueued.length === 0) {
+        console.info("[cassa/close] sales fiscal_status already finalized before queued update", {
+          sale_id: saleId,
+        });
       }
     }
 
