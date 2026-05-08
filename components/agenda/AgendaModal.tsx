@@ -8,7 +8,6 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import {
   normalizeStaffId,
   snapToAgendaSlot,
-  syncAppointmentHeaderFromDb,
   toNoZ,
 } from "@/lib/agenda/agendaContract";
 import {
@@ -254,55 +253,33 @@ useEffect(() => {
 
     try {
       const startDt = snapToAgendaSlot(new Date(`${currentDate}T${selectedSlot.time}:00`));
+      const payload = {
+        salon_id: Number(activeSalonId),
+        customer_id: customerId,
+        start_time: toNoZ(startDt),
+        notes: notes.trim() || null,
+        services: selectedServiceIds.map((sid) => {
+          const s = services.find((x) => x.id === sid);
+          if (!s) throw new Error(`Servizio non disponibile nel catalogo agenda (id ${sid}).`);
+          return {
+            service_id: sid,
+            staff_id: normalizeStaffId(serviceAssignments[sid]),
+            duration_minutes: Math.max(SLOT_MINUTES, Number(s.duration ?? SLOT_MINUTES)),
+            price: numOr(s.price, 0),
+            vat_rate: numOr(s.vat_rate, 22),
+          };
+        }),
+      };
 
-      const endDt = snapToAgendaSlot(
-        new Date(startDt.getTime() + Math.max(SLOT_MINUTES, totalMinutes) * 60000)
-      );
-
-      const { data: appData, error: appErr } = await supabase
-        .from("appointments")
-        .insert({
-          salon_id: activeSalonId,
-          customer_id: customerId,
-          staff_id: normalizeStaffId(selectedSlot.staffId),
-          start_time: toNoZ(startDt),
-          end_time: toNoZ(endDt),
-          status: "scheduled",
-          notes: notes.trim() || null,
-        })
-        .select("id")
-        .single();
-
-      if (appErr) throw new Error(appErr.message);
-
-      const appointmentId = appData.id as number;
-
-      let cursorMs = startDt.getTime();
-
-      for (const sid of selectedServiceIds) {
-        const s = services.find((x) => x.id === sid);
-        if (!s) throw new Error(`Servizio non disponibile nel catalogo agenda (id ${sid}).`);
-        const duration = Math.max(SLOT_MINUTES, Number(s.duration ?? SLOT_MINUTES));
-        const price = numOr(s.price, 0);
-        const vatRate = numOr(s.vat_rate, 22);
-
-        const { error: lineErr } = await supabase.from("appointment_services").insert({
-          appointment_id: appointmentId,
-          service_id: sid,
-          staff_id: normalizeStaffId(serviceAssignments[sid]),
-          start_time: toNoZ(snapToAgendaSlot(new Date(cursorMs))),
-          duration_minutes: duration,
-          price,
-          vat_rate: vatRate,
-        });
-
-        if (lineErr) throw new Error(lineErr.message);
-
-        cursorMs += duration * 60000;
+      const res = await fetch("/api/agenda/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; details?: string };
+      if (!res.ok) {
+        throw new Error(json.error || json.details || "Errore durante la creazione appuntamento.");
       }
-
-      const synced = await syncAppointmentHeaderFromDb(supabase, appointmentId);
-      if (!synced.ok) throw synced.error;
 
       onCreated?.();
       close();
