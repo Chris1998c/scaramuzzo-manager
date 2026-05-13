@@ -53,8 +53,7 @@ BEGIN
     FOR UPDATE;
 
     IF FOUND THEN
-      sale_id := v_existing_sale_id;
-      RETURN NEXT;
+      RETURN QUERY SELECT v_existing_sale_id AS sale_id;
       RETURN;
     END IF;
   END IF;
@@ -97,9 +96,11 @@ BEGIN
   END LOOP;
 
   IF p_appointment_id IS NOT NULL AND p_appointment_id > 0 THEN
-    UPDATE public.appointments
-    SET sale_id = v_sale_id, status = 'done'
-    WHERE id = p_appointment_id AND sale_id IS NULL;
+    UPDATE public.appointments a
+    SET sale_id = v_sale_id,
+        status = 'done'
+    WHERE a.id = p_appointment_id
+      AND a.sale_id IS NULL;
 
     GET DIAGNOSTICS v_updated = ROW_COUNT;
     IF v_updated <> 1 THEN
@@ -107,8 +108,8 @@ BEGIN
     END IF;
   END IF;
 
-  sale_id := v_sale_id;
-  RETURN NEXT;
+  RETURN QUERY SELECT v_sale_id AS sale_id;
+  RETURN;
 END;
 $$;
 

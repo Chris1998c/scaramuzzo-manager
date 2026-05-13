@@ -115,23 +115,6 @@ export default function InventarioPage() {
     };
   }, [isReady, ctxSalonId, filter, category, isWarehouse]); // ✅ ctxSalonId è la chiave
 
-  if (!isReady || loading) {
-    return (
-      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
-        Caricamento…
-      </div>
-    );
-  }
-
-  if (errMsg) {
-    return (
-      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
-        <h1 className="text-3xl font-bold mb-3">Inventario</h1>
-        <p className="text-white/70">{errMsg}</p>
-      </div>
-    );
-  }
-
   const totalProducts = products.length;
   const inSottoscorta = products.filter((p) => p.quantity <= 5).length;
 
@@ -203,6 +186,23 @@ export default function InventarioPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  if (!isReady || loading) {
+    return (
+      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
+        Caricamento…
+      </div>
+    );
+  }
+
+  if (errMsg) {
+    return (
+      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
+        <h1 className="text-3xl font-bold mb-3">Inventario</h1>
+        <p className="text-white/70">{errMsg}</p>
+      </div>
+    );
   }
 
   return (
