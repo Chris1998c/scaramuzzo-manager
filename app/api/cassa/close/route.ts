@@ -63,6 +63,16 @@ const errMsg = (e: unknown) => {
   }
 };
 
+/** RPC `sale_id bigint` può arrivare come bigint → NextResponse.json non serializza BigInt (500 HTML). */
+function coerceRpcSaleId(row: unknown): number | null {
+  if (!row || typeof row !== "object") return null;
+  const v = (row as { sale_id?: unknown }).sale_id;
+  if (v == null) return null;
+  if (typeof v === "bigint") return Number(v);
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
 function normalizeLines(body: CloseBody) {
   const raw =
     (Array.isArray(body.lines) && body.lines.length
@@ -715,6 +725,7 @@ export async function POST(req: Request) {
     );
 
     if (rpcErr) {
+      console.error("[CASSA_CLOSE_PRODUCT_ERROR]", rpcErr);
       return NextResponse.json(
         { error: rpcErr.message ?? "Errore chiusura cassa" },
         { status: 500 }
@@ -723,7 +734,7 @@ export async function POST(req: Request) {
 
     const saleId =
       Array.isArray(rpcData) && rpcData.length > 0
-        ? (rpcData[0] as { sale_id: number }).sale_id
+        ? coerceRpcSaleId(rpcData[0])
         : null;
     if (saleId == null || !Number.isFinite(saleId)) {
       return NextResponse.json(
@@ -757,6 +768,7 @@ export async function POST(req: Request) {
       totals: { subtotal, total: finalTotal, discount: totalDiscount },
     });
   } catch (e) {
+    console.error("[CASSA_CLOSE_PRODUCT_ERROR]", e);
     return NextResponse.json({ error: errMsg(e) }, { status: 500 });
   }
 }
