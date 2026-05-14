@@ -110,6 +110,88 @@ type FiscalProfileForJob = {
   vat_number?: string;
 };
 
+type FiscalSaleReceiptLine = {
+  type: LineKind;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  department: number;
+  vat_rate: number;
+};
+
+type ComputedSaleLine = {
+  kind: LineKind;
+  id: number;
+  qty: number;
+  discountPct: number;
+  unitPrice: number;
+  lineDisc: number;
+  net: number;
+};
+
+/** Righe scontrino fiscale: totali allineati a `finalTotal` ripartendo lo sconto globale sulle righe già nette per sconto di riga. */
+function buildFiscalSaleReceiptLines(args: {
+  computedItems: ComputedSaleLine[];
+  subtotal: number;
+  globalDiscountAmount: number;
+  finalTotal: number;
+  serviceNameById: Map<number, string>;
+  productNameById: Map<number, string>;
+}): FiscalSaleReceiptLine[] {
+  const { computedItems, subtotal, globalDiscountAmount, finalTotal } = args;
+  const n = computedItems.length;
+  if (!n) return [];
+
+  let sumGlobalShares = 0;
+  const globalShares: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const c = computedItems[i];
+    if (i === n - 1) {
+      globalShares.push(round2(globalDiscountAmount - sumGlobalShares));
+    } else {
+      const share =
+        subtotal > 0 ? round2((c.net / subtotal) * globalDiscountAmount) : 0;
+      globalShares.push(share);
+      sumGlobalShares = round2(sumGlobalShares + share);
+    }
+  }
+
+  const lineTotals = computedItems.map((c, i) =>
+    round2(c.net - (globalShares[i] ?? 0))
+  );
+
+  const sumLines = round2(lineTotals.reduce((a, b) => a + b, 0));
+  const drift = round2(finalTotal - sumLines);
+  if (lineTotals.length && drift !== 0) {
+    const last = lineTotals.length - 1;
+    lineTotals[last] = round2(lineTotals[last] + drift);
+  }
+
+  return computedItems.map((c, i) => {
+    const qty = c.qty;
+    const total = lineTotals[i] ?? 0;
+    const unit_price = qty > 0 ? round2(total / qty) : round2(total);
+    const fallback = c.kind === "service" ? "SERVIZIO" : "PRODOTTO";
+    const raw =
+      (c.kind === "service"
+        ? args.serviceNameById.get(c.id)
+        : args.productNameById.get(c.id)) ?? "";
+    const name =
+      typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : fallback;
+
+    return {
+      type: c.kind,
+      name,
+      quantity: qty,
+      unit_price,
+      total,
+      department: 1,
+      vat_rate: 22,
+    };
+  });
+}
+
 async function getOrCreateSaleReceiptPrintJob(args: {
   salonId: number;
   userId: string;
@@ -117,6 +199,7 @@ async function getOrCreateSaleReceiptPrintJob(args: {
   fiscal: FiscalProfileForJob;
   finalTotal: number;
   paymentMethod: PaymentMethod;
+  fiscalLines: FiscalSaleReceiptLine[];
 }): Promise<
   | { ok: true; jobId: number; createdThisRequest: boolean }
   | { ok: false; error: string }
@@ -153,6 +236,7 @@ async function getOrCreateSaleReceiptPrintJob(args: {
         vat_number: fiscal.vat_number,
         printer_serial: fiscal.printer_serial,
         requested_at: new Date().toISOString(),
+        items: args.fiscalLines,
       },
       status: "pending",
     })
@@ -220,6 +304,9 @@ async function ensureFiscalJobAndMaybeQueueSale(args: {
   fiscal: FiscalProfileForJob;
   finalTotal: number;
   paymentMethod: PaymentMethod;
+  fiscalLines: FiscalSaleReceiptLine[];
+  /** Se false: job creato ma `sales.fiscal_status` resta `pending` (bridge offline / non raggiungibile). */
+  bridgeReachable: boolean;
 }): Promise<
   { ok: true; fiscalPrintJobId: number } | EnsureFiscalPostSaleFailure
 > {
@@ -230,6 +317,7 @@ async function ensureFiscalJobAndMaybeQueueSale(args: {
     fiscal: args.fiscal,
     finalTotal: args.finalTotal,
     paymentMethod: args.paymentMethod,
+    fiscalLines: args.fiscalLines,
   });
 
   if (!jobRes.ok) {
@@ -247,6 +335,10 @@ async function ensureFiscalJobAndMaybeQueueSale(args: {
   }
 
   const { jobId: fiscalPrintJobId, createdThisRequest } = jobRes;
+
+  if (!args.bridgeReachable) {
+    return { ok: true, fiscalPrintJobId };
+  }
 
   const { data: saleAfterQueued, error: fsErr } = await supabaseAdmin
     .from("sales")
@@ -546,30 +638,30 @@ export async function POST(req: Request) {
       (activeSession as { printer_enabled?: unknown }).printer_enabled
     );
 
-    let fiscalProfileForJob: FiscalProfileForJob | null = null;
+    const bridge = await checkPrintBridgeReachable();
+    const printBridgeReachable = bridge.ok;
+    const printBridgeWarning = bridge.ok ? undefined : bridge.error;
 
-    if (printerEnabled) {
-      const bridge = await checkPrintBridgeReachable();
-      if (!bridge.ok) {
-        return NextResponse.json({ error: bridge.error }, { status: 400 });
+    const { data: profile, error: profErr } = await supabaseAdmin.rpc(
+      "get_fiscal_profile",
+      {
+        p_salon_id: salonId,
+        p_on_date: new Date().toISOString().slice(0, 10),
       }
-      const { data: profile, error: profErr } = await supabaseAdmin.rpc(
-        "get_fiscal_profile",
+    );
+    const fiscalProfileForJob: FiscalProfileForJob | null =
+      !profErr && profile?.length
+        ? (profile[0] as FiscalProfileForJob)
+        : null;
+
+    if (printerEnabled && !fiscalProfileForJob) {
+      return NextResponse.json(
         {
-          p_salon_id: salonId,
-          p_on_date: new Date().toISOString().slice(0, 10),
-        }
+          error:
+            "Profilo fiscale non trovato per questo salone. Impossibile stampare.",
+        },
+        { status: 400 }
       );
-      if (profErr || !profile?.length) {
-        return NextResponse.json(
-          {
-            error:
-              "Profilo fiscale non trovato per questo salone. Impossibile stampare.",
-          },
-          { status: 400 }
-        );
-      }
-      fiscalProfileForJob = profile[0] as FiscalProfileForJob;
     }
 
     // 6) PREZZI SERVER-SIDE
@@ -580,7 +672,7 @@ export async function POST(req: Request) {
       ...new Set(lines.filter((l) => l.kind === "product").map((l) => l.id)),
     ];
 
-    const [spRes, prodRes] = await Promise.all([
+    const [spRes, prodRes, svcRes] = await Promise.all([
       serviceIds.length
         ? supabaseAdmin
             .from("service_prices")
@@ -589,11 +681,17 @@ export async function POST(req: Request) {
             .in("service_id", serviceIds)
         : Promise.resolve({ data: [], error: null } as const),
       productIds.length
-        ? supabaseAdmin.from("products").select("id, price").in("id", productIds)
+        ? supabaseAdmin
+            .from("products")
+            .select("id, price, name")
+            .in("id", productIds)
+        : Promise.resolve({ data: [], error: null } as const),
+      serviceIds.length
+        ? supabaseAdmin.from("services").select("id, name").in("id", serviceIds)
         : Promise.resolve({ data: [], error: null } as const),
     ]);
 
-    if (spRes.error || prodRes.error) {
+    if (spRes.error || prodRes.error || svcRes.error) {
       return NextResponse.json(
         { error: "Errore nel caricamento prezzi" },
         { status: 500 }
@@ -619,7 +717,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const prodRows = (prodRes.data ?? []) as Array<{ id: number; price?: unknown }>;
+    const prodRows = (prodRes.data ?? []) as Array<{
+      id: number;
+      price?: unknown;
+      name?: unknown;
+    }>;
     const prodMap = new Map<number, number>(
       prodRows.map((p) => [p.id, Number(p.price)])
     );
@@ -644,11 +746,22 @@ export async function POST(req: Request) {
       }
     }
 
+    const serviceNameById = new Map<number, string>(
+      (svcRes.data ?? []).map((r: { id: number; name: unknown }) => [
+        Number(r.id),
+        typeof r.name === "string" ? r.name : "",
+      ])
+    );
+
+    const productNameById = new Map<number, string>(
+      prodRows.map((p) => [p.id, typeof p.name === "string" ? p.name : ""])
+    );
+
     // 7) TOTALI
     let subtotal = 0;
     let totalDiscount = 0;
 
-    const computedItems = lines.map((l) => {
+    const computedItems: ComputedSaleLine[] = lines.map((l) => {
       const rawUnit =
         l.kind === "service" ? servicePriceMap.get(l.id) : prodMap.get(l.id);
       const unitPrice = toNumber(rawUnit, NaN);
@@ -676,6 +789,15 @@ export async function POST(req: Request) {
     const finalTotal = round2(Math.max(0, subtotal - globalDiscountAmount));
     totalDiscount = round2(totalDiscount + globalDiscountAmount);
 
+    const fiscalLines = buildFiscalSaleReceiptLines({
+      computedItems,
+      subtotal,
+      globalDiscountAmount,
+      finalTotal,
+      serviceNameById,
+      productNameById,
+    });
+
     // 7.5) GUARDIA MINIMA ANTI-DOPPIO INVIO (solo vendite senza appuntamento)
     if (!appointmentId) {
       if (idempotencyKey) {
@@ -699,7 +821,7 @@ export async function POST(req: Request) {
 
         if (existingByKey?.id != null) {
           const replaySaleId = Number(existingByKey.id);
-          if (printerEnabled && fiscalProfileForJob) {
+          if (fiscalProfileForJob) {
             const fiscalRes = await ensureFiscalJobAndMaybeQueueSale({
               saleId: replaySaleId,
               salonId,
@@ -707,6 +829,8 @@ export async function POST(req: Request) {
               fiscal: fiscalProfileForJob,
               finalTotal,
               paymentMethod,
+              fiscalLines,
+              bridgeReachable: printBridgeReachable,
             });
             if (!fiscalRes.ok) {
               return NextResponse.json(
@@ -728,6 +852,10 @@ export async function POST(req: Request) {
               sale_id: replaySaleId,
               fiscal_print_job_id: fiscalRes.fiscalPrintJobId,
               printer_enabled: printerEnabled,
+              print_bridge_reachable: printBridgeReachable,
+              ...(printBridgeWarning
+                ? { print_bridge_warning: printBridgeWarning }
+                : {}),
               totals: { subtotal, total: finalTotal, discount: totalDiscount },
               idempotent_replay: true,
             });
@@ -815,7 +943,7 @@ export async function POST(req: Request) {
 
     let fiscalPrintJobId: number | undefined;
 
-    if (printerEnabled && fiscalProfileForJob) {
+    if (fiscalProfileForJob) {
       const fiscalRes = await ensureFiscalJobAndMaybeQueueSale({
         saleId,
         salonId,
@@ -823,6 +951,8 @@ export async function POST(req: Request) {
         fiscal: fiscalProfileForJob,
         finalTotal,
         paymentMethod,
+        fiscalLines,
+        bridgeReachable: printBridgeReachable,
       });
       if (!fiscalRes.ok) {
         return NextResponse.json(
@@ -846,6 +976,14 @@ export async function POST(req: Request) {
       sale_id: saleId,
       fiscal_print_job_id: fiscalPrintJobId,
       printer_enabled: printerEnabled,
+      ...(fiscalProfileForJob
+        ? {
+            print_bridge_reachable: printBridgeReachable,
+            ...(printBridgeWarning
+              ? { print_bridge_warning: printBridgeWarning }
+              : {}),
+          }
+        : {}),
       totals: { subtotal, total: finalTotal, discount: totalDiscount },
     });
   } catch (e) {
