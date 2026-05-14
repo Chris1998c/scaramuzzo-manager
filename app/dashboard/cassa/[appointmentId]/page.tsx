@@ -482,7 +482,12 @@ setProducts(pr || []);
             ? Number(rawJob)
             : undefined;
 
-      if (jobId != null) {
+      if (data?.warning) {
+        toast.warning("Vendita registrata", {
+          description: String(data.warning),
+          duration: 12_000,
+        });
+      } else if (jobId != null) {
         toast.success("Vendita registrata", {
           description: `Stampa fiscale in coda (job n. ${jobId}). Il Print Bridge locale elabora la coda verso Epson FP81 RT; lo stato si aggiorna al callback.`,
           duration: 9500,

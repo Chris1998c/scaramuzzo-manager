@@ -185,6 +185,34 @@ async function getOrCreateSaleReceiptPrintJob(args: {
   return { ok: false, error: insErr?.message ?? "insert fiscal job failed" };
 }
 
+/** Post-vendita: marca incoerenza fiscale senza sovrascrivere stati finali. */
+async function markSaleFiscalQueueError(saleId: number, context: string) {
+  const { data, error } = await supabaseAdmin
+    .from("sales")
+    .update({ fiscal_status: "error" })
+    .eq("id", saleId)
+    .in("fiscal_status", ["pending", "queued"])
+    .select("id");
+
+  if (error) {
+    console.error(`[cassa/close] markSaleFiscalQueueError failed (${context})`, error);
+    return;
+  }
+  if (!data?.length) {
+    console.info(`[cassa/close] markSaleFiscalQueueError skipped (${context})`, {
+      sale_id: saleId,
+    });
+  }
+}
+
+type EnsureFiscalPostSaleFailure = {
+  ok: false;
+  /** Vendita già persistita: rispondi 200 + warning, non 500. */
+  postSaleRecoverable: true;
+  reason: string;
+  phase: "job" | "queued_update";
+};
+
 async function ensureFiscalJobAndMaybeQueueSale(args: {
   saleId: number;
   salonId: number;
@@ -193,12 +221,7 @@ async function ensureFiscalJobAndMaybeQueueSale(args: {
   finalTotal: number;
   paymentMethod: PaymentMethod;
 }): Promise<
-  | { ok: true; fiscalPrintJobId: number }
-  | {
-      ok: false;
-      status: number;
-      body: Record<string, unknown>;
-    }
+  { ok: true; fiscalPrintJobId: number } | EnsureFiscalPostSaleFailure
 > {
   const jobRes = await getOrCreateSaleReceiptPrintJob({
     salonId: args.salonId,
@@ -210,12 +233,16 @@ async function ensureFiscalJobAndMaybeQueueSale(args: {
   });
 
   if (!jobRes.ok) {
+    console.error("[cassa/close] fiscal_print_jobs create/lookup failed post-sale", {
+      sale_id: args.saleId,
+      error: jobRes.error,
+    });
+    await markSaleFiscalQueueError(args.saleId, "after_job_insert_fail");
     return {
       ok: false,
-      status: 500,
-      body: {
-        error: `Impossibile accodare la stampa fiscale: ${jobRes.error}. La vendita è stata registrata.`,
-      },
+      postSaleRecoverable: true,
+      reason: jobRes.error,
+      phase: "job",
     };
   }
 
@@ -242,14 +269,13 @@ async function ensureFiscalJobAndMaybeQueueSale(args: {
       }
     }
 
+    await markSaleFiscalQueueError(args.saleId, "after_queued_update_fail");
+
     return {
       ok: false,
-      status: 500,
-      body: {
-        error: `Vendita registrata ma allineamento stampa fiscale fallito (${detail}). Il job è stato annullato per evitare incoerenze con il callback; fiscal_status resta pending.`,
-        sale_id: args.saleId,
-        fiscal_job_cancelled: createdThisRequest ? fiscalPrintJobId : null,
-      },
+      postSaleRecoverable: true,
+      reason: detail,
+      phase: "queued_update",
     };
   }
 
@@ -260,6 +286,37 @@ async function ensureFiscalJobAndMaybeQueueSale(args: {
   }
 
   return { ok: true, fiscalPrintJobId };
+}
+
+function jsonPostSaleFiscalQueueError(args: {
+  saleId: number;
+  printerEnabled: boolean;
+  subtotal: number;
+  finalTotal: number;
+  totalDiscount: number;
+  failure: EnsureFiscalPostSaleFailure;
+  idempotentReplay?: boolean;
+}) {
+  const baseHint =
+    args.failure.phase === "job"
+      ? "Impossibile creare o recuperare il job di stampa fiscale in modo idempotente."
+      : "Impossibile impostare la vendita su «in coda» per la stampa fiscale; il job appena creato è stato annullato dove possibile.";
+  const warning = `${baseHint} La vendita risulta comunque registrata in cassa. Dettaglio tecnico: ${args.failure.reason}`;
+
+  return {
+    success: true as const,
+    ok: true as const,
+    sale_id: args.saleId,
+    fiscal_status: "fiscal_queue_error" as const,
+    warning,
+    printer_enabled: args.printerEnabled,
+    totals: {
+      subtotal: args.subtotal,
+      total: args.finalTotal,
+      discount: args.totalDiscount,
+    },
+    ...(args.idempotentReplay ? { idempotent_replay: true as const } : {}),
+  };
 }
 
 /* =======================
@@ -652,9 +709,21 @@ export async function POST(req: Request) {
               paymentMethod,
             });
             if (!fiscalRes.ok) {
-              return NextResponse.json(fiscalRes.body, { status: fiscalRes.status });
+              return NextResponse.json(
+                jsonPostSaleFiscalQueueError({
+                  saleId: replaySaleId,
+                  printerEnabled,
+                  subtotal,
+                  finalTotal,
+                  totalDiscount,
+                  failure: fiscalRes,
+                  idempotentReplay: true,
+                }),
+                { status: 200 }
+              );
             }
             return NextResponse.json({
+              success: true,
               ok: true,
               sale_id: replaySaleId,
               fiscal_print_job_id: fiscalRes.fiscalPrintJobId,
@@ -664,6 +733,7 @@ export async function POST(req: Request) {
             });
           }
           return NextResponse.json({
+            success: true,
             ok: true,
             sale_id: replaySaleId,
             idempotent_replay: true,
@@ -755,12 +825,23 @@ export async function POST(req: Request) {
         paymentMethod,
       });
       if (!fiscalRes.ok) {
-        return NextResponse.json(fiscalRes.body, { status: fiscalRes.status });
+        return NextResponse.json(
+          jsonPostSaleFiscalQueueError({
+            saleId,
+            printerEnabled,
+            subtotal,
+            finalTotal,
+            totalDiscount,
+            failure: fiscalRes,
+          }),
+          { status: 200 }
+        );
       }
       fiscalPrintJobId = fiscalRes.fiscalPrintJobId;
     }
 
     return NextResponse.json({
+      success: true,
       ok: true,
       sale_id: saleId,
       fiscal_print_job_id: fiscalPrintJobId,
