@@ -1,7 +1,7 @@
 // app/dashboard/cassa/[appointmentId]/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchCashServices } from "@/lib/servicesCatalog";
@@ -61,6 +61,8 @@ export default function CassaPage() {
   const [products, setProducts] = useState<any[]>([]);
 
   const [items, setItems] = useState<CashItem[]>([]);
+  /** Evita che un secondo load (es. React Strict Mode in dev) sovrascriva il carrello con solo i servizi da appuntamento. */
+  const initialCartSeededForAppointmentRef = useRef<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [globalDiscountEur, setGlobalDiscountEur] = useState(0);
 
@@ -220,26 +222,29 @@ setProducts(pr || []);
 
 
     // 5) Auto-popola righe: price = salvato, se 0 -> fallback da service_prices (se esiste)
-    if (asRows.length) {
-      const initialItems: CashItem[] = asRows.map((as: any) => {
-        const saved = toNum(as.price, 0);
-        const fallback = priceMap.get(String(as.service_id)) ?? 0;
-        const unitPrice = saved > 0 ? saved : fallback;
+    if (initialCartSeededForAppointmentRef.current !== appointmentId) {
+      initialCartSeededForAppointmentRef.current = appointmentId;
+      if (asRows.length) {
+        const initialItems: CashItem[] = asRows.map((as: any) => {
+          const saved = toNum(as.price, 0);
+          const fallback = priceMap.get(String(as.service_id)) ?? 0;
+          const unitPrice = saved > 0 ? saved : fallback;
 
-        return {
-          kind: "service",
-          id: Number(as.service_id),
-          name: String(as.service?.name ?? "Servizio"),
-          unitPrice,
-          qty: 1,
-          discountEur: 0,
-          accentHex: agendaVisualFromServiceRow(as.service ?? {}).accent,
-        };
-      });
+          return {
+            kind: "service" as const,
+            id: Number(as.service_id),
+            name: String(as.service?.name ?? "Servizio"),
+            unitPrice,
+            qty: 1,
+            discountEur: 0,
+            accentHex: agendaVisualFromServiceRow(as.service ?? {}).accent,
+          };
+        });
 
-      setItems(initialItems);
-    } else {
-      setItems([]);
+        setItems(initialItems);
+      } else {
+        setItems([]);
+      }
     }
 
     // 6) Status cassa
