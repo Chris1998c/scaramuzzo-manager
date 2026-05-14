@@ -634,6 +634,20 @@ export async function POST(req: Request) {
       );
     }
 
+    const cashSessionRaw = (activeSession as { id?: unknown }).id;
+    const cashSessionId =
+      typeof cashSessionRaw === "bigint"
+        ? Number(cashSessionRaw)
+        : typeof cashSessionRaw === "number"
+          ? Math.trunc(cashSessionRaw)
+          : toInt(cashSessionRaw, NaN);
+    if (!Number.isFinite(cashSessionId) || cashSessionId <= 0) {
+      return NextResponse.json(
+        { error: "Sessione cassa senza id valido" },
+        { status: 500 }
+      );
+    }
+
     const printerEnabled = Boolean(
       (activeSession as { printer_enabled?: unknown }).printer_enabled
     );
@@ -917,6 +931,7 @@ export async function POST(req: Request) {
         p_payment_method: paymentMethod,
         p_discount: totalDiscount,
         p_items: pItems,
+        p_cash_session_id: cashSessionId,
         p_appointment_id: appointmentId ?? null,
         p_idempotency_key: !appointmentId ? idempotencyKey : null,
       }
