@@ -148,192 +148,112 @@ export async function POST(req: Request) {
     }
 
     const sessionId = (session as any).id as number | bigint;
+    const cashSessionId =
+      typeof sessionId === "bigint" ? Number(sessionId) : Number(sessionId);
 
     const nowIso = new Date().toISOString();
     const openedAt = String((session as any).opened_at || nowIso);
 
-    // Totali sessione: opened_at -> now
-    const totals = await sumSalesByRange({
-      salonId,
-      startIso: openedAt,
-      endIso: nowIso,
+    const closingCash = toMoney((body as any)?.closing_cash);
+    const notesRaw = typeof body?.notes === "string" ? body.notes.trim() : "";
+    const pNotes = notesRaw.length > 0 ? notesRaw : null;
+
+    const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc("close_cash_session_atomic", {
+      p_cash_session_id: cashSessionId,
+      p_salon_id: salonId,
+      p_user_id: userId,
+      p_closing_cash: closingCash,
+      p_notes: pNotes,
     });
 
-    // closing_cash e note
-    const closingCash = toMoney((body as any)?.closing_cash);
-    const notes = typeof body?.notes === "string" ? body.notes.trim() : null;
-
-    const cashSessionId =
-      typeof sessionId === "bigint" ? Number(sessionId) : Number(sessionId);
-
-    const { data: blockRows, error: blockErr } = await supabaseAdmin
-      .from("fiscal_print_jobs")
-      .select("id")
-      .eq("salon_id", salonId)
-      .eq("kind", "sale_receipt")
-      .in("status", ["pending", "processing", "error"])
-      .limit(1);
-
-    if (blockErr) {
-      return NextResponse.json({ error: blockErr.message }, { status: 500 });
-    }
-    if (blockRows && blockRows.length > 0) {
-      return NextResponse.json(
-        { error: "Impossibile chiudere la cassa: ricevute fiscali non completate." },
-        { status: 409 }
-      );
-    }
-
-    let fiscalWarning: string | null = null;
-    let fiscalJob: any | null = null;
-    try {
-      const { data: profile, error: profErr } = await supabaseAdmin.rpc("get_fiscal_profile", {
-        p_salon_id: salonId,
-        p_on_date: nowIso.slice(0, 10),
-      });
-
-      if (profErr || !profile || profile.length === 0) {
-        fiscalWarning = "Fiscal profile non trovato per il salone; Z non richiesta";
-      } else {
-        const fiscal = profile[0] as any;
-
-        const selectZForSession = async () => {
-          const { data: row, error: selErr } = await supabaseAdmin
-            .from("fiscal_print_jobs")
-            .select()
-            .eq("kind", "z_report")
-            .eq("cash_session_id", cashSessionId)
-            .maybeSingle();
-          return { row, selErr };
-        };
-
-        const existing = await selectZForSession();
-        if (existing.selErr) {
-          throw new Error(`Job fiscale Z: lookup fallito: ${existing.selErr.message ?? "errore"}`);
-        }
-        if (existing.row) {
-          fiscalJob = existing.row;
-        } else {
-          const payload = {
-            cash_session_id: cashSessionId,
-            requested_at: nowIso,
-            printer_serial: fiscal.printer_serial,
-          };
-          const { data: inserted, error: jobErr } = await supabaseAdmin
-            .from("fiscal_print_jobs")
-            .insert({
-              salon_id: salonId,
-              created_by: userId,
-              kind: "z_report",
-              cash_session_id: cashSessionId,
-              printer_model: fiscal.printer_model,
-              printer_serial: fiscal.printer_serial,
-              payload,
-              status: "pending",
-            })
-            .select()
-            .single();
-
-          const dup =
-            jobErr?.code === "23505" ||
-            /duplicate key|unique constraint/i.test(String(jobErr?.message ?? ""));
-
-          if (!jobErr && inserted) {
-            fiscalJob = inserted;
-          } else if (dup) {
-            const again = await selectZForSession();
-            if (again.selErr) {
-              throw new Error(
-                `Job fiscale Z: conflitto ma refetch fallito: ${again.selErr.message ?? "errore"}`
-              );
-            }
-            if (again.row) {
-              fiscalJob = again.row;
-            } else {
-              throw new Error("Job fiscale Z: conflitto unique senza job trovato");
-            }
-          } else if (jobErr) {
-            throw new Error(`Job fiscale Z non creato: ${jobErr.message ?? "errore"}`);
-          }
-        }
+    if (rpcErr) {
+      const msg = rpcErr.message ?? "";
+      if (msg.includes("ricevute fiscali non completate")) {
+        return NextResponse.json({ error: msg }, { status: 409 });
       }
-    } catch (e) {
-      return NextResponse.json({ error: errMsg(e) }, { status: 500 });
+      if (msg.includes("sessione non trovata") || msg.includes("salon")) {
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+      return NextResponse.json({ error: msg }, { status: 500 });
     }
 
-    const patch: any = {
-      closing_cash: closingCash,
-      status: "closed",
-      closed_by: authData.user.id,
-      closed_at: nowIso,
-    };
+    const rpcRow =
+      Array.isArray(rpcRows) && rpcRows.length > 0
+        ? (rpcRows[0] as {
+            cash_session_id: number;
+            z_job_id: number | null;
+            closed_at: string;
+            already_closed: boolean;
+          })
+        : null;
 
-    if (notes) patch.notes = notes;
+    if (!rpcRow) {
+      return NextResponse.json({ error: "Risposta RPC vuota" }, { status: 500 });
+    }
 
-    const { data: updatedRows, error: updErr } = await supabaseAdmin
+    const { data: fullSession, error: fsErr } = await supabaseAdmin
       .from("cash_sessions")
-      .update(patch)
-      .eq("id", sessionId)
-      .is("closed_at", null)
       .select(
         "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes"
+      )
+      .eq("id", rpcRow.cash_session_id)
+      .maybeSingle();
+
+    if (fsErr || !fullSession) {
+      return NextResponse.json(
+        { error: fsErr?.message ?? "Sessione non recuperabile dopo RPC" },
+        { status: 500 }
       );
+    }
 
-    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+    const closedAtIso = String((fullSession as any).closed_at ?? rpcRow.closed_at);
+    const openedAtForTotals = String((fullSession as any).opened_at ?? openedAt);
+    const totalsOut = await sumSalesByRange({
+      salonId,
+      startIso: openedAtForTotals,
+      endIso: closedAtIso,
+    });
 
-    const updated =
-      Array.isArray(updatedRows) && updatedRows.length > 0 ? updatedRows[0] : null;
+    let fiscalJob: any | null = null;
+    let fiscalWarning: string | null = null;
 
-    if (!updated) {
-      const { data: closedSession, error: closedErr } = await supabaseAdmin
-        .from("cash_sessions")
-        .select(
-          "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes"
-        )
-        .eq("id", sessionId)
-        .maybeSingle();
-
-      if (closedErr || !closedSession) {
-        return NextResponse.json(
-          { error: closedErr?.message ?? "Sessione non trovata dopo chiusura concorrente" },
-          { status: 500 }
-        );
-      }
-
-      const cs = closedSession as any;
-      const closedAtIso = String(cs.closed_at ?? nowIso);
-      const openedAtReplay = String(cs.opened_at ?? closedAtIso);
-      const totalsReplay = await sumSalesByRange({
-        salonId,
-        startIso: openedAtReplay,
-        endIso: closedAtIso,
-      });
-
+    if (rpcRow.already_closed) {
       return NextResponse.json({
         ok: true,
         already_closed: true,
         salon: { id: (salonRow as any).id, name: (salonRow as any).name ?? null },
-        session: closedSession,
+        session: fullSession,
         totals: {
-          session_gross: totalsReplay.gross,
-          session_cash: totalsReplay.cash,
-          session_card: totalsReplay.card,
-          session_count_sales: totalsReplay.count,
+          session_gross: totalsOut.gross,
+          session_cash: totalsOut.cash,
+          session_card: totalsOut.card,
+          session_count_sales: totalsOut.count,
         },
         fiscal_job: null,
         fiscal_warning: null,
       });
     }
 
+    if (rpcRow.z_job_id != null) {
+      const { data: fj } = await supabaseAdmin
+        .from("fiscal_print_jobs")
+        .select()
+        .eq("id", rpcRow.z_job_id)
+        .maybeSingle();
+      fiscalJob = fj ?? null;
+    } else {
+      fiscalWarning = "Fiscal profile non trovato per il salone; Z non richiesta";
+    }
+
     return NextResponse.json({
       ok: true,
       salon: { id: (salonRow as any).id, name: (salonRow as any).name ?? null },
-      session: updated,
+      session: fullSession,
       totals: {
-        session_gross: totals.gross,
-        session_cash: totals.cash,
-        session_card: totals.card,
-        session_count_sales: totals.count,
+        session_gross: totalsOut.gross,
+        session_cash: totalsOut.cash,
+        session_card: totalsOut.card,
+        session_count_sales: totalsOut.count,
       },
       fiscal_job: fiscalJob,
       fiscal_warning: fiscalWarning,
