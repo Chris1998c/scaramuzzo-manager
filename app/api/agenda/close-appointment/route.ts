@@ -26,6 +26,16 @@ function toInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+function appointmentHasSaleId(saleId: unknown): boolean {
+  if (saleId == null) return false;
+  if (typeof saleId === "bigint") return saleId > BigInt(0);
+  if (typeof saleId === "number") return Number.isFinite(saleId) && saleId > 0;
+  const n = Number(saleId);
+  return Number.isFinite(n) && n > 0;
+}
+
+const MUST_CLOSE_AT_CASH_REGISTER = "L'appuntamento deve essere chiuso dalla cassa.";
+
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -101,14 +111,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // Idempotente
-    if ((appt as any).status === "done") {
+    const saleId = (appt as { sale_id?: unknown }).sale_id;
+    const hasSaleId = appointmentHasSaleId(saleId);
+
+    // Idempotente: "done" solo se esiste vendita in cassa
+    if (apptStatus === "done") {
+      if (!hasSaleId) {
+        return NextResponse.json({ error: MUST_CLOSE_AT_CASH_REGISTER }, { status: 409 });
+      }
       return NextResponse.json(
         {
           ok: true,
           appointment_id: appointmentId,
           already_closed: true,
-          sale_id: (appt as any).sale_id ?? null,
+          sale_id: saleId ?? null,
         },
         { status: 200 }
       );
@@ -122,6 +138,10 @@ export async function POST(req: Request) {
         },
         { status: 409 }
       );
+    }
+
+    if (!hasSaleId) {
+      return NextResponse.json({ error: MUST_CLOSE_AT_CASH_REGISTER }, { status: 409 });
     }
 
     // CLOSE only (no sales creation)
@@ -140,7 +160,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       appointment_id: appointmentId,
-      sale_id: (appt as any).sale_id ?? null,
+      sale_id: saleId ?? null,
     });
   } catch (e) {
     return NextResponse.json(

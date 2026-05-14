@@ -163,6 +163,104 @@ export async function POST(req: Request) {
     const closingCash = toMoney((body as any)?.closing_cash);
     const notes = typeof body?.notes === "string" ? body.notes.trim() : null;
 
+    const cashSessionId =
+      typeof sessionId === "bigint" ? Number(sessionId) : Number(sessionId);
+
+    const { data: blockRows, error: blockErr } = await supabaseAdmin
+      .from("fiscal_print_jobs")
+      .select("id")
+      .eq("salon_id", salonId)
+      .eq("kind", "sale_receipt")
+      .in("status", ["pending", "processing", "error"])
+      .limit(1);
+
+    if (blockErr) {
+      return NextResponse.json({ error: blockErr.message }, { status: 500 });
+    }
+    if (blockRows && blockRows.length > 0) {
+      return NextResponse.json(
+        { error: "Impossibile chiudere la cassa: ricevute fiscali non completate." },
+        { status: 409 }
+      );
+    }
+
+    let fiscalWarning: string | null = null;
+    let fiscalJob: any | null = null;
+    try {
+      const { data: profile, error: profErr } = await supabaseAdmin.rpc("get_fiscal_profile", {
+        p_salon_id: salonId,
+        p_on_date: nowIso.slice(0, 10),
+      });
+
+      if (profErr || !profile || profile.length === 0) {
+        fiscalWarning = "Fiscal profile non trovato per il salone; Z non richiesta";
+      } else {
+        const fiscal = profile[0] as any;
+
+        const selectZForSession = async () => {
+          const { data: row, error: selErr } = await supabaseAdmin
+            .from("fiscal_print_jobs")
+            .select()
+            .eq("kind", "z_report")
+            .eq("cash_session_id", cashSessionId)
+            .maybeSingle();
+          return { row, selErr };
+        };
+
+        const existing = await selectZForSession();
+        if (existing.selErr) {
+          throw new Error(`Job fiscale Z: lookup fallito: ${existing.selErr.message ?? "errore"}`);
+        }
+        if (existing.row) {
+          fiscalJob = existing.row;
+        } else {
+          const payload = {
+            cash_session_id: cashSessionId,
+            requested_at: nowIso,
+            printer_serial: fiscal.printer_serial,
+          };
+          const { data: inserted, error: jobErr } = await supabaseAdmin
+            .from("fiscal_print_jobs")
+            .insert({
+              salon_id: salonId,
+              created_by: userId,
+              kind: "z_report",
+              cash_session_id: cashSessionId,
+              printer_model: fiscal.printer_model,
+              printer_serial: fiscal.printer_serial,
+              payload,
+              status: "pending",
+            })
+            .select()
+            .single();
+
+          const dup =
+            jobErr?.code === "23505" ||
+            /duplicate key|unique constraint/i.test(String(jobErr?.message ?? ""));
+
+          if (!jobErr && inserted) {
+            fiscalJob = inserted;
+          } else if (dup) {
+            const again = await selectZForSession();
+            if (again.selErr) {
+              throw new Error(
+                `Job fiscale Z: conflitto ma refetch fallito: ${again.selErr.message ?? "errore"}`
+              );
+            }
+            if (again.row) {
+              fiscalJob = again.row;
+            } else {
+              throw new Error("Job fiscale Z: conflitto unique senza job trovato");
+            }
+          } else if (jobErr) {
+            throw new Error(`Job fiscale Z non creato: ${jobErr.message ?? "errore"}`);
+          }
+        }
+      }
+    } catch (e) {
+      return NextResponse.json({ error: errMsg(e) }, { status: 500 });
+    }
+
     const patch: any = {
       closing_cash: closingCash,
       status: "closed",
@@ -225,81 +323,6 @@ export async function POST(req: Request) {
         fiscal_job: null,
         fiscal_warning: null,
       });
-    }
-
-    // Job fiscale Z (best effort, non blocca la chiusura)
-    let fiscalWarning: string | null = null;
-    let fiscalJob: any | null = null;
-    try {
-      const { data: profile, error: profErr } = await supabaseAdmin.rpc("get_fiscal_profile", {
-        p_salon_id: salonId,
-        p_on_date: nowIso.slice(0, 10),
-      });
-
-      if (profErr || !profile || profile.length === 0) {
-        fiscalWarning = "Fiscal profile non trovato per il salone; Z non richiesta";
-      } else {
-        const fiscal = profile[0] as any;
-        const cashSessionId = Number((updated as any).id);
-
-        const selectZForSession = async () => {
-          const { data: row, error: selErr } = await supabaseAdmin
-            .from("fiscal_print_jobs")
-            .select()
-            .eq("kind", "z_report")
-            .eq("cash_session_id", cashSessionId)
-            .maybeSingle();
-          return { row, selErr };
-        };
-
-        const existing = await selectZForSession();
-        if (existing.selErr) {
-          fiscalWarning = `Job fiscale Z: lookup fallito: ${existing.selErr.message ?? "errore"}`;
-        } else if (existing.row) {
-          fiscalJob = existing.row;
-        } else {
-          const payload = {
-            cash_session_id: cashSessionId,
-            requested_at: nowIso,
-            printer_serial: fiscal.printer_serial,
-          };
-          const { data: inserted, error: jobErr } = await supabaseAdmin
-            .from("fiscal_print_jobs")
-            .insert({
-              salon_id: salonId,
-              created_by: userId,
-              kind: "z_report",
-              cash_session_id: cashSessionId,
-              printer_model: fiscal.printer_model,
-              printer_serial: fiscal.printer_serial,
-              payload,
-              status: "pending",
-            })
-            .select()
-            .single();
-
-          const dup =
-            jobErr?.code === "23505" ||
-            /duplicate key|unique constraint/i.test(String(jobErr?.message ?? ""));
-
-          if (!jobErr && inserted) {
-            fiscalJob = inserted;
-          } else if (dup) {
-            const again = await selectZForSession();
-            if (again.selErr) {
-              fiscalWarning = `Job fiscale Z: conflitto ma refetch fallito: ${again.selErr.message ?? "errore"}`;
-            } else if (again.row) {
-              fiscalJob = again.row;
-            } else {
-              fiscalWarning = `Job fiscale Z: conflitto unique senza job trovato`;
-            }
-          } else if (jobErr) {
-            fiscalWarning = `Job fiscale Z non creato: ${jobErr.message ?? "errore"}`;
-          }
-        }
-      }
-    } catch (e) {
-      fiscalWarning = `Errore creazione job fiscale Z: ${errMsg(e)}`;
     }
 
     return NextResponse.json({
