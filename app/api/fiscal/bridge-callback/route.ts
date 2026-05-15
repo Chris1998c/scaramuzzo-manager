@@ -28,8 +28,21 @@ function parseOutcome(body: Record<string, unknown> | null): boolean | null {
   if (body.success === true) return true;
   if (body.success === false) return false;
   const s = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase() : "");
-  if (s(body.status) === "completed" || s(body.result) === "ok") return true;
-  if (s(body.status) === "failed" || s(body.result) === "error") return false;
+  // Body callback: accetta alias legacy; finalize_fiscal_job_atomic scrive completed|failed sul job.
+  if (
+    s(body.status) === "completed" ||
+    s(body.status) === "done" ||
+    s(body.result) === "ok"
+  ) {
+    return true;
+  }
+  if (
+    s(body.status) === "failed" ||
+    s(body.status) === "error" ||
+    s(body.result) === "error"
+  ) {
+    return false;
+  }
   return null;
 }
 
