@@ -19,10 +19,19 @@ export type FiscalDocumentView = {
   created_at: string | null;
 };
 
+export type VoidVoidJobInfo = {
+  job_id: number;
+  status: string;
+};
+
 export type FiscalDocumentBySaleResponse = {
   ok: boolean;
   error?: string;
   sale_id?: number;
   fiscal_status?: string | null;
+  sale_status?: string | null;
   document: FiscalDocumentView | null;
+  void_void_job?: VoidVoidJobInfo | null;
+  can_void_fiscal?: boolean;
+  void_blocked_reason?: string | null;
 };

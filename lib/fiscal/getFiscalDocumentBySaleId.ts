@@ -1,28 +1,63 @@
 import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import type { FiscalDocumentView } from "@/lib/fiscal/fiscalDocumentTypes";
+import type {
+  FiscalDocumentView,
+  VoidVoidJobInfo,
+} from "@/lib/fiscal/fiscalDocumentTypes";
 
 export async function getFiscalDocumentBySaleId(
   saleId: number,
 ): Promise<{
   fiscal_status: string | null;
+  sale_status: string | null;
   document: FiscalDocumentView | null;
+  void_void_job: VoidVoidJobInfo | null;
 }> {
   const { data: saleRow, error: saleErr } = await supabaseAdmin
     .from("sales")
-    .select("id, fiscal_status")
+    .select("id, fiscal_status, status")
     .eq("id", saleId)
     .maybeSingle();
 
   if (saleErr) throw saleErr;
   if (!saleRow) {
-    return { fiscal_status: null, document: null };
+    return {
+      fiscal_status: null,
+      sale_status: null,
+      document: null,
+      void_void_job: null,
+    };
   }
 
   const fiscal_status =
     String((saleRow as { fiscal_status?: unknown }).fiscal_status ?? "").trim() ||
     "pending";
+  const sale_status = String(
+    (saleRow as { status?: unknown }).status ?? "posted",
+  ).trim();
+
+  const { data: voidJobRows, error: voidJobErr } = await supabaseAdmin
+    .from("fiscal_print_jobs")
+    .select("id, status")
+    .eq("sale_id", saleId)
+    .eq("kind", "void_receipt")
+    .in("status", ["pending", "processing", "completed"])
+    .order("id", { ascending: false })
+    .limit(1);
+
+  if (voidJobErr) throw voidJobErr;
+
+  let void_void_job: VoidVoidJobInfo | null = null;
+  const voidRaw = (voidJobRows ?? [])[0] as
+    | { id?: unknown; status?: unknown }
+    | undefined;
+  if (voidRaw?.id != null) {
+    void_void_job = {
+      job_id: Number(voidRaw.id),
+      status: String(voidRaw.status ?? "pending"),
+    };
+  }
 
   const { data: docRows, error: docErr } = await supabaseAdmin
     .from("fiscal_documents")
@@ -43,6 +78,7 @@ export async function getFiscalDocumentBySaleId(
     `,
     )
     .eq("sale_id", saleId)
+    .eq("document_type", "sale_receipt")
     .order("created_at", { ascending: false })
     .limit(1);
 
@@ -50,7 +86,7 @@ export async function getFiscalDocumentBySaleId(
 
   const raw = (docRows ?? [])[0] as Record<string, unknown> | undefined;
   if (!raw) {
-    return { fiscal_status, document: null };
+    return { fiscal_status, sale_status, document: null, void_void_job };
   }
 
   const job = raw.fiscal_print_jobs as { status?: unknown } | null;
@@ -87,5 +123,5 @@ export async function getFiscalDocumentBySaleId(
     created_at: raw.created_at != null ? String(raw.created_at) : null,
   };
 
-  return { fiscal_status, document };
+  return { fiscal_status, sale_status, document, void_void_job };
 }

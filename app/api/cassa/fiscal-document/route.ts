@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getFiscalDocumentBySaleId } from "@/lib/fiscal/getFiscalDocumentBySaleId";
+import { computeVoidFiscalEligibility } from "@/lib/fiscal/voidFiscalEligibility";
 import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
@@ -63,13 +64,26 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
     }
 
-    const { fiscal_status, document } = await getFiscalDocumentBySaleId(saleId);
+    const { fiscal_status, sale_status, document, void_void_job } =
+      await getFiscalDocumentBySaleId(saleId);
+
+    const voidEligibility = computeVoidFiscalEligibility({
+      isCoordinator: access.role === "coordinator",
+      fiscalStatus: fiscal_status,
+      saleStatus: sale_status,
+      document,
+      voidVoidJob: void_void_job,
+    });
 
     return NextResponse.json({
       ok: true,
       sale_id: saleId,
       fiscal_status,
+      sale_status,
       document,
+      void_void_job,
+      can_void_fiscal: voidEligibility.canVoid,
+      void_blocked_reason: voidEligibility.reason,
     });
   } catch (e) {
     console.error("GET /api/cassa/fiscal-document", e);
