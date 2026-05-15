@@ -74,6 +74,33 @@ export function parseLocal(ts: string): Date {
   return new Date(y || 0, (m || 1) - 1, d || 1, hh || 0, mm || 0, ss || 0, 0);
 }
 
+/** Ora corrente come wall clock Europe/Rome (allineato a timestamp without time zone in DB). */
+export function nowRomeLocalDate(): Date {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value ?? 0);
+
+  return new Date(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+    0,
+  );
+}
+
 export function toNoZ(dt: Date): string {
   const y = dt.getFullYear();
   const m = String(dt.getMonth() + 1).padStart(2, "0");

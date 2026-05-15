@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { toast } from "sonner";
+import WalkInModal from "@/components/in-sala/WalkInModal";
 type CashStatus = {
   ok: boolean;
   role?: "reception" | "coordinator" | "magazzino" | string;
@@ -60,6 +61,7 @@ export default function InSalaPage() {
   const [closeCash, setCloseCash] = useState(false);
   const [closeCashValue, setCloseCashValue] = useState<number>(0);
   const [closeCashNotes, setCloseCashNotes] = useState<string>("");
+  const [walkInOpen, setWalkInOpen] = useState(false);
 
   function fmtEur(n: unknown) {
     const x = typeof n === "number" ? n : Number(n);
@@ -81,7 +83,7 @@ export default function InSalaPage() {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "id, customer_id, start_time, end_time, status, notes, customers(id, first_name, last_name), staff(id, name)",
+        "id, customer_id, start_time, end_time, status, source, notes, customers(id, first_name, last_name), staff(id, name)",
       )
       .eq("salon_id", Number(activeSalonId))
       .eq("status", "in_sala")
@@ -236,6 +238,16 @@ export default function InSalaPage() {
     await Promise.all([loadAppointments(), loadCashStatus()]);
   }
 
+  function handleWalkInCreated(appointmentId: number) {
+    void loadAppointments();
+    toast.success("Walk-in creato e in sala.", {
+      action: {
+        label: "Apri cassa",
+        onClick: () => router.push(`/dashboard/cassa/${appointmentId}`),
+      },
+    });
+  }
+
   useEffect(() => {
     if (!isReady) return;
     void refreshAll();
@@ -271,7 +283,14 @@ export default function InSalaPage() {
                 {salonName ? ` · ${salonName}` : ""}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setWalkInOpen(true)}
+                className="h-11 px-5 rounded-xl bg-emerald-500/90 text-black font-black text-[10px] uppercase tracking-wider hover:opacity-95 transition-colors"
+              >
+                Nuovo Walk-In
+              </button>
               <button
                 type="button"
                 onClick={() => router.push("/dashboard/agenda")}
@@ -421,11 +440,20 @@ export default function InSalaPage() {
                   : `${rows.length} ${rows.length === 1 ? "appuntamento" : "appuntamenti"} in sala`}
             </div>
           </div>
-          {!loading && rows.length > 0 && (
-            <span className="rounded-full bg-[#f3d8b6]/10 border border-[#f3d8b6]/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#f3d8b6]">
-              Live
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setWalkInOpen(true)}
+              className="h-9 px-4 rounded-xl bg-emerald-500/90 text-black font-black text-[10px] uppercase tracking-wider hover:opacity-95"
+            >
+              Nuovo Walk-In
+            </button>
+            {!loading && rows.length > 0 && (
+              <span className="rounded-full bg-[#f3d8b6]/10 border border-[#f3d8b6]/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#f3d8b6]">
+                Live
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="p-6 md:p-7">
@@ -443,15 +471,24 @@ export default function InSalaPage() {
                 Nessun appuntamento in sala
               </p>
               <p className="mt-2 text-sm text-white/50 max-w-[280px]">
-                Porta i clienti in sala dall’Agenda per vederli qui e aprire la cassa.
+                Porta i clienti in sala dall’Agenda oppure crea un walk-in.
               </p>
-              <button
-                type="button"
-                onClick={() => router.push("/dashboard/agenda")}
-                className="mt-6 h-11 px-5 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] bg-[#f3d8b6]/10 border border-[#f3d8b6]/30 text-[#f3d8b6] hover:bg-[#f3d8b6]/20 transition-colors"
-              >
-                Vai all’Agenda
-              </button>
+              <div className="mt-6 flex flex-wrap gap-2 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setWalkInOpen(true)}
+                  className="h-11 px-5 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] bg-emerald-500/90 text-black hover:opacity-95 transition-colors"
+                >
+                  Nuovo Walk-In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/agenda")}
+                  className="h-11 px-5 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] bg-[#f3d8b6]/10 border border-[#f3d8b6]/30 text-[#f3d8b6] hover:bg-[#f3d8b6]/20 transition-colors"
+                >
+                  Vai all’Agenda
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -493,10 +530,15 @@ export default function InSalaPage() {
                           {start} – {end}
                         </div>
                       </div>
-                      <div className="flex items-end gap-2">
+                      <div className="flex items-end gap-2 flex-wrap">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                           In sala
                         </span>
+                        {a?.source === "walk_in" && (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                            Walk-In
+                          </span>
+                        )}
                         {a?.notes && (
                           <span className="text-white/40 text-xs truncate max-w-[120px]" title={a.notes}>
                             {a.notes}
@@ -642,6 +684,12 @@ export default function InSalaPage() {
           </div>
         </div>
       )}
+
+      <WalkInModal
+        isOpen={walkInOpen}
+        close={() => setWalkInOpen(false)}
+        onCreated={handleWalkInCreated}
+      />
     </div>
   );
 }
