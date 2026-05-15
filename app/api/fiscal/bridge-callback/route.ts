@@ -1,6 +1,10 @@
 // app/api/fiscal/bridge-callback/route.ts
 // Print Bridge (o worker) chiama POST con header x-fiscal-callback-secret = FISCAL_BRIDGE_CALLBACK_SECRET.
 import { NextResponse } from "next/server";
+import {
+  buildFinalizeResult,
+  readBridgeIdFromCallback,
+} from "@/lib/fiscal/buildFinalizeResult";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -111,10 +115,15 @@ export async function POST(req: Request) {
         ? body.error
         : null;
 
+  const pResult = buildFinalizeResult(body);
+  const pBridgeId = readBridgeIdFromCallback(body, req.headers);
+
   const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc("finalize_fiscal_job_atomic", {
     p_job_id: row.id,
     p_success: ok,
     p_error_message: callbackError,
+    p_result: pResult,
+    p_bridge_id: pBridgeId,
   });
 
   if (rpcErr) {

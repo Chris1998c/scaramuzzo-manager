@@ -8,6 +8,7 @@ import { fetchCashServices } from "@/lib/servicesCatalog";
 import { agendaVisualFromServiceRow } from "@/lib/agendaServiceVisual";
 import Link from "next/link";
 import { toast } from "sonner";
+import FiscalDocumentCard from "@/components/cassa/FiscalDocumentCard";
 
 /* =======================
    TYPES
@@ -409,6 +410,10 @@ setProducts(pr || []);
   const isNotInSala =
     appointment?.status !== "in_sala" && appointment?.status !== "done";
 
+  const linkedSaleId = Number(appointment?.sale_id);
+  const hasLinkedSale =
+    Number.isFinite(linkedSaleId) && linkedSaleId > 0;
+
   const canClose =
     !closing &&
     !isNotInSala &&
@@ -679,6 +684,8 @@ setProducts(pr || []);
           )}
         </div>
       </div>
+
+      {hasLinkedSale && <FiscalDocumentCard saleId={linkedSaleId} />}
 
       {/* AGGIUNGI SERVIZI / PRODOTTI */}
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
