@@ -63,14 +63,32 @@ const errMsg = (e: unknown) => {
   }
 };
 
-/** RPC `sale_id bigint` può arrivare come bigint → NextResponse.json non serializza BigInt (500 HTML). */
-function coerceRpcSaleId(row: unknown): number | null {
-  if (!row || typeof row !== "object") return null;
-  const v = (row as { sale_id?: unknown }).sale_id;
+/** RPC può restituire bigint → NextResponse.json non serializza BigInt (500 HTML). */
+function coerceRpcBigintField(v: unknown): number | null {
   if (v == null) return null;
   if (typeof v === "bigint") return Number(v);
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+function coerceRpcCloseSale(row: unknown): {
+  saleId: number | null;
+  fiscalPrintJobId: number | null;
+  reusedSale: boolean;
+} {
+  if (!row || typeof row !== "object") {
+    return { saleId: null, fiscalPrintJobId: null, reusedSale: false };
+  }
+  const r = row as {
+    sale_id?: unknown;
+    fiscal_print_job_id?: unknown;
+    reused_sale?: unknown;
+  };
+  return {
+    saleId: coerceRpcBigintField(r.sale_id),
+    fiscalPrintJobId: coerceRpcBigintField(r.fiscal_print_job_id),
+    reusedSale: r.reused_sale === true,
+  };
 }
 
 function normalizeLines(body: CloseBody) {
@@ -190,225 +208,6 @@ function buildFiscalSaleReceiptLines(args: {
       vat_rate: 22,
     };
   });
-}
-
-async function getOrCreateSaleReceiptPrintJob(args: {
-  salonId: number;
-  userId: string;
-  saleId: number;
-  fiscal: FiscalProfileForJob;
-  finalTotal: number;
-  paymentMethod: PaymentMethod;
-  fiscalLines: FiscalSaleReceiptLine[];
-}): Promise<
-  | { ok: true; jobId: number; createdThisRequest: boolean }
-  | { ok: false; error: string }
-> {
-  const { data: existing, error: selErr } = await supabaseAdmin
-    .from("fiscal_print_jobs")
-    .select("id")
-    .eq("kind", "sale_receipt")
-    .eq("sale_id", args.saleId)
-    .maybeSingle();
-
-  if (selErr) {
-    return { ok: false, error: selErr.message ?? "lookup fiscal job" };
-  }
-  if (existing?.id != null) {
-    return { ok: true, jobId: Number(existing.id), createdThisRequest: false };
-  }
-
-  const fiscal = args.fiscal;
-  const { data: ins, error: insErr } = await supabaseAdmin
-    .from("fiscal_print_jobs")
-    .insert({
-      salon_id: args.salonId,
-      created_by: args.userId,
-      kind: "sale_receipt",
-      sale_id: args.saleId,
-      printer_model: fiscal.printer_model,
-      printer_serial: fiscal.printer_serial,
-      payload: {
-        sale_id: args.saleId,
-        total_amount: args.finalTotal,
-        payment_method: args.paymentMethod,
-        legal_name: fiscal.legal_name,
-        vat_number: fiscal.vat_number,
-        printer_serial: fiscal.printer_serial,
-        requested_at: new Date().toISOString(),
-        items: args.fiscalLines,
-      },
-      status: "pending",
-    })
-    .select("id")
-    .single();
-
-  if (!insErr && ins?.id != null) {
-    return { ok: true, jobId: Number(ins.id), createdThisRequest: true };
-  }
-
-  const dup =
-    insErr?.code === "23505" ||
-    /duplicate key|unique constraint/i.test(String(insErr?.message ?? ""));
-
-  if (dup) {
-    const { data: again, error: againErr } = await supabaseAdmin
-      .from("fiscal_print_jobs")
-      .select("id")
-      .eq("kind", "sale_receipt")
-      .eq("sale_id", args.saleId)
-      .maybeSingle();
-    if (againErr) {
-      return { ok: false, error: againErr.message ?? "conflict refetch job" };
-    }
-    if (again?.id != null) {
-      return { ok: true, jobId: Number(again.id), createdThisRequest: false };
-    }
-  }
-
-  return { ok: false, error: insErr?.message ?? "insert fiscal job failed" };
-}
-
-/** Post-vendita: marca incoerenza fiscale senza sovrascrivere stati finali. */
-async function markSaleFiscalQueueError(saleId: number, context: string) {
-  const { data, error } = await supabaseAdmin
-    .from("sales")
-    .update({ fiscal_status: "error" })
-    .eq("id", saleId)
-    .in("fiscal_status", ["pending", "queued"])
-    .select("id");
-
-  if (error) {
-    console.error(`[cassa/close] markSaleFiscalQueueError failed (${context})`, error);
-    return;
-  }
-  if (!data?.length) {
-    console.info(`[cassa/close] markSaleFiscalQueueError skipped (${context})`, {
-      sale_id: saleId,
-    });
-  }
-}
-
-type EnsureFiscalPostSaleFailure = {
-  ok: false;
-  /** Vendita già persistita: rispondi 200 + warning, non 500. */
-  postSaleRecoverable: true;
-  reason: string;
-  phase: "job" | "queued_update";
-};
-
-async function ensureFiscalJobAndMaybeQueueSale(args: {
-  saleId: number;
-  salonId: number;
-  userId: string;
-  fiscal: FiscalProfileForJob;
-  finalTotal: number;
-  paymentMethod: PaymentMethod;
-  fiscalLines: FiscalSaleReceiptLine[];
-  /** Se false: job creato ma `sales.fiscal_status` resta `pending` (bridge offline / non raggiungibile). */
-  bridgeReachable: boolean;
-}): Promise<
-  { ok: true; fiscalPrintJobId: number } | EnsureFiscalPostSaleFailure
-> {
-  const jobRes = await getOrCreateSaleReceiptPrintJob({
-    salonId: args.salonId,
-    userId: args.userId,
-    saleId: args.saleId,
-    fiscal: args.fiscal,
-    finalTotal: args.finalTotal,
-    paymentMethod: args.paymentMethod,
-    fiscalLines: args.fiscalLines,
-  });
-
-  if (!jobRes.ok) {
-    console.error("[cassa/close] fiscal_print_jobs create/lookup failed post-sale", {
-      sale_id: args.saleId,
-      error: jobRes.error,
-    });
-    await markSaleFiscalQueueError(args.saleId, "after_job_insert_fail");
-    return {
-      ok: false,
-      postSaleRecoverable: true,
-      reason: jobRes.error,
-      phase: "job",
-    };
-  }
-
-  const { jobId: fiscalPrintJobId, createdThisRequest } = jobRes;
-
-  if (!args.bridgeReachable) {
-    return { ok: true, fiscalPrintJobId };
-  }
-
-  const { data: saleAfterQueued, error: fsErr } = await supabaseAdmin
-    .from("sales")
-    .update({ fiscal_status: "queued" })
-    .eq("id", args.saleId)
-    .eq("fiscal_status", "pending")
-    .select("id");
-
-  if (fsErr) {
-    const detail = fsErr.message ?? "errore sconosciuto";
-    console.error("[cassa/close] sales fiscal_status -> queued failed", fsErr);
-
-    if (createdThisRequest) {
-      const { error: delErr } = await supabaseAdmin
-        .from("fiscal_print_jobs")
-        .delete()
-        .eq("id", fiscalPrintJobId);
-      if (delErr) {
-        console.error("[cassa/close] rollback fiscal_print_jobs failed", delErr);
-      }
-    }
-
-    await markSaleFiscalQueueError(args.saleId, "after_queued_update_fail");
-
-    return {
-      ok: false,
-      postSaleRecoverable: true,
-      reason: detail,
-      phase: "queued_update",
-    };
-  }
-
-  if (Array.isArray(saleAfterQueued) && saleAfterQueued.length === 0) {
-    console.info("[cassa/close] sales fiscal_status already finalized before queued update", {
-      sale_id: args.saleId,
-    });
-  }
-
-  return { ok: true, fiscalPrintJobId };
-}
-
-function jsonPostSaleFiscalQueueError(args: {
-  saleId: number;
-  printerEnabled: boolean;
-  subtotal: number;
-  finalTotal: number;
-  totalDiscount: number;
-  failure: EnsureFiscalPostSaleFailure;
-  idempotentReplay?: boolean;
-}) {
-  const baseHint =
-    args.failure.phase === "job"
-      ? "Impossibile creare o recuperare il job di stampa fiscale in modo idempotente."
-      : "Impossibile impostare la vendita su «in coda» per la stampa fiscale; il job appena creato è stato annullato dove possibile.";
-  const warning = `${baseHint} La vendita risulta comunque registrata in cassa. Dettaglio tecnico: ${args.failure.reason}`;
-
-  return {
-    success: true as const,
-    ok: true as const,
-    sale_id: args.saleId,
-    fiscal_status: "fiscal_queue_error" as const,
-    warning,
-    printer_enabled: args.printerEnabled,
-    totals: {
-      subtotal: args.subtotal,
-      total: args.finalTotal,
-      discount: args.totalDiscount,
-    },
-    ...(args.idempotentReplay ? { idempotent_replay: true as const } : {}),
-  };
 }
 
 /* =======================
@@ -812,77 +611,22 @@ export async function POST(req: Request) {
       productNameById,
     });
 
+    const fiscalEnabled = printerEnabled && fiscalProfileForJob != null;
+    const fiscalPayload = fiscalEnabled
+      ? {
+          total_amount: finalTotal,
+          payment_method: paymentMethod,
+          legal_name: fiscalProfileForJob.legal_name,
+          vat_number: fiscalProfileForJob.vat_number,
+          printer_model: fiscalProfileForJob.printer_model,
+          printer_serial: fiscalProfileForJob.printer_serial,
+          requested_at: new Date().toISOString(),
+          items: fiscalLines,
+        }
+      : null;
+
     // 7.5) GUARDIA MINIMA ANTI-DOPPIO INVIO (solo vendite senza appuntamento)
     if (!appointmentId) {
-      if (idempotencyKey) {
-        const { data: existingByKey, error: existingByKeyErr } = await supabaseAdmin
-          .from("sales")
-          .select("id")
-          .eq("salon_id", salonId)
-          .eq("idempotency_key", idempotencyKey)
-          .limit(1)
-          .maybeSingle();
-
-        if (existingByKeyErr) {
-          return NextResponse.json(
-            {
-              error: "Errore controllo idempotenza vendita",
-              details: existingByKeyErr.message,
-            },
-            { status: 500 }
-          );
-        }
-
-        if (existingByKey?.id != null) {
-          const replaySaleId = Number(existingByKey.id);
-          if (fiscalProfileForJob) {
-            const fiscalRes = await ensureFiscalJobAndMaybeQueueSale({
-              saleId: replaySaleId,
-              salonId,
-              userId,
-              fiscal: fiscalProfileForJob,
-              finalTotal,
-              paymentMethod,
-              fiscalLines,
-              bridgeReachable: printBridgeReachable,
-            });
-            if (!fiscalRes.ok) {
-              return NextResponse.json(
-                jsonPostSaleFiscalQueueError({
-                  saleId: replaySaleId,
-                  printerEnabled,
-                  subtotal,
-                  finalTotal,
-                  totalDiscount,
-                  failure: fiscalRes,
-                  idempotentReplay: true,
-                }),
-                { status: 200 }
-              );
-            }
-            return NextResponse.json({
-              success: true,
-              ok: true,
-              sale_id: replaySaleId,
-              fiscal_print_job_id: fiscalRes.fiscalPrintJobId,
-              printer_enabled: printerEnabled,
-              print_bridge_reachable: printBridgeReachable,
-              ...(printBridgeWarning
-                ? { print_bridge_warning: printBridgeWarning }
-                : {}),
-              totals: { subtotal, total: finalTotal, discount: totalDiscount },
-              idempotent_replay: true,
-            });
-          }
-          return NextResponse.json({
-            success: true,
-            ok: true,
-            sale_id: replaySaleId,
-            idempotent_replay: true,
-          });
-        }
-      }
-
       const now = new Date();
       const fiveSecondsAgo = new Date(now.getTime() - 5_000).toISOString();
 
@@ -912,7 +656,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 8) CHIUSURA ATOMICA VIA RPC (sales + sale_items + stock_move + appointment)
+    // 8) CHIUSURA ATOMICA VIA RPC (vendita + job fiscale + stock + appointment)
     const pItems = computedItems.map((l) => ({
       kind: l.kind,
       ref_id: l.id,
@@ -934,6 +678,10 @@ export async function POST(req: Request) {
         p_cash_session_id: cashSessionId,
         p_appointment_id: appointmentId ?? null,
         p_idempotency_key: !appointmentId ? idempotencyKey : null,
+        p_created_by: userId,
+        p_fiscal_enabled: fiscalEnabled,
+        p_fiscal_payload: fiscalPayload,
+        p_fiscal_bridge_reachable: printBridgeReachable,
       }
     );
 
@@ -945,10 +693,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const saleId =
-      Array.isArray(rpcData) && rpcData.length > 0
-        ? coerceRpcSaleId(rpcData[0])
-        : null;
+    const rpcRow =
+      Array.isArray(rpcData) && rpcData.length > 0 ? rpcData[0] : null;
+    const { saleId, fiscalPrintJobId, reusedSale } = coerceRpcCloseSale(rpcRow);
+
     if (saleId == null || !Number.isFinite(saleId)) {
       return NextResponse.json(
         { error: "RPC non ha restituito sale_id" },
@@ -956,42 +704,13 @@ export async function POST(req: Request) {
       );
     }
 
-    let fiscalPrintJobId: number | undefined;
-
-    if (fiscalProfileForJob) {
-      const fiscalRes = await ensureFiscalJobAndMaybeQueueSale({
-        saleId,
-        salonId,
-        userId,
-        fiscal: fiscalProfileForJob,
-        finalTotal,
-        paymentMethod,
-        fiscalLines,
-        bridgeReachable: printBridgeReachable,
-      });
-      if (!fiscalRes.ok) {
-        return NextResponse.json(
-          jsonPostSaleFiscalQueueError({
-            saleId,
-            printerEnabled,
-            subtotal,
-            finalTotal,
-            totalDiscount,
-            failure: fiscalRes,
-          }),
-          { status: 200 }
-        );
-      }
-      fiscalPrintJobId = fiscalRes.fiscalPrintJobId;
-    }
-
     return NextResponse.json({
       success: true,
       ok: true,
       sale_id: saleId,
-      fiscal_print_job_id: fiscalPrintJobId,
+      fiscal_print_job_id: fiscalPrintJobId ?? undefined,
       printer_enabled: printerEnabled,
-      ...(fiscalProfileForJob
+      ...(fiscalEnabled
         ? {
             print_bridge_reachable: printBridgeReachable,
             ...(printBridgeWarning
@@ -1000,6 +719,7 @@ export async function POST(req: Request) {
           }
         : {}),
       totals: { subtotal, total: finalTotal, discount: totalDiscount },
+      ...(reusedSale ? { idempotent_replay: true as const } : {}),
     });
   } catch (e) {
     console.error("[CASSA_CLOSE_PRODUCT_ERROR]", e);
