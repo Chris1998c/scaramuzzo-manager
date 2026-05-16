@@ -19,6 +19,8 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import type { ServiceSettingsRow } from "@/lib/servicesCatalog";
 import type { ProductSettingsRow } from "@/lib/productsSettings";
 import type { StaffSettingsRow } from "@/lib/staffSettings";
+import { STAFF_ROLE_LABELS } from "@/lib/staffSettings";
+import { salonLabel } from "@/lib/constants";
 import type { SalonSettingsRow } from "@/lib/salonsSettings";
 import type { FiscalSettingsSnapshot } from "@/lib/fiscalSettingsTypes";
 import type { CustomersDomainSnapshot } from "@/lib/customersDomainTypes";
@@ -64,7 +66,7 @@ const SECTIONS: Array<{
   {
     key: "collaboratori",
     label: "Collaboratori",
-    hint: "Anagrafica staff, codice e salone",
+    hint: "Anagrafica, saloni, turni e app mobile",
     icon: UserCog,
     ready: true,
   },
@@ -645,16 +647,21 @@ function CollaboratoriPanel({
   const salonName = useMemo(() => {
     const m = new Map<number, string>();
     allowedSalons.forEach((s) => m.set(s.id, s.name));
+    for (const id of [1, 2, 3, 4, 5] as const) {
+      if (!m.has(id)) m.set(id, salonLabel(id));
+    }
     return m;
   }, [allowedSalons]);
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm text-[#c9b299]">
+      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm text-[#c9b299] leading-relaxed">
         <span className="font-bold text-sky-200/95">Personale operativo</span>
         <span className="mx-2 text-white/25">·</span>
-        Ogni collaboratore ha un <code className="text-[#f3d8b6]/90">staff_code</code> univoco obbligatorio.
-        Assegnazione al salone tramite <code className="text-white/50">salon_id</code>.
+        Anagrafica per agenda, cassa, report e app Team. Salone primario in{" "}
+        <code className="text-white/50">staff.salon_id</code>; saloni aggiuntivi in{" "}
+        <code className="text-white/50">staff_salons</code>. Distinto dagli account gestionale (
+        <code className="text-white/50">users</code>).
       </div>
 
       {!canManageStaff ? (
@@ -681,28 +688,70 @@ function CollaboratoriPanel({
         <p className="text-[#c9b299] text-sm">Nessun collaboratore in anagrafica.</p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-[#5c3a21]/40">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
               <tr>
                 <th className="px-4 py-3">Codice</th>
                 <th className="px-4 py-3">Nome</th>
-                <th className="px-4 py-3">Salone</th>
+                <th className="px-4 py-3">Contatti</th>
+                <th className="px-4 py-3">Salone primario</th>
+                <th className="px-4 py-3">Saloni</th>
                 <th className="px-4 py-3">Ruolo</th>
+                <th className="px-4 py-3">Mobile</th>
                 <th className="px-4 py-3">Stato</th>
                 {canManageStaff ? <th className="px-4 py-3 text-right w-28">Azioni</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#5c3a21]/30">
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const roleLabel =
+                  (STAFF_ROLE_LABELS as Record<string, string>)[r.role] ?? r.role;
+                const extraSalons = r.associated_salon_ids.filter((id) => id !== r.salon_id);
+                return (
                 <tr key={r.id} className="text-[#e8dcc8] hover:bg-white/[0.03]">
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-[#f3d8b6]">
                     {r.staff_code}
                   </td>
                   <td className="px-4 py-3 font-semibold text-[#f3d8b6]">{r.name}</td>
-                  <td className="px-4 py-3 text-[#c9b299]">
-                    {salonName.get(r.salon_id) ?? `#${r.salon_id}`}
+                  <td className="px-4 py-3 text-[#c9b299] text-xs">
+                    {r.phone ? <div>{r.phone}</div> : null}
+                    {r.email ? (
+                      <div className="truncate max-w-[140px]" title={r.email}>
+                        {r.email}
+                      </div>
+                    ) : (
+                      <span className="text-white/25">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-[#c9b299]">{r.role}</td>
+                  <td className="px-4 py-3 text-[#c9b299]">
+                    {salonName.get(r.salon_id) ?? salonLabel(r.salon_id)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {extraSalons.length === 0 ? (
+                        <span className="text-[11px] text-white/30">—</span>
+                      ) : (
+                        extraSalons.map((id) => (
+                          <span
+                            key={id}
+                            className="inline-flex rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-200/90"
+                          >
+                            {salonName.get(id) ?? salonLabel(id)}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-[#c9b299]">{roleLabel}</td>
+                  <td className="px-4 py-3">
+                    {r.mobile_enabled ? (
+                      <span className="inline-flex rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-0.5 text-[11px] font-bold text-violet-200">
+                        {r.has_mobile_pin ? "Attivo" : "No PIN"}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-white/30">Off</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={[
@@ -728,7 +777,8 @@ function CollaboratoriPanel({
                     </td>
                   ) : null}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

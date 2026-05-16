@@ -5,7 +5,7 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { fetchServicesForSettings } from "@/lib/servicesCatalog";
 import { fetchProductsForSettings } from "@/lib/productsSettings";
-import { fetchStaffForSettings } from "@/lib/staffSettings";
+import { fetchStaffForSettings } from "@/lib/staffSettingsServer";
 import { fetchSalonsForSettings } from "@/lib/salonsSettings";
 import { fetchFiscalSettingsSnapshot } from "@/lib/fiscalSettings";
 import { fetchCustomersDomainSnapshot } from "@/lib/customersDomainSnapshot";
