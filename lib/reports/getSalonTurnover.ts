@@ -30,7 +30,7 @@ export type ReportRow = {
   staff_id: number | null;
   staff_name: string | null;
   payment_method: string | null;
-  /** Stato fiscale vendita (solo UI lista: non usato nei totali) */
+  /** Stato fiscale vendita (solo UI scontrino: non filtra fatturato/totali) */
   fiscal_status?: string | null;
 };
 

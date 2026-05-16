@@ -1,5 +1,9 @@
 // lib/reports/getClientsReport.ts
 import { createServerSupabase } from "@/lib/supabaseServer";
+import {
+  SALES_LEDGER_OPERATION_TYPE,
+  SALES_LEDGER_STATUS,
+} from "@/lib/reports/ledgerSalesFilter";
 
 export type ClientsReportFilters = {
   salonId: number;
@@ -136,6 +140,8 @@ export async function getClientsReport(filters: ClientsReportFilters) {
     .from("sales")
     .select("id, customer_id, total_amount, date, payment_method")
     .eq("salon_id", salonId)
+    .eq("status", SALES_LEDGER_STATUS)
+    .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
     .gte("date", isoStart(dateFrom))
     .lte("date", isoEnd(dateTo));
 

@@ -1,5 +1,9 @@
 // lib/reports/getCashSessionsReport.ts
 import { createServerSupabase } from "@/lib/supabaseServer";
+import {
+  SALES_LEDGER_OPERATION_TYPE,
+  SALES_LEDGER_STATUS,
+} from "@/lib/reports/ledgerSalesFilter";
 
 export type CashSessionsFilters = {
   salonId: number;
@@ -67,6 +71,8 @@ export async function getCashSessionsReport(filters: CashSessionsFilters) {
         .from("sales")
         .select("total_amount, payment_method, date")
         .eq("salon_id", salonId)
+        .eq("status", SALES_LEDGER_STATUS)
+        .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
         .gte("date", start)
         .lte("date", end);
 

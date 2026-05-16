@@ -17,6 +17,10 @@ import {
 
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
+import {
+  SALES_LEDGER_OPERATION_TYPE,
+  SALES_LEDGER_STATUS,
+} from "@/lib/reports/ledgerSalesFilter";
 import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import DashboardSalonQuerySync from "@/components/dashboard/DashboardSalonQuerySync";
@@ -208,7 +212,9 @@ export default async function DashboardPage({
   // Query 1: Incasso (solo completati del salone attivo)
   const incassoBaseQuery = supabase
     .from("sales")
-    .select("total_amount");
+    .select("total_amount")
+    .eq("status", SALES_LEDGER_STATUS)
+    .eq("operation_type", SALES_LEDGER_OPERATION_TYPE);
 
   let totaleIncasso = 0;
   let incassoUnavailable = false;
