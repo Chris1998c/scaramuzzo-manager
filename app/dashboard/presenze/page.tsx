@@ -22,7 +22,7 @@ type DailySummaryResponse = {
 type LiveStatus = "inside" | "outside";
 type LatestAttendanceRow = {
   staff_id: number;
-  event_type: string;
+  type: string;
   created_at: string;
 };
 
@@ -33,8 +33,8 @@ function formatDateTime(value: string | null): string {
   return date.toLocaleString("it-IT");
 }
 
-function getLiveStatusFromEvent(eventType: string | undefined): LiveStatus {
-  return eventType === "clock_in" ? "inside" : "outside";
+function getLiveStatusFromType(attendanceType: string | undefined): LiveStatus {
+  return attendanceType === "in" ? "inside" : "outside";
 }
 
 export default async function PresenzePage() {
@@ -74,8 +74,8 @@ export default async function PresenzePage() {
 
   if (uniqueStaffIds.length > 0) {
     let liveQ = supabaseAdmin
-      .from("staff_attendance_logs")
-      .select("staff_id,event_type,created_at")
+      .from("attendance_logs")
+      .select("staff_id,type,created_at")
       .in("staff_id", uniqueStaffIds)
       .order("created_at", { ascending: false });
 
@@ -94,7 +94,7 @@ export default async function PresenzePage() {
 
     for (const row of (latestEvents ?? []) as LatestAttendanceRow[]) {
       if (!latestEventByStaffId.has(row.staff_id)) {
-        latestEventByStaffId.set(row.staff_id, row.event_type);
+        latestEventByStaffId.set(row.staff_id, row.type);
       }
     }
   }
@@ -103,7 +103,7 @@ export default async function PresenzePage() {
   const okCount = rows.filter((row) => !row.is_incomplete).length;
   const incompleteCount = rows.filter((row) => row.is_incomplete).length;
   const insideNowCount = rows.filter(
-    (row) => getLiveStatusFromEvent(latestEventByStaffId.get(row.staff_id)) === "inside"
+    (row) => getLiveStatusFromType(latestEventByStaffId.get(row.staff_id)) === "inside"
   ).length;
 
   return (
@@ -152,7 +152,7 @@ export default async function PresenzePage() {
             </thead>
             <tbody className="divide-y divide-white/10">
               {rows.map((row) => {
-                const liveStatus = getLiveStatusFromEvent(latestEventByStaffId.get(row.staff_id));
+                const liveStatus = getLiveStatusFromType(latestEventByStaffId.get(row.staff_id));
 
                 return (
                   <tr

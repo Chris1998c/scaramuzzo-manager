@@ -9,16 +9,20 @@ type AttendanceLogRow = {
   id: number;
   staff_id: number;
   salon_id: number;
-  event_type: string;
+  type: string;
   created_at: string;
-  lat: number | null;
-  lng: number | null;
 };
 
 type StaffNameRow = {
   id: number;
   name: string | null;
 };
+
+function eventTypeFromAttendanceType(type: string): string {
+  if (type === "in") return "clock_in";
+  if (type === "out") return "clock_out";
+  return type;
+}
 
 export async function GET() {
   const gate = await requireAttendanceWebAccess();
@@ -31,8 +35,8 @@ export async function GET() {
 
   try {
     let q = supabaseAdmin
-      .from("staff_attendance_logs")
-      .select("id,staff_id,salon_id,event_type,created_at,lat,lng")
+      .from("attendance_logs")
+      .select("id,staff_id,salon_id,type,created_at")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -70,10 +74,10 @@ export async function GET() {
       id: row.id,
       staff_id: row.staff_id,
       salon_id: row.salon_id,
-      event_type: row.event_type,
+      event_type: eventTypeFromAttendanceType(row.type),
       created_at: row.created_at,
-      lat: row.lat,
-      lng: row.lng,
+      lat: null,
+      lng: null,
       staff_name: staffNameById.get(row.staff_id) ?? null,
     }));
 

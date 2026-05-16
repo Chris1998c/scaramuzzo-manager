@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { romeDayKeyFromIso } from "@/lib/mobileSession";
 import {
   requireAttendanceWebAccess,
   salonIdsForAttendanceFilter,
@@ -8,7 +9,7 @@ import {
 type AttendanceEvent = {
   staff_id: number;
   salon_id: number;
-  event_type: string;
+  type: string;
   created_at: string;
 };
 
@@ -28,10 +29,6 @@ type SummaryAccumulator = {
   openClockInAt: Date | null;
 };
 
-function getDayKey(isoDateTime: string): string {
-  return isoDateTime.slice(0, 10);
-}
-
 export async function GET() {
   const gate = await requireAttendanceWebAccess();
   if (!gate.ok) return gate.response;
@@ -43,8 +40,8 @@ export async function GET() {
 
   try {
     let q = supabaseAdmin
-      .from("staff_attendance_logs")
-      .select("staff_id,salon_id,event_type,created_at")
+      .from("attendance_logs")
+      .select("staff_id,salon_id,type,created_at")
       .order("created_at", { ascending: true });
 
     if (salonIds !== null) {
@@ -64,7 +61,7 @@ export async function GET() {
     for (const event of events) {
       staffIds.add(event.staff_id);
 
-      const day = getDayKey(event.created_at);
+      const day = romeDayKeyFromIso(event.created_at);
       const key = `${event.staff_id}:${day}`;
       const createdAtDate = new Date(event.created_at);
 
@@ -87,13 +84,12 @@ export async function GET() {
         summaryByKey.set(key, summary);
       }
 
-      if (event.event_type === "clock_in") {
+      if (event.type === "in") {
         if (summary.first_clock_in_at === null) {
           summary.first_clock_in_at = event.created_at;
         }
 
         if (summary.openClockInAt !== null) {
-          // Back-to-back clock-in means sequence is inconsistent.
           summary.is_incomplete = true;
         }
 
@@ -101,7 +97,7 @@ export async function GET() {
         continue;
       }
 
-      if (event.event_type === "clock_out") {
+      if (event.type === "out") {
         if (summary.openClockInAt === null) {
           summary.is_incomplete = true;
           continue;
