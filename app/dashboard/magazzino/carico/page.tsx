@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -80,6 +80,7 @@ function CaricoInner() {
   const [loading, setLoading] = useState(true);
   const [loadingList, setLoadingList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const pendingRequestIdRef = useRef<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   /** Destinazioni carico (1–4) consentite per l’utente — allineato a POST /api/magazzino/carico. */
@@ -324,6 +325,7 @@ function CaricoInner() {
   };
 
   const handleCarico = async () => {
+    if (submitting) return;
     if (!product) return;
 
     const productId = product.product_id ?? (product as { id?: number }).id;
@@ -346,11 +348,13 @@ function CaricoInner() {
       : clampQty(Number(qty), 1, product.quantity ?? 0);
     if (!isReception && product.quantity != null && q > product.quantity) return;
 
+    const requestId = pendingRequestIdRef.current ?? createRequestId();
+    pendingRequestIdRef.current = requestId;
+
     setSubmitting(true);
     setErrorMsg(null);
 
     try {
-      const requestId = createRequestId();
       const res = await fetch("/api/magazzino/carico", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -373,6 +377,7 @@ function CaricoInner() {
         return;
       }
 
+      pendingRequestIdRef.current = null;
       setProduct(null);
       router.replace("/dashboard/magazzino/carico");
     } catch (e) {

@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { isOperationalSalonId, MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { stockMoveRpc } from "@/lib/magazzino/idempotency";
 
@@ -39,12 +39,39 @@ export async function POST(req: Request) {
 
     const access = await getUserAccess();
     const role = access.role;
-    if (role !== "magazzino" && role !== "coordinator") {
+    const isReception = role === "reception";
+    const isWarehouse = role === "magazzino" || role === "coordinator";
+
+    if (!isReception && !isWarehouse) {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }
 
     let stockTargetSalonId = MAGAZZINO_CENTRALE_ID;
-    if (rawStockSalon !== undefined && rawStockSalon !== null && rawStockSalon !== "") {
+
+    if (isReception) {
+      const mySalonId = access.staffSalonId;
+      if (!mySalonId || !isOperationalSalonId(mySalonId)) {
+        return NextResponse.json(
+          {
+            error:
+              "Salone non associato o non operativo. La reception può creare prodotti solo sui saloni 1–4.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (rawStockSalon !== undefined && rawStockSalon !== null && rawStockSalon !== "") {
+        const requested = Number(rawStockSalon);
+        if (Number.isFinite(requested) && requested !== mySalonId) {
+          return NextResponse.json(
+            { error: "Non puoi assegnare la giacenza iniziale a un altro salone." },
+            { status: 403 }
+          );
+        }
+      }
+
+      stockTargetSalonId = mySalonId;
+    } else if (rawStockSalon !== undefined && rawStockSalon !== null && rawStockSalon !== "") {
       const n = Number(rawStockSalon);
       if (!Number.isFinite(n) || n < 1 || n > MAGAZZINO_CENTRALE_ID) {
         return NextResponse.json({ error: "Salone destinazione giacenza non valido." }, { status: 400 });

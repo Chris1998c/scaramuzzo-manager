@@ -181,7 +181,7 @@ export default function MagazzinoPage() {
         </div>
       )}
 
-      {isWarehouse && (
+      {(isWarehouse || (isReception && receptionSalonId != null && receptionSalonId < MAGAZZINO_CENTRALE_ID)) && (
         <Link
           href="/dashboard/magazzino/nuovo-prodotto"
           className="inline-flex items-center gap-2 rounded-xl px-5 py-3 bg-emerald-600/90 border border-emerald-500/30 text-white font-bold hover:bg-emerald-500 transition"

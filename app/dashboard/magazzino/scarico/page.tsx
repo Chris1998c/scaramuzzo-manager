@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -73,6 +73,7 @@ function ScaricoInner() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const pendingRequestIdRef = useRef<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // 1) Inizializzazione ctx: reception usa receptionSalonId (staff.salon_id), non user_metadata
@@ -252,16 +253,19 @@ function ScaricoInner() {
     maxQty <= 0;
 
   const handleScarico = async () => {
+    if (submitting) return;
     if (ctxSalonId === null || !product) return;
 
     const q = clampQty(Number(qty), 1, product.quantity);
     if (q > product.quantity) return;
 
+    const requestId = pendingRequestIdRef.current ?? createRequestId();
+    pendingRequestIdRef.current = requestId;
+
     setSubmitting(true);
     setErrorMsg(null);
 
     try {
-      const requestId = createRequestId();
       const res = await fetch("/api/magazzino/scarico", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -284,6 +288,7 @@ function ScaricoInner() {
         return;
       }
 
+      pendingRequestIdRef.current = null;
       router.back();
     } catch (e) {
       console.error(e);

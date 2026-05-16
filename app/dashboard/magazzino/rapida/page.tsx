@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
@@ -29,6 +29,8 @@ export default function RapidaPage() {
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [scaricandoId, setScaricandoId] = useState<number | null>(null);
+  const pendingRequestIdRef = useRef<string | null>(null);
+  const pendingProductIdRef = useRef<number | null>(null);
 
   const isReception = role === "reception";
   const isWarehouse = role === "magazzino" || role === "coordinator";
@@ -71,9 +73,15 @@ export default function RapidaPage() {
   async function scarica(productId: number) {
     if (scaricandoId != null) return;
 
+    if (pendingProductIdRef.current !== productId) {
+      pendingRequestIdRef.current = null;
+      pendingProductIdRef.current = productId;
+    }
+    const requestId = pendingRequestIdRef.current ?? createRequestId();
+    pendingRequestIdRef.current = requestId;
+
     setScaricandoId(productId);
     try {
-      const requestId = createRequestId();
       const res = await fetch("/api/magazzino/rapida", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,6 +100,8 @@ export default function RapidaPage() {
         return;
       }
 
+      pendingRequestIdRef.current = null;
+      pendingProductIdRef.current = null;
       toast.success("Scarico registrato.");
       await search();
     } catch (e) {

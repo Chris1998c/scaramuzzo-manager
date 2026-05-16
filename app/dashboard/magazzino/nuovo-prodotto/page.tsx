@@ -3,19 +3,24 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
 
 export default function NuovoProdottoPage() {
-  const { role, isReady, activeSalonId, allowedSalons } = useActiveSalon();
+  const { role, isReady, activeSalonId, allowedSalons, receptionSalonId } = useActiveSalon();
+
+  const isReception = role === "reception";
+  const isWarehouse = role === "magazzino" || role === "coordinator";
+
+  const stockTargetSalonId = isReception ? receptionSalonId : activeSalonId;
 
   const stockTargetLabel = useMemo(() => {
-    if (activeSalonId == null) return null;
-    const name = allowedSalons.find((s) => s.id === activeSalonId)?.name ?? null;
-    const isHub = activeSalonId === MAGAZZINO_CENTRALE_ID;
+    if (stockTargetSalonId == null) return null;
+    const name = allowedSalons.find((s) => s.id === stockTargetSalonId)?.name ?? salonLabel(stockTargetSalonId);
+    const isHub = stockTargetSalonId === MAGAZZINO_CENTRALE_ID;
     return name
-      ? `${name.split(" - ")[0]}${isHub ? " (hub)" : ""} · ID ${activeSalonId}`
-      : `Salone ${activeSalonId}`;
-  }, [activeSalonId, allowedSalons]);
+      ? `${name.split(" - ")[0]}${isHub ? " (hub)" : ""} · ID ${stockTargetSalonId}`
+      : `Salone ${stockTargetSalonId}`;
+  }, [stockTargetSalonId, allowedSalons]);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
@@ -29,8 +34,12 @@ export default function NuovoProdottoPage() {
 
   async function creaProdotto() {
     if (!name || !category) return;
-    if (activeSalonId == null) {
-      toast.error("Seleziona il salone di destinazione dall’header (Vista), poi riprova.");
+    if (stockTargetSalonId == null) {
+      toast.error(
+        isReception
+          ? "Salone non associato al tuo account. Contatta l'amministratore."
+          : "Seleziona il salone di destinazione dall’header (Vista), poi riprova."
+      );
       return;
     }
 
@@ -46,7 +55,7 @@ export default function NuovoProdottoPage() {
         type,
         description: description || null,
         initialQty: qty,
-        initialStockSalonId: activeSalonId,
+        initialStockSalonId: stockTargetSalonId,
       }),
     });
 
@@ -80,7 +89,7 @@ export default function NuovoProdottoPage() {
     );
   }
 
-  if (role !== "magazzino" && role !== "coordinator") {
+  if (!isWarehouse && !isReception) {
     return (
       <div className="min-h-screen px-6 py-10 bg-[#1A0F0A] text-red-500">
         Non hai i permessi.
@@ -94,14 +103,23 @@ export default function NuovoProdottoPage() {
       {stockTargetLabel ? (
         <p className="text-sm text-white/70 max-w-xl mb-6 leading-relaxed">
           La <strong className="text-[#f3d8b6]">quantità iniziale</strong> (se maggiore di 0) viene
-          caricata tramite movimento di stock nel salone selezionato in header{" "}
-          <span className="text-white/90 font-semibold">({stockTargetLabel})</span>. Cambia la{" "}
-          <strong className="text-white/90">Vista</strong> in alto se ti serve un’altra sede o il
-          magazzino centrale.
+          caricata tramite movimento di stock su{" "}
+          <span className="text-white/90 font-semibold">{stockTargetLabel}</span>.
+          {isWarehouse ? (
+            <>
+              {" "}
+              Cambia la <strong className="text-white/90">Vista</strong> in alto se ti serve un’altra
+              sede o il magazzino centrale.
+            </>
+          ) : (
+            <> La giacenza iniziale è sempre sul tuo salone.</>
+          )}
         </p>
       ) : (
         <p className="text-sm text-amber-200/90 max-w-xl mb-6">
-          Seleziona un salone dall’header per definire dove registrare la giacenza iniziale.
+          {isReception
+            ? "Nessun salone operativo associato al tuo account."
+            : "Seleziona un salone dall’header per definire dove registrare la giacenza iniziale."}
         </p>
       )}
 
@@ -147,7 +165,7 @@ export default function NuovoProdottoPage() {
 
         <div>
           <label className="block text-sm font-semibold text-[#341A09] mb-2">
-            Quantità iniziale ({stockTargetLabel ?? "scegli salone dall’header"})
+            Quantità iniziale ({stockTargetLabel ?? (isReception ? "salone non associato" : "scegli salone dall’header")})
           </label>
           <input
             type="number"
@@ -158,7 +176,9 @@ export default function NuovoProdottoPage() {
             onChange={(e) => setInitialQty(e.target.value)}
           />
           <p className="mt-1.5 text-xs text-[#5c3a21]/90">
-            Viene accreditata sul salone della Vista corrente (vedi testo sopra).
+            {isReception
+              ? "Viene accreditata sul tuo salone (vedi testo sopra)."
+              : "Viene accreditata sul salone della Vista corrente (vedi testo sopra)."}
           </p>
         </div>
 
