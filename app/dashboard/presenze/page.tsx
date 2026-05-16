@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { ClipboardList } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 
@@ -107,92 +108,104 @@ export default async function PresenzePage() {
   ).length;
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-scz-dark via-[#141414] to-black/90 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] md:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-white md:text-4xl">Presenze</h1>
-            <p className="mt-1 text-sm text-white/60 md:text-base">
-              Monitoraggio giornaliero collaboratori
-            </p>
+    <div className="max-w-[1600px] mx-auto space-y-6 pb-4">
+      {/* Hero — allineato a Magazzino / hub operativi */}
+      <section className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
+        <div className="flex flex-col gap-5 p-5 md:p-7 bg-black/20 border-b border-white/10 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
+              <ClipboardList className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                Modulo
+              </div>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
+                Presenze
+              </h1>
+              <p className="text-[#c9b299] mt-1 text-sm md:text-base leading-relaxed">
+                Monitoraggio giornaliero timbrature collaboratori (Team App)
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-white/15 bg-black/30 px-3 py-1.5 text-xs font-semibold text-white/85">
-              Totale righe: <span className="text-white">{totalRows}</span>
-            </span>
-            <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
-              OK: <span className="text-emerald-100">{okCount}</span>
-            </span>
-            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200">
-              Incomplete: <span className="text-amber-100">{incompleteCount}</span>
-            </span>
-            <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-200">
-              Dentro ora: <span className="text-cyan-100">{insideNowCount}</span>
-            </span>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <StatChip label="Righe" value={totalRows} variant="neutral" />
+            <StatChip label="OK" value={okCount} variant="ok" />
+            <StatChip label="Incomplete" value={incompleteCount} variant="warn" />
+            <StatChip label="Dentro ora" value={insideNowCount} variant="live" />
           </div>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#161616] to-[#101010] shadow-[0_16px_50px_rgba(0,0,0,0.3)]">
+      {/* Tabella — card operativa Cassa / Impostazioni */}
+      <section className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+        <div className="border-b border-white/10 bg-black/20 px-5 py-3.5">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+            Riepilogo giornaliero
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm text-white">
-            <thead className="bg-black/45 text-xs uppercase tracking-[0.08em] text-white/75">
+          <table className="min-w-full text-sm">
+            <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
               <tr>
-                <th className="px-5 py-3.5 text-left font-semibold">Giorno</th>
-                <th className="px-5 py-3.5 text-left font-semibold">Collaboratore</th>
-                <th className="px-5 py-3.5 text-left font-semibold">Salone</th>
-                <th className="px-5 py-3.5 text-left font-semibold">Prima entrata</th>
-                <th className="px-5 py-3.5 text-left font-semibold">Ultima uscita</th>
-                <th className="px-5 py-3.5 text-right font-semibold">Minuti lavorati</th>
-                <th className="px-5 py-3.5 text-right font-semibold">Ore lavorate</th>
-                <th className="px-5 py-3.5 text-left font-semibold">Stato</th>
-                <th className="px-5 py-3.5 text-left font-semibold">LIVE</th>
+                <th className="px-5 py-3.5 text-left">Giorno</th>
+                <th className="px-5 py-3.5 text-left">Collaboratore</th>
+                <th className="px-5 py-3.5 text-left">Salone</th>
+                <th className="px-5 py-3.5 text-left">Prima entrata</th>
+                <th className="px-5 py-3.5 text-left">Ultima uscita</th>
+                <th className="px-5 py-3.5 text-right">Minuti</th>
+                <th className="px-5 py-3.5 text-right">Ore</th>
+                <th className="px-5 py-3.5 text-left">Stato</th>
+                <th className="px-5 py-3.5 text-left">Live</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody className="divide-y divide-[#5c3a21]/30">
               {rows.map((row) => {
                 const liveStatus = getLiveStatusFromType(latestEventByStaffId.get(row.staff_id));
 
                 return (
                   <tr
                     key={`${row.staff_id}-${row.day}`}
-                    className="transition-colors duration-150 hover:bg-white/[0.045]"
+                    className="text-[#e8dcc8] transition-colors duration-150 hover:bg-white/[0.03]"
                   >
-                    <td className="px-5 py-4 align-middle text-white/90">{row.day}</td>
-                    <td className="px-5 py-4 align-middle text-white font-medium">{row.staff_name ?? "-"}</td>
-                    <td className="px-5 py-4 align-middle text-white/85">#{row.salon_id}</td>
-                    <td className="px-5 py-4 align-middle text-white/85">
+                    <td className="px-5 py-4 align-middle text-[#c9b299] tabular-nums">{row.day}</td>
+                    <td className="px-5 py-4 align-middle font-semibold text-[#f3d8b6]">
+                      {row.staff_name ?? "-"}
+                    </td>
+                    <td className="px-5 py-4 align-middle text-[#c9b299]">#{row.salon_id}</td>
+                    <td className="px-5 py-4 align-middle text-[#c9b299]">
                       {formatDateTime(row.first_clock_in_at)}
                     </td>
-                    <td className="px-5 py-4 align-middle text-white/85">
+                    <td className="px-5 py-4 align-middle text-[#c9b299]">
                       {formatDateTime(row.last_clock_out_at)}
                     </td>
-                    <td className="px-5 py-4 text-right align-middle tabular-nums text-white">
+                    <td className="px-5 py-4 text-right align-middle tabular-nums text-[#f3d8b6]">
                       {row.worked_minutes}
                     </td>
-                    <td className="px-5 py-4 text-right align-middle tabular-nums text-white">
+                    <td className="px-5 py-4 text-right align-middle tabular-nums text-[#c9b299]">
                       {(row.worked_minutes / 60).toFixed(2)}
                     </td>
                     <td className="px-5 py-4 align-middle">
                       {row.is_incomplete ? (
-                        <span className="inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-xs font-semibold text-amber-100">
+                        <span className="inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-200/95">
                           Incompleta
                         </span>
                       ) : (
-                        <span className="inline-flex rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                        <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-200/95">
                           OK
                         </span>
                       )}
                     </td>
                     <td className="px-5 py-4 align-middle">
-                      {liveStatus === "inside" && (
-                        <span className="inline-flex rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                      {liveStatus === "inside" ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f3d8b6]/35 bg-[#f3d8b6]/10 px-2.5 py-1 text-[11px] font-bold text-[#f3d8b6] shadow-[0_0_12px_rgba(243,216,182,0.12)]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
                           Dentro ora
                         </span>
-                      )}
-                      {liveStatus === "outside" && (
-                        <span className="inline-flex rounded-full border border-white/20 bg-black/35 px-2.5 py-1 text-xs font-semibold text-white/80">
+                      ) : (
+                        <span className="inline-flex rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[11px] font-bold text-[#c9b299]/90">
                           Fuori ora
                         </span>
                       )}
@@ -204,14 +217,26 @@ export default async function PresenzePage() {
               {rows.length === 0 && (
                 <tr>
                   <td className="px-5 py-12 text-center" colSpan={9}>
-                    <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-black/25 px-4 py-6">
-                      <p className="text-sm font-semibold text-white/85">
-                        {hasError ? "Errore nel caricamento delle presenze." : "Nessuna presenza trovata."}
-                      </p>
-                      <p className="mt-1 text-xs text-white/55">
+                    <div
+                      className={`mx-auto max-w-md rounded-2xl border px-5 py-6 ${
+                        hasError
+                          ? "border-amber-500/30 bg-amber-500/10"
+                          : "border-[#5c3a21]/40 bg-black/20"
+                      }`}
+                    >
+                      <p
+                        className={`text-sm font-bold ${
+                          hasError ? "text-amber-100" : "text-[#f3d8b6]"
+                        }`}
+                      >
                         {hasError
-                          ? "Riprova tra pochi secondi."
-                          : "I riepiloghi giornalieri compariranno qui quando disponibili."}
+                          ? "Errore nel caricamento delle presenze"
+                          : "Nessuna presenza trovata"}
+                      </p>
+                      <p className="mt-1.5 text-xs text-[#c9b299] leading-relaxed">
+                        {hasError
+                          ? "Riprova tra pochi secondi. Se il problema persiste, verifica la connessione."
+                          : "I riepiloghi compariranno qui dopo le timbrature dalla Team App."}
                       </p>
                     </div>
                   </td>
@@ -222,5 +247,32 @@ export default async function PresenzePage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function StatChip({
+  label,
+  value,
+  variant,
+}: {
+  label: string;
+  value: number;
+  variant: "neutral" | "ok" | "warn" | "live";
+}) {
+  const styles = {
+    neutral:
+      "border-[#5c3a21]/50 bg-black/25 text-[#c9b299]",
+    ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200/95",
+    warn: "border-amber-500/30 bg-amber-500/10 text-amber-200/95",
+    live: "border-[#f3d8b6]/30 bg-[#f3d8b6]/10 text-[#f3d8b6]",
+  } as const;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold ${styles[variant]}`}
+    >
+      <span className="opacity-80">{label}:</span>
+      <span className="tabular-nums">{value}</span>
+    </span>
   );
 }
