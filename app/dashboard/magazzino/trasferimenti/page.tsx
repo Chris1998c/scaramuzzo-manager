@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
 import { Repeat, ArrowLeft, Package, ArrowRightCircle, AlertCircle } from "lucide-react";
@@ -48,6 +48,8 @@ export default function TrasferimentiPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [selected, setSelected] = useState<SelectedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const pendingRequestIdRef = useRef<string | null>(null);
 
   const isWarehouse = role === "magazzino" || role === "coordinator";
   const isReception = role === "reception";
@@ -55,8 +57,10 @@ export default function TrasferimentiPage() {
 
   const toOptions = useMemo(() => {
     if (fromSalon === null) return SALONI.filter((s) => s.id !== MAGAZZINO_CENTRALE_ID);
-    return SALONI.filter((s) => s.id !== fromSalon);
-  }, [fromSalon]);
+    return SALONI.filter(
+      (s) => s.id !== fromSalon && (isWarehouse || s.id !== MAGAZZINO_CENTRALE_ID)
+    );
+  }, [fromSalon, isWarehouse]);
 
   function pickDefaultTo(from: number | null) {
     if (from === null) return 1;
@@ -185,6 +189,7 @@ export default function TrasferimentiPage() {
   }
 
   async function completa() {
+    if (submitting) return;
     if (fromSalon === null) return;
     if (!selected.length) return;
     if (fromSalon === toSalon) return;
@@ -203,29 +208,41 @@ export default function TrasferimentiPage() {
       }
     }
 
-    const res = await fetch("/api/magazzino/trasferimenti", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fromSalon,
-        toSalon,
-        items: selected.map((x) => ({ id: x.product_id, qty: x.qty })),
-        executeNow: true,
-        request_id: createRequestId(),
-      }),
-    });
+    const requestId = pendingRequestIdRef.current ?? createRequestId();
+    pendingRequestIdRef.current = requestId;
 
-    const json = await res.json().catch(() => ({}));
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/magazzino/trasferimenti", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSalon,
+          toSalon,
+          items: selected.map((x) => ({ id: x.product_id, qty: x.qty })),
+          executeNow: true,
+          request_id: requestId,
+        }),
+      });
 
-    if (!res.ok || json?.error) {
-      console.error(json);
-      toast.error(json?.error || "Errore trasferimento");
-      return;
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || json?.error) {
+        console.error(json);
+        toast.error(json?.error || "Errore trasferimento");
+        return;
+      }
+
+      pendingRequestIdRef.current = null;
+      toast.success("Trasferimento completato!");
+      setSelected([]);
+      await fetchProducts(fromSalon);
+    } catch (e) {
+      console.error(e);
+      toast.error("Errore di rete durante il trasferimento.");
+    } finally {
+      setSubmitting(false);
     }
-
-    toast.success("Trasferimento completato!");
-    setSelected([]);
-    await fetchProducts(fromSalon);
   }
 
   const fromName =
@@ -428,9 +445,14 @@ export default function TrasferimentiPage() {
                   type="button"
                   className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base transition disabled:opacity-40 disabled:cursor-not-allowed"
                   onClick={completa}
-                  disabled={!selected.length || fromSalon === toSalon || role === "cliente"}
+                  disabled={
+                    submitting ||
+                    !selected.length ||
+                    fromSalon === toSalon ||
+                    role === "cliente"
+                  }
                 >
-                  Completa Trasferimento → {toName}
+                  {submitting ? "Completamento…" : `Completa Trasferimento → ${toName}`}
                 </button>
                 {isReception && (
                   <p className="text-xs text-white/50">

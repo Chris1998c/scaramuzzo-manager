@@ -1,5 +1,6 @@
 BEGIN;
 
+-- Fase 1 idempotenza: replay stesso transfer_id già eseguito = no-op success (no exception).
 CREATE OR REPLACE FUNCTION public.execute_transfer(
   p_transfer_id bigint,
   p_actor_id uuid DEFAULT null
@@ -49,8 +50,8 @@ begin
     raise exception 'Transfer % not found', p_transfer_id;
   end if;
 
-  if v_done_at is not null then
-    raise exception 'Transfer % already executed at %', p_transfer_id, v_done_at;
+  if v_done_at is not null or v_status = 'executed' then
+    return;
   end if;
 
   if v_status <> 'ready' then

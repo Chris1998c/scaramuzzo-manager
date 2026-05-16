@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, isOperationalSalonId } from "@/lib/constants";
 import { getUserAccess } from "@/lib/getUserAccess";
 
 type TransferItem = { id: number | string; qty: number | string };
@@ -64,12 +64,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }
 
-    // RECEPTION: from_salon = solo proprio salone (ignora body)
+    // RECEPTION: from_salon = solo proprio salone operativo (ignora body)
     if (isReception) {
       const mySalonId = access.staffSalonId;
-      if (!mySalonId || !isValidSalonId(mySalonId)) {
+      if (!mySalonId || !isOperationalSalonId(mySalonId)) {
         return NextResponse.json(
-          { error: "Salone non associato al tuo account. Contatta l'amministratore." },
+          {
+            error:
+              "Salone non associato o non operativo. La reception opera solo sui saloni 1–4.",
+          },
           { status: 403 }
         );
       }
@@ -90,11 +93,11 @@ export async function POST(req: Request) {
       );
     }
     if (isReception) {
-      if (toSalon !== MAGAZZINO_CENTRALE_ID) {
+      if (!isOperationalSalonId(toSalon)) {
         return NextResponse.json(
           {
             error:
-              "La reception può richiedere trasferimenti solo verso il Magazzino Centrale, non verso altri saloni operativi.",
+              "La reception può trasferire solo tra saloni operativi (1–4), non verso o dal Magazzino Centrale.",
           },
           { status: 403 }
         );
@@ -212,10 +215,26 @@ export async function POST(req: Request) {
     if (executeNow) {
       const { error: execError } = await supabaseAdmin.rpc("execute_transfer", {
         p_transfer_id: transfer.id,
+        p_actor_id: userId,
       });
 
       if (execError) {
-        console.error("execute_transfer failed", { transferId: transfer.id, error: execError.message });
+        console.error("execute_transfer failed", {
+          transferId: transfer.id,
+          error: execError.message,
+        });
+
+        // rollback manuale anti-transfer-zombie
+        await supabaseAdmin
+          .from("transfer_items")
+          .delete()
+          .eq("transfer_id", transfer.id);
+
+        await supabaseAdmin
+          .from("transfers")
+          .delete()
+          .eq("id", transfer.id);
+
         return NextResponse.json({ error: execError.message }, { status: 500 });
       }
     }

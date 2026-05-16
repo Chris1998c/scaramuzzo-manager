@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, isOperationalSalonId } from "@/lib/constants";
 const DEDUPE_WINDOW_MS = 5 * 60 * 1000;
 
 function isValidSalonId(id: number) {
@@ -83,9 +83,12 @@ export async function POST(req: Request) {
 
     if (isReception) {
       const mySalonId = access.staffSalonId;
-      if (!mySalonId || !isValidSalonId(mySalonId)) {
+      if (!mySalonId || !isOperationalSalonId(mySalonId)) {
         return NextResponse.json(
-          { error: "Salone non associato al tuo account. Contatta l'amministratore." },
+          {
+            error:
+              "La reception può operare solo sui saloni operativi (1–4), non sul Magazzino Centrale.",
+          },
           { status: 403 }
         );
       }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isOperationalSalonId } from "@/lib/constants";
 import { getUserAccess } from "@/lib/getUserAccess";
 
 const MAGAZZINO_CENTRALE_ID = 5;
@@ -92,13 +93,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }
 
-    // RECEPTION: scarico solo dal proprio salone (source of truth: staff.salon_id)
+    // RECEPTION: scarico solo dal proprio salone operativo (1–4), mai dal centrale
     if (role === "reception") {
       const mySalonId = access.staffSalonId;
 
-      if (!mySalonId || mySalonId < 1) {
+      if (!mySalonId || !isOperationalSalonId(mySalonId) || !isOperationalSalonId(salonId)) {
         return NextResponse.json(
-          { error: "Salone non associato al tuo account. Contatta l'amministratore." },
+          {
+            error:
+              "La reception può operare solo sui saloni operativi (1–4), non sul Magazzino Centrale.",
+          },
           { status: 403 }
         );
       }

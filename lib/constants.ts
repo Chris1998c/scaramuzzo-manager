@@ -17,6 +17,11 @@ export const isRealSalonId = (id: unknown): id is RealSalonId => {
   return Number.isFinite(n) && (REAL_SALON_IDS as readonly number[]).includes(n);
 };
 
+/** Saloni operativi 1..4 — esclude Magazzino Centrale (5). */
+export function isOperationalSalonId(id: unknown): id is RealSalonId {
+  return isRealSalonId(id);
+}
+
 // ✅ saloni validi: 1..5 (include centrale=5)
 export function isValidSalonId(id: unknown): id is number {
   const n = typeof id === "number" ? id : Number(id);
