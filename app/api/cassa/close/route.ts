@@ -16,6 +16,22 @@ type CloseLineInput = {
   id: number;
   qty: number;
   discount?: number; // % (0-100) per riga
+  staff_id?: number | null;
+};
+
+type NormalizedCloseLine = {
+  kind: LineKind;
+  id: number;
+  qty: number;
+  discountPct: number;
+  /** Da payload client; risoluzione finale avviene più sotto. */
+  staff_id: number | null;
+};
+
+type AppointmentServiceLine = {
+  id: number;
+  service_id: number;
+  staff_id: number | null;
 };
 
 type CloseBody = {
@@ -91,7 +107,13 @@ function coerceRpcCloseSale(row: unknown): {
   };
 }
 
-function normalizeLines(body: CloseBody) {
+function normalizeOptionalStaffId(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = toInt(v, NaN);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function normalizeLines(body: CloseBody): NormalizedCloseLine[] {
   const raw =
     (Array.isArray(body.lines) && body.lines.length
       ? body.lines
@@ -105,6 +127,7 @@ function normalizeLines(body: CloseBody) {
       id: toInt(l?.id, NaN),
       qty: Math.floor(toNumber(l?.qty, NaN)),
       discountPct: clamp(toNumber(l?.discount ?? 0, 0), 0, 100),
+      staff_id: normalizeOptionalStaffId(l?.staff_id),
     }))
     .filter(
       (l) =>
@@ -113,12 +136,79 @@ function normalizeLines(body: CloseBody) {
         l.id > 0 &&
         Number.isFinite(l.qty) &&
         l.qty > 0
-    ) as Array<{
-    kind: LineKind;
-    id: number;
-    qty: number;
-    discountPct: number;
-  }>;
+    ) as NormalizedCloseLine[];
+}
+
+/** Staff operativo su riga servizio da appointment_services (match per service_id). */
+function resolveServiceLineStaffId(
+  serviceId: number,
+  payloadStaffId: number | null,
+  appointmentHeaderStaffId: number | null,
+  appointmentServiceLines: AppointmentServiceLine[],
+): number | null {
+  if (payloadStaffId != null) return payloadStaffId;
+
+  const matches = appointmentServiceLines.filter((l) => l.service_id === serviceId);
+  if (matches.length === 0) return appointmentHeaderStaffId;
+
+  if (matches.length === 1) {
+    return matches[0].staff_id ?? appointmentHeaderStaffId;
+  }
+
+  const distinctStaff = new Set<number>();
+  for (const m of matches) {
+    if (m.staff_id != null && m.staff_id > 0) distinctStaff.add(m.staff_id);
+  }
+  if (distinctStaff.size === 1) return [...distinctStaff][0]!;
+  return appointmentHeaderStaffId;
+}
+
+/** staff_id per ogni riga vendita (ordine allineato a computedItems). */
+function resolveStaffIdPerSaleLine(
+  computedItems: ComputedSaleLine[],
+  ctx: {
+    appointmentId: number | null;
+    appointmentHeaderStaffId: number | null;
+    appointmentServiceLines: AppointmentServiceLine[];
+    operatorStaffId: number | null;
+  },
+): Array<number | null> {
+  let firstServiceStaffId: number | null = null;
+  const out: Array<number | null> = [];
+
+  for (const item of computedItems) {
+    if (item.kind === "service") {
+      let staffId: number | null;
+      if (ctx.appointmentId) {
+        staffId = resolveServiceLineStaffId(
+          item.id,
+          item.staff_id,
+          ctx.appointmentHeaderStaffId,
+          ctx.appointmentServiceLines,
+        );
+      } else {
+        staffId = item.staff_id ?? ctx.operatorStaffId ?? null;
+      }
+      out.push(staffId);
+      if (firstServiceStaffId == null && staffId != null) {
+        firstServiceStaffId = staffId;
+      }
+      continue;
+    }
+
+    if (item.staff_id != null) {
+      out.push(item.staff_id);
+      continue;
+    }
+
+    if (ctx.appointmentId) {
+      out.push(firstServiceStaffId ?? ctx.appointmentHeaderStaffId ?? null);
+    } else {
+      out.push(ctx.operatorStaffId ?? null);
+    }
+  }
+
+  return out;
 }
 
 type FiscalProfileForJob = {
@@ -138,11 +228,7 @@ type FiscalSaleReceiptLine = {
   vat_rate: number;
 };
 
-type ComputedSaleLine = {
-  kind: LineKind;
-  id: number;
-  qty: number;
-  discountPct: number;
+type ComputedSaleLine = NormalizedCloseLine & {
   unitPrice: number;
   lineDisc: number;
   net: number;
@@ -300,9 +386,11 @@ export async function POST(req: Request) {
 
     // 3) DETERMINO SALONE / STAFF / CUSTOMER
     let salonId: number | null = null;
-    let staffId: number | null = null;
+    let appointmentHeaderStaffId: number | null = null;
     let customerId: string | null = null;
     let appointmentId: number | null = null;
+    let appointmentServiceLines: AppointmentServiceLine[] = [];
+    const operatorStaffId = normalizeOptionalStaffId(access.staffId);
 
     if (hasAppointmentId) {
       appointmentId = toInt(body.appointment_id, NaN);
@@ -360,9 +448,37 @@ export async function POST(req: Request) {
         : null;
 
       salonId = toInt((appt as { salon_id?: unknown }).salon_id, NaN);
-      staffId = ((appt as { staff_id?: unknown }).staff_id as number | null) ?? null;
+      appointmentHeaderStaffId = normalizeOptionalStaffId(
+        (appt as { staff_id?: unknown }).staff_id,
+      );
       customerId =
         ((appt as { customer_id?: unknown }).customer_id as string | null) ?? null;
+
+      const { data: apptSvcRows, error: apptSvcErr } = await supabaseAdmin
+        .from("appointment_services")
+        .select("id, service_id, staff_id")
+        .eq("appointment_id", appointmentId);
+
+      if (apptSvcErr) {
+        return NextResponse.json(
+          { error: "Errore caricamento righe appuntamento" },
+          { status: 500 },
+        );
+      }
+
+      appointmentServiceLines = (apptSvcRows ?? [])
+        .map((row: Record<string, unknown>) => ({
+          id: toInt(row.id, NaN),
+          service_id: toInt(row.service_id, NaN),
+          staff_id: normalizeOptionalStaffId(row.staff_id),
+        }))
+        .filter(
+          (row): row is AppointmentServiceLine =>
+            Number.isFinite(row.id) &&
+            row.id > 0 &&
+            Number.isFinite(row.service_id) &&
+            row.service_id > 0,
+        );
 
       if (requestedSalonId && salonId && requestedSalonId !== salonId) {
         return NextResponse.json(
@@ -657,10 +773,17 @@ export async function POST(req: Request) {
     }
 
     // 8) CHIUSURA ATOMICA VIA RPC (vendita + job fiscale + stock + appointment)
-    const pItems = computedItems.map((l) => ({
+    const staffIdPerLine = resolveStaffIdPerSaleLine(computedItems, {
+      appointmentId,
+      appointmentHeaderStaffId,
+      appointmentServiceLines,
+      operatorStaffId,
+    });
+
+    const pItems = computedItems.map((l, index) => ({
       kind: l.kind,
       ref_id: l.id,
-      staff_id: staffId,
+      staff_id: staffIdPerLine[index] ?? null,
       quantity: l.qty,
       price: l.unitPrice,
       discount: l.lineDisc,
