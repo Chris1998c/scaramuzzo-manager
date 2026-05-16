@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
 
 type Role = "coordinator" | "magazzino" | "reception" | "cliente" | string;
 
@@ -42,12 +42,7 @@ function createRequestId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function salonLabel(id: number) {
-  if (id === MAGAZZINO_CENTRALE_ID) return "Magazzino Centrale";
-  return `Salone ${id}`;
-}
-
-/** ✅ Wrapper required by Next.js when using useSearchParams() */
+/** Wrapper richiesto da Next.js con useSearchParams(). */
 export default function ScaricoPage() {
   return (
     <Suspense fallback={<ScaricoSkeleton />}>
@@ -67,9 +62,7 @@ function ScaricoInner() {
   const [role, setRole] = useState<Role>("reception");
   const [userSalonId, setUserSalonId] = useState<number | null>(null);
 
-  // ✅ contesto su cui scarichiamo:
-  // - magazzino/coordinator -> activeSalonId (può essere 1..4 o 5 centrale)
-  // - reception -> userSalonId
+  // Contesto scarico: magazzino/coordinator = activeSalonId; reception = salone staff.
   const [ctxSalonId, setCtxSalonId] = useState<number | null>(null);
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -176,7 +169,7 @@ function ScaricoInner() {
         const { data: prod, error: prodErr } = await supabase
           .from("products_with_stock")
           .select("product_id, name, category, barcode, quantity")
-          .eq("salon_id", ctxSalonId) // ✅ qui sta il fix
+          .eq("salon_id", ctxSalonId)
           .eq("product_id", productId)
           .maybeSingle();
 
@@ -273,7 +266,7 @@ function ScaricoInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          salonId: ctxSalonId, // ✅ scarica dal contesto (header per warehouse)
+          salonId: ctxSalonId,
           productId: product.product_id,
           qty: q,
           reason: "scarico_app",

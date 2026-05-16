@@ -24,7 +24,7 @@ export default function ScannerModal({ open, setOpen, onScan }: Props) {
         onScan(decoded);
         setOpen(false);
       },
-      (error) => console.log("Scanner error:", error)
+      () => {}
     );
 
     return () => {

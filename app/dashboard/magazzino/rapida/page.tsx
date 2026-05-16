@@ -6,17 +6,12 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { toast } from "sonner";
 import { Zap, ArrowLeft, Search, PackageMinus, AlertCircle } from "lucide-react";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
 
 interface Product {
   product_id: number;
   name: string;
   quantity: number;
-}
-
-function salonLabel(id: number) {
-  if (id === MAGAZZINO_CENTRALE_ID) return "Magazzino Centrale";
-  return `Salone ${id}`;
 }
 
 function createRequestId(): string {

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, SALONS } from "@/lib/constants";
 
 interface ProductRow {
   product_id?: number;
@@ -24,12 +24,7 @@ interface ProductRow {
 }
 
 // Saloni destinazione carico (solo 1..4, centrale è sorgente)
-const SALONI: { id: number; name: string }[] = [
-  { id: 1, name: "Corigliano" },
-  { id: 2, name: "Cosenza" },
-  { id: 3, name: "Castrovillari" },
-  { id: 4, name: "Roma" },
-];
+const SALONI = SALONS.filter((s) => s.id < MAGAZZINO_CENTRALE_ID);
 
 function toNumberOrNull(v: any): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -49,7 +44,7 @@ function createRequestId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-/** ✅ Wrapper required by Next.js when using useSearchParams() */
+/** Wrapper richiesto da Next.js con useSearchParams(). */
 export default function CaricoPage() {
   return (
     <Suspense fallback={<CaricoSkeleton />}>
@@ -378,10 +373,8 @@ function CaricoInner() {
         return;
       }
 
-      // ✅ dopo carico: reset UI e reload prodotto dal centrale
       setProduct(null);
       router.replace("/dashboard/magazzino/carico");
-      // se vuoi tornare indietro: router.back();
     } catch (e) {
       console.error(e);
       setErrorMsg("Errore di rete durante il carico.");
@@ -593,7 +586,6 @@ function CaricoInner() {
             </div>
           </div>
         ) : (
-          // ✅ FORM CARICO (prodotto selezionato)
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* LEFT: product info */}
             <div className="lg:col-span-1 rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">

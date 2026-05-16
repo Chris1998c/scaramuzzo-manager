@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
 import { History, RefreshCw } from "lucide-react";
 
 interface Movement {
@@ -18,22 +18,10 @@ interface Movement {
   to_salon: number | null;
 }
 
-const SALONI_LABEL: Record<number, string> = {
-  1: "Corigliano",
-  2: "Cosenza",
-  3: "Castrovillari",
-  4: "Roma",
-  5: "Magazzino Centrale",
-};
-
-function salonLabel(id: number) {
-  return SALONI_LABEL[id] ?? `Salone ${id}`;
-}
-
 function toSalonId(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) && n >= 1 ? n : null; // ✅ 1..n (qui 1..5)
+  return Number.isFinite(n) && n >= 1 ? n : null;
 }
 
 /** Reception operativa sul salone reale (stesso vincolo API carico: non hub). */
@@ -147,7 +135,7 @@ export default function MovimentiPage() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    // ✅ SEMPRE: dove from_salon o to_salon = salone corrente
+    // Movimenti in cui il salone corrente compare come from_salon o to_salon.
     query = query.or(`from_salon.eq.${salonId},to_salon.eq.${salonId}`);
 
     const st = searchText.trim();

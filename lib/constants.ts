@@ -1,5 +1,26 @@
 export const MAGAZZINO_CENTRALE_ID = 5;
 
+/** Nomi ufficiali saloni Scaramuzzo (id → label). */
+export const SALON_LABELS: Record<number, string> = {
+  1: "Roma",
+  2: "Corigliano",
+  3: "Castrovillari",
+  4: "Cosenza",
+  5: "Magazzino Centrale",
+};
+
+export const SALONS: { id: number; name: string }[] = [1, 2, 3, 4, 5].map((id) => ({
+  id,
+  name: SALON_LABELS[id] ?? `Salone ${id}`,
+}));
+
+export function salonLabel(id: number | null | undefined): string {
+  if (id === null || id === undefined) return "-";
+  const n = typeof id === "number" ? id : Number(id);
+  if (!Number.isFinite(n)) return "-";
+  return SALON_LABELS[n] ?? `Salone ${n}`;
+}
+
 export const REAL_SALON_IDS = [1, 2, 3, 4] as const;
 export type RealSalonId = (typeof REAL_SALON_IDS)[number];
 
@@ -22,13 +43,13 @@ export function isOperationalSalonId(id: unknown): id is RealSalonId {
   return isRealSalonId(id);
 }
 
-// ✅ saloni validi: 1..5 (include centrale=5)
+/** Saloni validi 1..5 (include Magazzino Centrale). */
 export function isValidSalonId(id: unknown): id is number {
   const n = typeof id === "number" ? id : Number(id);
   return Number.isFinite(n) && n >= 1 && n <= MAGAZZINO_CENTRALE_ID;
 }
 
-// ✅ parse salon id (1..5) oppure null
+/** Parse salon id (1..5) oppure null. */
 export function toSalonId(id: unknown): number | null {
   if (id === null || id === undefined || id === "") return null;
   const n = typeof id === "number" ? id : Number(id);

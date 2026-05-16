@@ -111,12 +111,6 @@ export async function POST(req: Request) {
         );
       }
     }
-    if (isReception && executeNow) {
-      return NextResponse.json(
-        { error: "La reception non puo' eseguire subito un trasferimento" },
-        { status: 403 }
-      );
-    }
 
     // NORMALIZZA ITEMS
     const rows = items
@@ -153,8 +147,7 @@ export async function POST(req: Request) {
         : null;
     const noteWithMarker = appendTransferMarker(note, requestId);
 
-    // Dedupe minimo provvisorio:
-    // usa request_id nel campo note per riconoscere retry ravvicinati senza nuova tabella.
+    // Dedupe retry: request_id marcato nel campo note del transfer.
     if (requestId) {
       const marker = transferRequestMarker(requestId);
       const { data: existingTransfer } = await supabaseAdmin

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
 import { Repeat, ArrowLeft, Package, ArrowRightCircle, AlertCircle } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
-import { MAGAZZINO_CENTRALE_ID, toSalonId } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, SALONS, toSalonId } from "@/lib/constants";
 import { toast } from "sonner";
 
 interface ProductRow {
@@ -19,15 +19,6 @@ interface SelectedItem {
   name: string;
   qty: number;
 }
-
-// Label locali per select; coerenti con movimenti/trasferimenti-[id] (Corigliano, Cosenza, …)
-const SALONI = [
-  { id: 1, name: "Corigliano" },
-  { id: 2, name: "Cosenza" },
-  { id: 3, name: "Castrovillari" },
-  { id: 4, name: "Roma" },
-  { id: 5, name: "Magazzino Centrale" },
-];
 
 function createRequestId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -56,8 +47,8 @@ export default function TrasferimentiPage() {
   const disableFromSelect = !isWarehouse; // reception: "Da" fisso
 
   const toOptions = useMemo(() => {
-    if (fromSalon === null) return SALONI.filter((s) => s.id !== MAGAZZINO_CENTRALE_ID);
-    return SALONI.filter(
+    if (fromSalon === null) return SALONS.filter((s) => s.id !== MAGAZZINO_CENTRALE_ID);
+    return SALONS.filter(
       (s) => s.id !== fromSalon && (isWarehouse || s.id !== MAGAZZINO_CENTRALE_ID)
     );
   }, [fromSalon, isWarehouse]);
@@ -67,7 +58,7 @@ export default function TrasferimentiPage() {
 
     // preferisci sempre un salone reale (1..4) diverso da from
     const firstReal =
-      SALONI.find((x) => x.id !== from && x.id !== MAGAZZINO_CENTRALE_ID)?.id ?? 1;
+      SALONS.find((x) => x.id !== from && x.id !== MAGAZZINO_CENTRALE_ID)?.id ?? 1;
 
     // se from è un salone reale, ok; se from è centrale 5, firstReal sarà 1
     return firstReal;
@@ -248,11 +239,11 @@ export default function TrasferimentiPage() {
   const fromName =
     fromSalon != null
       ? allowedSalons.find((s) => s.id === fromSalon)?.name ??
-        SALONI.find((s) => s.id === fromSalon)?.name ??
+        SALONS.find((s) => s.id === fromSalon)?.name ??
         `Salone ${fromSalon}`
       : "—";
   const toName =
-    toOptions.find((s) => s.id === toSalon)?.name ?? SALONI.find((s) => s.id === toSalon)?.name ?? `Salone ${toSalon}`;
+    toOptions.find((s) => s.id === toSalon)?.name ?? SALONS.find((s) => s.id === toSalon)?.name ?? `Salone ${toSalon}`;
 
   // reception senza salone (staff.salon_id) = blocco; cliente senza metadata = blocco
   if (!loading && !isWarehouse && (isReception ? receptionSalonId === null : userSalonId === null)) {
@@ -344,7 +335,7 @@ export default function TrasferimentiPage() {
                   await fetchProducts(v);
                 }}
               >
-                {SALONI.map((s) => (
+                {SALONS.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>

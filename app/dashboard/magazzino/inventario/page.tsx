@@ -74,7 +74,7 @@ export default function InventarioPage() {
     return (data as Product[]) || [];
   }
 
-  // ✅ fetch quando cambia salone / filtri
+  // Fetch quando cambia salone o filtri.
   useEffect(() => {
     let cancelled = false;
 
@@ -113,7 +113,7 @@ export default function InventarioPage() {
     return () => {
       cancelled = true;
     };
-  }, [isReady, ctxSalonId, filter, category, isWarehouse]); // ✅ ctxSalonId è la chiave
+  }, [isReady, ctxSalonId, filter, category, isWarehouse]);
 
   const totalProducts = products.length;
   const inSottoscorta = products.filter((p) => p.quantity <= 5).length;

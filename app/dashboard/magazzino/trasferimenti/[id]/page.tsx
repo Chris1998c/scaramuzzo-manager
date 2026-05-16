@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { salonLabel } from "@/lib/constants";
 
 interface Movement {
   id: number;
@@ -21,19 +22,6 @@ interface Movement {
   from_salon: number | null;
   to_salon: number | null;
   reason: string | null;
-}
-
-const SALONI_LABEL: Record<number, string> = {
-  1: "Corigliano",
-  2: "Cosenza",
-  3: "Castrovillari",
-  4: "Roma",
-  5: "Magazzino Centrale",
-};
-
-function salonLabel(id: number | null) {
-  if (id === null) return "-";
-  return SALONI_LABEL[id] ?? `Salone ${id}`;
 }
 
 function formatDate(dateString: string): string {
