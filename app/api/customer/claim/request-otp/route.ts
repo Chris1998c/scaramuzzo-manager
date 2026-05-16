@@ -11,9 +11,25 @@ import {
 import { generateOtpDigits, hashClaimOtp } from "@/lib/customerClaim/otpCrypto";
 import { canRequestOtp, recordRequestOtp } from "@/lib/customerClaim/rateLimit";
 import { sendClaimOtpWhatsApp } from "@/lib/integrations/whatsappClaimOtp";
+import {
+  isCustomerClaimDebugOtpEnabled,
+  resolveCustomerClaimOtpPepper,
+} from "@/lib/customerClaimConfig";
 
 export async function POST(req: Request) {
   try {
+    const pepperCfg = resolveCustomerClaimOtpPepper();
+    if (!pepperCfg.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: pepperCfg.message,
+          code: pepperCfg.code,
+        },
+        { status: 503 },
+      );
+    }
+
     const supabase = await createServerSupabase();
     const {
       data: { user },
@@ -163,7 +179,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const debugOtp = process.env.CUSTOMER_CLAIM_DEBUG_OTP === "true";
+    const debugOtp = isCustomerClaimDebugOtpEnabled();
 
     return NextResponse.json({
       success: true,

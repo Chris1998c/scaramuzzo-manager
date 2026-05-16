@@ -8,9 +8,22 @@ import {
   MAX_VERIFY_ATTEMPTS,
 } from "@/lib/customerClaim/claimShared";
 import { verifyClaimOtp } from "@/lib/customerClaim/otpCrypto";
+import { resolveCustomerClaimOtpPepper } from "@/lib/customerClaimConfig";
 
 export async function POST(req: Request) {
   try {
+    const pepperCfg = resolveCustomerClaimOtpPepper();
+    if (!pepperCfg.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: pepperCfg.message,
+          code: pepperCfg.code,
+        },
+        { status: 503 },
+      );
+    }
+
     const supabase = await createServerSupabase();
     const {
       data: { user },

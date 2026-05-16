@@ -1,22 +1,25 @@
 // app/api/customer/claim/route.ts
 // Collega l'utente autenticato al record customers tramite customer_code (legacy v1).
-// Produzione: CUSTOMER_CLAIM_ALLOW_CODE_MANUAL=false e flusso /claim/request-otp + /claim/verify-otp.
+// Manual claim solo se CUSTOMER_CLAIM_ALLOW_CODE_MANUAL=true; altrimenti OTP (/claim/request-otp + verify-otp).
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { findCustomerByCode, getLinkBlock } from "@/lib/customerClaim/claimShared";
+import {
+  isManualClaimAllowed,
+  manualClaimDisabledMessage,
+} from "@/lib/customerClaimConfig";
 
 async function ensureClaimReadyForLink(_ctx: {
   customerId: string;
   userId: string;
   customerCode: string;
 }): Promise<{ ok: true } | { ok: false; message: string; code: string }> {
-  if (process.env.CUSTOMER_CLAIM_ALLOW_CODE_MANUAL === "false") {
+  if (!isManualClaimAllowed()) {
     return {
       ok: false,
-      message:
-        "Questo flusso non è abilitato. Usa la verifica OTP (WhatsApp) dal portale cliente.",
-      code: "use_otp_flow",
+      message: manualClaimDisabledMessage(),
+      code: "manual_claim_disabled",
     };
   }
   return { ok: true };
