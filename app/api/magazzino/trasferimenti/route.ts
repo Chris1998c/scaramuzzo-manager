@@ -4,28 +4,24 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { MAGAZZINO_CENTRALE_ID, isOperationalSalonId } from "@/lib/constants";
 import { getUserAccess } from "@/lib/getUserAccess";
+import {
+  idempotentTransferResponse,
+  isUniqueViolation,
+  requireClientRequestIdResponse,
+  resolveTransferIdempotent,
+} from "@/lib/magazzino/idempotency";
 
 type TransferItem = { id: number | string; qty: number | string };
 
-// Saloni validi: 1..4 + centrale 5
 function isValidSalonId(id: number) {
   return Number.isFinite(id) && id >= 1 && id <= MAGAZZINO_CENTRALE_ID;
-}
-
-function normalizeRequestId(v: unknown): string | null {
-  const s = String(v ?? "").trim().toLowerCase();
-  if (!s) return null;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(s)
-    ? s
-    : null;
 }
 
 function transferRequestMarker(requestId: string): string {
   return `[[rid:${requestId}]]`;
 }
 
-function appendTransferMarker(note: string | null, requestId: string | null): string | null {
-  if (!requestId) return note;
+function appendTransferMarker(note: string | null, requestId: string): string | null {
   const marker = transferRequestMarker(requestId);
   const base = String(note ?? "").trim();
   if (base.includes(marker)) return base;
@@ -42,13 +38,14 @@ export async function POST(req: Request) {
     const items: TransferItem[] = Array.isArray(body?.items) ? body.items : [];
     const details = body?.details ?? null;
     const executeNow = Boolean(body?.executeNow);
-    const requestId = normalizeRequestId(body?.request_id);
+    const requestParsed = requireClientRequestIdResponse(body?.request_id);
+    if (requestParsed instanceof NextResponse) return requestParsed;
+    const clientRequestId = requestParsed.id;
 
     if (items.length === 0) {
       return NextResponse.json({ error: "items mancanti" }, { status: 400 });
     }
 
-    // AUTH
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
       return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
@@ -64,7 +61,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Permessi insufficienti" }, { status: 403 });
     }
 
-    // RECEPTION: from_salon = solo proprio salone operativo (ignora body)
     if (isReception) {
       const mySalonId = access.staffSalonId;
       if (!mySalonId || !isOperationalSalonId(mySalonId)) {
@@ -79,7 +75,6 @@ export async function POST(req: Request) {
       fromSalon = mySalonId;
     }
 
-    // VALIDAZIONI SALONI
     if (!isValidSalonId(fromSalon)) {
       return NextResponse.json({ error: "fromSalon non valido" }, { status: 400 });
     }
@@ -112,7 +107,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // NORMALIZZA ITEMS
     const rows = items
       .map((it) => ({
         product_id: Number(it?.id),
@@ -130,7 +124,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Items non validi" }, { status: 400 });
     }
 
-    // DETAILS SAFE
     const date =
       details?.date && typeof details.date === "string" && details.date.trim()
         ? details.date.trim()
@@ -145,29 +138,17 @@ export async function POST(req: Request) {
       details?.note && typeof details.note === "string" && details.note.trim()
         ? details.note.trim()
         : null;
-    const noteWithMarker = appendTransferMarker(note, requestId);
+    const noteWithMarker = appendTransferMarker(note, clientRequestId);
 
-    // Dedupe retry: request_id marcato nel campo note del transfer.
-    if (requestId) {
-      const marker = transferRequestMarker(requestId);
-      const { data: existingTransfer } = await supabaseAdmin
-        .from("transfers")
-        .select("id")
-        .eq("from_salon", fromSalon)
-        .eq("to_salon", toSalon)
-        .ilike("note", `%${marker}%`)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (existingTransfer) {
-        return NextResponse.json(
-          { ok: true, idempotent: true, transfer_id: (existingTransfer as { id: number }).id },
-          { status: 200 }
-        );
-      }
+    const existing = await resolveTransferIdempotent({
+      clientRequestId,
+      executeNow,
+      actorId: userId,
+    });
+    if (existing) {
+      return idempotentTransferResponse(existing.transfer_id);
     }
 
-    // CREA TRANSFER (draft o ready)
     const { data: transfer, error: transferError } = await supabaseAdmin
       .from("transfers")
       .insert({
@@ -177,18 +158,32 @@ export async function POST(req: Request) {
         causale,
         note: noteWithMarker,
         status: executeNow ? "ready" : "draft",
+        client_request_id: clientRequestId,
       })
       .select("id")
       .single();
 
-    if (transferError || !transfer) {
+    if (transferError) {
+      if (isUniqueViolation(transferError)) {
+        const replay = await resolveTransferIdempotent({
+          clientRequestId,
+          executeNow,
+          actorId: userId,
+        });
+        if (replay) {
+          return idempotentTransferResponse(replay.transfer_id);
+        }
+      }
       return NextResponse.json(
-        { error: transferError?.message ?? "Errore creazione transfer" },
+        { error: transferError.message ?? "Errore creazione transfer" },
         { status: 500 }
       );
     }
 
-    // INSERISCI RIGHE
+    if (!transfer) {
+      return NextResponse.json({ error: "Errore creazione transfer" }, { status: 500 });
+    }
+
     const itemsInsert = rows.map((r) => ({
       transfer_id: transfer.id,
       product_id: r.product_id,
@@ -204,7 +199,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
     }
 
-    // ESEGUI SUBITO (RPC)
     if (executeNow) {
       const { error: execError } = await supabaseAdmin.rpc("execute_transfer", {
         p_transfer_id: transfer.id,
@@ -217,16 +211,12 @@ export async function POST(req: Request) {
           error: execError.message,
         });
 
-        // rollback manuale anti-transfer-zombie
         await supabaseAdmin
           .from("transfer_items")
           .delete()
           .eq("transfer_id", transfer.id);
 
-        await supabaseAdmin
-          .from("transfers")
-          .delete()
-          .eq("id", transfer.id);
+        await supabaseAdmin.from("transfers").delete().eq("id", transfer.id);
 
         return NextResponse.json({ error: execError.message }, { status: 500 });
       }

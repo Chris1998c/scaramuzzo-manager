@@ -4,6 +4,7 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { stockMoveRpc } from "@/lib/magazzino/idempotency";
 
 export async function POST(req: Request) {
   try {
@@ -80,14 +81,18 @@ export async function POST(req: Request) {
 
     // Giacenza iniziale: salone richiesto (coerente con header) oppure hub centrale se non indicato.
     if (initialQty > 0) {
-      const { error: moveErr } = await supabaseAdmin.rpc("stock_move", {
-        p_product_id: Number(product.id),
-        p_qty: initialQty,
-        p_from_salon: null,
-        p_to_salon: stockTargetSalonId,
-        p_movement_type: "carico",
-        p_reason: "initial_stock",
-      });
+      const { error: moveErr } = await supabaseAdmin.rpc(
+        "stock_move",
+        stockMoveRpc({
+          p_product_id: Number(product.id),
+          p_qty: initialQty,
+          p_from_salon: null,
+          p_to_salon: stockTargetSalonId,
+          p_movement_type: "carico",
+          p_reason: "initial_stock",
+          p_client_request_id: null,
+        })
+      );
 
       if (moveErr) {
         return NextResponse.json({ error: moveErr.message }, { status: 500 });
