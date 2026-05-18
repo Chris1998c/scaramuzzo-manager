@@ -62,7 +62,7 @@ export async function GET() {
       staffIds.add(event.staff_id);
 
       const day = romeDayKeyFromIso(event.created_at);
-      const key = `${event.staff_id}:${day}`;
+      const key = `${event.staff_id}:${event.salon_id}:${day}`;
       const createdAtDate = new Date(event.created_at);
 
       if (Number.isNaN(createdAtDate.getTime())) {
@@ -152,6 +152,9 @@ export async function GET() {
       .sort((a, b) => {
         if (a.day !== b.day) {
           return b.day.localeCompare(a.day);
+        }
+        if (a.salon_id !== b.salon_id) {
+          return a.salon_id - b.salon_id;
         }
 
         const nameA = (a.staff_name ?? "").toLocaleLowerCase();

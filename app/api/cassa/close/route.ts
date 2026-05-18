@@ -228,10 +228,18 @@ type FiscalSaleReceiptLine = {
   vat_rate: number;
 };
 
+const DEFAULT_VAT_RATE = 22;
+
+function normalizeVatRate(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_VAT_RATE;
+}
+
 type ComputedSaleLine = NormalizedCloseLine & {
   unitPrice: number;
   lineDisc: number;
   net: number;
+  vatRate: number;
 };
 
 /** Righe scontrino fiscale: totali allineati a `finalTotal` ripartendo lo sconto globale sulle righe già nette per sconto di riga. */
@@ -291,7 +299,7 @@ function buildFiscalSaleReceiptLines(args: {
       unit_price,
       total,
       department: 1,
-      vat_rate: 22,
+      vat_rate: normalizeVatRate(c.vatRate),
     };
   });
 }
@@ -601,7 +609,23 @@ export async function POST(req: Request) {
       ...new Set(lines.filter((l) => l.kind === "product").map((l) => l.id)),
     ];
 
-    const [spRes, prodRes, svcRes] = await Promise.all([
+    type ServiceCatalogRow = {
+      id: number;
+      name?: unknown;
+      active?: boolean | null;
+      visible_in_cash?: boolean | null;
+      vat_rate?: unknown;
+    };
+
+    type ProductCatalogRow = {
+      id: number;
+      price?: unknown;
+      name?: unknown;
+      active?: boolean | null;
+      vat_rate?: unknown;
+    };
+
+    const [spRes, svcRes, prodRes] = await Promise.all([
       serviceIds.length
         ? supabaseAdmin
             .from("service_prices")
@@ -609,21 +633,59 @@ export async function POST(req: Request) {
             .eq("salon_id", salonId)
             .in("service_id", serviceIds)
         : Promise.resolve({ data: [], error: null } as const),
+      serviceIds.length
+        ? supabaseAdmin
+            .from("services")
+            .select("id, name, active, visible_in_cash, vat_rate")
+            .in("id", serviceIds)
+        : Promise.resolve({ data: [], error: null } as const),
       productIds.length
         ? supabaseAdmin
             .from("products")
-            .select("id, price, name")
+            .select("id, price, name, active, vat_rate")
             .in("id", productIds)
-        : Promise.resolve({ data: [], error: null } as const),
-      serviceIds.length
-        ? supabaseAdmin.from("services").select("id, name").in("id", serviceIds)
         : Promise.resolve({ data: [], error: null } as const),
     ]);
 
-    if (spRes.error || prodRes.error || svcRes.error) {
+    if (spRes.error || svcRes.error || prodRes.error) {
       return NextResponse.json(
-        { error: "Errore nel caricamento prezzi" },
+        { error: "Errore nel caricamento catalogo cassa" },
         { status: 500 }
+      );
+    }
+
+    const svcRows = (svcRes.data ?? []) as ServiceCatalogRow[];
+    const svcById = new Map<number, ServiceCatalogRow>(
+      svcRows.map((r) => [Number(r.id), r]),
+    );
+
+    const serviceVatById = new Map<number, number>();
+    const serviceNameById = new Map<number, string>();
+
+    for (const id of serviceIds) {
+      const row = svcById.get(id);
+      if (!row) {
+        return NextResponse.json(
+          { error: `Servizio non trovato (id ${id}).` },
+          { status: 400 },
+        );
+      }
+      if (row.active === false) {
+        return NextResponse.json(
+          { error: `Servizio non attivo (id ${id}).` },
+          { status: 400 },
+        );
+      }
+      if (row.visible_in_cash === false) {
+        return NextResponse.json(
+          { error: `Servizio non visibile in cassa (id ${id}).` },
+          { status: 400 },
+        );
+      }
+      serviceVatById.set(id, normalizeVatRate(row.vat_rate));
+      serviceNameById.set(
+        id,
+        typeof row.name === "string" ? row.name : "",
       );
     }
 
@@ -631,7 +693,7 @@ export async function POST(req: Request) {
       (spRes.data ?? []).map((r: { service_id: number; price: unknown }) => [
         Number(r.service_id),
         Number(r.price),
-      ])
+      ]),
     );
 
     if (serviceIds.length) {
@@ -641,50 +703,55 @@ export async function POST(req: Request) {
           {
             error: `Prezzo mancante in service_prices per questo salone (servizio/i: ${missing.join(", ")})`,
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
 
-    const prodRows = (prodRes.data ?? []) as Array<{
-      id: number;
-      price?: unknown;
-      name?: unknown;
-    }>;
-    const prodMap = new Map<number, number>(
-      prodRows.map((p) => [p.id, Number(p.price)])
+    const prodRows = (prodRes.data ?? []) as ProductCatalogRow[];
+    const prodById = new Map<number, ProductCatalogRow>(
+      prodRows.map((p) => [Number(p.id), p]),
     );
 
-    if (productIds.length) {
-      const productRowById = new Map(prodRows.map((p) => [p.id, p]));
-      const badProductIds = productIds.filter((id) => {
-        const row = productRowById.get(id);
-        if (!row) return true;
-        const raw = row.price;
-        if (raw === null || raw === undefined) return true;
-        const n = Number(raw);
-        return Number.isNaN(n) || !Number.isFinite(n);
-      });
-      if (badProductIds.length) {
+    const prodMap = new Map<number, number>();
+    const productVatById = new Map<number, number>();
+    const productNameById = new Map<number, string>();
+
+    for (const id of productIds) {
+      const row = prodById.get(id);
+      if (!row) {
         return NextResponse.json(
-          {
-            error: `Prezzo mancante o non valido per questo prodotto (id: ${badProductIds.join(", ")})`,
-          },
-          { status: 400 }
+          { error: `Prodotto non trovato (id ${id}).` },
+          { status: 400 },
         );
       }
+      if (row.active === false) {
+        return NextResponse.json(
+          { error: `Prodotto non attivo (id ${id}).` },
+          { status: 400 },
+        );
+      }
+      const rawPrice = row.price;
+      if (rawPrice === null || rawPrice === undefined) {
+        return NextResponse.json(
+          { error: `Prezzo mancante per questo prodotto (id ${id}).` },
+          { status: 400 },
+        );
+      }
+      const price = Number(rawPrice);
+      if (!Number.isFinite(price)) {
+        return NextResponse.json(
+          { error: `Prezzo non valido per questo prodotto (id ${id}).` },
+          { status: 400 },
+        );
+      }
+      prodMap.set(id, price);
+      productVatById.set(id, normalizeVatRate(row.vat_rate));
+      productNameById.set(
+        id,
+        typeof row.name === "string" ? row.name : "",
+      );
     }
-
-    const serviceNameById = new Map<number, string>(
-      (svcRes.data ?? []).map((r: { id: number; name: unknown }) => [
-        Number(r.id),
-        typeof r.name === "string" ? r.name : "",
-      ])
-    );
-
-    const productNameById = new Map<number, string>(
-      prodRows.map((p) => [p.id, typeof p.name === "string" ? p.name : ""])
-    );
 
     // 7) TOTALI
     let subtotal = 0;
@@ -706,11 +773,17 @@ export async function POST(req: Request) {
       subtotal = round2(subtotal + net);
       totalDiscount = round2(totalDiscount + lineDisc);
 
+      const vatRate =
+        l.kind === "service"
+          ? (serviceVatById.get(l.id) ?? DEFAULT_VAT_RATE)
+          : (productVatById.get(l.id) ?? DEFAULT_VAT_RATE);
+
       return {
         ...l,
         unitPrice,
         lineDisc,
         net,
+        vatRate,
       };
     });
 

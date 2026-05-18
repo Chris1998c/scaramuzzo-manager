@@ -27,6 +27,11 @@ function toInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+const DELETE_BLOCKED_MESSAGE =
+  "Appuntamento già operativo o collegato a una vendita: non può essere eliminato. Puoi annullarlo o gestirlo dallo storico.";
+
+const NON_DELETABLE_STATUSES = new Set(["done", "in_sala"]);
+
 function errMsg(e: unknown): string {
   if (!e) return "unknown";
   if (typeof e === "string") return e;
@@ -212,7 +217,7 @@ export async function DELETE(
 
     const { data: appt, error: apptErr } = await supabaseAdmin
       .from("appointments")
-      .select("id, salon_id")
+      .select("id, status, sale_id, salon_id")
       .eq("id", appointmentId)
       .maybeSingle();
     if (apptErr) return NextResponse.json({ error: apptErr.message }, { status: 500 });
@@ -230,6 +235,16 @@ export async function DELETE(
       }
     } else if (!access.allowedSalonIds.includes(salonId)) {
       return NextResponse.json({ error: "salon_id non consentito" }, { status: 403 });
+    }
+
+    const saleId = (appt as { sale_id?: unknown }).sale_id;
+    if (saleId != null && saleId !== "") {
+      return NextResponse.json({ error: DELETE_BLOCKED_MESSAGE }, { status: 409 });
+    }
+
+    const status = String((appt as { status?: unknown }).status ?? "").trim();
+    if (NON_DELETABLE_STATUSES.has(status)) {
+      return NextResponse.json({ error: DELETE_BLOCKED_MESSAGE }, { status: 409 });
     }
 
     const { error: delLinesErr } = await supabaseAdmin

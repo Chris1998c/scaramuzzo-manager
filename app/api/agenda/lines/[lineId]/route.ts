@@ -10,6 +10,7 @@ import {
   syncAppointmentHeaderFromDb,
   toNoZ,
 } from "@/lib/agenda/agendaContract";
+import { assertStaffBelongsToSalon } from "@/lib/agenda/appointmentServerValidation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,11 +68,6 @@ export async function PATCH(
     if (body.duration_minutes !== undefined) {
       clean.duration_minutes = clampDurationMinutes(body.duration_minutes);
     }
-    if (body.staff_id !== undefined) {
-      clean.staff_id = normalizeStaffId(body.staff_id);
-    }
-    if (!Object.keys(clean).length) return NextResponse.json({ ok: true });
-
     const { data: lineRow, error: lineErr } = await supabaseAdmin
       .from("appointment_services")
       .select("id, appointment_id, appointments:appointment_id ( salon_id )")
@@ -97,6 +93,17 @@ export async function PATCH(
     } else if (!access.allowedSalonIds.includes(salonId)) {
       return NextResponse.json({ error: "salon_id non consentito" }, { status: 403 });
     }
+
+    if (body.staff_id !== undefined) {
+      const staffId = normalizeStaffId(body.staff_id);
+      const staffGate = await assertStaffBelongsToSalon(supabaseAdmin, staffId, salonId);
+      if (!staffGate.ok) {
+        return NextResponse.json({ error: staffGate.error }, { status: staffGate.status });
+      }
+      clean.staff_id = staffId;
+    }
+
+    if (!Object.keys(clean).length) return NextResponse.json({ ok: true });
 
     const { data: updatedRows, error: updErr } = await supabaseAdmin
       .from("appointment_services")

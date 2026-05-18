@@ -167,7 +167,7 @@ export default async function PresenzePage() {
 
                 return (
                   <tr
-                    key={`${row.staff_id}-${row.day}`}
+                    key={`${row.staff_id}-${row.salon_id}-${row.day}`}
                     className="text-[#e8dcc8] transition-colors duration-150 hover:bg-white/[0.03]"
                   >
                     <td className="px-5 py-4 align-middle text-[#c9b299] tabular-nums">{row.day}</td>

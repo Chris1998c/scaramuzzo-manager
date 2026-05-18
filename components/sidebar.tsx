@@ -76,6 +76,7 @@ export default function Sidebar() {
     const name = allowedSalons.find((s) => s.id === activeSalonId)?.name?.trim();
     return name ? `Scaramuzzo - ${name}` : "Scaramuzzo —";
   }, [isReady, activeSalonId, allowedSalons]);
+  const isCliente = isReady && role === "cliente";
   const isCoordinator = isReady && role === "coordinator";
   const isReception = isReady && role === "reception";
   const isStaffNotCliente = isReady && role !== "cliente";
@@ -87,16 +88,22 @@ export default function Sidebar() {
       .map((s) => ({
         ...s,
         items: s.items.filter((it) => {
+          if (isCliente) {
+            return it.href === "/dashboard";
+          }
           if (it.href === "/dashboard/report") return isCoordinator;
           if (it.href === "/dashboard/marketing") return canSeeCrmAndMarketing;
           if (it.href === "/dashboard/presenze") return canSeePresenze;
           if (it.href === "/dashboard/clienti") return canSeeCrmAndMarketing;
           if (it.href === "/dashboard/magazzino") return isStaffNotCliente;
+          if (it.href === "/dashboard/agenda") return isStaffNotCliente;
+          if (it.href === "/dashboard/in-sala") return isStaffNotCliente;
+          if (it.href === "/dashboard/impostazioni") return isStaffNotCliente;
           return true;
         }),
       }))
       .filter((s) => s.items.length > 0);
-  }, [isCoordinator, canSeeCrmAndMarketing, isStaffNotCliente, canSeePresenze]);
+  }, [isCliente, isCoordinator, canSeeCrmAndMarketing, isStaffNotCliente, canSeePresenze]);
 
   const handleNavClick = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) closeSidebar();

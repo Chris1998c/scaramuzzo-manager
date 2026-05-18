@@ -3,13 +3,16 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import {
-  clampDurationMinutes,
   normalizeStaffId,
   parseLocal,
   snapToAgendaSlot,
   syncAppointmentHeaderFromDb,
   toNoZ,
 } from "@/lib/agenda/agendaContract";
+import {
+  assertStaffBelongsToSalon,
+  resolveAgendaServiceLines,
+} from "@/lib/agenda/appointmentServerValidation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,11 +36,6 @@ type CreateAppointmentBody = {
 function toInt(v: unknown): number | null {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? Math.trunc(n) : null;
-}
-
-function toNum(v: unknown, fallback = 0): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
 }
 
 function errMsg(e: unknown): string {
@@ -102,8 +100,48 @@ export async function POST(req: Request) {
     if (customerErr) return NextResponse.json({ error: customerErr.message }, { status: 500 });
     if (!customerRow) return NextResponse.json({ error: "Cliente non trovato" }, { status: 404 });
 
+    const serviceIds = services.map((s) => toInt(s.service_id)).filter((id): id is number => !!id && id > 0);
+    if (serviceIds.length !== services.length) {
+      return NextResponse.json({ error: "service_id non valido" }, { status: 400 });
+    }
+
+    const resolvedServices = await resolveAgendaServiceLines(supabaseAdmin, salonId, serviceIds);
+    if (!resolvedServices.ok) {
+      return NextResponse.json({ error: resolvedServices.error }, { status: resolvedServices.status });
+    }
+
+    const normalizedLines: Array<{
+      service_id: number;
+      staff_id: number | null;
+      duration_minutes: number;
+      price: number;
+      vat_rate: number;
+    }> = [];
+
+    for (const s of services) {
+      const serviceId = toInt(s.service_id)!;
+      const resolved = resolvedServices.data.get(serviceId);
+      if (!resolved) {
+        return NextResponse.json({ error: `Servizio non valido (id ${serviceId}).` }, { status: 400 });
+      }
+
+      const staffId = normalizeStaffId(s.staff_id);
+      const staffGate = await assertStaffBelongsToSalon(supabaseAdmin, staffId, salonId);
+      if (!staffGate.ok) {
+        return NextResponse.json({ error: staffGate.error }, { status: staffGate.status });
+      }
+
+      normalizedLines.push({
+        service_id: serviceId,
+        staff_id: staffId,
+        duration_minutes: resolved.duration_minutes,
+        price: resolved.price,
+        vat_rate: resolved.vat_rate,
+      });
+    }
+
     const snappedStart = toNoZ(snapToAgendaSlot(parseLocal(String(body.start_time))));
-    const firstServiceStaff = normalizeStaffId(services[0]?.staff_id);
+    const firstServiceStaff = normalizedLines[0]?.staff_id ?? null;
 
     const { data: appData, error: appErr } = await supabaseAdmin
       .from("appointments")
@@ -127,25 +165,21 @@ export async function POST(req: Request) {
     appointmentIdCreated = appointmentId;
 
     let cursorMs = parseLocal(snappedStart).getTime();
-    for (const s of services) {
-      const serviceId = toInt(s.service_id);
-      if (!serviceId || serviceId <= 0) throw new Error("service_id non valido");
-
-      const duration = clampDurationMinutes(s.duration_minutes);
+    for (const line of normalizedLines) {
       const row = {
         appointment_id: appointmentId,
-        service_id: serviceId,
-        staff_id: normalizeStaffId(s.staff_id),
+        service_id: line.service_id,
+        staff_id: line.staff_id,
         start_time: toNoZ(snapToAgendaSlot(new Date(cursorMs))),
-        duration_minutes: duration,
-        price: toNum(s.price, 0),
-        vat_rate: toNum(s.vat_rate, 22),
+        duration_minutes: line.duration_minutes,
+        price: line.price,
+        vat_rate: line.vat_rate,
       };
 
       const { error: lineErr } = await supabaseAdmin.from("appointment_services").insert(row);
       if (lineErr) throw new Error(lineErr.message);
 
-      cursorMs += duration * 60_000;
+      cursorMs += line.duration_minutes * 60_000;
     }
 
     const synced = await syncAppointmentHeaderFromDb(supabaseAdmin, appointmentId);
