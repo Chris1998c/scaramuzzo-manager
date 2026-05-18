@@ -14,9 +14,18 @@ export type ResolvedAgendaServiceLine = {
 type ValidationFail = { ok: false; error: string; status: number };
 type ValidationOk<T> = { ok: true; data: T };
 
+export const MISSING_SALON_SERVICE_PRICE_ERROR =
+  "Prezzo servizio mancante per questo salone. Configuralo in Impostazioni → Servizi e prezzi.";
+
 function toNum(v: unknown, fallback = 0): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function parseSalonServicePrice(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** Collaboratore attivo visibile sul salone (staff.salon_id legacy + staff_salons). */
@@ -40,8 +49,8 @@ export async function assertStaffBelongsToSalon(
 }
 
 /**
- * Risolve duration/prezzo/IVA da DB per righe agenda.
- * Prezzo: service_prices per salone, altrimenti services.price.
+ * Risolve duration/prezzo/IVA da DB per righe agenda/walk-in.
+ * Prezzo obbligatorio in service_prices per salon_id (allineato alla cassa).
  */
 export async function resolveAgendaServiceLines(
   admin: SupabaseClient,
@@ -55,7 +64,7 @@ export async function resolveAgendaServiceLines(
 
   const { data: svcRows, error: svcErr } = await admin
     .from("services")
-    .select("id, active, visible_in_agenda, duration, price, vat_rate")
+    .select("id, active, visible_in_agenda, duration, vat_rate")
     .in("id", unique);
 
   if (svcErr) {
@@ -96,19 +105,24 @@ export async function resolveAgendaServiceLines(
   const priceByService = new Map<number, number>();
   for (const pr of priceRows ?? []) {
     const sid = Number((pr as { service_id: unknown }).service_id);
-    if (Number.isInteger(sid) && sid > 0) {
-      priceByService.set(sid, toNum((pr as { price: unknown }).price, 0));
+    if (!Number.isInteger(sid) || sid <= 0) continue;
+    const parsed = parseSalonServicePrice((pr as { price: unknown }).price);
+    if (parsed !== null) {
+      priceByService.set(sid, parsed);
     }
   }
 
   const resolved = new Map<number, ResolvedAgendaServiceLine>();
   for (const id of unique) {
     const row = byId.get(id)!;
-    const priceFromSalon = priceByService.get(id);
+    const salonPrice = priceByService.get(id);
+    if (salonPrice === undefined) {
+      return { ok: false, error: MISSING_SALON_SERVICE_PRICE_ERROR, status: 400 };
+    }
     resolved.set(id, {
       service_id: id,
       duration_minutes: clampDurationMinutes(row.duration),
-      price: priceFromSalon !== undefined ? priceFromSalon : toNum(row.price, 0),
+      price: salonPrice,
       vat_rate: toNum(row.vat_rate, 22),
     });
   }

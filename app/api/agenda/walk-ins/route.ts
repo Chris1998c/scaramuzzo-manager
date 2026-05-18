@@ -3,8 +3,8 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { fetchActiveStaffIdsForSalon } from "@/lib/staffForSalon";
+import { resolveAgendaServiceLines } from "@/lib/agenda/appointmentServerValidation";
 import {
-  clampDurationMinutes,
   normalizeStaffId,
   nowRomeLocalDate,
   snapToAgendaSlot,
@@ -26,11 +26,6 @@ type WalkInBody = {
 function toInt(v: unknown): number | null {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? Math.trunc(n) : null;
-}
-
-function toNum(v: unknown, fallback = 0): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
 }
 
 function errMsg(e: unknown): string {
@@ -106,42 +101,9 @@ export async function POST(req: Request) {
     if (customerErr) return NextResponse.json({ error: customerErr.message }, { status: 500 });
     if (!customerRow) return NextResponse.json({ error: "Cliente non trovato" }, { status: 404 });
 
-    const { data: serviceRows, error: svcErr } = await supabaseAdmin
-      .from("services")
-      .select("id, duration, vat_rate, active, visible_in_agenda")
-      .in("id", serviceIds);
-    if (svcErr) return NextResponse.json({ error: svcErr.message }, { status: 500 });
-
-    const byId = new Map(
-      (serviceRows ?? []).map((r) => [Number((r as { id: unknown }).id), r as Record<string, unknown>]),
-    );
-    for (const sid of serviceIds) {
-      const row = byId.get(sid);
-      if (!row) {
-        return NextResponse.json({ error: `Servizio ${sid} non trovato` }, { status: 400 });
-      }
-      if (!row.active) {
-        return NextResponse.json({ error: `Servizio ${sid} non attivo` }, { status: 400 });
-      }
-      if (!row.visible_in_agenda) {
-        return NextResponse.json(
-          { error: `Servizio ${sid} non visibile in agenda` },
-          { status: 400 },
-        );
-      }
-    }
-
-    const { data: priceRows, error: priceErr } = await supabaseAdmin
-      .from("service_prices")
-      .select("service_id, price")
-      .eq("salon_id", salonId)
-      .in("service_id", serviceIds);
-    if (priceErr) return NextResponse.json({ error: priceErr.message }, { status: 500 });
-
-    const priceMap = new Map<number, number>();
-    for (const pr of priceRows ?? []) {
-      const sid = toInt((pr as { service_id: unknown }).service_id);
-      if (sid) priceMap.set(sid, toNum((pr as { price: unknown }).price, 0));
+    const resolvedServices = await resolveAgendaServiceLines(supabaseAdmin, salonId, serviceIds);
+    if (!resolvedServices.ok) {
+      return NextResponse.json({ error: resolvedServices.error }, { status: resolvedServices.status });
     }
 
     const checkedInAt = toNoZ(nowRomeLocalDate());
@@ -174,22 +136,24 @@ export async function POST(req: Request) {
 
     let cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
     for (const serviceId of serviceIds) {
-      const row = byId.get(serviceId)!;
-      const duration = clampDurationMinutes(toNum(row.duration, 15));
+      const resolved = resolvedServices.data.get(serviceId);
+      if (!resolved) {
+        return NextResponse.json({ error: `Servizio non valido (id ${serviceId}).` }, { status: 400 });
+      }
       const lineRow = {
         appointment_id: appointmentId,
         service_id: serviceId,
         staff_id: staffId,
         start_time: toNoZ(snapToAgendaSlot(new Date(cursorMs))),
-        duration_minutes: duration,
-        price: priceMap.get(serviceId) ?? 0,
-        vat_rate: toNum(row.vat_rate, 22),
+        duration_minutes: resolved.duration_minutes,
+        price: resolved.price,
+        vat_rate: resolved.vat_rate,
       };
 
       const { error: lineErr } = await supabaseAdmin.from("appointment_services").insert(lineRow);
       if (lineErr) throw new Error(lineErr.message);
 
-      cursorMs += duration * 60_000;
+      cursorMs += resolved.duration_minutes * 60_000;
     }
 
     const synced = await syncAppointmentHeaderFromDb(supabaseAdmin, appointmentId);
