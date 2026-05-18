@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
+import {
+  SALES_LEDGER_OPERATION_TYPE,
+  SALES_LEDGER_STATUS,
+} from "@/lib/reports/ledgerSalesFilter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,6 +117,8 @@ export async function GET(req: Request) {
       .from("sales")
       .select("id, total_amount, payment_method, date")
       .eq("salon_id", salonId)
+      .eq("status", SALES_LEDGER_STATUS)
+      .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
       .gte("date", start)
       .lte("date", end)
       .order("date", { ascending: true });

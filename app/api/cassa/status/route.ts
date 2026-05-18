@@ -4,6 +4,10 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchFiscalTodayStatusCounts } from "@/lib/fiscalSettings";
 import { getUserAccess } from "@/lib/getUserAccess";
+import {
+  SALES_LEDGER_OPERATION_TYPE,
+  SALES_LEDGER_STATUS,
+} from "@/lib/reports/ledgerSalesFilter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,7 +56,9 @@ async function sumSalesByRange(args: {
   let q = supabaseAdmin
     .from("sales")
     .select("total_amount, payment_method")
-    .eq("salon_id", args.salonId);
+    .eq("salon_id", args.salonId)
+    .eq("status", SALES_LEDGER_STATUS)
+    .eq("operation_type", SALES_LEDGER_OPERATION_TYPE);
 
   if (args.cashSessionId != null && args.cashSessionId > 0) {
     q = q.eq("cash_session_id", args.cashSessionId);
