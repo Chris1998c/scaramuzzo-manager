@@ -45,15 +45,22 @@ function todayRomeISO(): string {
 
 async function sumSalesByRange(args: {
   salonId: number;
+  cashSessionId?: number | null;
   startIso: string;
   endIso: string;
 }): Promise<{ gross: number; cash: number; card: number; count: number }> {
-  const { data, error } = await supabaseAdmin
+  let q = supabaseAdmin
     .from("sales")
     .select("total_amount, payment_method")
-    .eq("salon_id", args.salonId)
-    .gte("date", args.startIso)
-    .lte("date", args.endIso);
+    .eq("salon_id", args.salonId);
+
+  if (args.cashSessionId != null && args.cashSessionId > 0) {
+    q = q.eq("cash_session_id", args.cashSessionId);
+  } else {
+    q = q.gte("date", args.startIso).lte("date", args.endIso);
+  }
+
+  const { data, error } = await q;
 
   if (error || !Array.isArray(data)) {
     return { gross: 0, cash: 0, card: 0, count: 0 };
@@ -198,8 +205,10 @@ export async function GET(req: Request) {
     // sessione SOLO se cassa aperta
     let tSess = { gross: 0, cash: 0, card: 0, count: 0 };
     if (session) {
+      const sessionId = Number((session as any).id);
       tSess = await sumSalesByRange({
         salonId,
+        cashSessionId: Number.isFinite(sessionId) && sessionId > 0 ? sessionId : null,
         startIso: String((session as any).opened_at ?? todayStart),
         endIso: nowIso,
       });

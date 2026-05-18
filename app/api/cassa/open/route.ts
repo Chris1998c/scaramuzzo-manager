@@ -158,6 +158,24 @@ export async function POST(req: Request) {
       .single();
 
     if (crErr || !created) {
+      // Race: un'altra richiesta può aver aperto la sessione (vincolo una aperta per salone)
+      if (crErr?.code === "23505") {
+        const { data: raced, error: raceErr } = await supabaseAdmin
+          .from("cash_sessions")
+          .select(
+            "id, salon_id, session_date, opening_cash, closing_cash, status, opened_by, opened_at, closed_by, closed_at, notes, printer_enabled"
+          )
+          .eq("salon_id", salonId)
+          .is("closed_at", null)
+          .order("opened_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!raceErr && raced) {
+          return NextResponse.json({ ok: true, session: raced, reused: true, raced: true });
+        }
+      }
+
       return NextResponse.json({ error: crErr?.message ?? "Errore apertura cassa" }, { status: 500 });
     }
 

@@ -2,6 +2,7 @@
 
 type CashSessionRow = {
   id: number | string;
+  session_date?: string | null;
   opened_at: string;
   closed_at: string | null;
   status: "open" | "closed";
@@ -48,9 +49,10 @@ export default function ReportCashSessionsTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-[1100px] w-full text-sm">
+        <table className="min-w-[1180px] w-full text-sm">
           <thead>
             <tr className="bg-black/30">
+              <th className={`${thBase} ${thSecondary} text-left`}>Sessione</th>
               <th className={`${thBase} ${thPrimary} text-left`}>Stato</th>
               <th className={`${thBase} ${thSecondary} text-left`}>Apertura</th>
               <th className={`${thBase} ${thSecondary} text-left`}>Chiusura</th>
@@ -65,7 +67,7 @@ export default function ReportCashSessionsTable({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-white/40">
+                <td colSpan={9} className="px-4 py-12 text-center text-white/40">
                   Nessuna sessione di cassa nel periodo selezionato.
                 </td>
               </tr>
@@ -79,6 +81,12 @@ export default function ReportCashSessionsTable({
                       : "bg-transparent hover:bg-black/10"
                   }
                 >
+                  <td className={`${tdBase} ${tdSecondary}`}>
+                    <div className="font-bold text-white/80">#{r.id}</div>
+                    {r.session_date ? (
+                      <div className="text-[10px] text-white/40 mt-0.5">{r.session_date}</div>
+                    ) : null}
+                  </td>
                   <td className={tdBase}>
                     <span
                       className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${

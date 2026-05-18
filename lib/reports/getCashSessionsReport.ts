@@ -62,20 +62,26 @@ export async function getCashSessionsReport(filters: CashSessionsFilters) {
     let cash = storedCash;
     let card = storedCard;
 
-    // se non ci sono totali salvati → calcolo da sales
+    // se non ci sono totali salvati → calcolo da sales (per cash_session_id, fallback range sessione)
     if (gross === 0 && cash === 0 && card === 0 && openedAt) {
       const start = openedAt;
       const end = closedAt ?? new Date().toISOString();
+      const sessionId = s.id != null ? Number(s.id) : null;
 
-      const { data: sales, error: salesErr } = await supabase
+      let salesQuery = supabase
         .from("sales")
         .select("total_amount, payment_method, date")
         .eq("salon_id", salonId)
         .eq("status", SALES_LEDGER_STATUS)
-        .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
-        .gte("date", start)
-        .lte("date", end);
+        .eq("operation_type", SALES_LEDGER_OPERATION_TYPE);
 
+      if (sessionId != null && Number.isFinite(sessionId) && sessionId > 0) {
+        salesQuery = salesQuery.eq("cash_session_id", sessionId);
+      } else {
+        salesQuery = salesQuery.gte("date", start).lte("date", end);
+      }
+
+      const { data: sales, error: salesErr } = await salesQuery;
       if (salesErr) throw new Error(salesErr.message);
 
       for (const row of (sales ?? []) as any[]) {
@@ -94,6 +100,7 @@ export async function getCashSessionsReport(filters: CashSessionsFilters) {
     out.push({
       id: s.id,
       salon_id: s.salon_id,
+      session_date: s.session_date ?? null,
       opened_at: openedAt,
       closed_at: closedAt,
       opened_by: s.opened_by ?? s.opened_by_user_id ?? s.user_id ?? null,

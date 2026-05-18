@@ -40,15 +40,22 @@ const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 1
 
 async function sumSalesByRange(args: {
   salonId: number;
+  cashSessionId?: number | null;
   startIso: string;
   endIso: string;
 }): Promise<{ gross: number; cash: number; card: number; count: number }> {
-  const { data, error } = await supabaseAdmin
+  let q = supabaseAdmin
     .from("sales")
     .select("total_amount, payment_method")
-    .eq("salon_id", args.salonId)
-    .gte("date", args.startIso)
-    .lte("date", args.endIso);
+    .eq("salon_id", args.salonId);
+
+  if (args.cashSessionId != null && args.cashSessionId > 0) {
+    q = q.eq("cash_session_id", args.cashSessionId);
+  } else {
+    q = q.gte("date", args.startIso).lte("date", args.endIso);
+  }
+
+  const { data, error } = await q;
 
   if (error || !Array.isArray(data)) return { gross: 0, cash: 0, card: 0, count: 0 };
 
@@ -210,6 +217,7 @@ export async function POST(req: Request) {
     const openedAtForTotals = String((fullSession as any).opened_at ?? openedAt);
     const totalsOut = await sumSalesByRange({
       salonId,
+      cashSessionId,
       startIso: openedAtForTotals,
       endIso: closedAtIso,
     });
