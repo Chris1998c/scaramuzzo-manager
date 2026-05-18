@@ -2,6 +2,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyMobileToken, romeDayKeyFromIso } from "@/lib/mobileSession";
+import {
+  SALES_LEDGER_OPERATION_TYPE,
+  SALES_LEDGER_STATUS,
+} from "@/lib/reports/ledgerSalesFilter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -182,6 +186,8 @@ async function fetchSaleItemRowsForStats(
       )
       .eq("staff_id", staffId)
       .eq("sales.salon_id", salonId)
+      .eq("sales.status", SALES_LEDGER_STATUS)
+      .eq("sales.operation_type", SALES_LEDGER_OPERATION_TYPE)
       .gte("sales.date", fromTs)
       .lte("sales.date", toTs)
       .order("id", { ascending: true })

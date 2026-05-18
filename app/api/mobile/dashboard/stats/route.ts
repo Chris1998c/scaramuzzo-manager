@@ -6,6 +6,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveMobileStaffId, romeDayKeyFromIso } from "@/lib/mobileSession";
+import {
+  SALES_LEDGER_OPERATION_TYPE,
+  SALES_LEDGER_STATUS,
+} from "@/lib/reports/ledgerSalesFilter";
 
 function markLegacyMobileStats(res: NextResponse): NextResponse {
   res.headers.set("X-SM-API-Class", "mobile-legacy-dashboard-stats");
@@ -56,6 +60,8 @@ export async function POST(req: Request) {
       worked_days_count: 0,
     };
 
+    const ledgerSaleItemsSelect = "*, sales!inner(id)";
+
     const [
       { count: servicesCount, error: servicesErr },
       { count: productsCount, error: productsErr },
@@ -63,15 +69,24 @@ export async function POST(req: Request) {
     ] = await Promise.all([
       supabaseAdmin
         .from("sale_items")
-        .select("*", { count: "exact", head: true })
+        .select(ledgerSaleItemsSelect, { count: "exact", head: true })
         .eq("staff_id", staffId)
+        .eq("sales.status", SALES_LEDGER_STATUS)
+        .eq("sales.operation_type", SALES_LEDGER_OPERATION_TYPE)
         .not("service_id", "is", null),
       supabaseAdmin
         .from("sale_items")
-        .select("*", { count: "exact", head: true })
+        .select(ledgerSaleItemsSelect, { count: "exact", head: true })
         .eq("staff_id", staffId)
+        .eq("sales.status", SALES_LEDGER_STATUS)
+        .eq("sales.operation_type", SALES_LEDGER_OPERATION_TYPE)
         .not("product_id", "is", null),
-      supabaseAdmin.from("sale_items").select("sales(customer_id)").eq("staff_id", staffId),
+      supabaseAdmin
+        .from("sale_items")
+        .select("sales!inner(customer_id)")
+        .eq("staff_id", staffId)
+        .eq("sales.status", SALES_LEDGER_STATUS)
+        .eq("sales.operation_type", SALES_LEDGER_OPERATION_TYPE),
     ]);
 
     if (!servicesErr && typeof servicesCount === "number") {
@@ -84,7 +99,9 @@ export async function POST(req: Request) {
 
     if (!clientsErr && saleCustomerRows) {
       const customerIds = new Set<string>();
-      for (const row of saleCustomerRows as unknown as Array<{ sales: { customer_id: string | null } | null }>) {
+      for (const row of saleCustomerRows as unknown as Array<{
+        sales: { customer_id: string | null };
+      }>) {
         const cid = row?.sales?.customer_id;
         if (cid != null && cid !== "") customerIds.add(String(cid));
       }
