@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "audit:boss-customers": "node --experimental-strip-types scripts/imports/audit-boss-customers-csv.ts",
+    "audit:boss-products": "node --experimental-strip-types scripts/imports/audit-boss-products-xls.ts",
     "import:boss-customers:raw": "node --experimental-strip-types scripts/imports/load-boss-customers-raw.ts",
     "report:boss-customers-analysis": "node --experimental-strip-types scripts/imports/report-boss-customers-analysis.ts",
     "import:boss-customers:ready": "node --experimental-strip-types scripts/imports/import-boss-customers-ready.ts"
@@ -32,7 +33,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^20.19.41",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -41,6 +42,7 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.14",
     "typescript": "^5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "xlsx": "^0.18.5"
   }
 }
