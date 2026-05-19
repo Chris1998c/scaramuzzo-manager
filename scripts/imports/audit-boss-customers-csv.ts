@@ -3,16 +3,25 @@
  * Usage: npm run audit:boss-customers
  */
 
-const { readFileSync, writeFileSync, mkdirSync } = require("node:fs") as typeof import("node:fs");
-const { dirname, join } = require("node:path") as typeof import("node:path");
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import {
+  type SessoBucket,
+  classifySesso,
+  getField,
+  isFakeBirthDate,
+  normalizeEmail,
+  normalizeNominativo,
+  normalizePhone,
+  parseCsvSemicolon,
+  parseItalianDate,
+  parseValido,
+  resolveBossCsvColumns,
+} from "./bossCustomersCsvParse.ts";
 
 const REPO_ROOT = process.cwd();
 const CSV_PATH = join(REPO_ROOT, "data/imports/clienti-boss-raw.csv");
 const REPORT_PATH = join(REPO_ROOT, "data/imports/clienti-boss-audit-report.json");
-
-const FAKE_BIRTH_PATTERNS = new Set(["01/01/1900", "1/1/1900"]);
-
-type SessoBucket = "M" | "F" | "vuoto" | "altro";
 
 type NormalizedRow = {
   nominativo: string;
@@ -33,166 +42,6 @@ type DuplicateExample = {
   count: number;
   sampleNominativi: string[];
 };
-
-function parseCsvSemicolon(content: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < content.length; i++) {
-    const ch = content[i];
-    const next = content[i + 1];
-
-    if (inQuotes) {
-      if (ch === '"') {
-        if (next === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += ch;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inQuotes = true;
-      continue;
-    }
-
-    if (ch === ";") {
-      row.push(field);
-      field = "";
-      continue;
-    }
-
-    if (ch === "\n" || (ch === "\r" && next === "\n")) {
-      row.push(field);
-      field = "";
-      if (row.length > 1 || row[0] !== "") {
-        rows.push(row);
-      }
-      row = [];
-      if (ch === "\r") i++;
-      continue;
-    }
-
-    if (ch === "\r") {
-      row.push(field);
-      field = "";
-      if (row.length > 1 || row[0] !== "") {
-        rows.push(row);
-      }
-      row = [];
-      continue;
-    }
-
-    field += ch;
-  }
-
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-function normalizeHeaderName(h: string): string {
-  return h.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function findColumnIndex(headers: string[], ...names: string[]): number {
-  const normalized = headers.map(normalizeHeaderName);
-  for (const name of names) {
-    const target = normalizeHeaderName(name);
-    const idx = normalized.indexOf(target);
-    if (idx >= 0) return idx;
-  }
-  return -1;
-}
-
-function getField(row: string[], index: number): string {
-  if (index < 0 || index >= row.length) return "";
-  return row[index]?.trim() ?? "";
-}
-
-function normalizeNominativo(raw: string): { display: string; key: string } {
-  const display = raw.trim().replace(/\s+/g, " ");
-  const key = display.toUpperCase();
-  return { display, key };
-}
-
-function normalizeEmail(raw: string): string | null {
-  const email = raw.trim().toLowerCase();
-  if (!email) return null;
-  if (!email.includes("@")) return null;
-  return email;
-}
-
-function normalizePhone(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  const hadPlus39 = /\+39\b/i.test(trimmed) || /^0039/.test(trimmed.replace(/\s/g, ""));
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return null;
-
-  if (hadPlus39) {
-    const local = digits.startsWith("39") ? digits.slice(2) : digits;
-    return local ? `+39${local}` : null;
-  }
-
-  return digits;
-}
-
-function parseItalianDate(raw: string): Date | null {
-  const t = raw.trim();
-  if (!t) return null;
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(t);
-  if (!m) return null;
-
-  const day = Number(m[1]);
-  const month = Number(m[2]);
-  const year = Number(m[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-
-  const d = new Date(year, month - 1, day);
-  if (
-    d.getFullYear() !== year ||
-    d.getMonth() !== month - 1 ||
-    d.getDate() !== day
-  ) {
-    return null;
-  }
-  return d;
-}
-
-function isFakeBirthDate(raw: string): boolean {
-  const compact = raw.trim().replace(/\s+/g, "");
-  if (FAKE_BIRTH_PATTERNS.has(compact)) return true;
-  const normalized = compact.replace(/^0(\d)\//, "$1/").replace(/\/0(\d)\//, "/$1/");
-  return FAKE_BIRTH_PATTERNS.has(normalized);
-}
-
-function parseValido(raw: string): boolean | null {
-  const v = raw.trim().toLowerCase();
-  if (!v) return null;
-  if (v === "true" || v === "1" || v === "si" || v === "sì" || v === "yes") return true;
-  if (v === "false" || v === "0" || v === "no") return false;
-  return null;
-}
-
-function classifySesso(raw: string): SessoBucket {
-  const s = raw.trim().toUpperCase();
-  if (!s) return "vuoto";
-  if (s === "M" || s === "MASCHIO") return "M";
-  if (s === "F" || s === "FEMMINA") return "F";
-  return "altro";
-}
 
 function maskNominativo(key: string): string {
   if (!key) return "(vuoto)";
@@ -285,21 +134,15 @@ function runBossCustomersCsvAudit(): void {
   const headers = parsed[0];
   const dataRows = parsed.slice(1).filter((r) => r.some((c) => c.trim() !== ""));
 
-  const colNominativo = findColumnIndex(headers, "nominativo");
-  const colCellulare = findColumnIndex(headers, "cellulare");
-  const colTelefono = findColumnIndex(headers, "telefono");
-  const colEmail = findColumnIndex(headers, "email");
-  const colSesso = findColumnIndex(headers, "sesso");
-  const colValido = findColumnIndex(headers, "valido");
-  const colDataNascita = findColumnIndex(headers, "data di nascita", "data nascita");
+  const cols = resolveBossCsvColumns(headers);
 
   const normalizedRows: NormalizedRow[] = dataRows.map((row) => {
-    const { display, key } = normalizeNominativo(getField(row, colNominativo));
-    const email = normalizeEmail(getField(row, colEmail));
-    const cellulare = normalizePhone(getField(row, colCellulare));
-    const telefono = normalizePhone(getField(row, colTelefono));
+    const { display, key } = normalizeNominativo(getField(row, cols.nominativo));
+    const email = normalizeEmail(getField(row, cols.email));
+    const cellulare = normalizePhone(getField(row, cols.cellulare));
+    const telefono = normalizePhone(getField(row, cols.telefono));
     const phones = [...new Set([cellulare, telefono].filter((p): p is string => Boolean(p)))];
-    const dataNascitaRaw = getField(row, colDataNascita);
+    const dataNascitaRaw = getField(row, cols.dataNascita);
     const parsedBirth = parseItalianDate(dataNascitaRaw);
 
     return {
@@ -309,8 +152,8 @@ function runBossCustomersCsvAudit(): void {
       cellulare,
       telefono,
       phones,
-      sesso: classifySesso(getField(row, colSesso)),
-      valido: parseValido(getField(row, colValido)),
+      sesso: classifySesso(getField(row, cols.sesso)),
+      valido: parseValido(getField(row, cols.valido)),
       dataNascitaRaw,
       birthDateValid: parsedBirth !== null && !isFakeBirthDate(dataNascitaRaw),
       birthDateFake: isFakeBirthDate(dataNascitaRaw),
@@ -379,15 +222,7 @@ function runBossCustomersCsvAudit(): void {
     },
     columns: {
       detected: headers,
-      indices: {
-        nominativo: colNominativo,
-        cellulare: colCellulare,
-        telefono: colTelefono,
-        email: colEmail,
-        sesso: colSesso,
-        valido: colValido,
-        dataNascita: colDataNascita,
-      },
+      indices: cols,
     },
     quality: {
       emptyNominativo,

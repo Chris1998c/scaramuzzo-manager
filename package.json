@@ -9,7 +9,9 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "audit:boss-customers": "node --experimental-strip-types scripts/imports/audit-boss-customers-csv.ts"
+    "audit:boss-customers": "node --experimental-strip-types scripts/imports/audit-boss-customers-csv.ts",
+    "import:boss-customers:raw": "node --experimental-strip-types scripts/imports/load-boss-customers-raw.ts",
+    "report:boss-customers-analysis": "node --experimental-strip-types scripts/imports/report-boss-customers-analysis.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",
