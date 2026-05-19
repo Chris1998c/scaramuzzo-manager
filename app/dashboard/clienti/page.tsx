@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess, type RoleName } from "@/lib/getUserAccess";
 import { canAccessClientiWeb } from "@/lib/clientiWebAccess";
+import { fetchCustomersBrowse } from "@/lib/customers/clientiListQuery";
 import ClientiView from "./ClientiView";
 
 function isNextRedirect(e: unknown): boolean {
@@ -38,19 +39,11 @@ export default async function ClientiPage() {
       redirect("/dashboard");
     }
 
-    const { data: customers, error } = await supabase
-      .from("customers")
-      .select("id, first_name, last_name, phone, address, notes")
-      .order("last_name", { ascending: true });
+    const { data: initial, error: browseError } = await fetchCustomersBrowse(supabase);
 
-    if (error) {
-      throw new Error("Errore caricamento clienti: " + error.message);
+    if (browseError) {
+      throw new Error("Errore caricamento clienti: " + browseError);
     }
-
-    const initial = (customers ?? []).map((row) => ({
-      ...row,
-      customer_code: String(row.id),
-    }));
 
     return (
       <div className="space-y-8">

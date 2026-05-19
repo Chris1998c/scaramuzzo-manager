@@ -1,20 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
+import {
+  type ClientiListRow,
+  searchCustomersForClienti,
+} from "@/lib/customers/clientiListQuery";
 import { insertCustomerWithAllocatedCode } from "@/lib/nextCustomerCode";
 import { Plus, Search, X, Users, Download } from "lucide-react";
 
-type Customer = {
-  id: string;
-  customer_code: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  address: string | null;
-  notes: string | null;
-};
+type Customer = ClientiListRow;
 
 /** Codice da mostrare in UI: mai UUID né eco dell'id tecnico. */
 const UUID_RE =
@@ -31,6 +27,8 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
   const supabase = useMemo(() => createClient(), []);
   const [query, setQuery] = useState("");
   const [customers, setCustomers] = useState<Customer[]>(initial);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -43,16 +41,35 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
     address: "",
   });
 
-  const filtered = customers.filter((c) => {
-    const q = query.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      c.first_name.toLowerCase().includes(q) ||
-      c.last_name.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      c.customer_code.toLowerCase().includes(q)
-    );
-  });
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setCustomers(initial);
+      setSearchError("");
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    setSearchError("");
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        const { data, error: searchErr } = await searchCustomersForClienti(supabase, q);
+        if (searchErr) {
+          setSearchError(searchErr);
+          setCustomers([]);
+        } else {
+          setCustomers(data);
+        }
+        setSearching(false);
+      })();
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [query, supabase, initial]);
+
+  const filtered = customers;
 
   function exportCSV() {
     const headers = ["Codice", "Nome", "Cognome", "Telefono", "Indirizzo"];
@@ -130,7 +147,7 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cerca per nome, cognome o telefono…"
+            placeholder="Cerca per nome, cognome, telefono o email…"
             className="w-full rounded-2xl bg-[#24140e]/70 border border-[#5c3a21]/60
               pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/40
               backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
@@ -160,6 +177,15 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
           </button>
         </div>
       </div>
+
+      {(searching || searchError) && (
+        <p className="text-sm text-[#c9b299]">
+          {searching ? "Ricerca sul database…" : null}
+          {searchError ? (
+            <span className="text-red-400"> Errore ricerca: {searchError}</span>
+          ) : null}
+        </p>
+      )}
 
       {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
