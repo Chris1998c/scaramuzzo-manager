@@ -12,6 +12,7 @@
     "audit:boss-customers": "node --experimental-strip-types scripts/imports/audit-boss-customers-csv.ts",
     "audit:boss-products": "node --experimental-strip-types scripts/imports/audit-boss-products-xls.ts",
     "import:boss-products:raw": "node --experimental-strip-types scripts/imports/load-boss-products-raw.ts",
+    "report:boss-products:master": "node --experimental-strip-types scripts/imports/report-boss-products-master.ts",
     "import:boss-customers:raw": "node --experimental-strip-types scripts/imports/load-boss-customers-raw.ts",
     "report:boss-customers-analysis": "node --experimental-strip-types scripts/imports/report-boss-customers-analysis.ts",
     "import:boss-customers:ready": "node --experimental-strip-types scripts/imports/import-boss-customers-ready.ts"
