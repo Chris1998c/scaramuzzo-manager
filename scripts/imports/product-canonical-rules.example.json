@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "description": "Copia in data/imports/products-boss/product-canonical-rules.json (cartella gitignored).",
+  "rules": [
+    {
+      "id": "example_merge_generic",
+      "match": ["guanti monouso"],
+      "canonical_name": "Guanti monouso",
+      "usage_type": "internal_use",
+      "product_category": "consumabili",
+      "canonical_strategy": "merge_generic"
+    },
+    {
+      "id": "example_keep_brand",
+      "match": ["direct color scaramuzzo"],
+      "canonical_name": "Direct Color Scaramuzzo",
+      "usage_type": "dual_use",
+      "product_category": "colori",
+      "canonical_strategy": "keep_brand_specific"
+    }
+  ]
+}

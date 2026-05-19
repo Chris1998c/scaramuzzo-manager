@@ -13,6 +13,13 @@
     "audit:boss-products": "node --experimental-strip-types scripts/imports/audit-boss-products-xls.ts",
     "import:boss-products:raw": "node --experimental-strip-types scripts/imports/load-boss-products-raw.ts",
     "report:boss-products:master": "node --experimental-strip-types scripts/imports/report-boss-products-master.ts",
+    "report:boss-products:classification": "node --experimental-strip-types scripts/imports/report-boss-products-classification.ts",
+    "review:boss-products": "node --experimental-strip-types scripts/imports/review-boss-products.ts",
+    "review:boss-products:pending": "node --experimental-strip-types scripts/imports/review-boss-products-pending.ts",
+    "prefill:boss-products-review": "node --experimental-strip-types scripts/imports/prefill-boss-products-review.ts",
+    "merge:boss-products-review": "node --experimental-strip-types scripts/imports/merge-boss-products-review-final.ts",
+    "import:boss-products:review": "node --experimental-strip-types scripts/imports/load-products-manual-review.ts",
+    "report:boss-products:ready": "node --experimental-strip-types scripts/imports/report-products-ready-candidates.ts",
     "import:boss-customers:raw": "node --experimental-strip-types scripts/imports/load-boss-customers-raw.ts",
     "report:boss-customers-analysis": "node --experimental-strip-types scripts/imports/report-boss-customers-analysis.ts",
     "import:boss-customers:ready": "node --experimental-strip-types scripts/imports/import-boss-customers-ready.ts"
