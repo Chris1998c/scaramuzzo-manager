@@ -6,14 +6,12 @@ import Link from "next/link";
 import { LayoutList, ChevronUp, ChevronDown } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import {
+  fetchInventarioCatalog,
+  type InventarioProductRow,
+} from "@/lib/magazzino/inventarioCatalog";
 
-interface Product {
-  product_id: number;
-  name: string;
-  category: string | null;
-  barcode: string | null;
-  quantity: number;
-}
+type Product = InventarioProductRow;
 
 // SOLO saloni veri: 1..MAGAZZINO_CENTRALE_ID (5)
 function isValidSalonId(n: unknown): n is number {
@@ -60,18 +58,7 @@ export default function InventarioPage() {
       : allowedSalons.find((s) => s.id === ctxSalonId)?.name ?? `Salone ${ctxSalonId}`;
 
   async function fetchProducts(salonId: number, search: string, cat: string) {
-    let query = supabase
-      .from("products_with_stock")
-      .select("product_id, name, category, barcode, quantity")
-      .eq("salon_id", salonId);
-
-    if (search.trim()) query = query.ilike("name", `%${search.trim()}%`);
-    if (cat.trim()) query = query.eq("category", cat.trim());
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    return (data as Product[]) || [];
+    return fetchInventarioCatalog(supabase, salonId, search, cat);
   }
 
   // Fetch quando cambia salone o filtri.
@@ -113,7 +100,7 @@ export default function InventarioPage() {
     return () => {
       cancelled = true;
     };
-  }, [isReady, ctxSalonId, filter, category, isWarehouse]);
+  }, [isReady, ctxSalonId, filter, category, isWarehouse, supabase]);
 
   const totalProducts = products.length;
   const inSottoscorta = products.filter((p) => p.quantity <= 5).length;
