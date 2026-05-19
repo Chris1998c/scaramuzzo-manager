@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { fetchFiscalPrintJobById } from "@/lib/fiscal/fetchFiscalPrintJobById";
 import {
   assertSalonAccessForFiscalJob,
   requireFiscalJobActor,
 } from "@/lib/fiscal/fiscalJobActionAuth";
-import { validateRequeueFiscalJob } from "@/lib/fiscal/validateFiscalJobRequeue";
+import { cancelFiscalPrintJobViaRpc } from "@/lib/fiscal/cancelFiscalPrintJob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RequeueBody = {
+type CancelBody = {
   job_id?: number | string;
   confirm_z_report?: boolean;
+  reason?: string;
 };
 
 function parseJobId(raw: unknown): number | null {
@@ -42,9 +42,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: actor.message }, { status: actor.status });
     }
 
-    let body: RequeueBody;
+    let body: CancelBody;
     try {
-      body = (await req.json()) as RequeueBody;
+      body = (await req.json()) as CancelBody;
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
@@ -67,43 +67,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: salonGate.message }, { status: salonGate.status });
     }
 
-    const requeueGate = validateRequeueFiscalJob(job, {
-      confirmZReport: body.confirm_z_report === true,
-    });
-    if (!requeueGate.ok) {
+    if (job.kind === "z_report" && body.confirm_z_report !== true) {
       return NextResponse.json(
-        { error: requeueGate.message },
-        { status: requeueGate.status },
+        {
+          error:
+            "Conferma esplicita richiesta per annullare job z_report (confirm_z_report).",
+        },
+        { status: 400 },
       );
     }
 
-    const { data, error } = await supabaseAdmin.rpc("requeue_fiscal_print_job", {
-      p_job_id: jobId,
-      p_force: requeueGate.force,
-    });
+    const reason =
+      typeof body.reason === "string" && body.reason.trim()
+        ? body.reason.trim()
+        : "dashboard";
 
-    if (error) {
-      const msg = error.message ?? "Errore requeue job fiscale";
-      if (/non trovato/i.test(msg)) {
-        return NextResponse.json({ error: msg }, { status: 404 });
-      }
-      if (/non consentito|non stale/i.test(msg)) {
-        return NextResponse.json({ error: msg }, { status: 409 });
-      }
-      return NextResponse.json({ error: msg }, { status: 500 });
-    }
-
-    const updated = Array.isArray(data) && data.length > 0 ? data[0] : data;
-    if (!updated) {
+    const result = await cancelFiscalPrintJobViaRpc(jobId, reason);
+    if (!result.ok) {
       return NextResponse.json(
-        { error: "Job non restituito dalla RPC" },
-        { status: 500 },
+        { error: result.message },
+        { status: result.status },
       );
     }
 
-    return NextResponse.json({ ok: true, job: updated });
+    return NextResponse.json({ ok: true, job: result.job });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Errore requeue";
+    const msg = e instanceof Error ? e.message : "Errore annullamento";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

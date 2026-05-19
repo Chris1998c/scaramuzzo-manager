@@ -15,8 +15,10 @@ import {
   Users,
   UserSquare2,
   FileText,
+  Receipt,
   Settings,
 } from "lucide-react";
+import { canAccessFiscalJobsWeb } from "@/lib/fiscalJobsWebAccessShared";
 import { useUI } from "@/lib/ui-store";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
@@ -50,6 +52,7 @@ const sections: MenuSection[] = [
       { name: "Magazzino", icon: Package, href: "/dashboard/magazzino" },
       { name: "WhatsApp manuale", icon: MessageCircle, href: "/dashboard/marketing" },
       { name: "Report", icon: FileText, href: "/dashboard/report" },
+      { name: "Job fiscali", icon: Receipt, href: "/dashboard/fiscale" },
     ],
   },
   {
@@ -82,6 +85,7 @@ export default function Sidebar() {
   const isStaffNotCliente = isReady && role !== "cliente";
   const canSeeCrmAndMarketing = isReady && canAccessMarketingWeb(role);
   const canSeePresenze = isCoordinator || isReception;
+  const canSeeFiscalJobs = isReady && canAccessFiscalJobsWeb(role);
 
   const visibleSections = useMemo(() => {
     return sections
@@ -92,6 +96,7 @@ export default function Sidebar() {
             return it.href === "/dashboard";
           }
           if (it.href === "/dashboard/report") return isCoordinator;
+          if (it.href === "/dashboard/fiscale") return canSeeFiscalJobs;
           if (it.href === "/dashboard/marketing") return canSeeCrmAndMarketing;
           if (it.href === "/dashboard/presenze") return canSeePresenze;
           if (it.href === "/dashboard/clienti") return canSeeCrmAndMarketing;
@@ -103,7 +108,14 @@ export default function Sidebar() {
         }),
       }))
       .filter((s) => s.items.length > 0);
-  }, [isCliente, isCoordinator, canSeeCrmAndMarketing, isStaffNotCliente, canSeePresenze]);
+  }, [
+    isCliente,
+    isCoordinator,
+    canSeeCrmAndMarketing,
+    isStaffNotCliente,
+    canSeePresenze,
+    canSeeFiscalJobs,
+  ]);
 
   const handleNavClick = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) closeSidebar();
