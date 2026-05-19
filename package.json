@@ -20,6 +20,8 @@
     "merge:boss-products-review": "node --experimental-strip-types scripts/imports/merge-boss-products-review-final.ts",
     "import:boss-products:review": "node --experimental-strip-types scripts/imports/load-products-manual-review.ts",
     "report:boss-products:ready": "node --experimental-strip-types scripts/imports/report-products-ready-candidates.ts",
+    "import:boss-products:ready": "node --experimental-strip-types scripts/imports/import-boss-products-ready.ts",
+    "import:boss-products:stock": "node --experimental-strip-types scripts/imports/import-boss-product-stock.ts",
     "import:boss-customers:raw": "node --experimental-strip-types scripts/imports/load-boss-customers-raw.ts",
     "report:boss-customers-analysis": "node --experimental-strip-types scripts/imports/report-boss-customers-analysis.ts",
     "import:boss-customers:ready": "node --experimental-strip-types scripts/imports/import-boss-customers-ready.ts"
