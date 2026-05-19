@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit:boss-customers": "node --experimental-strip-types scripts/imports/audit-boss-customers-csv.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",

@@ -1,3 +1,5 @@
+export {};
+
 async function main() {
   const response = await fetch("http://localhost:3000/api/mobile/login", {
     method: "POST",
