@@ -5,6 +5,11 @@ import { getUserAccess } from "@/lib/getUserAccess";
 import { fetchActiveStaffIdsForSalon } from "@/lib/staffForSalon";
 import { resolveAgendaServiceLines } from "@/lib/agenda/appointmentServerValidation";
 import {
+  assertStaffSlotFree,
+  computeLineEndTime,
+  isStaffSlotConflictError,
+} from "@/lib/agenda/assertStaffSlotFree";
+import {
   normalizeStaffId,
   nowRomeLocalDate,
   snapToAgendaSlot,
@@ -109,6 +114,22 @@ export async function POST(req: Request) {
     const checkedInAt = toNoZ(nowRomeLocalDate());
     const snappedStart = toNoZ(snapToAgendaSlot(nowRomeLocalDate()));
 
+    let cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
+    for (const serviceId of serviceIds) {
+      const resolved = resolvedServices.data.get(serviceId);
+      if (!resolved) continue;
+      const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
+      const lineEnd = computeLineEndTime(lineStart, resolved.duration_minutes);
+      await assertStaffSlotFree({
+        supabase: supabaseAdmin,
+        salonId,
+        staffId,
+        startTime: lineStart,
+        endTime: lineEnd,
+      });
+      cursorMs += resolved.duration_minutes * 60_000;
+    }
+
     const { data: appData, error: appErr } = await supabaseAdmin
       .from("appointments")
       .insert({
@@ -134,12 +155,13 @@ export async function POST(req: Request) {
     }
     appointmentIdCreated = appointmentId;
 
-    let cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
+    cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
     for (const serviceId of serviceIds) {
       const resolved = resolvedServices.data.get(serviceId);
       if (!resolved) {
         return NextResponse.json({ error: `Servizio non valido (id ${serviceId}).` }, { status: 400 });
       }
+
       const lineRow = {
         appointment_id: appointmentId,
         service_id: serviceId,
@@ -161,6 +183,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, appointment_id: appointmentId });
   } catch (e) {
+    if (isStaffSlotConflictError(e)) {
+      return NextResponse.json(
+        { error: (e as Error).message },
+        { status: 409 },
+      );
+    }
     if (appointmentIdCreated != null) {
       try {
         await supabaseAdmin

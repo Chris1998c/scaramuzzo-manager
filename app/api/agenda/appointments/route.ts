@@ -13,6 +13,11 @@ import {
   assertStaffBelongsToSalon,
   resolveAgendaServiceLines,
 } from "@/lib/agenda/appointmentServerValidation";
+import {
+  assertStaffSlotFree,
+  computeLineEndTime,
+  isStaffSlotConflictError,
+} from "@/lib/agenda/assertStaffSlotFree";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -143,6 +148,22 @@ export async function POST(req: Request) {
     const snappedStart = toNoZ(snapToAgendaSlot(parseLocal(String(body.start_time))));
     const firstServiceStaff = normalizedLines[0]?.staff_id ?? null;
 
+    let cursorMs = parseLocal(snappedStart).getTime();
+    for (const line of normalizedLines) {
+      if (line.staff_id != null) {
+        const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
+        const lineEnd = computeLineEndTime(lineStart, line.duration_minutes);
+        await assertStaffSlotFree({
+          supabase: supabaseAdmin,
+          salonId,
+          staffId: line.staff_id,
+          startTime: lineStart,
+          endTime: lineEnd,
+        });
+      }
+      cursorMs += line.duration_minutes * 60_000;
+    }
+
     const { data: appData, error: appErr } = await supabaseAdmin
       .from("appointments")
       .insert({
@@ -164,7 +185,7 @@ export async function POST(req: Request) {
     }
     appointmentIdCreated = appointmentId;
 
-    let cursorMs = parseLocal(snappedStart).getTime();
+    cursorMs = parseLocal(snappedStart).getTime();
     for (const line of normalizedLines) {
       const row = {
         appointment_id: appointmentId,
@@ -187,6 +208,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, appointment_id: appointmentId });
   } catch (e) {
+    if (isStaffSlotConflictError(e)) {
+      return NextResponse.json(
+        { error: (e as Error).message },
+        { status: 409 },
+      );
+    }
     if (appointmentIdCreated != null) {
       try {
         await supabaseAdmin.from("appointment_services").delete().eq("appointment_id", appointmentIdCreated);

@@ -11,6 +11,11 @@ import {
   toNoZ,
 } from "@/lib/agenda/agendaContract";
 import { assertStaffBelongsToSalon } from "@/lib/agenda/appointmentServerValidation";
+import {
+  assertStaffSlotFree,
+  computeLineEndTime,
+  isStaffSlotConflictError,
+} from "@/lib/agenda/assertStaffSlotFree";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,7 +75,9 @@ export async function PATCH(
     }
     const { data: lineRow, error: lineErr } = await supabaseAdmin
       .from("appointment_services")
-      .select("id, appointment_id, appointments:appointment_id ( salon_id )")
+      .select(
+        "id, appointment_id, start_time, duration_minutes, staff_id, appointments:appointment_id ( salon_id )",
+      )
       .eq("id", lineId)
       .maybeSingle();
 
@@ -105,6 +112,32 @@ export async function PATCH(
 
     if (!Object.keys(clean).length) return NextResponse.json({ ok: true });
 
+    const currentStart = String((lineRow as { start_time?: unknown }).start_time ?? "");
+    const currentDuration = Number((lineRow as { duration_minutes?: unknown }).duration_minutes);
+    const mergedStart =
+      clean.start_time !== undefined ? String(clean.start_time) : currentStart;
+    const mergedDuration =
+      clean.duration_minutes !== undefined
+        ? Number(clean.duration_minutes)
+        : currentDuration;
+    const mergedStaff =
+      clean.staff_id !== undefined
+        ? (clean.staff_id as number | null)
+        : normalizeStaffId((lineRow as { staff_id?: unknown }).staff_id);
+
+    if (mergedStaff != null && mergedStart && Number.isFinite(mergedDuration) && mergedDuration > 0) {
+      const lineEnd = computeLineEndTime(mergedStart, mergedDuration);
+      await assertStaffSlotFree({
+        supabase: supabaseAdmin,
+        salonId,
+        staffId: mergedStaff,
+        startTime: mergedStart,
+        endTime: lineEnd,
+        excludeAppointmentId: appointmentId,
+        excludeLineId: lineId,
+      });
+    }
+
     const { data: updatedRows, error: updErr } = await supabaseAdmin
       .from("appointment_services")
       .update(clean)
@@ -122,6 +155,12 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
+    if (isStaffSlotConflictError(e)) {
+      return NextResponse.json(
+        { error: (e as Error).message },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: "Errore /api/agenda/lines/[lineId]", details: errMsg(e) },
       { status: 500 }
