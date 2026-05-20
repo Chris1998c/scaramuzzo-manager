@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { StockLedgerRpcFields } from "@/lib/magazzino/ledgerLinks";
 
 const CLIENT_REQUEST_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -56,7 +57,7 @@ type TransferRow = {
   executed_at: string | null;
 };
 
-/** Payload RPC stock_move (7 parametri espliciti — evita overload 6 vs 7 arg in PostgREST). */
+/** Payload RPC stock_move (14 parametri — evita overload PostgREST). */
 export type StockMoveRpcInput = {
   p_product_id: number;
   p_qty: number;
@@ -64,7 +65,7 @@ export type StockMoveRpcInput = {
   p_to_salon: number | null;
   p_movement_type: string;
   p_reason: string | null;
-};
+} & StockLedgerRpcFields;
 
 export function stockMoveRpc(
   params: StockMoveRpcInput & { p_client_request_id?: string | null }
@@ -77,6 +78,13 @@ export function stockMoveRpc(
     p_movement_type: params.p_movement_type,
     p_reason: params.p_reason,
     p_client_request_id: params.p_client_request_id ?? null,
+    p_sale_id: params.p_sale_id ?? null,
+    p_transfer_id: params.p_transfer_id ?? null,
+    p_sale_item_id: params.p_sale_item_id ?? null,
+    p_transfer_item_id: params.p_transfer_item_id ?? null,
+    p_created_by: params.p_created_by ?? null,
+    p_movement_group_id: params.p_movement_group_id ?? null,
+    p_source: params.p_source ?? "manual",
   };
 }
 
@@ -100,6 +108,7 @@ export async function findTransferByClientRequestId(
 
 export async function runStockMoveIdempotent(args: {
   clientRequestId: string;
+  actorId?: string | null;
   rpc: StockMoveRpcInput;
 }): Promise<
   | { ok: true; idempotent?: boolean; duplicate_movement_id?: number }
@@ -112,7 +121,13 @@ export async function runStockMoveIdempotent(args: {
 
   const { error } = await supabaseAdmin.rpc(
     "stock_move",
-    stockMoveRpc({ ...args.rpc, p_client_request_id: args.clientRequestId })
+    stockMoveRpc({
+      ...args.rpc,
+      p_client_request_id: args.clientRequestId,
+      p_created_by: args.rpc.p_created_by ?? args.actorId ?? null,
+      p_movement_group_id: args.rpc.p_movement_group_id ?? args.clientRequestId,
+      p_source: args.rpc.p_source ?? "manual",
+    })
   );
 
   if (!error) {

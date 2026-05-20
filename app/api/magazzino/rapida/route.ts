@@ -72,6 +72,7 @@ export async function POST(req: Request) {
 
     const result = await runStockMoveIdempotent({
       clientRequestId,
+      actorId: userData.user.id,
       rpc: {
         p_product_id: productId,
         p_qty: qty,

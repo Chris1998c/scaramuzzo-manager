@@ -118,6 +118,8 @@ export async function POST(req: Request) {
           p_movement_type: "carico",
           p_reason: "initial_stock",
           p_client_request_id: null,
+          p_created_by: userData.user.id,
+          p_source: "manual",
         })
       );
 
