@@ -3,6 +3,11 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import {
+  assertStaffSlotFree,
+  computeLineEndTime,
+  isStaffSlotConflictError,
+} from "@/lib/agenda/assertStaffSlotFree";
+import {
   clampDurationMinutes,
   normalizeStaffId,
   parseLocal,
@@ -122,6 +127,47 @@ export async function PATCH(
     const timeChanged = hasStartInput && deltaMs !== 0;
     const staffChanged = hasStaffInput && staffNorm !== normalizeStaffId((appt as { staff_id?: unknown }).staff_id);
 
+    const { data: lineRows, error: linesErr } = await supabaseAdmin
+      .from("appointment_services")
+      .select("id, start_time, duration_minutes, staff_id")
+      .eq("appointment_id", appointmentId)
+      .order("start_time", { ascending: true })
+      .order("id", { ascending: true });
+    if (linesErr) return NextResponse.json({ error: linesErr.message }, { status: 500 });
+
+    if (lineRows?.length && (timeChanged || staffChanged)) {
+      for (const l of lineRows) {
+        const lineId = toInt((l as { id?: unknown }).id);
+        if (!lineId || lineId <= 0) continue;
+
+        const currentStart = String((l as { start_time?: unknown }).start_time ?? "");
+        const duration = Number((l as { duration_minutes?: unknown }).duration_minutes);
+        const mergedStaff = staffChanged
+          ? staffNorm
+          : normalizeStaffId((l as { staff_id?: unknown }).staff_id);
+        if (mergedStaff == null || !currentStart || !Number.isFinite(duration) || duration <= 0) {
+          continue;
+        }
+
+        let mergedStart = currentStart;
+        if (timeChanged) {
+          const ls = parseLocal(currentStart);
+          mergedStart = toNoZ(snapToAgendaSlot(new Date(ls.getTime() + deltaMs)));
+        }
+
+        const lineEnd = computeLineEndTime(mergedStart, duration);
+        await assertStaffSlotFree({
+          supabase: supabaseAdmin,
+          salonId,
+          staffId: mergedStaff,
+          startTime: mergedStart,
+          endTime: lineEnd,
+          excludeAppointmentId: appointmentId,
+          excludeLineId: lineId,
+        });
+      }
+    }
+
     if (Object.keys(metaPatch).length) {
       const { error: metaErr } = await supabaseAdmin
         .from("appointments")
@@ -129,14 +175,6 @@ export async function PATCH(
         .eq("id", appointmentId);
       if (metaErr) return NextResponse.json({ error: metaErr.message }, { status: 500 });
     }
-
-    const { data: lineRows, error: linesErr } = await supabaseAdmin
-      .from("appointment_services")
-      .select("id, start_time")
-      .eq("appointment_id", appointmentId)
-      .order("start_time", { ascending: true })
-      .order("id", { ascending: true });
-    if (linesErr) return NextResponse.json({ error: linesErr.message }, { status: 500 });
 
     if (lineRows?.length) {
       if (timeChanged || staffChanged) {
@@ -185,6 +223,12 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
+    if (isStaffSlotConflictError(e)) {
+      return NextResponse.json(
+        { error: (e as Error).message },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: "Errore /api/agenda/appointments/[id]", details: errMsg(e) },
       { status: 500 }
