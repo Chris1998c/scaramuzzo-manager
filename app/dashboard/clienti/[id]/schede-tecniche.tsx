@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import {
   Plus,
@@ -11,6 +11,7 @@ import {
   Leaf,
   Wand2,
   Eraser,
+  Archive,
 } from "lucide-react";
 
 type ServiceType =
@@ -28,6 +29,25 @@ type CardRow = {
   salon_id: number | null;
   staff_id: number | null;
   appointment_id: number | null;
+  created_at: string;
+};
+
+type BossLegacyCardData = {
+  source?: string;
+  original_text?: string;
+  legacy_guess?: string;
+  confidence?: string;
+  legacy_date?: string | null;
+  legacy_tipo_nota?: string | null;
+  warnings?: string[];
+  import_version?: number;
+};
+
+type LegacyCardRow = {
+  id: string;
+  customer_id: string;
+  service_type: "legacy_note";
+  data: BossLegacyCardData;
   created_at: string;
 };
 
@@ -162,6 +182,8 @@ export default function SchedeTecniche({
   const [err, setErr] = useState("");
 
   const [cards, setCards] = useState<CardRow[]>([]);
+  const [legacyCards, setLegacyCards] = useState<LegacyCardRow[]>([]);
+  const [legacyLoading, setLegacyLoading] = useState(true);
 
   const [type, setType] = useState<ServiceType>("oxidation_color");
   const [data, setData] = useState<AnyCardData>(emptyPayloadFor("oxidation_color"));
@@ -171,24 +193,45 @@ export default function SchedeTecniche({
 
     (async () => {
       setLoading(true);
+      setLegacyLoading(true);
       setErr("");
 
-      const { data, error } = await supabase
-        .from("customer_service_cards")
-        .select("id, customer_id, service_type, data, salon_id, staff_id, appointment_id, created_at")
-        .eq("customer_id", customerId)
-        .order("created_at", { ascending: false });
+      const [modernRes, legacyRes] = await Promise.all([
+        supabase
+          .from("customer_service_cards")
+          .select(
+            "id, customer_id, service_type, data, salon_id, staff_id, appointment_id, created_at",
+          )
+          .eq("customer_id", customerId)
+          .neq("service_type", "legacy_note")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("customer_service_cards")
+          .select("id, customer_id, service_type, data, created_at")
+          .eq("customer_id", customerId)
+          .eq("service_type", "legacy_note"),
+      ]);
 
       if (cancelled) return;
 
-      if (error) {
-        setErr(error.message);
+      if (modernRes.error) {
+        setErr(modernRes.error.message);
         setCards([]);
       } else {
-        setCards((data ?? []) as CardRow[]);
+        setCards((modernRes.data ?? []) as CardRow[]);
+      }
+
+      if (legacyRes.error) {
+        if (!modernRes.error) {
+          setErr((prev) => prev || legacyRes.error!.message);
+        }
+        setLegacyCards([]);
+      } else {
+        setLegacyCards(sortLegacyBossCards((legacyRes.data ?? []) as LegacyCardRow[]));
       }
 
       setLoading(false);
+      setLegacyLoading(false);
     })();
 
     return () => {
@@ -370,6 +413,9 @@ export default function SchedeTecniche({
           ))}
         </div>
       </section>
+
+      {/* BOSS LEGACY (read-only) */}
+      <BossLegacyHistorySection loading={legacyLoading} cards={legacyCards} />
     </div>
   );
 }
@@ -677,6 +723,189 @@ function DynamicForm({
       />
     </div>
   );
+}
+
+function sortLegacyBossCards(rows: LegacyCardRow[]): LegacyCardRow[] {
+  return [...rows].sort((a, b) => {
+    const da = String(a.data?.legacy_date ?? "").trim();
+    const db = String(b.data?.legacy_date ?? "").trim();
+    if (da && db && da !== db) return db.localeCompare(da);
+    if (da && !db) return -1;
+    if (!da && db) return 1;
+    return b.created_at.localeCompare(a.created_at);
+  });
+}
+
+function BossLegacyHistorySection({
+  loading,
+  cards,
+}: {
+  loading: boolean;
+  cards: LegacyCardRow[];
+}) {
+  const bossCards = cards.filter(
+    (c) => c.data?.source === "boss" || c.data?.source == null,
+  );
+
+  return (
+    <section className="space-y-4 pt-2 border-t border-[#5c3a21]/40">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="rounded-2xl p-2.5 bg-[#24140e]/90 border border-[#5c3a21]/60">
+            <Archive size={18} className="text-[#f3d8b6]/90" />
+          </span>
+          <div>
+            <h3 className="text-lg font-extrabold text-[#f3d8b6] tracking-tight">
+              Storico Boss Legacy
+            </h3>
+            <p className="text-xs text-[#c9b299] mt-0.5">
+              Note tecniche importate da Boss — solo consultazione, non modificabili
+            </p>
+          </div>
+        </div>
+        {loading && <div className="text-xs text-[#f3d8b6]/60">Caricamento…</div>}
+      </div>
+
+      {!loading && bossCards.length === 0 && (
+        <div className="rounded-3xl bg-black/15 border border-[#5c3a21]/50 p-6 text-[#c9b299]/90 text-sm">
+          Nessuno storico Boss importato.
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {bossCards.map((c) => (
+          <BossLegacyCard key={c.id} row={c} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BossLegacyCard({ row }: { row: LegacyCardRow }) {
+  const d = row.data ?? {};
+  const warnings = Array.isArray(d.warnings) ? d.warnings.filter(Boolean) : [];
+  const legacyDate = String(d.legacy_date ?? "").trim();
+  const originalText = String(d.original_text ?? "").trim();
+
+  return (
+    <article
+      className="rounded-3xl bg-[#1a100c]/70 border border-[#5c3a21]/55 p-6 shadow-[0_0_28px_rgba(0,0,0,0.12)]"
+      aria-readonly="true"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-2">
+          {legacyDate ? (
+            <div className="text-sm font-semibold text-[#f3d8b6]">
+              {formatLegacyDate(legacyDate)}
+            </div>
+          ) : (
+            <div className="text-sm text-[#f3d8b6]/50">Data non indicata</div>
+          )}
+          {d.legacy_tipo_nota ? (
+            <div className="text-xs text-[#c9b299]">Tipo: {d.legacy_tipo_nota}</div>
+          ) : null}
+          <div className="text-xs text-[#f3d8b6]/45">
+            Import record · {nowLocalNice(row.created_at)}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <LegacyBadge tone="boss">Boss</LegacyBadge>
+          {d.legacy_guess ? (
+            <LegacyBadge tone="guess">{prettyLegacyGuess(d.legacy_guess)}</LegacyBadge>
+          ) : null}
+          {d.confidence ? (
+            <LegacyBadge tone={confidenceTone(d.confidence)}>
+              {d.confidence}
+            </LegacyBadge>
+          ) : null}
+        </div>
+      </div>
+
+      {originalText ? (
+        <pre className="mt-5 rounded-2xl bg-black/25 border border-[#5c3a21]/45 p-4 text-sm text-white/90 whitespace-pre-wrap font-sans leading-relaxed overflow-x-auto">
+          {originalText}
+        </pre>
+      ) : (
+        <div className="mt-5 text-sm text-[#c9b299]/70">(testo originale vuoto)</div>
+      )}
+
+      {warnings.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {warnings.map((w) => (
+            <span
+              key={w}
+              className="text-[11px] px-2.5 py-1 rounded-full border border-amber-700/50 bg-amber-950/30 text-amber-200/90"
+            >
+              {prettyWarning(w)}
+            </span>
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function LegacyBadge({
+  children,
+  tone,
+}: {
+  children: ReactNode;
+  tone: "boss" | "guess" | "high" | "medium" | "low";
+}) {
+  const styles: Record<typeof tone, string> = {
+    boss: "border-[#8b5a2b]/70 bg-[#3d2618]/80 text-[#f3d8b6]",
+    guess: "border-[#5c3a21]/70 bg-black/30 text-[#e8d4bc]",
+    high: "border-emerald-800/60 bg-emerald-950/40 text-emerald-200/90",
+    medium: "border-amber-800/50 bg-amber-950/35 text-amber-200/90",
+    low: "border-[#5c3a21]/60 bg-black/25 text-[#c9b299]",
+  };
+
+  return (
+    <span
+      className={`text-[11px] font-medium px-2.5 py-1 rounded-full border ${styles[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function formatLegacyDate(isoDate: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return isoDate;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function prettyLegacyGuess(guess: string): string {
+  const map: Record<string, string> = {
+    mixed_legacy: "Misto legacy",
+    botanicals: "Erbe",
+    oxidation_color: "Colore ossidazione",
+    direct_color: "Direct color",
+    lightening: "Schiaritura",
+    keratin: "Keratina",
+    legacy_note: "Nota libera",
+  };
+  return map[guess] ?? guess.replace(/_/g, " ");
+}
+
+function confidenceTone(confidence: string): "high" | "medium" | "low" {
+  if (confidence === "high") return "high";
+  if (confidence === "medium") return "medium";
+  return "low";
+}
+
+function prettyWarning(code: string): string {
+  const map: Record<string, string> = {
+    mixed_botanicals_oxygen: "Erbe + ossigeno",
+    ambiguous_formula: "Formula ambigua",
+    no_date: "Senza data",
+    unmatched_customer: "Cliente non matchato",
+    oxygen_only: "Solo volumi",
+    unparsed_legacy_date: "Data non interpretata",
+    ambiguous_customer_match: "Match cliente ambiguo",
+  };
+  return map[code] ?? code;
 }
 
 function HistoryCard({ row }: { row: CardRow }) {
