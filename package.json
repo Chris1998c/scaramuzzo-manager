@@ -25,6 +25,8 @@
     "report:boss-products:ready": "node --experimental-strip-types scripts/imports/report-products-ready-candidates.ts",
     "import:boss-products:ready": "node --experimental-strip-types scripts/imports/import-boss-products-ready.ts",
     "import:boss-products:stock": "node --experimental-strip-types scripts/imports/import-boss-product-stock.ts",
+    "report:stock-reconciliation": "node --experimental-strip-types scripts/imports/report-stock-reconciliation.ts",
+    "baseline:boss-stock-movements": "node --experimental-strip-types scripts/imports/create-boss-stock-baseline-movements.ts",
     "import:boss-customers:raw": "node --experimental-strip-types scripts/imports/load-boss-customers-raw.ts",
     "report:boss-customers-analysis": "node --experimental-strip-types scripts/imports/report-boss-customers-analysis.ts",
     "import:boss-customers:ready": "node --experimental-strip-types scripts/imports/import-boss-customers-ready.ts"
