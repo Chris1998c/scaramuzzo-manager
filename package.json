@@ -13,6 +13,7 @@
     "audit:boss-products": "node --experimental-strip-types scripts/imports/audit-boss-products-xls.ts",
     "audit:boss-technical-cards": "node --experimental-strip-types scripts/imports/audit-boss-technical-cards.ts",
     "import:boss-technical-cards:legacy": "node --experimental-strip-types scripts/imports/import-boss-technical-cards-legacy.ts",
+    "resolve:boss-customer-manual": "node --experimental-strip-types scripts/imports/resolve-boss-customer-manual.ts",
     "import:boss-products:raw": "node --experimental-strip-types scripts/imports/load-boss-products-raw.ts",
     "report:boss-products:master": "node --experimental-strip-types scripts/imports/report-boss-products-master.ts",
     "report:boss-products:classification": "node --experimental-strip-types scripts/imports/report-boss-products-classification.ts",

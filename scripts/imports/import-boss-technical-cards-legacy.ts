@@ -65,6 +65,7 @@ type ProcessOutcome =
   | "would_insert"
   | "inserted"
   | "skipped_unmatched"
+  | "skipped_ambiguous_match"
   | "skipped_no_notes"
   | "skipped_duplicate"
   | "error";
@@ -298,12 +299,16 @@ async function runImportBossTechnicalCardsLegacy(): Promise<void> {
     rowsWithNotes: 0,
     matchedCustomers: 0,
     unmatchedCustomers: 0,
+    skippedAmbiguousMatch: 0,
     skippedDuplicate: 0,
     skippedNoNotes: 0,
     wouldInsert: 0,
     inserted: 0,
     errors: 0,
   };
+
+  const ambiguousSamples: SampleRow[] = [];
+  const maxAmbiguousSamples = 10;
 
   const candidates: LegacyInsertRow[] = [];
   const seenBatchKeys = new Set<string>();
@@ -335,6 +340,20 @@ async function runImportBossTechnicalCardsLegacy(): Promise<void> {
 
     if (!match.id) {
       summary.unmatchedCustomers++;
+      continue;
+    }
+
+    if (match.ambiguous) {
+      summary.skippedAmbiguousMatch++;
+      if (ambiguousSamples.length < maxAmbiguousSamples) {
+        ambiguousSamples.push({
+          sourceRow: sourceRowNumber,
+          customerId: match.id,
+          nominativo: maskNominativo(nominativoRaw),
+          outcome: "skipped_ambiguous_match",
+          detail: `match method: ${match.method ?? "unknown"}`,
+        });
+      }
       continue;
     }
 
@@ -438,6 +457,7 @@ async function runImportBossTechnicalCardsLegacy(): Promise<void> {
   console.log(`Righe CSV lette: ${summary.rowsRead}`);
   console.log(`Con note tecniche: ${summary.rowsWithNotes}`);
   console.log(`Match customer_id: ${summary.matchedCustomers}`);
+  console.log(`Match ambiguo (saltate): ${summary.skippedAmbiguousMatch}`);
   console.log(`Senza match (saltate): ${summary.unmatchedCustomers}`);
   console.log(`Duplicati saltati: ${summary.skippedDuplicate}`);
   console.log(`Candidati unici pronti: ${candidates.length}`);
@@ -461,6 +481,13 @@ async function runImportBossTechnicalCardsLegacy(): Promise<void> {
         2,
       ),
     );
+  }
+
+  if (ambiguousSamples.length > 0) {
+    console.log("\n--- Match ambigui (sample) ---");
+    for (const s of ambiguousSamples) {
+      console.log(JSON.stringify(s, null, 2));
+    }
   }
 
   const payloadSample = insertSamples.find((s) => s.payload)?.payload;

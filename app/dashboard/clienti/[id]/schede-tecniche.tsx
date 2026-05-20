@@ -12,6 +12,8 @@ import {
   Wand2,
   Eraser,
   Archive,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 type ServiceType =
@@ -24,13 +26,15 @@ type ServiceType =
 type CardRow = {
   id: string;
   customer_id: string;
-  service_type: ServiceType;
+  service_type: string;
   data: any; // jsonb { kind, payload, created_local? }
   salon_id: number | null;
   staff_id: number | null;
   appointment_id: number | null;
   created_at: string;
 };
+
+const LEGACY_FETCH_LIMIT = 20;
 
 type BossLegacyCardData = {
   source?: string;
@@ -209,7 +213,9 @@ export default function SchedeTecniche({
           .from("customer_service_cards")
           .select("id, customer_id, service_type, data, created_at")
           .eq("customer_id", customerId)
-          .eq("service_type", "legacy_note"),
+          .eq("service_type", "legacy_note")
+          .order("created_at", { ascending: false })
+          .limit(LEGACY_FETCH_LIMIT),
       ]);
 
       if (cancelled) return;
@@ -743,9 +749,13 @@ function BossLegacyHistorySection({
   loading: boolean;
   cards: LegacyCardRow[];
 }) {
+  const [showOlder, setShowOlder] = useState(false);
   const bossCards = cards.filter(
     (c) => c.data?.source === "boss" || c.data?.source == null,
   );
+  const latestCard = bossCards[0];
+  const olderCards = bossCards.slice(1);
+  const olderCount = olderCards.length;
 
   return (
     <section className="space-y-4 pt-2 border-t border-[#5c3a21]/40">
@@ -772,11 +782,44 @@ function BossLegacyHistorySection({
         </div>
       )}
 
-      <div className="space-y-4">
-        {bossCards.map((c) => (
-          <BossLegacyCard key={c.id} row={c} />
-        ))}
-      </div>
+      {!loading && latestCard && (
+        <div className="space-y-4">
+          <BossLegacyCard row={latestCard} />
+
+          {olderCount > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowOlder((v) => !v)}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
+                  border border-[#5c3a21]/60 bg-[#24140e]/50 text-sm font-medium text-[#f3d8b6]
+                  hover:bg-[#2a1810]/80 hover:border-[#8b5a2b]/50 transition"
+                aria-expanded={showOlder}
+              >
+                {showOlder ? (
+                  <>
+                    <ChevronUp size={16} />
+                    Nascondi note precedenti
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown size={16} />
+                    Mostra altre {olderCount} note Boss
+                  </>
+                )}
+              </button>
+
+              {showOlder && (
+                <div className="space-y-4 pt-1">
+                  {olderCards.map((c) => (
+                    <BossLegacyCard key={c.id} row={c} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -908,9 +951,26 @@ function prettyWarning(code: string): string {
   return map[code] ?? code;
 }
 
+function serviceDisplayMeta(serviceType: string): {
+  label: string;
+  icon: typeof Droplets;
+} {
+  const meta = SERVICE_TYPES.find((s) => s.value === serviceType);
+  if (meta) return { label: meta.label, icon: meta.icon };
+
+  const aliases: Record<string, { label: string; icon: typeof Droplets }> = {
+    oxidation: { label: "Colore + Ossidazione", icon: Droplets },
+    direct: { label: "Direct color", icon: Wand2 },
+    direct_color: { label: "Direct color", icon: Wand2 },
+    treatment: { label: "Trattamento", icon: Sparkles },
+    legacy_note: { label: "Nota legacy", icon: Archive },
+  };
+
+  return aliases[serviceType] ?? { label: serviceType, icon: CalendarDays };
+}
+
 function HistoryCard({ row }: { row: CardRow }) {
-  const meta = SERVICE_TYPES.find((s) => s.value === row.service_type);
-  const Icon = meta?.icon ?? CalendarDays;
+  const { label, icon: Icon } = serviceDisplayMeta(row.service_type);
 
   const d = row.data ?? {};
   const payload: Record<string, any> = d.payload ?? {};
@@ -925,7 +985,7 @@ function HistoryCard({ row }: { row: CardRow }) {
             <span className="rounded-xl p-2 bg-black/20 border border-[#5c3a21]/60">
               <Icon size={16} className="opacity-90" />
             </span>
-            {meta?.label ?? row.service_type}
+            {label}
           </div>
 
           <div className="text-xs text-[#f3d8b6]/60 mt-2">
@@ -975,19 +1035,39 @@ function HistoryCard({ row }: { row: CardRow }) {
 
 /* ================= helpers ================= */
 
-function keysForService(service: ServiceType): string[] {
+const READONLY_UNKNOWN_SERVICE_KEYS = [
+  "rlp",
+  "goal",
+  "outcome",
+  "general_notes",
+  "formula",
+  "mix",
+  "product",
+  "notes",
+] as const;
+
+function keysForService(service: string): string[] {
   const base = ["rlp", "goal", "outcome"];
   switch (service) {
     case "oxidation_color":
+    case "oxidation":
       return [...base, "formula", "volumes", "processing_time", "correction", "general_notes"];
     case "gloss":
       return [...base, "mix", "developer", "processing_time", "general_notes"];
     case "lightening":
       return [...base, "product", "volumes", "processing_time", "protection", "toning", "general_notes"];
     case "keratin":
+    case "treatment":
       return [...base, "product", "steps", "iron_temp", "passes", "aftercare", "general_notes"];
     case "botanicals":
       return [...base, "pre_direct", "mix", "heat", "processing_time", "rinse", "general_notes"];
+    case "direct":
+    case "direct_color":
+      return [...base, "mix", "developer", "processing_time", "general_notes"];
+    case "legacy_note":
+      return [...READONLY_UNKNOWN_SERVICE_KEYS];
+    default:
+      return [...READONLY_UNKNOWN_SERVICE_KEYS];
   }
 }
 
