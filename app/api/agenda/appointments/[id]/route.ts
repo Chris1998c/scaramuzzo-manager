@@ -175,6 +175,7 @@ export async function PATCH(
           salonId,
           staffId: mergedStaff,
           startTime: mergedStart,
+          durationMinutes: duration,
           scheduleMap,
         });
 

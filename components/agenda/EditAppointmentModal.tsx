@@ -81,9 +81,9 @@ export default function EditAppointmentModal({
   const [customers, setCustomers] = useState<EditCustomerRow[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<EditCustomerRow[]>([]);
   const [staffAll, setStaffAll] = useState<EditStaffRow[]>([]);
-  const [staffScheduleMap, setStaffScheduleMap] = useState<Map<string, Set<number>>>(
-    () => new Map(),
-  );
+  const [staffScheduleMap, setStaffScheduleMap] = useState<
+    import("@/lib/staffSchedule").StaffScheduleBySalon
+  >(() => new Map());
 
   const [qCustomer, setQCustomer] = useState("");
   const [customer, setCustomer] = useState<string>("");

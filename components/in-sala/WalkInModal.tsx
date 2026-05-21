@@ -33,9 +33,9 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
     { id: number; name: string; duration: number | null }[]
   >([]);
   const [staffListAll, setStaffListAll] = useState<{ id: number; name: string }[]>([]);
-  const [staffScheduleMap, setStaffScheduleMap] = useState<Map<string, Set<number>>>(
-    () => new Map(),
-  );
+  const [staffScheduleMap, setStaffScheduleMap] = useState<
+    import("@/lib/staffSchedule").StaffScheduleBySalon
+  >(() => new Map());
 
   const walkInDay = useMemo(() => isoDateFromLocalDate(nowRomeLocalDate()), [isOpen]);
 

@@ -63,9 +63,9 @@ export default function AgendaModal({
   const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [staffListAll, setStaffListAll] = useState<{ id: number; name: string }[]>([]);
-  const [staffScheduleMap, setStaffScheduleMap] = useState<Map<string, Set<number>>>(
-    () => new Map(),
-  );
+  const [staffScheduleMap, setStaffScheduleMap] = useState<
+    import("@/lib/staffSchedule").StaffScheduleBySalon
+  >(() => new Map());
 
   /* ================= FORM ================= */
 

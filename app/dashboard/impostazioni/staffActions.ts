@@ -117,8 +117,16 @@ export type StaffPayload = {
   /** Nuovo PIN (solo cifre); vuoto = non cambiare. */
   mobile_pin?: string | null;
   clear_mobile_pin?: boolean;
-  /** Giorni ISO 1–7 lavorativi sul salone primario; vuoto = tutti i giorni in agenda. */
-  schedule_active_days: number[];
+  /** @deprecated Usare schedule_days; mantenuto per compat payload. */
+  schedule_active_days?: number[];
+  /** Salone su cui salvare i turni (default salon_id). */
+  schedule_salon_id?: number;
+  /** Giorni + orari; vuoto = legacy tutti i giorni per quel salone. */
+  schedule_days?: Array<{
+    day_of_week: number;
+    start_time?: string | null;
+    end_time?: string | null;
+  }>;
 };
 
 function normalizeStaffPayload(input: StaffPayload) {
@@ -152,9 +160,36 @@ function normalizeStaffPayload(input: StaffPayload) {
     .map((id) => Math.floor(Number(id)))
     .filter((id) => Number.isFinite(id) && id > 0);
 
-  const schedule_active_days = (input.schedule_active_days ?? [])
-    .map((d) => Math.floor(Number(d)))
-    .filter((d) => d >= 1 && d <= 7);
+  const schedule_salon_id = Math.floor(Number(input.schedule_salon_id ?? input.salon_id));
+  if (!Number.isFinite(schedule_salon_id) || schedule_salon_id <= 0) {
+    throw new Error("Salone turni non valido.");
+  }
+  const allowedScheduleSalons = new Set([
+    Math.floor(Number(input.salon_id)),
+    ...(input.associated_salon_ids ?? []).map((id) => Math.floor(Number(id))),
+  ]);
+  if (!allowedScheduleSalons.has(schedule_salon_id)) {
+    throw new Error("Il salone turni deve essere il primario o un salone associato.");
+  }
+
+  let schedule_days = (input.schedule_days ?? []).map((d) => ({
+    day_of_week: Math.floor(Number(d.day_of_week)),
+    start_time: d.start_time ?? null,
+    end_time: d.end_time ?? null,
+  }));
+
+  if (!schedule_days.length && (input.schedule_active_days ?? []).length) {
+    schedule_days = (input.schedule_active_days ?? [])
+      .map((d) => Math.floor(Number(d)))
+      .filter((d) => d >= 1 && d <= 7)
+      .map((day_of_week) => ({
+        day_of_week,
+        start_time: null as string | null,
+        end_time: null as string | null,
+      }));
+  }
+
+  schedule_days = schedule_days.filter((d) => d.day_of_week >= 1 && d.day_of_week <= 7);
 
   return {
     staff_code,
@@ -168,7 +203,8 @@ function normalizeStaffPayload(input: StaffPayload) {
     mobile_enabled: !!input.mobile_enabled,
     mobile_pin: input.mobile_pin,
     clear_mobile_pin: !!input.clear_mobile_pin,
-    schedule_active_days,
+    schedule_salon_id,
+    schedule_days,
   };
 }
 
@@ -219,8 +255,8 @@ async function persistStaffRelations(
   const syncSched = await syncStaffScheduleForSalon(
     supabaseAdmin,
     staffId,
-    row.salon_id,
-    row.schedule_active_days,
+    row.schedule_salon_id,
+    row.schedule_days,
   );
   if (!syncSched.ok) return syncSched;
 

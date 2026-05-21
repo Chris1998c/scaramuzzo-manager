@@ -20,6 +20,7 @@ import {
   computeLineEndTime,
   isStaffSlotConflictError,
 } from "@/lib/agenda/assertStaffSlotFree";
+import { canModifyAppointmentAgendaLine } from "@/lib/agenda/appointmentLifecycle";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 
 export const runtime = "nodejs";
@@ -81,7 +82,7 @@ export async function PATCH(
     const { data: lineRow, error: lineErr } = await supabaseAdmin
       .from("appointment_services")
       .select(
-        "id, appointment_id, start_time, duration_minutes, staff_id, appointments:appointment_id ( salon_id )",
+        "id, appointment_id, start_time, duration_minutes, staff_id, appointments:appointment_id ( salon_id, status, sale_id )",
       )
       .eq("id", lineId)
       .maybeSingle();
@@ -104,6 +105,14 @@ export async function PATCH(
       }
     } else if (!access.allowedSalonIds.includes(salonId)) {
       return NextResponse.json({ error: "salon_id non consentito" }, { status: 403 });
+    }
+
+    const lineMutable = canModifyAppointmentAgendaLine({
+      status: (apptObj as { status?: unknown })?.status,
+      sale_id: (apptObj as { sale_id?: unknown })?.sale_id,
+    });
+    if (!lineMutable.allowed) {
+      return NextResponse.json({ error: lineMutable.error }, { status: 409 });
     }
 
     if (body.staff_id !== undefined) {
@@ -137,6 +146,7 @@ export async function PATCH(
         salonId,
         staffId: mergedStaff,
         startTime: mergedStart,
+        durationMinutes: mergedDuration,
         scheduleMap,
       });
       const lineEnd = computeLineEndTime(mergedStart, mergedDuration);

@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Smartphone, X } from "lucide-react";
 import { toast } from "sonner";
 import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
-import type { StaffSettingsRow } from "@/lib/staffSettings";
 import {
   STAFF_ROLE_OPTIONS,
   STAFF_ROLE_LABELS,
   STAFF_WEEKDAYS,
+  type StaffSettingsRow,
 } from "@/lib/staffSettings";
+import { salonDefaultScheduleWindow } from "@/lib/staffSchedule";
 import { createStaffAction, updateStaffAction } from "@/app/dashboard/impostazioni/staffActions";
 
 type SalonOption = { id: number; name: string };
@@ -38,7 +39,36 @@ type FormState = {
   mobile_pin: string;
   clear_mobile_pin: boolean;
   scheduleDays: Set<number>;
+  scheduleSalonId: number;
+  scheduleStart: string;
+  scheduleEnd: string;
 };
+
+function defaultScheduleTimes(salonId: number): { start: string; end: string } {
+  const w = salonDefaultScheduleWindow(salonId);
+  const fmt = (m: number) =>
+    `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  return { start: fmt(w.startMinutes), end: fmt(w.endMinutes) };
+}
+
+function scheduleFromRow(
+  row: StaffSettingsRow | null,
+  salonId: number,
+): Pick<FormState, "scheduleDays" | "scheduleStart" | "scheduleEnd"> {
+  const slots = row?.schedule_by_salon?.[salonId] ?? [];
+  const days = new Set(slots.map((s) => s.day_of_week));
+  const def = defaultScheduleTimes(salonId);
+  if (!slots.length) {
+    return { scheduleDays: days, scheduleStart: def.start, scheduleEnd: def.end };
+  }
+  const start = slots.find((s) => s.start_time)?.start_time ?? def.start;
+  const end = slots.find((s) => s.end_time)?.end_time ?? def.end;
+  return {
+    scheduleDays: days,
+    scheduleStart: start ?? def.start,
+    scheduleEnd: end ?? def.end,
+  };
+}
 
 function defaultForm(
   row: StaffSettingsRow | null,
@@ -50,6 +80,7 @@ function defaultForm(
     const primary = fallbackSalon != null ? fallbackSalon : 0;
     const associated = new Set<number>();
     if (primary > 0) associated.add(primary);
+    const sched = scheduleFromRow(null, primary);
     return {
       staff_code: "",
       salon_id: primary > 0 ? String(primary) : "",
@@ -62,10 +93,15 @@ function defaultForm(
       mobile_enabled: false,
       mobile_pin: "",
       clear_mobile_pin: false,
-      scheduleDays: new Set(),
+      scheduleDays: sched.scheduleDays,
+      scheduleSalonId: primary,
+      scheduleStart: sched.scheduleStart,
+      scheduleEnd: sched.scheduleEnd,
     };
   }
 
+  const schedSalon = row.salon_id;
+  const sched = scheduleFromRow(row, schedSalon);
   return {
     staff_code: row.staff_code,
     salon_id: String(row.salon_id),
@@ -78,7 +114,10 @@ function defaultForm(
     mobile_enabled: row.mobile_enabled,
     mobile_pin: "",
     clear_mobile_pin: false,
-    scheduleDays: new Set(row.schedule_active_days),
+    scheduleDays: sched.scheduleDays,
+    scheduleSalonId: schedSalon,
+    scheduleStart: sched.scheduleStart,
+    scheduleEnd: sched.scheduleEnd,
   };
 }
 
@@ -109,6 +148,16 @@ export default function StaffModal({
   );
 
   const primarySalonId = Number(form.salon_id);
+
+  const scheduleSalonOptions = useMemo(() => {
+    const ids = [...form.associatedSalonIds];
+    if (primarySalonId > 0 && !ids.includes(primarySalonId)) ids.push(primarySalonId);
+    return ids
+      .filter((id) => salonOptions.some((s) => s.id === id))
+      .sort((a, b) => a - b)
+      .map((id) => salonOptions.find((s) => s.id === id)!)
+      .filter(Boolean);
+  }, [form.associatedSalonIds, primarySalonId, salonOptions]);
 
   useEffect(() => {
     if (!open) return;
@@ -153,6 +202,17 @@ export default function StaffModal({
       else next.add(iso);
       return { ...f, scheduleDays: next };
     });
+  }
+
+  function setScheduleSalonId(salonId: number) {
+    const sched = scheduleFromRow(mode === "edit" ? row : null, salonId);
+    setForm((f) => ({
+      ...f,
+      scheduleSalonId: salonId,
+      scheduleDays: sched.scheduleDays,
+      scheduleStart: sched.scheduleStart,
+      scheduleEnd: sched.scheduleEnd,
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -219,7 +279,12 @@ export default function StaffModal({
       mobile_enabled: form.mobile_enabled,
       mobile_pin: form.mobile_pin.trim() || null,
       clear_mobile_pin: form.clear_mobile_pin,
-      schedule_active_days: [...form.scheduleDays],
+      schedule_salon_id: form.scheduleSalonId,
+      schedule_days: [...form.scheduleDays].sort((a, b) => a - b).map((day_of_week) => ({
+        day_of_week,
+        start_time: form.scheduleStart.trim() || null,
+        end_time: form.scheduleEnd.trim() || null,
+      })),
     };
 
     let result;
@@ -249,11 +314,11 @@ export default function StaffModal({
 
   const scheduleHint =
     form.scheduleDays.size === 0
-      ? "Nessun giorno selezionato: visibile in agenda tutti i giorni (comportamento predefinito)."
-      : `Visibile in agenda: ${[...form.scheduleDays]
+      ? "Nessun giorno selezionato: visibile in agenda tutti i giorni (legacy)."
+      : `Giorni attivi: ${[...form.scheduleDays]
           .sort((a, b) => a - b)
           .map((d) => STAFF_WEEKDAYS.find((w) => w.iso === d)?.short ?? d)
-          .join(", ")}`;
+          .join(", ")} · Orario ${form.scheduleStart || "—"}–${form.scheduleEnd || "—"} (vuoto = default salone)`;
 
   return (
     <AnimatePresence>
@@ -537,7 +602,29 @@ export default function StaffModal({
               </div>
 
               <motion.div className="space-y-3 rounded-2xl border border-[#5c3a21]/40 bg-black/20 p-4">
-                <SectionTitle>Turni settimanali (salone primario)</SectionTitle>
+                <SectionTitle>Turni settimanali</SectionTitle>
+                {scheduleSalonOptions.length > 1 ? (
+                  <label className="block space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#c9b299]/90">
+                      Turni per salone
+                    </span>
+                    <select
+                      value={String(form.scheduleSalonId)}
+                      onChange={(e) => setScheduleSalonId(Number(e.target.value))}
+                      className={fieldClass}
+                    >
+                      {scheduleSalonOptions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name || salonLabel(s.id)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="text-[11px] text-[#c9b299]/80">
+                    Salone: {scheduleSalonOptions[0]?.name ?? salonLabel(form.scheduleSalonId)}
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {STAFF_WEEKDAYS.map((d) => {
                     const on = form.scheduleDays.has(d.iso);
@@ -558,6 +645,29 @@ export default function StaffModal({
                       </button>
                     );
                   })}
+                </div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#c9b299]/90">
+                  Stesso orario per tutti i giorni selezionati
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block space-y-1">
+                    <span className="text-[10px] text-[#c9b299]/80">Inizio</span>
+                    <input
+                      type="time"
+                      value={form.scheduleStart}
+                      onChange={(e) => setForm((f) => ({ ...f, scheduleStart: e.target.value }))}
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[10px] text-[#c9b299]/80">Fine</span>
+                    <input
+                      type="time"
+                      value={form.scheduleEnd}
+                      onChange={(e) => setForm((f) => ({ ...f, scheduleEnd: e.target.value }))}
+                      className={fieldClass}
+                    />
+                  </label>
                 </div>
                 <p className="text-[11px] text-[#c9b299]/80">{scheduleHint}</p>
               </motion.div>

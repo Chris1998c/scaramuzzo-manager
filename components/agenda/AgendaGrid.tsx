@@ -8,6 +8,7 @@ import {
   fetchStaffScheduleForSalon,
   isoDayOfWeekFromISODateLocal,
   isStaffVisibleOnAgendaDayForSalon,
+  type StaffScheduleBySalon,
 } from "@/lib/staffSchedule";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
@@ -223,9 +224,9 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
   const [loading, setLoading] = useState(true);
   const [calendarOpen, setCalendarOpen] = useState(false);
   /** Per salone attivo: staff_id → giorni ISO (1–7) con orario; assente → tutti i giorni (legacy). */
-  const [staffScheduleByStaffId, setStaffScheduleByStaffId] = useState<
-    Map<string, Set<number>>
-  >(() => new Map());
+  const [staffScheduleByStaffId, setStaffScheduleByStaffId] = useState<StaffScheduleBySalon>(
+    () => new Map(),
+  );
 
   // Modali
   const [selectedSlot, setSelectedSlot] = useState<{

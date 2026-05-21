@@ -15,6 +15,11 @@ export type StaffSettingsRow = {
   associated_salon_ids: number[];
   /** Giorni ISO 1–7 attivi in staff_schedule sul salone primario; vuoto = tutti i giorni. */
   schedule_active_days: number[];
+  /** Turni per salone (salon_id → giorni + orari). */
+  schedule_by_salon: Record<
+    number,
+    Array<{ day_of_week: number; start_time: string | null; end_time: string | null }>
+  >;
 };
 
 export const STAFF_ROLE_OPTIONS = [

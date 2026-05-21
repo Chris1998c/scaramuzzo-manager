@@ -1,5 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { StaffScheduleDayInput } from "@/lib/staffSchedule";
+import { normalizeScheduleTime } from "@/lib/staffSchedule";
 
 /**
  * Sincronizza public.staff_salons con l'elenco desiderato.
@@ -50,15 +52,41 @@ export async function syncStaffSalons(
   return { ok: true };
 }
 
+function normalizeScheduleDays(days: StaffScheduleDayInput[]): StaffScheduleDayInput[] {
+  const out: StaffScheduleDayInput[] = [];
+  const seen = new Set<number>();
+  for (const row of days) {
+    const dow = Math.floor(Number(row.day_of_week));
+    if (!Number.isInteger(dow) || dow < 1 || dow > 7 || seen.has(dow)) continue;
+    seen.add(dow);
+    const start = normalizeScheduleTime(row.start_time);
+    const end = normalizeScheduleTime(row.end_time);
+    if (start && end) {
+      const s = start.split(":").map(Number);
+      const e = end.split(":").map(Number);
+      const sm = s[0] * 60 + s[1];
+      const em = e[0] * 60 + e[1];
+      if (em <= sm) continue;
+    }
+    out.push({
+      day_of_week: dow,
+      start_time: start,
+      end_time: end,
+    });
+  }
+  return out.sort((a, b) => a.day_of_week - b.day_of_week);
+}
+
 /**
- * Turni settimanali per salone primario: giorni ISO 1–7 con is_active=true.
+ * Turni settimanali per salone scelto: giorni ISO 1–7 con is_active=true.
+ * start_time/end_time NULL = default griglia salone per quel giorno.
  * Nessuna riga = visibile tutti i giorni in agenda (legacy).
  */
 export async function syncStaffScheduleForSalon(
   admin: SupabaseClient,
   staffId: number,
   salonId: number,
-  activeDays: number[],
+  days: StaffScheduleDayInput[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error: delErr } = await admin
     .from("staff_schedule")
@@ -68,15 +96,17 @@ export async function syncStaffScheduleForSalon(
 
   if (delErr) return { ok: false, error: delErr.message };
 
-  const days = [...new Set(activeDays.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7))];
-  if (!days.length) return { ok: true };
+  const normalized = normalizeScheduleDays(days);
+  if (!normalized.length) return { ok: true };
 
   const { error: insErr } = await admin.from("staff_schedule").insert(
-    days.map((day_of_week) => ({
+    normalized.map((d) => ({
       staff_id: staffId,
       salon_id: salonId,
-      day_of_week,
+      day_of_week: d.day_of_week,
       is_active: true,
+      start_time: d.start_time,
+      end_time: d.end_time,
     })),
   );
 

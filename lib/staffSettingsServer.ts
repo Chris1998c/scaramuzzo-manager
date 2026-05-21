@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { StaffSettingsRow } from "@/lib/staffSettings";
+import { normalizeScheduleTime } from "@/lib/staffSchedule";
 
 export async function fetchStaffForSettings(
   supabase: SupabaseClient,
@@ -31,6 +32,7 @@ export async function fetchStaffForSettings(
     has_mobile_pin: false,
     associated_salon_ids: [] as number[],
     schedule_active_days: [] as number[],
+    schedule_by_salon: {} as StaffSettingsRow["schedule_by_salon"],
   }));
 
   if (!base.length) return base;
@@ -52,7 +54,7 @@ export async function enrichStaffSettingsRows(
     supabaseAdmin.from("staff_salons").select("staff_id, salon_id").in("staff_id", staffIds),
     supabaseAdmin
       .from("staff_schedule")
-      .select("staff_id, salon_id, day_of_week, is_active")
+      .select("staff_id, salon_id, day_of_week, is_active, start_time, end_time")
       .in("staff_id", staffIds),
     supabaseAdmin.from("staff").select("id, mobile_pin_hash").in("id", staffIds),
   ]);
@@ -81,12 +83,15 @@ export async function enrichStaffSettingsRows(
   }
 
   const scheduleByStaffSalon = new Map<string, number[]>();
+  const scheduleSlotsByStaff = new Map<number, StaffSettingsRow["schedule_by_salon"]>();
   for (const row of schedules ?? []) {
     const r = row as {
       staff_id?: unknown;
       salon_id?: unknown;
       day_of_week?: unknown;
       is_active?: unknown;
+      start_time?: unknown;
+      end_time?: unknown;
     };
     if (r.is_active === false) continue;
     const sid = Number(r.staff_id);
@@ -96,6 +101,15 @@ export async function enrichStaffSettingsRows(
     const key = `${sid}:${salonId}`;
     if (!scheduleByStaffSalon.has(key)) scheduleByStaffSalon.set(key, []);
     scheduleByStaffSalon.get(key)!.push(dow);
+
+    if (!scheduleSlotsByStaff.has(sid)) scheduleSlotsByStaff.set(sid, {});
+    const bySalon = scheduleSlotsByStaff.get(sid)!;
+    if (!bySalon[salonId]) bySalon[salonId] = [];
+    bySalon[salonId].push({
+      day_of_week: dow,
+      start_time: normalizeScheduleTime(r.start_time),
+      end_time: normalizeScheduleTime(r.end_time),
+    });
   }
 
   return rows.map((row) => {
@@ -113,6 +127,7 @@ export async function enrichStaffSettingsRows(
       has_mobile_pin: hasPinByStaff.get(row.id) ?? false,
       associated_salon_ids: [...associated].sort((a, b) => a - b),
       schedule_active_days,
+      schedule_by_salon: scheduleSlotsByStaff.get(row.id) ?? {},
     };
   });
 }

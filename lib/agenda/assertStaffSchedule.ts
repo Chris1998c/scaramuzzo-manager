@@ -2,13 +2,16 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  checkStaffAppointmentScheduleWindow,
   fetchStaffScheduleForSalon,
-  isoDayOfWeekFromISODateLocal,
-  isStaffVisibleOnAgendaDayForSalon,
+  type StaffScheduleBySalon,
 } from "@/lib/staffSchedule";
 
 export const STAFF_SCHEDULE_CONFLICT_MESSAGE =
   "Collaboratore non disponibile in questo giorno";
+
+export const STAFF_SCHEDULE_TIME_CONFLICT_MESSAGE =
+  "Collaboratore non disponibile in questa fascia oraria";
 
 /** Estrae YYYY-MM-DD da start_time agenda (locale, senza Z). */
 export function isoDateFromAgendaStartTime(startTime: string): string | null {
@@ -17,7 +20,11 @@ export function isoDateFromAgendaStartTime(startTime: string): string | null {
 }
 
 export function isStaffScheduleConflictError(e: unknown): boolean {
-  return e instanceof Error && e.message === STAFF_SCHEDULE_CONFLICT_MESSAGE;
+  return (
+    e instanceof Error &&
+    (e.message === STAFF_SCHEDULE_CONFLICT_MESSAGE ||
+      e.message === STAFF_SCHEDULE_TIME_CONFLICT_MESSAGE)
+  );
 }
 
 export type AssertStaffScheduledInput = {
@@ -25,23 +32,24 @@ export type AssertStaffScheduledInput = {
   salonId: number;
   staffId: number | null;
   startTime: string;
+  durationMinutes: number;
   /** Riutilizza la mappa per più righe nella stessa richiesta. */
-  scheduleMap?: Map<string, Set<number>>;
+  scheduleMap?: StaffScheduleBySalon;
 };
 
 /**
- * Enforcement turni settimanali (staff_schedule) per salone.
+ * Enforcement turni settimanali (staff_schedule) per salone: giorno + fascia oraria.
  *
- * Legacy (compatibile con AgendaGrid): se lo staff non ha alcuna riga
- * staff_schedule per quel salone, è prenotabile in tutti i giorni.
- * Con righe presenti, il giorno ISO (1=lun … 7=dom) deve essere nel set.
+ * Legacy: se lo staff non ha alcuna riga staff_schedule per quel salone, è prenotabile
+ * in tutti i giorni e fasce. Con righe presenti, il giorno ISO deve esistere e
+ * [start, start+duration) deve stare in start_time/end_time (NULL = default salone).
  *
- * @throws Error con STAFF_SCHEDULE_CONFLICT_MESSAGE se fuori turno
+ * @throws Error con messaggio giorno o fascia se fuori turno
  */
 export async function assertStaffScheduledForStartTime(
   input: AssertStaffScheduledInput,
 ): Promise<void> {
-  const { supabase, salonId, staffId, startTime, scheduleMap } = input;
+  const { supabase, salonId, staffId, startTime, durationMinutes, scheduleMap } = input;
   if (staffId == null) return;
 
   const isoDate = isoDateFromAgendaStartTime(startTime);
@@ -49,10 +57,21 @@ export async function assertStaffScheduledForStartTime(
     throw new Error("Data/ora appuntamento non valida");
   }
 
-  const dow = isoDayOfWeekFromISODateLocal(isoDate);
   const map = scheduleMap ?? (await fetchStaffScheduleForSalon(supabase, salonId));
 
-  if (!isStaffVisibleOnAgendaDayForSalon(map, String(staffId), dow)) {
-    throw new Error(STAFF_SCHEDULE_CONFLICT_MESSAGE);
+  const check = checkStaffAppointmentScheduleWindow({
+    scheduleMap: map,
+    staffId,
+    salonId,
+    startTime,
+    durationMinutes,
+  });
+
+  if (!check.ok) {
+    throw new Error(
+      check.kind === "time"
+        ? STAFF_SCHEDULE_TIME_CONFLICT_MESSAGE
+        : STAFF_SCHEDULE_CONFLICT_MESSAGE,
+    );
   }
 }

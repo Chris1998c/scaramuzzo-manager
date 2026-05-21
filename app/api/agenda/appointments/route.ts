@@ -165,6 +165,7 @@ export async function POST(req: Request) {
           salonId,
           staffId: line.staff_id,
           startTime: lineStart,
+          durationMinutes: line.duration_minutes,
           scheduleMap,
         });
         await assertStaffSlotFree({

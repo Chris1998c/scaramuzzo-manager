@@ -8,6 +8,34 @@ export function hasAppointmentSale(saleId: unknown): boolean {
   return saleId != null && saleId !== "";
 }
 
+const TERMINAL_APPOINTMENT_STATUSES = new Set([
+  "done",
+  "cancelled",
+  "no_show",
+  "noshow",
+]);
+
+export const APPOINTMENT_LINE_CLOSED_MESSAGE =
+  "Appuntamento chiuso: modifica non consentita";
+
+export const APPOINTMENT_LINE_SALE_LOCKED_MESSAGE =
+  "Appuntamento collegato a una vendita: modifica non consentita";
+
+/** Blocco PATCH righe agenda (drag/resize/staff) — allineato a ServiceBox read-only. */
+export function canModifyAppointmentAgendaLine(input: {
+  status: unknown;
+  sale_id?: unknown;
+}): { allowed: true } | { allowed: false; error: string } {
+  const s = normalizeAgendaStatus(input.status);
+  if (TERMINAL_APPOINTMENT_STATUSES.has(s)) {
+    return { allowed: false, error: APPOINTMENT_LINE_CLOSED_MESSAGE };
+  }
+  if (hasAppointmentSale(input.sale_id)) {
+    return { allowed: false, error: APPOINTMENT_LINE_SALE_LOCKED_MESSAGE };
+  }
+  return { allowed: true };
+}
+
 /**
  * Regole condivise UI + API per annulla / no-show (nessuna cancellazione record).
  */
