@@ -259,7 +259,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
   const waReminderLog =
     salonId && tab === "whatsapp_reminders"
       ? await getWhatsAppReminderLog({ salonId, dateFrom, dateTo })
-      : { rows: [], totals: { sent: 0, error: 0, processing: 0 } };
+      : { rows: [], totals: { sent: 0, failed: 0, skipped: 0, pending: 0 } };
 
   const { totals, rows, daily, topItems, staffPerformance, previousTotals } = salesAnalytics;
 

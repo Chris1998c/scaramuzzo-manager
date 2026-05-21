@@ -360,7 +360,7 @@ export default function ImpostazioniShell({
           <CanaliWhatsAppPanel
             salonId={effectiveSalonId}
             salonLabel={salonLabel}
-            canManage={canManageServices}
+            canManage={canManageStaff}
             canPickSalonFromHeader={canChooseSalon}
           />
         ) : section === "fiscale" ? (

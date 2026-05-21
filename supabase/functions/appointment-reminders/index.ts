@@ -189,16 +189,19 @@ Deno.serve(async (req) => {
 
   if (!token) {
     return new Response(
-      JSON.stringify({ error: "WHATSAPP_ACCESS_TOKEN non configurato" }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      JSON.stringify({
+        error: "WHATSAPP_ACCESS_TOKEN non configurato. Imposta il token Meta nelle secrets Edge.",
+      }),
+      { status: 503, headers: { "Content-Type": "application/json" } },
     );
   }
   if (!envTemplateName) {
     return new Response(
       JSON.stringify({
-        error: "WHATSAPP_APPOINTMENT_REMINDER_TEMPLATE_NAME non configurato",
+        error:
+          "WHATSAPP_APPOINTMENT_REMINDER_TEMPLATE_NAME non configurato. Imposta template su Edge o per salone in Impostazioni.",
       }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      { status: 503, headers: { "Content-Type": "application/json" } },
     );
   }
 
@@ -234,6 +237,14 @@ Deno.serve(async (req) => {
   for (const row of rows) {
     const appointmentId = row.appointment_id;
     const scheduledFor = row.appointment_starts_at;
+    const to = normalizePhoneForWhatsAppTo(row.customer_phone ?? "");
+
+    const templateName =
+      String(row.appointment_reminder_template_name ?? "").trim() ||
+      envTemplateName;
+    const templateLang =
+      String(row.appointment_reminder_template_lang ?? "").trim() ||
+      envTemplateLang;
 
     const { error: claimErr } = await supabaseAdmin
       .from("appointment_whatsapp_reminders")
@@ -241,8 +252,10 @@ Deno.serve(async (req) => {
         appointment_id: appointmentId,
         salon_id: row.salon_id,
         customer_id: row.customer_id,
-        status: "processing",
+        status: "pending",
         scheduled_for: scheduledFor,
+        phone: to,
+        template_name: templateName || null,
       });
 
     if (claimErr) {
@@ -255,30 +268,50 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const finalizeError = async (message: string): Promise<void> => {
+    const markSkipped = async (message: string): Promise<void> => {
       const { error: upErr } = await supabaseAdmin
         .from("appointment_whatsapp_reminders")
         .update({
-          status: "error",
+          status: "skipped",
           error_message: message.slice(0, 2000),
+          phone: to,
+          template_name: templateName || null,
         })
         .eq("appointment_id", appointmentId);
-      if (upErr) {
-        console.error("[appointment-reminders] finalize error", upErr);
-      }
-      failed += 1;
+      if (upErr) console.error("[appointment-reminders] finalize skipped", upErr);
+      else skipped += 1;
+    };
+
+    const markFailed = async (message: string): Promise<void> => {
+      const { error: upErr } = await supabaseAdmin
+        .from("appointment_whatsapp_reminders")
+        .update({
+          status: "failed",
+          error_message: message.slice(0, 2000),
+          phone: to,
+          template_name: templateName || null,
+        })
+        .eq("appointment_id", appointmentId);
+      if (upErr) console.error("[appointment-reminders] finalize failed", upErr);
+      else failed += 1;
     };
 
     if (!row.wa_is_enabled || !String(row.wa_phone_number_id ?? "").trim()) {
-      await finalizeError(
+      await markSkipped(
         "Salone senza WhatsApp abilitato o senza Phone Number ID.",
       );
       continue;
     }
 
-    const to = normalizePhoneForWhatsAppTo(row.customer_phone ?? "");
     if (!to) {
-      await finalizeError("Telefono cliente non valido per WhatsApp.");
+      await markSkipped("Telefono cliente non valido per WhatsApp.");
+      continue;
+    }
+
+    if (!templateName) {
+      await markFailed(
+        "Nome template reminder non configurato (salone né ambiente).",
+      );
       continue;
     }
 
@@ -295,20 +328,6 @@ Deno.serve(async (req) => {
       venue,
     ];
 
-    const templateName =
-      String(row.appointment_reminder_template_name ?? "").trim() ||
-      envTemplateName;
-    const templateLang =
-      String(row.appointment_reminder_template_lang ?? "").trim() ||
-      envTemplateLang;
-
-    if (!templateName) {
-      await finalizeError(
-        "Nome template reminder non configurato (salone né ambiente).",
-      );
-      continue;
-    }
-
     const send = await sendWhatsAppTemplateMessage({
       accessToken: token,
       phoneNumberId: String(row.wa_phone_number_id).trim(),
@@ -319,7 +338,7 @@ Deno.serve(async (req) => {
     });
 
     if (!send.ok) {
-      await finalizeError(send.error);
+      await markFailed(send.error);
       continue;
     }
 
@@ -330,6 +349,8 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString(),
         provider_message_id: send.providerMessageId,
         error_message: null,
+        phone: to,
+        template_name: templateName,
       })
       .eq("appointment_id", appointmentId);
 

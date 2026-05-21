@@ -15,12 +15,13 @@ const BROWSE_LIMIT = 200;
 const SEARCH_LIMIT = 100;
 
 const SELECT_COLUMNS =
-  "id, first_name, last_name, phone, email, address, notes, created_at";
+  "id, customer_code, first_name, last_name, phone, email, address, notes, created_at";
 
 function mapRow(row: Record<string, unknown>): ClientiListRow {
+  const code = row.customer_code != null ? String(row.customer_code).trim() : "";
   return {
     id: String(row.id),
-    customer_code: String(row.id),
+    customer_code: code || String(row.id),
     first_name: String(row.first_name ?? ""),
     last_name: String(row.last_name ?? ""),
     phone: String(row.phone ?? ""),

@@ -2,6 +2,7 @@
 import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { normalizeReminderStatusForDisplay } from "@/lib/whatsapp/appointmentReminderStatuses";
 
 export type WhatsAppReminderLogFilters = {
   salonId: number;
@@ -15,6 +16,8 @@ export type WhatsAppReminderLogRow = {
   scheduled_for: string | null;
   sent_at: string | null;
   error_message: string | null;
+  template_name: string | null;
+  phone: string | null;
   salon_name: string;
   customer_name: string;
   appointment_starts_at: string | null;
@@ -22,8 +25,9 @@ export type WhatsAppReminderLogRow = {
 
 export type WhatsAppReminderLogTotals = {
   sent: number;
-  error: number;
-  processing: number;
+  failed: number;
+  skipped: number;
+  pending: number;
 };
 
 function isoStart(d: string) {
@@ -39,6 +43,8 @@ type RawReminder = {
   scheduled_for: string | null;
   sent_at: string | null;
   error_message: string | null;
+  template_name: string | null;
+  phone: string | null;
   appointments:
     | { start_time: string }
     | { start_time: string }[]
@@ -55,17 +61,17 @@ function single<T>(x: T | T[] | null | undefined): T | null {
   return Array.isArray(x) ? (x[0] ?? null) : x;
 }
 
-async function countForStatus(
+async function countForStatuses(
   salonId: number,
   dateFrom: string,
   dateTo: string,
-  status: string,
+  statuses: string[],
 ): Promise<number> {
   const { count, error } = await supabaseAdmin
     .from("appointment_whatsapp_reminders")
     .select("*", { count: "exact", head: true })
     .eq("salon_id", salonId)
-    .eq("status", status)
+    .in("status", statuses)
     .gte("scheduled_for", isoStart(dateFrom))
     .lte("scheduled_for", isoEnd(dateTo));
   if (error) return 0;
@@ -77,14 +83,22 @@ export async function getWhatsAppReminderLog(
 ): Promise<{ rows: WhatsAppReminderLogRow[]; totals: WhatsAppReminderLogTotals }> {
   const { salonId, dateFrom, dateTo } = filters;
 
-  const [sent, error, processing, listRes] = await Promise.all([
-    countForStatus(salonId, dateFrom, dateTo, "sent"),
-    countForStatus(salonId, dateFrom, dateTo, "error"),
-    countForStatus(salonId, dateFrom, dateTo, "processing"),
+  const emptyTotals: WhatsAppReminderLogTotals = {
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    pending: 0,
+  };
+
+  const [sent, failed, skipped, pending, listRes] = await Promise.all([
+    countForStatuses(salonId, dateFrom, dateTo, ["sent"]),
+    countForStatuses(salonId, dateFrom, dateTo, ["failed", "error"]),
+    countForStatuses(salonId, dateFrom, dateTo, ["skipped"]),
+    countForStatuses(salonId, dateFrom, dateTo, ["pending", "processing"]),
     supabaseAdmin
       .from("appointment_whatsapp_reminders")
       .select(
-        "id, status, scheduled_for, sent_at, error_message, appointments(start_time), customers(first_name, last_name), salons(name)",
+        "id, status, scheduled_for, sent_at, error_message, template_name, phone, appointments(start_time), customers(first_name, last_name), salons(name)",
       )
       .eq("salon_id", salonId)
       .gte("scheduled_for", isoStart(dateFrom))
@@ -93,11 +107,11 @@ export async function getWhatsAppReminderLog(
       .limit(400),
   ]);
 
-  const totals: WhatsAppReminderLogTotals = { sent, error, processing };
+  const totals: WhatsAppReminderLogTotals = { sent, failed, skipped, pending };
 
   if (listRes.error) {
     console.error("[getWhatsAppReminderLog]", listRes.error);
-    return { rows: [], totals };
+    return { rows: [], totals: emptyTotals };
   }
 
   const rawList = (listRes.data ?? []) as unknown as RawReminder[];
@@ -111,10 +125,12 @@ export async function getWhatsAppReminderLog(
     const customer_name = [fn, ln].filter(Boolean).join(" ") || "—";
     return {
       id: Number(r.id),
-      status: String(r.status ?? ""),
+      status: normalizeReminderStatusForDisplay(String(r.status ?? "")),
       scheduled_for: r.scheduled_for,
       sent_at: r.sent_at,
       error_message: r.error_message,
+      template_name: r.template_name,
+      phone: r.phone,
       salon_name: String(salon?.name ?? "—"),
       customer_name,
       appointment_starts_at: appt?.start_time ?? null,

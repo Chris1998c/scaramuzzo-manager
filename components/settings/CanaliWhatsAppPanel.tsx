@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bell, Loader2, MessageCircle } from "lucide-react";
+import { Bell, CheckCircle2, Loader2, MessageCircle, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
+import { evaluateSalonWhatsAppConfig } from "@/lib/whatsapp/salonWhatsAppConfig";
 
 export type SalonWhatsAppSettingsRow = {
   salon_id: number;
@@ -126,6 +127,13 @@ export default function CanaliWhatsAppPanel({
     void load();
   }
 
+  const configStatus = evaluateSalonWhatsAppConfig({
+    is_enabled: isEnabled,
+    phone_number_id: phoneNumberId,
+    appointment_reminder_enabled: reminderEnabled,
+    appointment_reminder_template_name: reminderTemplateName,
+  });
+
   if (salonId == null) {
     return (
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-100/90">
@@ -176,6 +184,42 @@ export default function CanaliWhatsAppPanel({
       {!canManage ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-100/90">
           Sola lettura: la modifica è riservata al ruolo <strong>coordinator</strong>.
+        </div>
+      ) : null}
+
+      {!loading && salonId != null ? (
+        <div
+          className={[
+            "rounded-xl border px-3 py-2.5 text-sm flex items-start gap-2",
+            configStatus.ready
+              ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-100/95"
+              : "border-amber-500/35 bg-amber-500/10 text-amber-100/95",
+          ].join(" ")}
+        >
+          {configStatus.ready ? (
+            <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
+          ) : (
+            <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+          )}
+          <div>
+            <div className="font-bold">
+              {configStatus.ready
+                ? "Configurazione operativa"
+                : "Configurazione incompleta"}
+            </div>
+            {configStatus.ready ? (
+              <p className="text-xs mt-1 opacity-90">
+                Canale pronto per reminder (se token Meta e cron attivi) e per invii da
+                Impostazioni marketing.
+              </p>
+            ) : (
+              <ul className="text-xs mt-1.5 space-y-0.5 list-disc pl-4 opacity-95">
+                {configStatus.issues.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       ) : null}
 

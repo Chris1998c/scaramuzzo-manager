@@ -26,17 +26,18 @@ function formatRome(iso: string | null | undefined): string {
 function statusLabel(s: string) {
   const v = s.toLowerCase().trim();
   if (v === "sent") return "Inviato";
-  if (v === "error") return "Errore";
-  if (v === "processing") return "In elaborazione";
-  if (v === "pending") return "In attesa";
+  if (v === "failed" || v === "error") return "Errore";
+  if (v === "skipped") return "Saltato";
+  if (v === "pending" || v === "processing") return "In attesa";
   return s || "—";
 }
 
 function statusClass(s: string) {
   const v = s.toLowerCase().trim();
   if (v === "sent") return "text-emerald-300/95";
-  if (v === "error") return "text-rose-300/95";
-  if (v === "processing") return "text-amber-300/90";
+  if (v === "failed" || v === "error") return "text-rose-300/95";
+  if (v === "skipped") return "text-amber-300/90";
+  if (v === "pending" || v === "processing") return "text-sky-300/90";
   return "text-white/70";
 }
 
@@ -62,18 +63,22 @@ export default function ReportWhatsAppRemindersTable({
       </div>
 
       <div className="bg-scz-dark border border-white/10 rounded-2xl p-6">
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-4 gap-4">
           <div className={card}>
             <div className={label}>Inviati</div>
             <div className="text-2xl font-extrabold text-white mt-1">{totals.sent}</div>
           </div>
           <div className={card}>
             <div className={label}>Errori</div>
-            <div className="text-2xl font-extrabold text-white mt-1">{totals.error}</div>
+            <div className="text-2xl font-extrabold text-white mt-1">{totals.failed}</div>
           </div>
           <div className={card}>
-            <div className={label}>In elaborazione</div>
-            <div className="text-2xl font-extrabold text-white mt-1">{totals.processing}</div>
+            <div className={label}>Saltati</div>
+            <div className="text-2xl font-extrabold text-white mt-1">{totals.skipped}</div>
+          </div>
+          <div className={card}>
+            <div className={label}>In attesa</div>
+            <div className="text-2xl font-extrabold text-white mt-1">{totals.pending}</div>
           </div>
         </div>
         <div className="mt-4 text-xs text-white/40">
