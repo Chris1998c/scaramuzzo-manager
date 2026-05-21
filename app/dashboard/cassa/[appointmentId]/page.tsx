@@ -9,6 +9,14 @@ import { agendaVisualFromServiceRow } from "@/lib/agendaServiceVisual";
 import Link from "next/link";
 import { toast } from "sonner";
 import FiscalDocumentCard from "@/components/cassa/FiscalDocumentCard";
+import {
+  canAddCashProduct,
+  cashProductStockLabel,
+  cashProductStockStatus,
+  fetchCashProductsForSalon,
+  validateCartProductStock,
+  type CashCatalogProduct,
+} from "@/lib/cassa/cashProductStock";
 
 /* =======================
    TYPES
@@ -59,7 +67,7 @@ export default function CassaPage() {
   const [customer, setCustomer] = useState<any>(null);
 
   const [services, setServices] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<CashCatalogProduct[]>([]);
 
   const [items, setItems] = useState<CashItem[]>([]);
   /** Evita che un secondo load (es. React Strict Mode in dev) sovrascriva il carrello con solo i servizi da appuntamento. */
@@ -166,20 +174,16 @@ useEffect(() => {
 const salonId = Number(a.salon_id);
 const asRows: any[] = Array.isArray(a.appointment_services) ? a.appointment_services : [];
 
-const [cashRows, prResult] = await Promise.all([
+const [cashRows, cashProducts] = await Promise.all([
   fetchCashServices(supabase, salonId).catch((e) => {
     console.error("fetchCashServices", e);
     return [] as Awaited<ReturnType<typeof fetchCashServices>>;
   }),
-  supabase
-    .from("products")
-    .select("id, name, price, active")
-    .eq("active", true)
-    .order("name"),
+  fetchCashProductsForSalon(supabase, salonId).catch((e) => {
+    console.error("fetchCashProductsForSalon", e);
+    return [] as CashCatalogProduct[];
+  }),
 ]);
-
-const pr = prResult.data;
-if (prResult.error) console.error("Errore listini prodotti", prResult.error);
 
 // 4) service_prices per righe appuntamento (fallback) anche se il servizio non è più nel catalogo cassa
 const apptServiceIds = asRows
@@ -219,7 +223,7 @@ if (cancelled) return;
 setAppointment(a);
 setCustomer(c);
 setServices(mergedServices);
-setProducts(pr || []);
+setProducts(cashProducts);
 
 
     // 5) Auto-popola righe: price = salvato, se 0 -> fallback da service_prices (se esiste)
@@ -293,12 +297,41 @@ setProducts(pr || []);
      HANDLERS
   ======================= */
 
+  const productById = useMemo(
+    () => new Map(products.map((p) => [p.id, p])),
+    [products],
+  );
+
+  function productQtyInCart(prev: CashItem[], productId: number): number {
+    return prev
+      .filter((it) => it.kind === "product" && it.id === productId)
+      .reduce((s, it) => s + it.qty, 0);
+  }
+
   function addItem(kind: "service" | "product", source: any) {
+    if (kind === "product") {
+      const p = source as CashCatalogProduct;
+      if (!canAddCashProduct(p)) {
+        toast.error(
+          p.stockQty <= 0 ? "Prodotto esaurito" : "Prodotto non disponibile",
+        );
+        return;
+      }
+    }
+
     setItems((prev) => {
       const id = Number(source?.id);
       if (!Number.isFinite(id) || id <= 0) return prev;
 
-      // Prodotti: se già presente, aumenta qty
+      if (kind === "product") {
+        const catalog = productById.get(id) ?? (source as CashCatalogProduct);
+        const inCart = productQtyInCart(prev, id);
+        if (inCart + 1 > catalog.stockQty) {
+          toast.error("Giacenza insufficiente");
+          return prev;
+        }
+      }
+
       const existingIdx = prev.findIndex(
         (it) => it.kind === kind && it.id === id,
       );
@@ -381,6 +414,12 @@ setProducts(pr || []);
       const it = prev[idx];
       if (!it) return prev;
       if (it.kind === "product") {
+        const catalog = productById.get(it.id);
+        const inCart = productQtyInCart(prev, it.id);
+        if ((catalog?.stockQty ?? 0) < inCart + 1) {
+          toast.error("Giacenza insufficiente");
+          return prev;
+        }
         return prev.map((row, i) =>
           i === idx ? { ...row, qty: row.qty + 1 } : row,
         );
@@ -414,13 +453,24 @@ setProducts(pr || []);
   const hasLinkedSale =
     Number.isFinite(linkedSaleId) && linkedSaleId > 0;
 
+  const stockValidation = useMemo(
+    () => validateCartProductStock(items, products),
+    [items, products],
+  );
+
   const canClose =
     !closing &&
     !isNotInSala &&
     items.length > 0 &&
     Boolean(appointment?.id) &&
     Boolean(appointment?.salon_id) &&
-    cassa?.is_open === true;
+    cassa?.is_open === true &&
+    stockValidation.ok;
+
+  const closeBlockReason = useMemo(() => {
+    if (stockValidation.ok) return null;
+    return stockValidation.message;
+  }, [stockValidation]);
 
   async function handleOpenCassa() {
     if (opening) return;
@@ -731,12 +781,25 @@ setProducts(pr || []);
               }}
             >
               <option value="">+ Aggiungi prodotto...</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — €{p.price}
-                </option>
-              ))}
+              {products.map((p) => {
+                const status = cashProductStockStatus(p.stockQty);
+                const addable = canAddCashProduct(p);
+                const qtyLabel =
+                  p.stockQty % 1 === 0
+                    ? String(Math.trunc(p.stockQty))
+                    : p.stockQty.toFixed(1);
+                return (
+                  <option key={p.id} value={p.id} disabled={!addable}>
+                    {p.name} — €{p.price.toFixed(2)} · {cashProductStockLabel(status)} (
+                    {qtyLabel} pz)
+                  </option>
+                );
+              })}
             </select>
+            <p className="mt-1.5 text-[10px] text-white/45">
+              {products.filter((p) => canAddCashProduct(p)).length} prodotti con giacenza
+              in salone
+            </p>
           </div>
         </div>
       </div>
@@ -796,6 +859,20 @@ setProducts(pr || []);
                   const warnZero = it.unitPrice === 0;
                   const warnHighDisc = discPct > 50;
                   const warnQty = it.qty > 99;
+                  const catalogProduct =
+                    it.kind === "product" ? productById.get(it.id) : undefined;
+                  const lineStock =
+                    catalogProduct != null
+                      ? productQtyInCart(items, it.id)
+                      : 0;
+                  const warnStock =
+                    it.kind === "product" &&
+                    catalogProduct != null &&
+                    lineStock > catalogProduct.stockQty;
+                  const stockStatus =
+                    catalogProduct != null
+                      ? cashProductStockStatus(catalogProduct.stockQty)
+                      : null;
                   const svcTint =
                     it.kind === "service" && it.accentHex
                       ? `${it.accentHex}22`
@@ -830,8 +907,30 @@ setProducts(pr || []);
                       </td>
                       <td className="px-4 py-3 font-semibold text-white/95 align-middle">
                         <span className="text-[#f3d8b6] drop-shadow-sm">{it.name}</span>
-                        {(warnZero || warnHighDisc || warnQty) && (
+                        {(warnZero || warnHighDisc || warnQty || warnStock || stockStatus) && (
                           <div className="flex flex-wrap gap-1 mt-1">
+                            {it.kind === "product" && stockStatus && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded-lg ${
+                                  stockStatus === "out"
+                                    ? "text-red-200/90 bg-red-500/15"
+                                    : stockStatus === "low"
+                                      ? "text-amber-200/90 bg-amber-500/15"
+                                      : "text-emerald-200/90 bg-emerald-500/15"
+                                }`}
+                              >
+                                {cashProductStockLabel(stockStatus)} ·{" "}
+                                {catalogProduct!.stockQty % 1 === 0
+                                  ? Math.trunc(catalogProduct!.stockQty)
+                                  : catalogProduct!.stockQty.toFixed(1)}{" "}
+                                pz
+                              </span>
+                            )}
+                            {warnStock && (
+                              <span className="text-[10px] text-red-200/90 bg-red-500/15 px-1.5 py-0.5 rounded-lg">
+                                Giacenza insufficiente
+                              </span>
+                            )}
                             {warnZero && (
                               <span className="text-[10px] text-amber-400/90 bg-amber-500/10 px-1.5 py-0.5 rounded-lg">Prezzo 0</span>
                             )}
@@ -1008,11 +1107,12 @@ setProducts(pr || []);
                   : "bg-[#f3d8b6] text-black border-2 border-[#f3d8b6] hover:opacity-95 active:scale-[0.99] shadow-[0_20px_40px_-12px_rgba(243,216,182,0.35)]"
               }`}
               title={
-                cassa?.is_open
+                closeBlockReason ??
+                (cassa?.is_open
                   ? items.length
                     ? ""
                     : "Aggiungi almeno una riga"
-                  : "Apri la cassa prima di procedere"
+                  : "Apri la cassa prima di procedere")
               }
             >
               {closing ? (
@@ -1031,11 +1131,12 @@ setProducts(pr || []);
             </button>
             {!canClose && (
               <p className="text-xs text-white/50 font-medium max-w-[280px]">
-                {!cassa?.is_open
-                  ? "Apri la cassa dalla barra sopra per abilitare la chiusura."
-                  : items.length === 0
-                    ? "Aggiungi almeno una riga al riepilogo per chiudere."
-                    : null}
+                {closeBlockReason ??
+                  (!cassa?.is_open
+                    ? "Apri la cassa dalla barra sopra per abilitare la chiusura."
+                    : items.length === 0
+                      ? "Aggiungi almeno una riga al riepilogo per chiudere."
+                      : null)}
               </p>
             )}
           </div>
