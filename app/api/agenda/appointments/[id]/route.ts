@@ -14,6 +14,7 @@ import {
   computeLineEndTime,
   isStaffSlotConflictError,
 } from "@/lib/agenda/assertStaffSlotFree";
+import { canModifyAppointmentHeader } from "@/lib/agenda/appointmentLifecycle";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 import {
   clampDurationMinutes,
@@ -81,7 +82,7 @@ export async function PATCH(
 
     const { data: appt, error: apptErr } = await supabaseAdmin
       .from("appointments")
-      .select("id, salon_id, start_time, end_time, staff_id")
+      .select("id, salon_id, start_time, end_time, staff_id, status, sale_id")
       .eq("id", appointmentId)
       .maybeSingle();
     if (apptErr) return NextResponse.json({ error: apptErr.message }, { status: 500 });
@@ -134,6 +135,23 @@ export async function PATCH(
     const deltaMs = newStart.getTime() - oldStart.getTime();
     const timeChanged = hasStartInput && deltaMs !== 0;
     const staffChanged = hasStaffInput && staffNorm !== normalizeStaffId((appt as { staff_id?: unknown }).staff_id);
+
+    const hasPatchPayload =
+      body.customer_id !== undefined ||
+      body.notes !== undefined ||
+      hasStartInput ||
+      hasEndInput ||
+      hasStaffInput;
+
+    if (hasPatchPayload) {
+      const headerGuard = canModifyAppointmentHeader({
+        status: (appt as { status?: unknown }).status,
+        sale_id: (appt as { sale_id?: unknown }).sale_id,
+      });
+      if (!headerGuard.allowed) {
+        return NextResponse.json({ error: headerGuard.error }, { status: 409 });
+      }
+    }
 
     const { data: lineRows, error: linesErr } = await supabaseAdmin
       .from("appointment_services")
@@ -215,6 +233,51 @@ export async function PATCH(
           excludeLineId: lineId,
         });
       }
+    }
+
+    if (!lineRows?.length && (timeChanged || staffChanged) && staffNorm != null) {
+      const endForDuration = newEndInput
+        ? newEndInput
+        : new Date(
+            newStart.getTime() +
+              Math.max(clampDurationMinutes(15) * 60_000, oldEnd.getTime() - oldStart.getTime()),
+          );
+      const durationMs = Math.max(
+        clampDurationMinutes(15) * 60_000,
+        endForDuration.getTime() - newStart.getTime(),
+      );
+      const durationMinutes = clampDurationMinutes(Math.round(durationMs / 60_000));
+      const headerStart = toNoZ(newStart);
+
+      const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
+      const opIsoDate = isoDateFromAgendaStartTime(headerStart);
+      const operationalSnapshot =
+        opIsoDate != null
+          ? await fetchOperationalCalendarSnapshot(supabaseAdmin, salonId, opIsoDate, [
+              staffNorm,
+            ])
+          : undefined;
+
+      await assertStaffScheduledForStartTime({
+        supabase: supabaseAdmin,
+        salonId,
+        staffId: staffNorm,
+        startTime: headerStart,
+        durationMinutes,
+        scheduleMap,
+        operationalSnapshot,
+        operationalIsoDate: opIsoDate ?? undefined,
+      });
+
+      const lineEnd = computeLineEndTime(headerStart, durationMinutes);
+      await assertStaffSlotFree({
+        supabase: supabaseAdmin,
+        salonId,
+        staffId: staffNorm,
+        startTime: headerStart,
+        endTime: lineEnd,
+        excludeAppointmentId: appointmentId,
+      });
     }
 
     if (Object.keys(metaPatch).length) {

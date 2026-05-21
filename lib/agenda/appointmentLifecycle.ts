@@ -36,6 +36,14 @@ export function canModifyAppointmentAgendaLine(input: {
   return { allowed: true };
 }
 
+/** Blocco PATCH header appuntamento (stesso criterio delle righe agenda). */
+export function canModifyAppointmentHeader(input: {
+  status: unknown;
+  sale_id?: unknown;
+}): ReturnType<typeof canModifyAppointmentAgendaLine> {
+  return canModifyAppointmentAgendaLine(input);
+}
+
 /**
  * Regole condivise UI + API per annulla / no-show (nessuna cancellazione record).
  */
