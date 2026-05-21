@@ -15,8 +15,10 @@ import {
 } from "@/lib/agenda/appointmentServerValidation";
 import {
   assertStaffScheduledForStartTime,
+  isoDateFromAgendaStartTime,
   isStaffScheduleConflictError,
 } from "@/lib/agenda/assertStaffSchedule";
+import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import {
   assertStaffSlotFree,
   computeLineEndTime,
@@ -154,6 +156,23 @@ export async function POST(req: Request) {
     const firstServiceStaff = normalizedLines[0]?.staff_id ?? null;
 
     const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
+    const opIsoDate = isoDateFromAgendaStartTime(snappedStart);
+    const staffIdsForOp = [
+      ...new Set(
+        normalizedLines
+          .map((l) => l.staff_id)
+          .filter((id): id is number => id != null),
+      ),
+    ];
+    const operationalSnapshot =
+      opIsoDate != null
+        ? await fetchOperationalCalendarSnapshot(
+            supabaseAdmin,
+            salonId,
+            opIsoDate,
+            staffIdsForOp,
+          )
+        : undefined;
 
     let cursorMs = parseLocal(snappedStart).getTime();
     for (const line of normalizedLines) {
@@ -167,6 +186,8 @@ export async function POST(req: Request) {
           startTime: lineStart,
           durationMinutes: line.duration_minutes,
           scheduleMap,
+          operationalSnapshot,
+          operationalIsoDate: opIsoDate ?? undefined,
         });
         await assertStaffSlotFree({
           supabase: supabaseAdmin,

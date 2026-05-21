@@ -13,8 +13,10 @@ import {
 import { assertStaffBelongsToSalon } from "@/lib/agenda/appointmentServerValidation";
 import {
   assertStaffScheduledForStartTime,
+  isoDateFromAgendaStartTime,
   isStaffScheduleConflictError,
 } from "@/lib/agenda/assertStaffSchedule";
+import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import {
   assertStaffSlotFree,
   computeLineEndTime,
@@ -141,6 +143,13 @@ export async function PATCH(
 
     if (mergedStaff != null && mergedStart && Number.isFinite(mergedDuration) && mergedDuration > 0) {
       const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
+      const opIsoDate = isoDateFromAgendaStartTime(mergedStart);
+      const operationalSnapshot =
+        opIsoDate != null
+          ? await fetchOperationalCalendarSnapshot(supabaseAdmin, salonId, opIsoDate, [
+              mergedStaff,
+            ])
+          : undefined;
       await assertStaffScheduledForStartTime({
         supabase: supabaseAdmin,
         salonId,
@@ -148,6 +157,8 @@ export async function PATCH(
         startTime: mergedStart,
         durationMinutes: mergedDuration,
         scheduleMap,
+        operationalSnapshot,
+        operationalIsoDate: opIsoDate ?? undefined,
       });
       const lineEnd = computeLineEndTime(mergedStart, mergedDuration);
       await assertStaffSlotFree({

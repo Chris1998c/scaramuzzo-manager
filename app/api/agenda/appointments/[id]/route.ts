@@ -5,8 +5,10 @@ import { getUserAccess } from "@/lib/getUserAccess";
 import { assertStaffBelongsToSalon } from "@/lib/agenda/appointmentServerValidation";
 import {
   assertStaffScheduledForStartTime,
+  isoDateFromAgendaStartTime,
   isStaffScheduleConflictError,
 } from "@/lib/agenda/assertStaffSchedule";
+import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import {
   assertStaffSlotFree,
   computeLineEndTime,
@@ -150,6 +152,27 @@ export async function PATCH(
 
     if (lineRows?.length && (timeChanged || staffChanged)) {
       const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
+      const opIsoDate = isoDateFromAgendaStartTime(toNoZ(newStart));
+      const staffIdsForOp = [
+        ...new Set(
+          (lineRows ?? [])
+            .map((l) =>
+              staffChanged
+                ? staffNorm
+                : normalizeStaffId((l as { staff_id?: unknown }).staff_id),
+            )
+            .filter((id): id is number => id != null),
+        ),
+      ];
+      const operationalSnapshot =
+        opIsoDate != null
+          ? await fetchOperationalCalendarSnapshot(
+              supabaseAdmin,
+              salonId,
+              opIsoDate,
+              staffIdsForOp,
+            )
+          : undefined;
 
       for (const l of lineRows) {
         const lineId = toInt((l as { id?: unknown }).id);
@@ -177,6 +200,8 @@ export async function PATCH(
           startTime: mergedStart,
           durationMinutes: duration,
           scheduleMap,
+          operationalSnapshot,
+          operationalIsoDate: opIsoDate ?? undefined,
         });
 
         const lineEnd = computeLineEndTime(mergedStart, duration);
