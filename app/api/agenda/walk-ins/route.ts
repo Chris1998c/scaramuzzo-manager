@@ -2,13 +2,20 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
-import { fetchActiveStaffIdsForSalon } from "@/lib/staffForSalon";
-import { resolveAgendaServiceLines } from "@/lib/agenda/appointmentServerValidation";
+import {
+  assertStaffBelongsToSalon,
+  resolveAgendaServiceLines,
+} from "@/lib/agenda/appointmentServerValidation";
+import {
+  assertStaffScheduledForStartTime,
+  isStaffScheduleConflictError,
+} from "@/lib/agenda/assertStaffSchedule";
 import {
   assertStaffSlotFree,
   computeLineEndTime,
   isStaffSlotConflictError,
 } from "@/lib/agenda/assertStaffSlotFree";
+import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 import {
   normalizeStaffId,
   nowRomeLocalDate,
@@ -93,9 +100,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "salon_id non consentito" }, { status: 403 });
     }
 
-    const allowedStaffIds = await fetchActiveStaffIdsForSalon(supabaseAdmin, salonId);
-    if (!allowedStaffIds.includes(staffId)) {
-      return NextResponse.json({ error: "Collaboratore non appartiene al salone" }, { status: 400 });
+    const staffGate = await assertStaffBelongsToSalon(supabaseAdmin, staffId, salonId);
+    if (!staffGate.ok) {
+      return NextResponse.json({ error: staffGate.error }, { status: staffGate.status });
     }
 
     const { data: customerRow, error: customerErr } = await supabaseAdmin
@@ -114,12 +121,21 @@ export async function POST(req: Request) {
     const checkedInAt = toNoZ(nowRomeLocalDate());
     const snappedStart = toNoZ(snapToAgendaSlot(nowRomeLocalDate()));
 
+    const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
+
     let cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
     for (const serviceId of serviceIds) {
       const resolved = resolvedServices.data.get(serviceId);
       if (!resolved) continue;
       const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
       const lineEnd = computeLineEndTime(lineStart, resolved.duration_minutes);
+      await assertStaffScheduledForStartTime({
+        supabase: supabaseAdmin,
+        salonId,
+        staffId,
+        startTime: lineStart,
+        scheduleMap,
+      });
       await assertStaffSlotFree({
         supabase: supabaseAdmin,
         salonId,
@@ -183,7 +199,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, appointment_id: appointmentId });
   } catch (e) {
-    if (isStaffSlotConflictError(e)) {
+    if (isStaffScheduleConflictError(e) || isStaffSlotConflictError(e)) {
       return NextResponse.json(
         { error: (e as Error).message },
         { status: 409 },

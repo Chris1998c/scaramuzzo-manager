@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { assertStaffBelongsToSalon } from "@/lib/agenda/appointmentServerValidation";
+import {
+  assertStaffScheduledForStartTime,
+  isStaffScheduleConflictError,
+} from "@/lib/agenda/assertStaffSchedule";
 import {
   assertStaffSlotFree,
   computeLineEndTime,
   isStaffSlotConflictError,
 } from "@/lib/agenda/assertStaffSlotFree";
+import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 import {
   clampDurationMinutes,
   normalizeStaffId,
@@ -135,7 +141,16 @@ export async function PATCH(
       .order("id", { ascending: true });
     if (linesErr) return NextResponse.json({ error: linesErr.message }, { status: 500 });
 
+    if (staffChanged && staffNorm != null) {
+      const staffGate = await assertStaffBelongsToSalon(supabaseAdmin, staffNorm, salonId);
+      if (!staffGate.ok) {
+        return NextResponse.json({ error: staffGate.error }, { status: staffGate.status });
+      }
+    }
+
     if (lineRows?.length && (timeChanged || staffChanged)) {
+      const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
+
       for (const l of lineRows) {
         const lineId = toInt((l as { id?: unknown }).id);
         if (!lineId || lineId <= 0) continue;
@@ -154,6 +169,14 @@ export async function PATCH(
           const ls = parseLocal(currentStart);
           mergedStart = toNoZ(snapToAgendaSlot(new Date(ls.getTime() + deltaMs)));
         }
+
+        await assertStaffScheduledForStartTime({
+          supabase: supabaseAdmin,
+          salonId,
+          staffId: mergedStaff,
+          startTime: mergedStart,
+          scheduleMap,
+        });
 
         const lineEnd = computeLineEndTime(mergedStart, duration);
         await assertStaffSlotFree({
@@ -223,7 +246,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (isStaffSlotConflictError(e)) {
+    if (isStaffScheduleConflictError(e) || isStaffSlotConflictError(e)) {
       return NextResponse.json(
         { error: (e as Error).message },
         { status: 409 },

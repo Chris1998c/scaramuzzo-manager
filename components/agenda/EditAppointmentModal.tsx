@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import {
+  fetchStaffScheduleForSalon,
+  filterStaffForAgendaDay,
+  isStaffOffScheduleForAgendaDay,
+} from "@/lib/staffSchedule";
 import { useRouter } from "next/navigation";
 import { X, User, FlaskConical, Banknote, Trash2, Save } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
@@ -95,7 +100,10 @@ export default function EditAppointmentModal({
 
   const [customers, setCustomers] = useState<EditCustomerRow[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<EditCustomerRow[]>([]);
-  const [staff, setStaff] = useState<EditStaffRow[]>([]);
+  const [staffAll, setStaffAll] = useState<EditStaffRow[]>([]);
+  const [staffScheduleMap, setStaffScheduleMap] = useState<Map<string, Set<number>>>(
+    () => new Map(),
+  );
 
   const [qCustomer, setQCustomer] = useState("");
   const [customer, setCustomer] = useState<string>("");
@@ -136,7 +144,7 @@ export default function EditAppointmentModal({
       setTime(hours[0] ?? "08:00");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, activeSalonId, appointment?.id, hours]);
+  }, [isOpen, activeSalonId, appointment?.id, hours, selectedDay]);
 
   // filtro clienti
   useEffect(() => {
@@ -178,18 +186,39 @@ export default function EditAppointmentModal({
 
   async function loadStaffForSalon() {
     if (!activeSalonId) {
-      setStaff([{ id: null, name: "Disponibile" }]);
+      setStaffAll([]);
+      setStaffScheduleMap(new Map());
       return;
     }
 
     try {
-      const rows = await fetchActiveStaffForSalon(supabase, Number(activeSalonId), "id, name");
-      setStaff([{ id: null, name: "Disponibile" }, ...((rows as EditStaffRow[]) ?? [])]);
+      const salonId = Number(activeSalonId);
+      const [rows, scheduleMap] = await Promise.all([
+        fetchActiveStaffForSalon(supabase, salonId, "id, name"),
+        fetchStaffScheduleForSalon(supabase, salonId),
+      ]);
+      setStaffAll((rows as EditStaffRow[]) ?? []);
+      setStaffScheduleMap(scheduleMap);
     } catch (error) {
       console.error(error);
-      setStaff([{ id: null, name: "Disponibile" }]);
+      setStaffAll([]);
+      setStaffScheduleMap(new Map());
     }
   }
+
+  const staffForDay = useMemo(() => {
+    const includeIds = [
+      staffId,
+      appointment?.staff_id != null ? String(appointment.staff_id) : null,
+    ];
+    const filtered = filterStaffForAgendaDay(staffAll, staffScheduleMap, selectedDay, includeIds);
+    return [{ id: null, name: "Disponibile" }, ...filtered];
+  }, [staffAll, staffScheduleMap, selectedDay, staffId, appointment?.staff_id]);
+
+  const staffOffScheduleWarning = useMemo(() => {
+    if (staffId == null || staffId === "") return false;
+    return isStaffOffScheduleForAgendaDay(staffScheduleMap, staffId, selectedDay);
+  }, [staffId, staffScheduleMap, selectedDay]);
 
   async function updateAppointment() {
     if (!appointment?.id) return;
@@ -346,12 +375,12 @@ export default function EditAppointmentModal({
 
   const staffById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const s of staff || []) {
+    for (const s of staffAll) {
       if (s?.id == null) continue;
       map.set(String(s.id), String(s.name ?? ""));
     }
     return map;
-  }, [staff]);
+  }, [staffAll]);
 
   if (!isOpen) return null;
 
@@ -557,12 +586,26 @@ export default function EditAppointmentModal({
                       setStaffId(e.target.value === "" ? null : e.target.value)
                     }
                   >
-                    {staff.map((s) => (
+                    {staffForDay.map((s) => (
                       <option key={String(s.id ?? "free")} value={s.id ?? ""}>
                         {s.name}
+                        {s.id != null &&
+                        isStaffOffScheduleForAgendaDay(staffScheduleMap, s.id, selectedDay)
+                          ? " (fuori turno)"
+                          : ""}
                       </option>
                     ))}
                   </select>
+                  {staffForDay.length <= 1 && (
+                    <p className="text-[10px] text-amber-200/80 mt-1">
+                      Nessun collaboratore disponibile in questo giorno
+                    </p>
+                  )}
+                  {staffOffScheduleWarning && (
+                    <p className="text-[10px] text-white/45 mt-1">
+                      Collaboratore assegnato non in turno in questo giorno.
+                    </p>
+                  )}
                 </div>
               </div>
 

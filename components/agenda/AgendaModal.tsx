@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import {
+  fetchStaffScheduleForSalon,
+  filterStaffForAgendaDay,
+  isStaffOffScheduleForAgendaDay,
+} from "@/lib/staffSchedule";
 import { motion } from "framer-motion";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import {
@@ -57,7 +62,10 @@ export default function AgendaModal({
   const [customers, setCustomers] = useState<any[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
-  const [staffList, setStaffList] = useState<any[]>([]);
+  const [staffListAll, setStaffListAll] = useState<{ id: number; name: string }[]>([]);
+  const [staffScheduleMap, setStaffScheduleMap] = useState<Map<string, Set<number>>>(
+    () => new Map(),
+  );
 
   /* ================= FORM ================= */
 
@@ -99,7 +107,7 @@ useEffect(() => {
   setQService("");
 
   void Promise.all([loadCustomers(), loadServices(), loadStaff()]);
-}, [isOpen, activeSalonId]);
+}, [isOpen, activeSalonId, currentDate]);
 
   useEffect(() => {
     if (!isOpen || !selectedSlot || !agendaHours.length) return;
@@ -165,17 +173,52 @@ useEffect(() => {
 
   async function loadStaff() {
     if (!activeSalonId) {
-      setStaffList([]);
+      setStaffListAll([]);
+      setStaffScheduleMap(new Map());
       return;
     }
 
     try {
-      const rows = await fetchActiveStaffForSalon(supabase, Number(activeSalonId), "id, name");
-      setStaffList(rows as any[]);
+      const salonId = Number(activeSalonId);
+      const [rows, scheduleMap] = await Promise.all([
+        fetchActiveStaffForSalon(supabase, salonId, "id, name"),
+        fetchStaffScheduleForSalon(supabase, salonId),
+      ]);
+      setStaffListAll(
+        (rows as { id: number; name: string }[]).map((r) => ({
+          id: Number(r.id),
+          name: String(r.name ?? ""),
+        })),
+      );
+      setStaffScheduleMap(scheduleMap);
     } catch (error) {
       console.error(error);
+      setStaffListAll([]);
+      setStaffScheduleMap(new Map());
     }
   }
+
+  const staffIncludeIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (selectedSlot?.staffId) ids.add(selectedSlot.staffId);
+    for (const v of Object.values(serviceAssignments)) {
+      if (v) ids.add(v);
+    }
+    return ids;
+  }, [selectedSlot?.staffId, serviceAssignments]);
+
+  const staffListForDay = useMemo(
+    () =>
+      filterStaffForAgendaDay(staffListAll, staffScheduleMap, currentDate, staffIncludeIds),
+    [staffListAll, staffScheduleMap, currentDate, staffIncludeIds],
+  );
+
+  const hasOffScheduleAssignment = useMemo(() => {
+    for (const id of staffIncludeIds) {
+      if (isStaffOffScheduleForAgendaDay(staffScheduleMap, id, currentDate)) return true;
+    }
+    return false;
+  }, [staffIncludeIds, staffScheduleMap, currentDate]);
 
   /* ================= SERVICE LOGIC ================= */
 
@@ -479,9 +522,16 @@ useEffect(() => {
                         className="bg-black/40 border border-white/15 rounded-xl px-2 py-1 text-[11px] text-[#f3d8b6] max-w-[130px] outline-none focus:border-[#f3d8b6]/50"
                       >
                         <option value="">Auto</option>
-                        {staffList.map((st) => (
+                        {staffListForDay.map((st) => (
                           <option key={st.id} value={st.id}>
                             {st.name}
+                            {isStaffOffScheduleForAgendaDay(
+                              staffScheduleMap,
+                              st.id,
+                              currentDate,
+                            )
+                              ? " (fuori turno)"
+                              : ""}
                           </option>
                         ))}
                       </select>
@@ -506,6 +556,17 @@ useEffect(() => {
                 <div className="text-xs text-white/40 py-4 text-center border border-dashed border-white/20 rounded-2xl">
                   Nessun servizio trovato per questa ricerca.
                 </div>
+              )}
+
+              {staffListForDay.length === 0 && (
+                <p className="text-[11px] text-amber-200/80">
+                  Nessun collaboratore disponibile in questo giorno
+                </p>
+              )}
+              {hasOffScheduleAssignment && staffListForDay.length > 0 && (
+                <p className="text-[11px] text-white/45">
+                  Collaboratore assegnato non in turno in questo giorno.
+                </p>
               )}
             </div>
           </div>

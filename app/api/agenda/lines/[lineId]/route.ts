@@ -12,10 +12,15 @@ import {
 } from "@/lib/agenda/agendaContract";
 import { assertStaffBelongsToSalon } from "@/lib/agenda/appointmentServerValidation";
 import {
+  assertStaffScheduledForStartTime,
+  isStaffScheduleConflictError,
+} from "@/lib/agenda/assertStaffSchedule";
+import {
   assertStaffSlotFree,
   computeLineEndTime,
   isStaffSlotConflictError,
 } from "@/lib/agenda/assertStaffSlotFree";
+import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -126,6 +131,14 @@ export async function PATCH(
         : normalizeStaffId((lineRow as { staff_id?: unknown }).staff_id);
 
     if (mergedStaff != null && mergedStart && Number.isFinite(mergedDuration) && mergedDuration > 0) {
+      const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
+      await assertStaffScheduledForStartTime({
+        supabase: supabaseAdmin,
+        salonId,
+        staffId: mergedStaff,
+        startTime: mergedStart,
+        scheduleMap,
+      });
       const lineEnd = computeLineEndTime(mergedStart, mergedDuration);
       await assertStaffSlotFree({
         supabase: supabaseAdmin,
@@ -155,7 +168,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (isStaffSlotConflictError(e)) {
+    if (isStaffScheduleConflictError(e) || isStaffSlotConflictError(e)) {
       return NextResponse.json(
         { error: (e as Error).message },
         { status: 409 },

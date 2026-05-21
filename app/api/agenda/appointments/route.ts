@@ -14,10 +14,15 @@ import {
   resolveAgendaServiceLines,
 } from "@/lib/agenda/appointmentServerValidation";
 import {
+  assertStaffScheduledForStartTime,
+  isStaffScheduleConflictError,
+} from "@/lib/agenda/assertStaffSchedule";
+import {
   assertStaffSlotFree,
   computeLineEndTime,
   isStaffSlotConflictError,
 } from "@/lib/agenda/assertStaffSlotFree";
+import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,11 +153,20 @@ export async function POST(req: Request) {
     const snappedStart = toNoZ(snapToAgendaSlot(parseLocal(String(body.start_time))));
     const firstServiceStaff = normalizedLines[0]?.staff_id ?? null;
 
+    const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
+
     let cursorMs = parseLocal(snappedStart).getTime();
     for (const line of normalizedLines) {
       if (line.staff_id != null) {
         const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
         const lineEnd = computeLineEndTime(lineStart, line.duration_minutes);
+        await assertStaffScheduledForStartTime({
+          supabase: supabaseAdmin,
+          salonId,
+          staffId: line.staff_id,
+          startTime: lineStart,
+          scheduleMap,
+        });
         await assertStaffSlotFree({
           supabase: supabaseAdmin,
           salonId,
@@ -208,7 +222,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, appointment_id: appointmentId });
   } catch (e) {
-    if (isStaffSlotConflictError(e)) {
+    if (isStaffScheduleConflictError(e) || isStaffSlotConflictError(e)) {
       return NextResponse.json(
         { error: (e as Error).message },
         { status: 409 },

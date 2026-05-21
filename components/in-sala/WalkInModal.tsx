@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import { nowRomeLocalDate } from "@/lib/agenda/agendaContract";
+import {
+  fetchStaffScheduleForSalon,
+  filterStaffForAgendaDay,
+  isoDateFromLocalDate,
+  isStaffOffScheduleForAgendaDay,
+} from "@/lib/staffSchedule";
 import { fetchAgendaServices } from "@/lib/servicesCatalog";
 import { SLOT_MINUTES } from "@/components/agenda/utils";
 import { Search, X } from "lucide-react";
@@ -25,7 +32,12 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
   const [services, setServices] = useState<
     { id: number; name: string; duration: number | null }[]
   >([]);
-  const [staffList, setStaffList] = useState<{ id: number; name: string }[]>([]);
+  const [staffListAll, setStaffListAll] = useState<{ id: number; name: string }[]>([]);
+  const [staffScheduleMap, setStaffScheduleMap] = useState<Map<string, Set<number>>>(
+    () => new Map(),
+  );
+
+  const walkInDay = useMemo(() => isoDateFromLocalDate(nowRomeLocalDate()), [isOpen]);
 
   const [qCustomer, setQCustomer] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -105,22 +117,35 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
 
   async function loadStaff() {
     if (!activeSalonId) {
-      setStaffList([]);
+      setStaffListAll([]);
+      setStaffScheduleMap(new Map());
       return;
     }
     try {
-      const rows = await fetchActiveStaffForSalon(supabase, Number(activeSalonId), "id, name");
-      setStaffList(
+      const salonId = Number(activeSalonId);
+      const [rows, scheduleMap] = await Promise.all([
+        fetchActiveStaffForSalon(supabase, salonId, "id, name"),
+        fetchStaffScheduleForSalon(supabase, salonId),
+      ]);
+      setStaffListAll(
         rows.map((r) => ({
           id: Number(r.id),
           name: String(r.name ?? ""),
         })),
       );
+      setStaffScheduleMap(scheduleMap);
     } catch (e) {
       console.error("WalkInModal loadStaff:", e);
-      setStaffList([]);
+      setStaffListAll([]);
+      setStaffScheduleMap(new Map());
     }
   }
+
+  const staffListForDay = useMemo(
+    () =>
+      filterStaffForAgendaDay(staffListAll, staffScheduleMap, walkInDay, staffId ? [staffId] : []),
+    [staffListAll, staffScheduleMap, walkInDay, staffId],
+  );
 
   function toggleService(id: number) {
     setSelectedServiceIds((prev) =>
@@ -239,12 +264,26 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
               className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 p-3 text-white text-sm outline-none focus:border-[#f3d8b6]/40"
             >
               <option value="">— Seleziona —</option>
-              {staffList.map((s) => (
+              {staffListForDay.map((s) => (
                 <option key={s.id} value={String(s.id)}>
                   {s.name}
+                  {isStaffOffScheduleForAgendaDay(staffScheduleMap, s.id, walkInDay)
+                    ? " (fuori turno)"
+                    : ""}
                 </option>
               ))}
             </select>
+            {staffListForDay.length === 0 && (
+              <p className="mt-1.5 text-[11px] text-amber-200/80">
+                Nessun collaboratore disponibile in questo giorno
+              </p>
+            )}
+            {staffId &&
+              isStaffOffScheduleForAgendaDay(staffScheduleMap, staffId, walkInDay) && (
+                <p className="mt-1 text-[11px] text-white/45">
+                  Collaboratore selezionato non in turno oggi.
+                </p>
+              )}
           </section>
 
           <section>
