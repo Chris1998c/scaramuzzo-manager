@@ -10,6 +10,15 @@ import {
   isStaffVisibleOnAgendaDayForSalon,
   type StaffScheduleBySalon,
 } from "@/lib/staffSchedule";
+import {
+  fetchOperationalCalendarRange,
+  fetchOperationalCalendarSnapshot,
+  isSalonClosedOnDate,
+  isSalonExtraOpenOnDate,
+  type SalonOperationalDay,
+  type StaffDateOverride,
+} from "@/lib/salonOperationalCalendar";
+import { formatTimeRange } from "@/lib/operationalCalendarSettings";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import AgendaModal from "./AgendaModal";
@@ -227,6 +236,16 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
   const [staffScheduleByStaffId, setStaffScheduleByStaffId] = useState<StaffScheduleBySalon>(
     () => new Map(),
   );
+  const [opSalonDay, setOpSalonDay] = useState<SalonOperationalDay | null>(null);
+  const [opStaffOverrides, setOpStaffOverrides] = useState<Map<string, StaffDateOverride>>(
+    () => new Map(),
+  );
+  const [opSalonDaysByDate, setOpSalonDaysByDate] = useState<Map<string, SalonOperationalDay>>(
+    () => new Map(),
+  );
+  const [opStaffOverridesByDate, setOpStaffOverridesByDate] = useState<
+    Map<string, Map<string, StaffDateOverride>>
+  >(() => new Map());
 
   // Modali
   const [selectedSlot, setSelectedSlot] = useState<{
@@ -297,6 +316,29 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
     return topPx;
   }, [isAgendaToday, hours, slotPx, nowTick]);
 
+  const staffIdsWithApptsOnDay = useMemo(() => {
+    const set = new Set<string>();
+    for (const app of appointments || []) {
+      const dk = String(app?.start_time ?? "").slice(0, 10);
+      if (dk !== currentDate) continue;
+      const lines = app.appointment_services ?? [];
+      if (lines.length > 0) {
+        for (const ln of lines) {
+          const sid = toIdStr(ln?.staff_id);
+          if (sid) set.add(sid);
+        }
+      } else {
+        const sid = toIdStr(app?.staff_id);
+        if (sid) set.add(sid);
+      }
+    }
+    return set;
+  }, [appointments, currentDate]);
+
+  const salonClosedToday = view === "day" && isSalonClosedOnDate(opSalonDay);
+  const salonExtraOpenToday = view === "day" && isSalonExtraOpenOnDate(opSalonDay);
+  const staffOverrideCountToday = view === "day" ? opStaffOverrides.size : 0;
+
   const dayGridStaff = useMemo(() => {
     if (view !== "day") return staff;
 
@@ -307,7 +349,16 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
       dow >= 1 && dow <= 7
         ? assignable.filter((s) => {
             const id = toIdStr(s?.id);
-            return id ? isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow) : false;
+            if (!id) return false;
+            const ov = opStaffOverrides.get(id);
+            if (ov?.kind === "available") return true;
+            if (ov?.kind === "unavailable") {
+              return (
+                staffIdsWithApptsOnDay.has(id) ||
+                isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow)
+              );
+            }
+            return isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow);
           })
         : assignable;
 
@@ -318,7 +369,14 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
     );
 
     return [...unassignedCol, ...collaborators];
-  }, [view, staff, staffScheduleByStaffId, currentDate]);
+  }, [
+    view,
+    staff,
+    staffScheduleByStaffId,
+    currentDate,
+    opStaffOverrides,
+    staffIdsWithApptsOnDay,
+  ]);
 
   // ordine colonne staff per drag orizzontale / posizionamento (giorno = colonne visibili; settimana = lista completa)
   const staffOrderFull = useMemo(
@@ -456,6 +514,42 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
       cancelled = true;
     };
   }, [activeSalonId, supabase]);
+
+  const loadOperationalCalendar = useCallback(async () => {
+    if (activeSalonId == null || !currentDate) {
+      setOpSalonDay(null);
+      setOpStaffOverrides(new Map());
+      setOpSalonDaysByDate(new Map());
+      setOpStaffOverridesByDate(new Map());
+      return;
+    }
+
+    if (view === "day") {
+      const snap = await fetchOperationalCalendarSnapshot(
+        supabase,
+        activeSalonId,
+        currentDate,
+      );
+      setOpSalonDay(snap.salonDay);
+      setOpStaffOverrides(snap.staffOverrides);
+      setOpSalonDaysByDate(new Map());
+      setOpStaffOverridesByDate(new Map());
+      return;
+    }
+
+    const from = weekDays[0]?.date;
+    const to = weekDays[6]?.date;
+    if (!from || !to) return;
+    const range = await fetchOperationalCalendarRange(supabase, activeSalonId, from, to);
+    setOpSalonDay(null);
+    setOpStaffOverrides(new Map());
+    setOpSalonDaysByDate(range.salonDaysByDate);
+    setOpStaffOverridesByDate(range.staffOverridesByDate);
+  }, [activeSalonId, currentDate, view, weekDays, supabase]);
+
+  useEffect(() => {
+    void loadOperationalCalendar();
+  }, [loadOperationalCalendar]);
 
   // ===== DATA LOADING =====
 
@@ -807,7 +901,10 @@ function buildLanes(
             <CalendarDays size={16} />
           </button>
           <button
-            onClick={() => loadAppointments(activeSalonId, { silent: true })}
+            onClick={() => {
+              void loadAppointments(activeSalonId, { silent: true });
+              void loadOperationalCalendar();
+            }}
             className="p-2.5 rounded-xl text-white/50 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
             title="Refresh"
           >
@@ -815,6 +912,41 @@ function buildLanes(
           </button>
         </div>
       </div>
+
+      {view === "day" &&
+      (salonClosedToday || salonExtraOpenToday || staffOverrideCountToday > 0) ? (
+        <div
+          className="shrink-0 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 mb-1 text-xs"
+          role="status"
+        >
+          {salonClosedToday ? (
+            <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-2.5 py-0.5 font-bold text-red-200">
+              Chiuso straordinariamente
+            </span>
+          ) : null}
+          {salonExtraOpenToday ? (
+            <span className="inline-flex items-center rounded-full border border-emerald-500/35 bg-emerald-500/12 px-2.5 py-0.5 font-bold text-emerald-200">
+              Apertura straordinaria
+              {formatTimeRange(opSalonDay?.openStartTime ?? null, opSalonDay?.openEndTime ?? null)
+                ? ` · ${formatTimeRange(opSalonDay?.openStartTime ?? null, opSalonDay?.openEndTime ?? null)}`
+                : ""}
+            </span>
+          ) : null}
+          {staffOverrideCountToday > 0 ? (
+            <span className="text-white/55">
+              {staffOverrideCountToday === 1
+                ? "1 eccezione collaboratore oggi"
+                : `${staffOverrideCountToday} eccezioni collaboratori oggi`}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {view === "day" && salonClosedToday ? (
+        <p className="shrink-0 text-[11px] text-red-200/85 mb-1 px-0.5">
+          Nuove prenotazioni non consentite in questa data (eccezione calendario operativo).
+        </p>
+      ) : null}
 
       {/* MASTER GRID CONTAINER */}
       <div
@@ -848,10 +980,34 @@ function buildLanes(
                     </span>
                     {s.is_virtual ? (
                       <span className="text-[10px] text-white/45 mt-0.5">Senza collaboratore</span>
-                    ) : null}
+                    ) : (() => {
+                      const sid = toIdStr(s?.id);
+                      if (!sid) return null;
+                      const ov = opStaffOverrides.get(sid);
+                      if (ov?.kind === "unavailable") {
+                        return (
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-amber-300/90 mt-0.5">
+                            Non disp.
+                          </span>
+                        );
+                      }
+                      if (ov?.kind === "available") {
+                        return (
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-300/90 mt-0.5">
+                            Extra
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 ))
-                : weekDays.map((d: any) => (
+                : weekDays.map((d: any) => {
+                  const daySalonOp = opSalonDaysByDate.get(d.date);
+                  const dayStaffOv = opStaffOverridesByDate.get(d.date)?.size ?? 0;
+                  const dayClosed = isSalonClosedOnDate(daySalonOp);
+                  const dayOpenExtra = isSalonExtraOpenOnDate(daySalonOp);
+                  return (
                   <div
                     key={d.date}
                     className="flex-shrink-0 px-3 md:p-4 flex flex-col items-center justify-center border-r border-white/[0.22]"
@@ -867,8 +1023,22 @@ function buildLanes(
                     <span className="text-sm font-black text-[#f3d8b6] mt-0.5">
                       {d.label.split(" ")[1]}
                     </span>
+                    {dayClosed ? (
+                      <span className="text-[8px] font-bold uppercase text-red-300/80 mt-0.5">
+                        Chiuso
+                      </span>
+                    ) : dayOpenExtra ? (
+                      <span className="text-[8px] font-bold uppercase text-emerald-300/80 mt-0.5">
+                        Aperto extra
+                      </span>
+                    ) : dayStaffOv > 0 ? (
+                      <span className="text-[8px] text-white/40 mt-0.5">
+                        {dayStaffOv} eccez.
+                      </span>
+                    ) : null}
                   </div>
-                ))}
+                  );
+                })}
             </div>
           </div>
         </div>
@@ -941,14 +1111,18 @@ function buildLanes(
                           role="presentation"
                           style={{ height: slotPx }}
                           className={[
-                            "relative z-0 border-b border-white/[0.22] transition-colors duration-150 cursor-crosshair",
+                            "relative z-0 border-b border-white/[0.22] transition-colors duration-150",
+                            salonClosedToday
+                              ? "cursor-not-allowed opacity-60"
+                              : "cursor-crosshair hover:bg-white/[0.07] active:bg-white/[0.1]",
                             dragHere
                               ? "bg-[#f3d8b6]/18 shadow-[inset_0_1px_0_rgba(243,216,182,0.18)]"
-                              : "hover:bg-white/[0.07] active:bg-white/[0.1]",
+                              : "",
                           ].join(" ")}
-                          onClick={() =>
-                            setSelectedSlot({ time: h, staffId: mid })
-                          }
+                          onClick={() => {
+                            if (salonClosedToday) return;
+                            setSelectedSlot({ time: h, staffId: mid });
+                          }}
                         />
                         );
                       })}
@@ -1018,6 +1192,7 @@ function buildLanes(
                 })
                 : weekDays.map((day: any, colIdx: number) => {
                   const dayPairs = weekLinesByDay.get(day.date) ?? [];
+                  const dayClosed = isSalonClosedOnDate(opSalonDaysByDate.get(day.date));
 
                   return (
                     <div
@@ -1034,10 +1209,16 @@ function buildLanes(
                           key={h}
                           role="presentation"
                           style={{ height: slotPx }}
-                          className="relative z-0 border-b border-white/[0.22] cursor-crosshair transition-colors hover:bg-white/[0.07] active:bg-white/[0.1]"
-                          onClick={() =>
-                            setSelectedSlot({ time: h, staffId: null })
-                          }
+                          className={[
+                            "relative z-0 border-b border-white/[0.22] transition-colors",
+                            dayClosed
+                              ? "cursor-not-allowed opacity-60"
+                              : "cursor-crosshair hover:bg-white/[0.07] active:bg-white/[0.1]",
+                          ].join(" ")}
+                          onClick={() => {
+                            if (dayClosed) return;
+                            setSelectedSlot({ time: h, staffId: null });
+                          }}
                         />
                       ))}
 

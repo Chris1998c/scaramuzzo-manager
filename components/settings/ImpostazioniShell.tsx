@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
+  CalendarDays,
   MessageCircle,
   Package,
   Palette,
@@ -31,11 +32,13 @@ import FiscaleStampantePanel from "@/components/settings/FiscaleStampantePanel";
 import AspettoPanel from "@/components/settings/AspettoPanel";
 import ClientiImpostazioniPanel from "@/components/settings/ClientiImpostazioniPanel";
 import CanaliWhatsAppPanel from "@/components/settings/CanaliWhatsAppPanel";
+import CalendarioOperativoPanel from "@/components/settings/CalendarioOperativoPanel";
 
 type SectionKey =
   | "servizi"
   | "prodotti"
   | "collaboratori"
+  | "calendario"
   | "clienti"
   | "canali"
   | "fiscale"
@@ -68,6 +71,13 @@ const SECTIONS: Array<{
     label: "Collaboratori",
     hint: "Anagrafica, saloni, turni e app mobile",
     icon: UserCog,
+    ready: true,
+  },
+  {
+    key: "calendario",
+    label: "Calendario operativo",
+    hint: "Aperture, chiusure e disponibilità eccezionali per data",
+    icon: CalendarDays,
     ready: true,
   },
   {
@@ -120,6 +130,7 @@ type Props = {
   canManageServices: boolean;
   canManageProducts: boolean;
   canManageStaff: boolean;
+  canManageOperationalCalendar: boolean;
   initialSalons: SalonSettingsRow[];
   initialFiscalSnapshot: FiscalSettingsSnapshot | null;
   canUseSessionPrinter: boolean;
@@ -136,6 +147,7 @@ export default function ImpostazioniShell({
   canManageServices,
   canManageProducts,
   canManageStaff,
+  canManageOperationalCalendar,
   initialSalons,
   initialFiscalSnapshot,
   canUseSessionPrinter,
@@ -333,6 +345,14 @@ export default function ImpostazioniShell({
             canManageStaff={canManageStaff}
             onCreate={openStaffCreate}
             onEdit={openStaffEdit}
+          />
+        ) : section === "calendario" ? (
+          <CalendarioOperativoPanel
+            salonId={effectiveSalonId}
+            salonLabel={salonLabel}
+            allowedSalons={allowedSalons}
+            canChooseSalon={canChooseSalon}
+            canManage={canManageOperationalCalendar}
           />
         ) : section === "clienti" ? (
           <ClientiImpostazioniPanel snapshot={initialCustomersDomainSnapshot} />

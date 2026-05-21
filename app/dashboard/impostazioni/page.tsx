@@ -79,6 +79,7 @@ export default async function ImpostazioniPage({
   const canManageServices = access.role === "coordinator";
   const canManageProducts = access.role === "coordinator";
   const canManageStaff = access.role === "coordinator";
+  const canManageOperationalCalendar = access.role === "coordinator";
 
   let products: Awaited<ReturnType<typeof fetchProductsForSettings>> = [];
   let productsUnavailable = false;
@@ -188,6 +189,7 @@ export default async function ImpostazioniPage({
         canManageServices={canManageServices}
         canManageProducts={canManageProducts}
         canManageStaff={canManageStaff}
+        canManageOperationalCalendar={canManageOperationalCalendar}
         initialSalons={salons}
         initialFiscalSnapshot={fiscalSnapshot}
         canUseSessionPrinter={canUseSessionPrinter}

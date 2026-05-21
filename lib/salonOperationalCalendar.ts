@@ -159,6 +159,74 @@ export async function fetchOperationalCalendarSnapshot(
   return { salonDay, staffOverrides };
 }
 
+export type OperationalCalendarRange = {
+  salonDaysByDate: Map<string, SalonOperationalDay>;
+  staffOverridesByDate: Map<string, Map<string, StaffDateOverride>>;
+};
+
+/**
+ * Eccezioni salone e override staff in un intervallo di date (2 query).
+ * staffOverridesByDate: isoDate → staff_id → override.
+ */
+export async function fetchOperationalCalendarRange(
+  supabase: SupabaseClient,
+  salonId: number,
+  fromIso: string,
+  toIso: string,
+): Promise<OperationalCalendarRange> {
+  const salonDaysByDate = new Map<string, SalonOperationalDay>();
+  const staffOverridesByDate = new Map<string, Map<string, StaffDateOverride>>();
+
+  if (!Number.isFinite(salonId) || salonId <= 0 || !fromIso || !toIso) {
+    return { salonDaysByDate, staffOverridesByDate };
+  }
+
+  const [{ data: salonRows, error: sErr }, { data: staffRows, error: stErr }] =
+    await Promise.all([
+      supabase
+        .from("salon_operational_days")
+        .select("operative_date, kind, open_start_time, open_end_time")
+        .eq("salon_id", salonId)
+        .gte("operative_date", fromIso)
+        .lte("operative_date", toIso),
+      supabase
+        .from("staff_schedule_date_overrides")
+        .select("staff_id, operative_date, kind, start_time, end_time")
+        .eq("salon_id", salonId)
+        .gte("operative_date", fromIso)
+        .lte("operative_date", toIso),
+    ]);
+
+  if (sErr) console.warn("salon_operational_days range fetch:", sErr.message);
+  else {
+    for (const row of salonRows ?? []) {
+      const r = row as { operative_date?: unknown };
+      const iso = String(r.operative_date ?? "").slice(0, 10);
+      if (!iso) continue;
+      const mapped = mapSalonOperationalRow(row as Record<string, unknown>);
+      if (mapped) salonDaysByDate.set(iso, mapped);
+    }
+  }
+
+  if (stErr) console.warn("staff_schedule_date_overrides range fetch:", stErr.message);
+  else {
+    for (const row of staffRows ?? []) {
+      const r = row as { operative_date?: unknown; staff_id?: unknown };
+      const iso = String(r.operative_date ?? "").slice(0, 10);
+      const sid = r.staff_id != null ? String(r.staff_id) : "";
+      if (!iso || !sid) continue;
+      const mapped = mapStaffOverrideRow(row as { kind?: unknown; start_time?: unknown; end_time?: unknown });
+      if (!mapped) continue;
+      if (!staffOverridesByDate.has(iso)) {
+        staffOverridesByDate.set(iso, new Map());
+      }
+      staffOverridesByDate.get(iso)!.set(sid, mapped);
+    }
+  }
+
+  return { salonDaysByDate, staffOverridesByDate };
+}
+
 export function isSalonClosedOnDate(salonDay: SalonOperationalDay | null | undefined): boolean {
   return salonDay?.kind === "closed";
 }
