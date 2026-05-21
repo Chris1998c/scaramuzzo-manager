@@ -4,11 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import {
-  fetchStaffScheduleForSalon,
-  filterStaffForAgendaDay,
-  isStaffOffScheduleForAgendaDay,
-} from "@/lib/staffSchedule";
+  filterStaffForOperationalAgendaModal,
+  hasAssignedStaffUnavailableWarning,
+  staffSelectLabelForOperationalDate,
+  STAFF_UNAVAILABLE_UI_MESSAGE,
+} from "@/lib/agenda/operationalAgendaUi";
+import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
+import OperationalDayBanner from "@/components/agenda/OperationalDayBanner";
 import { useRouter } from "next/navigation";
 import { X, User, FlaskConical, Banknote, Trash2, Save } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
@@ -84,6 +88,9 @@ export default function EditAppointmentModal({
   const [staffScheduleMap, setStaffScheduleMap] = useState<
     import("@/lib/staffSchedule").StaffScheduleBySalon
   >(() => new Map());
+  const [operationalSnapshot, setOperationalSnapshot] = useState<
+    import("@/lib/salonOperationalCalendar").OperationalCalendarSnapshot
+  >(() => ({ salonDay: null, staffOverrides: new Map() }));
 
   const [qCustomer, setQCustomer] = useState("");
   const [customer, setCustomer] = useState<string>("");
@@ -169,21 +176,25 @@ export default function EditAppointmentModal({
     if (!activeSalonId) {
       setStaffAll([]);
       setStaffScheduleMap(new Map());
+      setOperationalSnapshot({ salonDay: null, staffOverrides: new Map() });
       return;
     }
 
     try {
       const salonId = Number(activeSalonId);
-      const [rows, scheduleMap] = await Promise.all([
+      const [rows, scheduleMap, opSnap] = await Promise.all([
         fetchActiveStaffForSalon(supabase, salonId, "id, name"),
         fetchStaffScheduleForSalon(supabase, salonId),
+        fetchOperationalCalendarSnapshot(supabase, salonId, selectedDay),
       ]);
       setStaffAll((rows as EditStaffRow[]) ?? []);
       setStaffScheduleMap(scheduleMap);
+      setOperationalSnapshot(opSnap);
     } catch (error) {
       console.error(error);
       setStaffAll([]);
       setStaffScheduleMap(new Map());
+      setOperationalSnapshot({ salonDay: null, staffOverrides: new Map() });
     }
   }
 
@@ -192,14 +203,30 @@ export default function EditAppointmentModal({
       staffId,
       appointment?.staff_id != null ? String(appointment.staff_id) : null,
     ];
-    const filtered = filterStaffForAgendaDay(staffAll, staffScheduleMap, selectedDay, includeIds);
+    const filtered = filterStaffForOperationalAgendaModal(
+      staffAll,
+      staffScheduleMap,
+      selectedDay,
+      operationalSnapshot,
+      includeIds,
+    );
     return [{ id: null, name: "Disponibile" }, ...filtered];
-  }, [staffAll, staffScheduleMap, selectedDay, staffId, appointment?.staff_id]);
+  }, [
+    staffAll,
+    staffScheduleMap,
+    selectedDay,
+    operationalSnapshot,
+    staffId,
+    appointment?.staff_id,
+  ]);
 
-  const staffOffScheduleWarning = useMemo(() => {
-    if (staffId == null || staffId === "") return false;
-    return isStaffOffScheduleForAgendaDay(staffScheduleMap, staffId, selectedDay);
-  }, [staffId, staffScheduleMap, selectedDay]);
+  const staffUnavailableWarning = useMemo(() => {
+    const ids = [
+      staffId,
+      appointment?.staff_id != null ? String(appointment.staff_id) : null,
+    ];
+    return hasAssignedStaffUnavailableWarning(ids, operationalSnapshot);
+  }, [staffId, appointment?.staff_id, operationalSnapshot]);
 
   async function updateAppointment() {
     if (!appointment?.id) return;
@@ -518,6 +545,8 @@ export default function EditAppointmentModal({
 
         {/* form + servizi */}
         <div className="px-3 py-2.5 space-y-2.5 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+          <OperationalDayBanner salonDay={operationalSnapshot.salonDay} />
+
           {/* Servizi appuntamento (read-only) */}
           <div className="rounded-lg bg-black/25 border border-white/10 p-2 space-y-1.5">
             <div className="flex items-center justify-between">
@@ -629,11 +658,15 @@ export default function EditAppointmentModal({
                   >
                     {staffForDay.map((s) => (
                       <option key={String(s.id ?? "free")} value={s.id ?? ""}>
-                        {s.name}
-                        {s.id != null &&
-                        isStaffOffScheduleForAgendaDay(staffScheduleMap, s.id, selectedDay)
-                          ? " (fuori turno)"
-                          : ""}
+                        {s.id == null
+                          ? s.name
+                          : staffSelectLabelForOperationalDate(
+                              s.name,
+                              s.id,
+                              staffScheduleMap,
+                              selectedDay,
+                              operationalSnapshot,
+                            )}
                       </option>
                     ))}
                   </select>
@@ -642,9 +675,9 @@ export default function EditAppointmentModal({
                       Nessun collaboratore disponibile in questo giorno
                     </p>
                   )}
-                  {staffOffScheduleWarning && (
-                    <p className="text-[10px] text-white/45 mt-1">
-                      Collaboratore assegnato non in turno in questo giorno.
+                  {staffUnavailableWarning && (
+                    <p className="text-[10px] text-amber-200/85 mt-1">
+                      {STAFF_UNAVAILABLE_UI_MESSAGE}
                     </p>
                   )}
                 </div>

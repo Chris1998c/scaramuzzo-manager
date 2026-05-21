@@ -3,11 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import {
-  fetchStaffScheduleForSalon,
-  filterStaffForAgendaDay,
-  isStaffOffScheduleForAgendaDay,
-} from "@/lib/staffSchedule";
+  canSubmitNewBookingOnOperationalDay,
+  filterStaffForOperationalAgendaModal,
+  hasAssignedStaffUnavailableWarning,
+  staffSelectLabelForOperationalDate,
+  STAFF_UNAVAILABLE_UI_MESSAGE,
+} from "@/lib/agenda/operationalAgendaUi";
+import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
+import OperationalDayBanner from "@/components/agenda/OperationalDayBanner";
 import { motion } from "framer-motion";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import {
@@ -66,6 +71,9 @@ export default function AgendaModal({
   const [staffScheduleMap, setStaffScheduleMap] = useState<
     import("@/lib/staffSchedule").StaffScheduleBySalon
   >(() => new Map());
+  const [operationalSnapshot, setOperationalSnapshot] = useState<
+    import("@/lib/salonOperationalCalendar").OperationalCalendarSnapshot
+  >(() => ({ salonDay: null, staffOverrides: new Map() }));
 
   /* ================= FORM ================= */
 
@@ -180,9 +188,10 @@ useEffect(() => {
 
     try {
       const salonId = Number(activeSalonId);
-      const [rows, scheduleMap] = await Promise.all([
+      const [rows, scheduleMap, opSnap] = await Promise.all([
         fetchActiveStaffForSalon(supabase, salonId, "id, name"),
         fetchStaffScheduleForSalon(supabase, salonId),
+        fetchOperationalCalendarSnapshot(supabase, salonId, currentDate),
       ]);
       setStaffListAll(
         (rows as { id: number; name: string }[]).map((r) => ({
@@ -191,10 +200,12 @@ useEffect(() => {
         })),
       );
       setStaffScheduleMap(scheduleMap);
+      setOperationalSnapshot(opSnap);
     } catch (error) {
       console.error(error);
       setStaffListAll([]);
       setStaffScheduleMap(new Map());
+      setOperationalSnapshot({ salonDay: null, staffOverrides: new Map() });
     }
   }
 
@@ -207,18 +218,24 @@ useEffect(() => {
     return ids;
   }, [selectedSlot?.staffId, serviceAssignments]);
 
+  const salonClosed = !canSubmitNewBookingOnOperationalDay(operationalSnapshot.salonDay);
+
   const staffListForDay = useMemo(
     () =>
-      filterStaffForAgendaDay(staffListAll, staffScheduleMap, currentDate, staffIncludeIds),
-    [staffListAll, staffScheduleMap, currentDate, staffIncludeIds],
+      filterStaffForOperationalAgendaModal(
+        staffListAll,
+        staffScheduleMap,
+        currentDate,
+        operationalSnapshot,
+        staffIncludeIds,
+      ),
+    [staffListAll, staffScheduleMap, currentDate, operationalSnapshot, staffIncludeIds],
   );
 
-  const hasOffScheduleAssignment = useMemo(() => {
-    for (const id of staffIncludeIds) {
-      if (isStaffOffScheduleForAgendaDay(staffScheduleMap, id, currentDate)) return true;
-    }
-    return false;
-  }, [staffIncludeIds, staffScheduleMap, currentDate]);
+  const showUnavailableAssignmentWarning = useMemo(
+    () => hasAssignedStaffUnavailableWarning(staffIncludeIds, operationalSnapshot),
+    [staffIncludeIds, operationalSnapshot],
+  );
 
   /* ================= SERVICE LOGIC ================= */
 
@@ -285,6 +302,7 @@ useEffect(() => {
 
   async function createAppointment() {
     if (!selectedSlot || saving) return;
+    if (salonClosed) return;
 
     if (!activeSalonId) return setErr("Salone non configurato.");
     if (!customerId) return setErr("Seleziona un cliente.");
@@ -382,6 +400,8 @@ useEffect(() => {
 
         {/* CONTENUTO */}
         <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
+          <OperationalDayBanner salonDay={operationalSnapshot.salonDay} />
+
           {/* Cliente */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-[#f3d8b6] font-extrabold text-sm uppercase tracking-wider">
@@ -524,14 +544,13 @@ useEffect(() => {
                         <option value="">Auto</option>
                         {staffListForDay.map((st) => (
                           <option key={st.id} value={st.id}>
-                            {st.name}
-                            {isStaffOffScheduleForAgendaDay(
-                              staffScheduleMap,
+                            {staffSelectLabelForOperationalDate(
+                              st.name,
                               st.id,
+                              staffScheduleMap,
                               currentDate,
-                            )
-                              ? " (fuori turno)"
-                              : ""}
+                              operationalSnapshot,
+                            )}
                           </option>
                         ))}
                       </select>
@@ -563,9 +582,9 @@ useEffect(() => {
                   Nessun collaboratore disponibile in questo giorno
                 </p>
               )}
-              {hasOffScheduleAssignment && staffListForDay.length > 0 && (
-                <p className="text-[11px] text-white/45">
-                  Collaboratore assegnato non in turno in questo giorno.
+              {showUnavailableAssignmentWarning && (
+                <p className="text-[11px] text-amber-200/85">
+                  {STAFF_UNAVAILABLE_UI_MESSAGE}
                 </p>
               )}
             </div>
@@ -585,11 +604,11 @@ useEffect(() => {
         {/* FOOTER */}
         <div className="p-6 border-t border-white/10 bg-black/20 flex gap-4">
           <button
-            disabled={saving}
+            disabled={saving || salonClosed}
             onClick={createAppointment}
-            className="flex-1 bg-[#f3d8b6] text-black font-black py-4 rounded-2xl"
+            className="flex-1 bg-[#f3d8b6] text-black font-black py-4 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? "Salvataggio..." : "Conferma"}
+            {saving ? "Salvataggio..." : salonClosed ? "Giorno chiuso" : "Conferma"}
           </button>
 
           <button

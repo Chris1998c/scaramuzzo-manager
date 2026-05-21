@@ -5,12 +5,17 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import { nowRomeLocalDate } from "@/lib/agenda/agendaContract";
+import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
+import {
+  canSubmitNewBookingOnOperationalDay,
+  filterStaffForOperationalAgendaModal,
+  staffSelectLabelForOperationalDate,
+} from "@/lib/agenda/operationalAgendaUi";
 import {
   fetchStaffScheduleForSalon,
-  filterStaffForAgendaDay,
   isoDateFromLocalDate,
-  isStaffOffScheduleForAgendaDay,
 } from "@/lib/staffSchedule";
+import OperationalDayBanner from "@/components/agenda/OperationalDayBanner";
 import { fetchAgendaServices } from "@/lib/servicesCatalog";
 import { SLOT_MINUTES } from "@/components/agenda/utils";
 import { Search, X } from "lucide-react";
@@ -36,6 +41,9 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
   const [staffScheduleMap, setStaffScheduleMap] = useState<
     import("@/lib/staffSchedule").StaffScheduleBySalon
   >(() => new Map());
+  const [operationalSnapshot, setOperationalSnapshot] = useState<
+    import("@/lib/salonOperationalCalendar").OperationalCalendarSnapshot
+  >(() => ({ salonDay: null, staffOverrides: new Map() }));
 
   const walkInDay = useMemo(() => isoDateFromLocalDate(nowRomeLocalDate()), [isOpen]);
 
@@ -119,13 +127,15 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
     if (!activeSalonId) {
       setStaffListAll([]);
       setStaffScheduleMap(new Map());
+      setOperationalSnapshot({ salonDay: null, staffOverrides: new Map() });
       return;
     }
     try {
       const salonId = Number(activeSalonId);
-      const [rows, scheduleMap] = await Promise.all([
+      const [rows, scheduleMap, opSnap] = await Promise.all([
         fetchActiveStaffForSalon(supabase, salonId, "id, name"),
         fetchStaffScheduleForSalon(supabase, salonId),
+        fetchOperationalCalendarSnapshot(supabase, salonId, walkInDay),
       ]);
       setStaffListAll(
         rows.map((r) => ({
@@ -134,17 +144,27 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
         })),
       );
       setStaffScheduleMap(scheduleMap);
+      setOperationalSnapshot(opSnap);
     } catch (e) {
       console.error("WalkInModal loadStaff:", e);
       setStaffListAll([]);
       setStaffScheduleMap(new Map());
+      setOperationalSnapshot({ salonDay: null, staffOverrides: new Map() });
     }
   }
 
+  const salonClosed = !canSubmitNewBookingOnOperationalDay(operationalSnapshot.salonDay);
+
   const staffListForDay = useMemo(
     () =>
-      filterStaffForAgendaDay(staffListAll, staffScheduleMap, walkInDay, staffId ? [staffId] : []),
-    [staffListAll, staffScheduleMap, walkInDay, staffId],
+      filterStaffForOperationalAgendaModal(
+        staffListAll,
+        staffScheduleMap,
+        walkInDay,
+        operationalSnapshot,
+        staffId ? [staffId] : [],
+      ),
+    [staffListAll, staffScheduleMap, walkInDay, operationalSnapshot, staffId],
   );
 
   function toggleService(id: number) {
@@ -160,7 +180,7 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
   }, [services, qService]);
 
   async function submit() {
-    if (saving || !activeSalonId) return;
+    if (saving || !activeSalonId || salonClosed) return;
     if (!customerId) return setErr("Seleziona un cliente.");
     if (!staffId) return setErr("Seleziona un collaboratore.");
     if (!selectedServiceIds.length) return setErr("Seleziona almeno un servizio.");
@@ -224,6 +244,8 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
         </div>
 
         <div className="mt-5 space-y-5">
+          <OperationalDayBanner salonDay={operationalSnapshot.salonDay} />
+
           <section>
             <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
               Cliente
@@ -266,24 +288,21 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
               <option value="">— Seleziona —</option>
               {staffListForDay.map((s) => (
                 <option key={s.id} value={String(s.id)}>
-                  {s.name}
-                  {isStaffOffScheduleForAgendaDay(staffScheduleMap, s.id, walkInDay)
-                    ? " (fuori turno)"
-                    : ""}
+                  {staffSelectLabelForOperationalDate(
+                    s.name,
+                    s.id,
+                    staffScheduleMap,
+                    walkInDay,
+                    operationalSnapshot,
+                  )}
                 </option>
               ))}
             </select>
-            {staffListForDay.length === 0 && (
+            {staffListForDay.length === 0 && !salonClosed && (
               <p className="mt-1.5 text-[11px] text-amber-200/80">
                 Nessun collaboratore disponibile in questo giorno
               </p>
             )}
-            {staffId &&
-              isStaffOffScheduleForAgendaDay(staffScheduleMap, staffId, walkInDay) && (
-                <p className="mt-1 text-[11px] text-white/45">
-                  Collaboratore selezionato non in turno oggi.
-                </p>
-              )}
           </section>
 
           <section>
@@ -347,10 +366,10 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
           <button
             type="button"
             onClick={submit}
-            disabled={saving}
-            className="rounded-xl bg-[#f3d8b6] px-4 py-2 text-sm font-extrabold text-black hover:opacity-90 disabled:opacity-50"
+            disabled={saving || salonClosed}
+            className="rounded-xl bg-[#f3d8b6] px-4 py-2 text-sm font-extrabold text-black hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? "Creazione..." : "Crea walk-in"}
+            {saving ? "Creazione..." : salonClosed ? "Giorno chiuso" : "Crea walk-in"}
           </button>
         </div>
       </div>
