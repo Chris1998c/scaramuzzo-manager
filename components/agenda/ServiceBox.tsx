@@ -7,6 +7,13 @@ import { createClient } from "@/lib/supabaseClient";
 import { SLOT_MINUTES, timeFromTs } from "./utils";
 import { useAgendaSlotPx } from "./AgendaSlotPxContext";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import {
+  canSetAppointmentLifecycleStatus,
+  canShowLifecycleActions,
+  type AgendaLifecycleTarget,
+} from "@/lib/agenda/appointmentLifecycle";
+import { agendaStatusMeta } from "@/lib/agenda/agendaStatusMeta";
 import {
   clampDurationMinutes,
   commitLinePatch,
@@ -36,32 +43,6 @@ function accentToTintCss(hex: string): { soft: string; edge: string } {
   return {
     soft: `rgba(${r},${g},${b},0.11)`,
     edge: `rgba(${r},${g},${b},0.42)`,
-  };
-}
-
-function statusMeta(status: string | null | undefined) {
-  const s = String(status || "scheduled");
-  if (s === "in_sala") {
-    return {
-      label: "In sala",
-      cls: "bg-emerald-400/90 text-black",
-    };
-  }
-  if (s === "done") {
-    return {
-      label: "Completato",
-      cls: "bg-white/10 text-white/70",
-    };
-  }
-  if (s === "cancelled") {
-    return {
-      label: "Annullato",
-      cls: "bg-red-500/20 text-red-200",
-    };
-  }
-  return {
-    label: "Prenotato",
-    cls: "bg-white/5 text-white/75",
   };
 }
 
@@ -125,6 +106,8 @@ export default function ServiceBox({
 
   const [checkingIn, setCheckingIn] = useState(false);
   const [openActions, setOpenActions] = useState(false);
+  const [lifecycleConfirm, setLifecycleConfirm] = useState<AgendaLifecycleTarget | null>(null);
+  const [lifecycleSaving, setLifecycleSaving] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -198,7 +181,7 @@ export default function ServiceBox({
   const svcName = String(line.services?.name ?? "Servizio").trim() || "Servizio";
   const accentColor = String(line.services?.color_code || "").trim() || "#a8754f";
   const accentTint = useMemo(() => accentToTintCss(accentColor), [accentColor]);
-  const meta = statusMeta(appointment.status);
+  const meta = agendaStatusMeta(appointment.status);
 
   const totalServicesOnAppointment = appointment.appointment_services.length;
   const extraSvcCount = Math.max(0, totalServicesOnAppointment - 1);
@@ -206,6 +189,15 @@ export default function ServiceBox({
   const isInSala = appointment.status === "in_sala";
   const isDone = appointment.status === "done";
   const isCancelled = appointment.status === "cancelled";
+  const isNoShow =
+    appointment.status === "no_show" || appointment.status === "noshow";
+  /** done / cancelled / no_show: niente drag, resize o azioni operative. */
+  const isReadOnlyCard = isDone || isCancelled || isNoShow;
+  const isTerminalVisual = isReadOnlyCard;
+  const showLifecycle = canShowLifecycleActions({
+    status: appointment.status,
+    sale_id: appointment.sale_id,
+  });
 
   const hasStaff = line.staff_id != null;
 
@@ -240,8 +232,41 @@ export default function ServiceBox({
 
   const lineDurationMinutes = useMemo(() => durationMin, [durationMin]);
 
+  async function applyLifecycleStatus(target: AgendaLifecycleTarget) {
+    if (!appointment?.id) return;
+    const gate = canSetAppointmentLifecycleStatus({
+      status: appointment.status,
+      sale_id: appointment.sale_id,
+      target,
+    });
+    if (!gate.allowed) {
+      toast.error(gate.reason ?? "Azione non disponibile");
+      return;
+    }
+
+    setLifecycleSaving(true);
+    setOpenActions(false);
+    try {
+      const res = await fetch(`/api/agenda/appointments/${appointment.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: target }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Errore aggiornamento stato");
+      toast.success(target === "cancelled" ? "Segnato come annullato" : "Segnato come no-show");
+      onUpdated?.();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Errore aggiornamento stato");
+    } finally {
+      setLifecycleSaving(false);
+      setLifecycleConfirm(null);
+    }
+  }
+
   async function handlePortaInSala() {
     if (!appointment?.id) return;
+    if (isTerminalVisual) return;
     setOpenActions(false);
     setCheckingIn(true);
     try {
@@ -264,6 +289,7 @@ export default function ServiceBox({
 
   const resizeServiceBySlots = useCallback(
     async (slotsChanged: number) => {
+      if (isReadOnlyCard) return;
       const newDurationMinutes = lineDurationMinutes + slotsChanged * SLOT_MINUTES;
       if (newDurationMinutes < SLOT_MINUTES) return;
       setSaving(true);
@@ -279,7 +305,7 @@ export default function ServiceBox({
       }
       onUpdated?.();
     },
-    [supabase, appointment.id, line.id, lineDurationMinutes, onUpdated]
+    [supabase, appointment.id, line.id, lineDurationMinutes, onUpdated, isReadOnlyCard]
   );
 
   function currentColIndex(): number {
@@ -295,6 +321,11 @@ export default function ServiceBox({
   }
 
   const applyDragResult = useCallback(async (slotDelta: number, colDelta: number, offsetY: number) => {
+    if (isReadOnlyCard) {
+      x.set(0);
+      y.set(0);
+      return;
+    }
     const needStaffMove = enableHorizontal && colDelta !== 0 && staffOrder.length > 0;
     const needTimeMove = slotDelta !== 0;
 
@@ -360,17 +391,24 @@ export default function ServiceBox({
     onUpdated,
     x,
     y,
+    isReadOnlyCard,
   ]);
+
+  const canDrag = !isReadOnlyCard && !saving;
+  const canResize = !isReadOnlyCard && !saving;
 
   return (
     <motion.div
       className={[
-        "absolute rounded-xl select-none touch-none",
+        "absolute rounded-xl select-none",
+        isReadOnlyCard ? "touch-auto" : "touch-none",
         saving
           ? "pointer-events-none opacity-60 cursor-wait z-20"
-          : dragging
-            ? "cursor-grabbing z-[85]"
-            : "cursor-grab z-20",
+          : isReadOnlyCard
+            ? "cursor-default z-20"
+            : dragging
+              ? "cursor-grabbing z-[85]"
+              : "cursor-grab z-20",
       ].join(" ")}
       style={{
         top: topBase,
@@ -380,8 +418,8 @@ export default function ServiceBox({
         x,
         y,
       }}
-      drag={enableHorizontal ? true : "y"}
-      dragListener={!openActions && !resizing && !saving}
+      drag={canDrag ? (enableHorizontal ? true : "y") : false}
+      dragListener={canDrag && !openActions && !resizing}
       dragMomentum={false}
       dragElastic={0}
       dragConstraints={{
@@ -391,7 +429,7 @@ export default function ServiceBox({
         right: enableHorizontal ? maxX : 0,
       }}
       onDragStart={() => {
-        if (saving) return;
+        if (!canDrag) return;
         setOpenActions(false);
         setDragging(true);
         lastDragColRef.current = null;
@@ -471,6 +509,7 @@ export default function ServiceBox({
         if (dragging || resizing || saving) return;
         onClick?.();
       }}
+      title={isReadOnlyCard ? "Appuntamento chiuso — clic per dettagli" : undefined}
     >
       {dragging && !saving && (
         <motion.div
@@ -488,7 +527,7 @@ export default function ServiceBox({
           isHighlighted ? "ring-2 ring-[#f3d8b6]" : "ring-1 ring-white/10",
           isInSala && !isHighlighted ? "ring-1 ring-emerald-500/40" : "",
           isDone ? "opacity-75" : "",
-          isCancelled ? "opacity-55 grayscale" : "",
+          isCancelled || isNoShow ? "opacity-55 grayscale" : "",
           resizing ? "ring-1 ring-white/30" : "",
         ]
           .filter(Boolean)
@@ -545,13 +584,14 @@ export default function ServiceBox({
             </div>
           </div>
 
-          {/* Resize: div + pointer capture (no motion drag annidato sul parent drag x/y) */}
+          {canResize && (
           <div
             role="slider"
             aria-label="Ridimensiona durata"
             tabIndex={0}
             className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize z-20 hover:bg-white/[0.06] touch-none"
             onPointerDown={(e) => {
+              if (!canResize) return;
               e.preventDefault();
               e.stopPropagation();
               setOpenActions(false);
@@ -577,6 +617,7 @@ export default function ServiceBox({
               el.addEventListener("pointercancel", onUp);
             }}
           />
+          )}
         </div>
 
         <button
@@ -596,24 +637,54 @@ export default function ServiceBox({
             className="absolute right-1 top-8 z-50 w-44 rounded-lg bg-[#1c1210] border border-white/12 shadow-xl py-0.5 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={handlePortaInSala}
-              disabled={checkingIn}
-              className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06] disabled:opacity-50"
-            >
-              {checkingIn ? "Porta in sala…" : "Porta in sala"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpenActions(false);
-                router.push(`/dashboard/cassa/${appointment.id}`);
-              }}
-              className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06]"
-            >
-              Vai in cassa
-            </button>
+            {showLifecycle && (
+              <>
+                <button
+                  type="button"
+                  disabled={lifecycleSaving || checkingIn}
+                  onClick={() => {
+                    setOpenActions(false);
+                    setLifecycleConfirm("cancelled");
+                  }}
+                  className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-red-200/90 hover:bg-white/[0.06] disabled:opacity-50"
+                >
+                  Segna come annullato
+                </button>
+                <button
+                  type="button"
+                  disabled={lifecycleSaving || checkingIn}
+                  onClick={() => {
+                    setOpenActions(false);
+                    setLifecycleConfirm("no_show");
+                  }}
+                  className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-amber-100/90 hover:bg-white/[0.06] border-t border-white/[0.06] disabled:opacity-50"
+                >
+                  Segna come no-show
+                </button>
+              </>
+            )}
+            {!isReadOnlyCard && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePortaInSala}
+                  disabled={checkingIn}
+                  className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06] disabled:opacity-50"
+                >
+                  {checkingIn ? "Porta in sala…" : "Porta in sala"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenActions(false);
+                    router.push(`/dashboard/cassa/${appointment.id}`);
+                  }}
+                  className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06]"
+                >
+                  Vai in cassa
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -632,6 +703,25 @@ export default function ServiceBox({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={lifecycleConfirm === "cancelled"}
+        onClose={() => setLifecycleConfirm(null)}
+        onConfirm={() => void applyLifecycleStatus("cancelled")}
+        title="Segna come annullato"
+        description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
+        confirmLabel="Segna come annullato"
+        variant="danger"
+      />
+      <ConfirmDialog
+        isOpen={lifecycleConfirm === "no_show"}
+        onClose={() => setLifecycleConfirm(null)}
+        onConfirm={() => void applyLifecycleStatus("no_show")}
+        title="Segna come no-show"
+        description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
+        confirmLabel="Segna come no-show"
+        variant="danger"
+      />
     </motion.div>
   );
 }

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { toast } from "sonner";
 import WalkInModal from "@/components/in-sala/WalkInModal";
+import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 type CashStatus = {
   ok: boolean;
   role?: "reception" | "coordinator" | "magazzino" | string;
@@ -74,11 +75,14 @@ export default function InSalaPage() {
     return s.length >= 16 ? s.slice(11, 16) : "—";
   }
 
-  async function loadAppointments() {
+  async function loadAppointments(options?: { silent?: boolean }) {
     if (!activeSalonId) return;
 
-    setLoading(true);
-    setErr("");
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setErr("");
+    }
 
     const { data, error } = await supabase
       .from("appointments")
@@ -89,18 +93,22 @@ export default function InSalaPage() {
       .eq("status", "in_sala")
       .order("start_time", { ascending: true });
 
-    setLoading(false);
+    if (!silent) setLoading(false);
 
     if (error) {
-      setErr(error.message);
+      if (!silent) setErr(error.message);
+      else console.warn("[in-sala] refresh appuntamenti:", error.message);
       return;
     }
     setRows(data || []);
   }
 
-  async function loadCashStatus() {
-    setCashLoading(true);
-    setCashErr("");
+  async function loadCashStatus(options?: { silent?: boolean }) {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setCashLoading(true);
+      setCashErr("");
+    }
 
     try {
       // Reception ignora salon_id; coordinator/magazzino lo usano
@@ -128,10 +136,14 @@ export default function InSalaPage() {
         );
       }
     } catch (e: any) {
-      setCash(null);
-      setCashErr(e?.message || "Errore");
+      if (!silent) {
+        setCash(null);
+        setCashErr(e?.message || "Errore");
+      } else {
+        console.warn("[in-sala] refresh cassa:", e?.message || e);
+      }
     } finally {
-      setCashLoading(false);
+      if (!silent) setCashLoading(false);
     }
   }
 
@@ -234,12 +246,12 @@ export default function InSalaPage() {
     }
   }
 
-  async function refreshAll() {
-    await Promise.all([loadAppointments(), loadCashStatus()]);
+  async function refreshAll(options?: { silent?: boolean }) {
+    await Promise.all([loadAppointments(options), loadCashStatus(options)]);
   }
 
   function handleWalkInCreated(appointmentId: number) {
-    void loadAppointments();
+    void loadAppointments({ silent: true });
     toast.success("Walk-in creato e in sala.", {
       action: {
         label: "Apri cassa",
@@ -254,12 +266,20 @@ export default function InSalaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, activeSalonId]);
 
+  useVisibilityPolling({
+    enabled: isReady && activeSalonId != null,
+    canPoll: () => !walkInOpen && !openCash && !closeCash,
+    onPoll: () => {
+      void refreshAll({ silent: true });
+    },
+  });
+
   // Refetch when returning to this page (e.g. after closing sale in Cassa) so list is not stale
   useEffect(() => {
     const prev = prevPathnameRef.current;
     prevPathnameRef.current = pathname;
     if (pathname === "/dashboard/in-sala" && prev != null && prev !== "/dashboard/in-sala") {
-      void refreshAll();
+      void refreshAll({ silent: true });
     }
   }, [pathname]);
 
@@ -300,7 +320,7 @@ export default function InSalaPage() {
               </button>
               <button
                 type="button"
-                onClick={refreshAll}
+                onClick={() => void refreshAll({ silent: true })}
                 className="h-11 px-5 rounded-xl bg-[#f3d8b6] text-black font-black text-[10px] uppercase tracking-wider hover:opacity-95 transition-colors"
               >
                 Aggiorna
@@ -347,7 +367,7 @@ export default function InSalaPage() {
             <div className="flex flex-wrap gap-2 shrink-0">
               <button
                 type="button"
-                onClick={loadCashStatus}
+                onClick={() => void loadCashStatus({ silent: true })}
                 className="h-11 px-5 rounded-xl border border-white/10 bg-black/30 text-white/70 font-bold text-[10px] uppercase tracking-wider hover:bg-white/10 disabled:opacity-50"
                 disabled={cashLoading}
               >

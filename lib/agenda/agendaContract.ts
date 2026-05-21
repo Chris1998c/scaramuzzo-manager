@@ -6,6 +6,7 @@ export const AGENDA_LIST_SELECT = `
   start_time,
   end_time,
   status,
+  sale_id,
   notes,
   staff_id,
   customer_id,
@@ -54,6 +55,7 @@ export type AgendaAppointment = {
   start_time: string;
   end_time: string;
   status: string;
+  sale_id: number | null;
   notes: string | null;
   staff_id: number | null;
   customer_id: string | number | null;
@@ -202,6 +204,12 @@ export function normalizeAgendaRows(raw: unknown[] | null): AgendaAppointment[] 
       start_time: String(row.start_time ?? ""),
       end_time: String(row.end_time ?? ""),
       status: String(row.status ?? "scheduled"),
+      sale_id: (() => {
+        const sid = row.sale_id;
+        if (sid == null || sid === "") return null;
+        const n = Number(sid);
+        return Number.isFinite(n) && n > 0 ? n : null;
+      })(),
       notes: row.notes == null || row.notes === "" ? null : String(row.notes),
       staff_id: normalizeStaffId(row.staff_id),
       customer_id: (row.customer_id as string | number | null) ?? null,

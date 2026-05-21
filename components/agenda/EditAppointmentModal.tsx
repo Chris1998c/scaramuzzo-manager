@@ -23,6 +23,12 @@ import {
 import type { AgendaAppointment, AgendaCustomer } from "@/lib/agenda/agendaContract";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { toast } from "sonner";
+import {
+  canSetAppointmentLifecycleStatus,
+  canShowLifecycleActions,
+  type AgendaLifecycleTarget,
+} from "@/lib/agenda/appointmentLifecycle";
+import { agendaStatusMeta } from "@/lib/agenda/agendaStatusMeta";
 
 interface Props {
   isOpen: boolean;
@@ -61,32 +67,6 @@ function toStrOrNull(v: unknown): string | null {
   return String(v);
 }
 
-function statusMeta(status: string | null | undefined) {
-  const s = String(status || "scheduled");
-  if (s === "in_sala") {
-    return {
-      label: "IN SALA",
-      cls: "bg-emerald-400 text-black border border-emerald-300/80",
-    };
-  }
-  if (s === "done") {
-    return {
-      label: "COMPLETATO",
-      cls: "bg-white/10 text-white/80 border border-white/20",
-    };
-  }
-  if (s === "cancelled") {
-    return {
-      label: "ANNULLATO",
-      cls: "bg-red-500/15 text-red-200 border border-red-400/40",
-    };
-  }
-  return {
-    label: "PRENOTATO",
-    cls: "bg-black/40 text-[#f3d8b6] border border-white/20",
-  };
-}
-
 export default function EditAppointmentModal({
   isOpen,
   close,
@@ -114,6 +94,7 @@ export default function EditAppointmentModal({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string>("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [lifecycleConfirm, setLifecycleConfirm] = useState<AgendaLifecycleTarget | null>(null);
 
   // Stessi slot della griglia giorno (apertura salone → 20:30, step 15m)
   const hours = useMemo(
@@ -297,6 +278,38 @@ export default function EditAppointmentModal({
     }
   }
 
+  async function applyLifecycleStatus(target: AgendaLifecycleTarget) {
+    if (!appointment?.id) return;
+    const gate = canSetAppointmentLifecycleStatus({
+      status: appointment.status,
+      sale_id: appointment.sale_id,
+      target,
+    });
+    if (!gate.allowed) {
+      setErr(gate.reason ?? "Azione non disponibile");
+      return;
+    }
+
+    setSaving(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/agenda/appointments/${appointment.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: target }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Errore aggiornamento stato");
+      onUpdated?.();
+      close();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Errore aggiornamento stato");
+    } finally {
+      setSaving(false);
+      setLifecycleConfirm(null);
+    }
+  }
+
   async function portaInSala() {
     if (!appointment?.id) return;
     if (saving) return;
@@ -353,11 +366,18 @@ export default function EditAppointmentModal({
   }
 
   const headerCustomer = appointment?.customers ? safeName(appointment.customers) : "Appuntamento";
-  const headerStatus = statusMeta(appointment?.status);
+  const headerStatus = agendaStatusMeta(appointment?.status);
   const headerTime = timeFromTsSafe(appointment?.start_time);
 
   const status = String(appointment?.status ?? "").toLowerCase();
-  const disablePortaInSalaAndCassa = status === "done" || status === "cancelled";
+  const isNoShow = status === "no_show" || status === "noshow";
+  const disablePortaInSalaAndCassa =
+    status === "done" || status === "cancelled" || isNoShow;
+  const showLifecycle = canShowLifecycleActions({
+    status: appointment?.status,
+    sale_id: appointment?.sale_id,
+  });
+  const formLocked = disablePortaInSalaAndCassa;
   const canOpenClienteSchede = Boolean(getClienteIdForSchedeLink());
 
   const serviceLines = useMemo(() => {
@@ -473,6 +493,27 @@ export default function EditAppointmentModal({
               {err}
             </div>
           )}
+
+          {showLifecycle && (
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setLifecycleConfirm("cancelled")}
+                className="rounded-lg px-2 py-1.5 text-[10px] font-bold text-red-200/95 bg-red-500/10 border border-red-400/20 hover:bg-red-500/15 transition disabled:opacity-50"
+              >
+                Segna come annullato
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setLifecycleConfirm("no_show")}
+                className="rounded-lg px-2 py-1.5 text-[10px] font-bold text-amber-100/95 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/15 transition disabled:opacity-50"
+              >
+                Segna come no-show
+              </button>
+            </div>
+          )}
         </div>
 
         {/* form + servizi */}
@@ -534,7 +575,7 @@ export default function EditAppointmentModal({
                   type="text"
                   placeholder="Cerca nome o telefono"
                   className="w-full rounded-lg bg-black/40 border border-white/10 px-2.5 py-2 text-xs text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
-                  disabled={saving}
+                  disabled={saving || formLocked}
                   value={qCustomer}
                   onChange={(e) => setQCustomer(e.target.value)}
                 />
@@ -542,7 +583,7 @@ export default function EditAppointmentModal({
                 <select
                   className="w-full rounded-lg bg-black/40 border border-white/10 px-2.5 py-2 text-xs text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
                   value={customer}
-                  disabled={saving}
+                  disabled={saving || formLocked}
                   onChange={(e) => setCustomer(e.target.value)}
                 >
                   <option value="">Seleziona cliente</option>
@@ -563,7 +604,7 @@ export default function EditAppointmentModal({
                   <select
                     className="w-full rounded-lg bg-black/40 border border-white/10 px-2 py-2 text-xs text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
                     value={time}
-                    disabled={saving}
+                    disabled={saving || formLocked}
                     onChange={(e) => setTime(e.target.value)}
                   >
                     {hours.map((h) => (
@@ -581,7 +622,7 @@ export default function EditAppointmentModal({
                   <select
                     className="w-full rounded-lg bg-black/40 border border-white/10 px-2 py-2 text-xs text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
                     value={staffId ?? ""}
-                    disabled={saving}
+                    disabled={saving || formLocked}
                     onChange={(e) =>
                       setStaffId(e.target.value === "" ? null : e.target.value)
                     }
@@ -618,7 +659,7 @@ export default function EditAppointmentModal({
                   className="w-full rounded-lg bg-black/40 border border-white/10 px-2.5 py-2 text-xs text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25 resize-none"
                   rows={2}
                   value={notes}
-                  disabled={saving}
+                  disabled={saving || formLocked}
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
@@ -628,7 +669,7 @@ export default function EditAppointmentModal({
           <div className="grid grid-cols-2 gap-1.5 pb-0.5">
             <button
               onClick={updateAppointment}
-              disabled={saving}
+              disabled={saving || formLocked}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs bg-[#f3d8b6] text-[#1A0F0A] font-bold hover:opacity-90 transition disabled:opacity-50"
             >
               <Save size={14} />
@@ -654,6 +695,25 @@ export default function EditAppointmentModal({
         title="Elimina appuntamento"
         description="Vuoi eliminare questo appuntamento? L'operazione non può essere annullata."
         confirmLabel="Elimina"
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={lifecycleConfirm === "cancelled"}
+        onClose={() => setLifecycleConfirm(null)}
+        onConfirm={() => void applyLifecycleStatus("cancelled")}
+        title="Segna come annullato"
+        description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
+        confirmLabel="Segna come annullato"
+        variant="danger"
+      />
+      <ConfirmDialog
+        isOpen={lifecycleConfirm === "no_show"}
+        onClose={() => setLifecycleConfirm(null)}
+        onConfirm={() => void applyLifecycleStatus("no_show")}
+        title="Segna come no-show"
+        description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
+        confirmLabel="Segna come no-show"
         variant="danger"
       />
     </div>

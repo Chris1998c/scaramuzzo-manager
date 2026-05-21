@@ -9,6 +9,7 @@ import {
   isoDayOfWeekFromISODateLocal,
   isStaffVisibleOnAgendaDayForSalon,
 } from "@/lib/staffSchedule";
+import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import AgendaModal from "./AgendaModal";
 import EditAppointmentModal from "./EditAppointmentModal";
@@ -96,6 +97,7 @@ function placeholderStatusMeta(status: string | null | undefined) {
   if (s === "in_sala") return { label: "IN SALA", cls: "bg-emerald-400 text-black border border-emerald-300/80" };
   if (s === "done") return { label: "COMPLETATO", cls: "bg-white/10 text-white/80 border border-white/20" };
   if (s === "cancelled") return { label: "ANNULLATO", cls: "bg-red-500/15 text-red-200 border border-red-400/40" };
+  if (s === "no_show" || s === "noshow") return { label: "NO-SHOW", cls: "bg-amber-500/15 text-amber-100 border border-amber-400/30" };
   return { label: "PRENOTATO", cls: "bg-black/40 text-[#f3d8b6] border border-white/20" };
 }
 
@@ -470,9 +472,10 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
   );
 
   const loadAppointments = useCallback(
-    async (salonId: number) => {
+    async (salonId: number, options?: { silent?: boolean }) => {
       if (!currentDate) return;
-      setLoading(true);
+      const silent = options?.silent === true;
+      if (!silent) setLoading(true);
 
       let startRange: string;
       let endRange: string;
@@ -505,12 +508,13 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
           code: error?.code,
         });
         setAppointments([]);
-        setLoading(false);
+        if (!silent) setLoading(false);
+        else console.warn("[agenda] refresh appuntamenti:", error?.message);
         return;
       }
 
       setAppointments(normalizeAgendaRows((raw ?? []) as unknown[]));
-      setLoading(false);
+      if (!silent) setLoading(false);
     },
     [currentDate, view, supabase, weekDays]
   );
@@ -522,6 +526,20 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
     loadStaff(activeSalonId);
     loadAppointments(activeSalonId);
   }, [isReady, activeSalonId, currentDate, view, loadStaff, loadAppointments]);
+
+  useVisibilityPolling({
+    enabled: isReady && activeSalonId != null,
+    canPoll: () =>
+      selectedSlot == null &&
+      editingAppointment == null &&
+      !calendarOpen &&
+      agendaDragCol == null &&
+      agendaDragSlot == null,
+    onPoll: () => {
+      if (activeSalonId == null) return;
+      void loadAppointments(activeSalonId, { silent: true });
+    },
+  });
 
   // ===== PERF: pre-flatten linee una volta sola (include placeholder per app senza servizi) =====
   const dayLinesByStaff = useMemo(() => {
@@ -788,7 +806,7 @@ function buildLanes(
             <CalendarDays size={16} />
           </button>
           <button
-            onClick={() => loadAppointments(activeSalonId)}
+            onClick={() => loadAppointments(activeSalonId, { silent: true })}
             className="p-2.5 rounded-xl text-white/50 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
             title="Refresh"
           >
@@ -972,7 +990,9 @@ function buildLanes(
                                 line={line}
                                 hours={hours}
                                 onClick={() => setEditingAppointment(app)}
-                                onUpdated={() => loadAppointments(activeSalonId)}
+                                onUpdated={() =>
+                                  loadAppointments(activeSalonId, { silent: true })
+                                }
                                 enableHorizontal={true}
                                 colWidth={columnWidth}
                                 columnIndex={colIdx}
@@ -1043,7 +1063,9 @@ function buildLanes(
                                 line={line}
                                 hours={hours}
                                 onClick={() => setEditingAppointment(app)}
-                                onUpdated={() => loadAppointments(activeSalonId)}
+                                onUpdated={() =>
+                                  loadAppointments(activeSalonId, { silent: true })
+                                }
                                 enableHorizontal={false}
                                 colWidth={colWidth}
                                 columnIndex={colIdx}
@@ -1087,7 +1109,7 @@ function buildLanes(
           selectedSlot={selectedSlot}
           currentDate={currentDate}
           close={() => setSelectedSlot(null)}
-          onCreated={() => loadAppointments(activeSalonId)}
+          onCreated={() => loadAppointments(activeSalonId, { silent: true })}
         />
       )}
 
@@ -1097,7 +1119,7 @@ function buildLanes(
           appointment={editingAppointment}
           selectedDay={String(editingAppointment.start_time).slice(0, 10)}
           close={() => setEditingAppointment(null)}
-          onUpdated={() => loadAppointments(activeSalonId)}
+          onUpdated={() => loadAppointments(activeSalonId, { silent: true })}
         />
       )}
 
