@@ -40,6 +40,15 @@ module.exports = {
       boxShadow: {
         premium: "0 4px 18px rgba(0,0,0,0.25)",
         inset: "inset 0 0 12px rgba(0,0,0,0.4)",
+        "sidebar-float":
+          "0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px -8px rgba(0,0,0,0.55), 0 24px 48px -16px rgba(0,0,0,0.45)",
+        "bronze-glow": "0 0 20px rgba(197, 165, 114, 0.12)",
+        "agenda-panel":
+          "0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 0 rgba(243,216,182,0.04) inset, 0 12px 40px -12px rgba(0,0,0,0.5)",
+      },
+
+      transitionTimingFunction: {
+        premium: "cubic-bezier(0.22, 1, 0.36, 1)",
       },
 
       animation: {

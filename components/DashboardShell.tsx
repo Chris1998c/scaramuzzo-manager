@@ -28,9 +28,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
       <motion.div
         animate={{
-          marginLeft: isDesktop ? (sidebarOpen ? "16rem" : "0rem") : "0rem",
+          marginLeft: isDesktop ? (sidebarOpen ? "19.25rem" : "0rem") : "0rem",
         }}
-        transition={{ type: "spring", stiffness: 260, damping: 28 }}
+        transition={{ type: "spring", stiffness: 280, damping: 32 }}
         className="flex flex-col flex-1 min-w-0 overflow-x-hidden"
       >
         <Header />

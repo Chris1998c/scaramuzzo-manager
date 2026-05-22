@@ -17,17 +17,27 @@ export function StatCard({ label, value, description, trend, variant = "default"
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`relative overflow-hidden rounded-3xl border p-6 backdrop-blur-md shadow-lg transition-all
-        ${variant === "warning" 
-          ? "border-amber-500/40 bg-amber-950/20" 
-          : "border-[#5c3a21]/50 bg-[#24140e]/60"}`}
+      className={`relative overflow-hidden rounded-2xl border p-6 transition-premium
+        shadow-[0_1px_0_rgba(255,255,255,0.05)_inset,0_14px_36px_-18px_rgba(0,0,0,0.55)]
+        hover:shadow-[0_1px_0_rgba(255,255,255,0.07)_inset,0_18px_44px_-16px_rgba(0,0,0,0.6)]
+        ${variant === "warning"
+          ? "border-amber-500/35 bg-gradient-to-br from-amber-950/30 via-[#24140e]/50 to-[#1a0c07]/70"
+          : "border-white/[0.08] bg-gradient-to-br from-[#2a1610]/60 via-[#24140e]/45 to-[#160a06]/75"}`}
     >
-      <div className="flex flex-col gap-1">
-        <span className="text-xs font-bold uppercase tracking-wider text-[#c9b299]/70">
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 h-px ${
+          variant === "warning"
+            ? "bg-gradient-to-r from-transparent via-amber-400/40 to-transparent"
+            : "bg-gradient-to-r from-transparent via-[#f3d8b6]/25 to-transparent"
+        }`}
+        aria-hidden
+      />
+      <div className="relative flex flex-col gap-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#c9b299]/75">
           {label}
         </span>
         <div className="flex items-end gap-3">
-          <span className="text-3xl font-black text-[#f3d8b6] tracking-tighter">
+          <span className="text-[1.65rem] md:text-3xl font-black text-[#f3d8b6] tracking-tight tabular-nums">
             {value}
           </span>
           {trend && (

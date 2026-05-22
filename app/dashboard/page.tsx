@@ -310,7 +310,7 @@ export default async function DashboardPage({
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-10 pb-12">
+    <div className="max-w-[1600px] mx-auto space-y-8 md:space-y-10 pb-12">
 
       {access.role === "coordinator" || access.role === "magazzino" ? (
         <Suspense fallback={null}>
@@ -334,16 +334,16 @@ export default async function DashboardPage({
       ) : null}
       
       {/* --- HEADER HERO --- */}
-      <section className="relative overflow-hidden rounded-[2.5rem] border border-[#5c3a21]/50 bg-[#24140e]/60 p-8 md:p-10 backdrop-blur-xl shadow-2xl">
+      <section className="relative overflow-hidden rounded-[2rem] border border-white/[0.08] bg-gradient-to-br from-[#2a1610]/75 via-[#24140e]/55 to-[#160a06]/80 p-8 md:p-10 shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_24px_56px_-28px_rgba(0,0,0,0.65)] ring-1 ring-white/[0.04]">
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f3d8b6]/10 border border-[#f3d8b6]/20 text-[#f3d8b6] text-xs font-bold tracking-widest uppercase">
-              <Sparkles size={14} /> Sistema Gestionale v3
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f3d8b6]/10 border border-[#f3d8b6]/20 text-[#f3d8b6] text-[10px] font-bold tracking-[0.18em] uppercase">
+              <Sparkles size={13} /> Sistema Gestionale v3
             </div>
-            <h1 className="text-4xl md:text-5xl font-black text-[#f3d8b6] tracking-tight">
-              Bentornato, <span className="text-white">Scaramuzzo</span>
+            <h1 className="text-3xl md:text-[2.65rem] font-black text-[#f3d8b6] tracking-tight leading-[1.05]">
+              Bentornato, <span className="text-white/95">Scaramuzzo</span>
             </h1>
-            <p className="text-[#c9b299] text-lg max-w-xl leading-relaxed">
+            <p className="text-[#c9b299]/95 text-base md:text-lg max-w-xl leading-relaxed">
               Ecco cosa succede oggi nei tuoi saloni. Gestisci appuntamenti, 
               controlla lo stock e monitora le performance in tempo reale.
             </p>
@@ -375,11 +375,12 @@ export default async function DashboardPage({
         </div>
 
         {/* Effetto luce soffusa */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#f3d8b6]/10 blur-[120px] rounded-full" />
+        <div className="absolute -top-20 -right-16 w-80 h-80 bg-[#f3d8b6]/8 blur-[100px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent pointer-events-none" />
       </section>
 
       {/* --- STATS GRID --- */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
         <StatCard 
           label="Incasso Giornaliero" 
           value={`€ ${totaleIncasso.toLocaleString('it-IT')}`} 
@@ -412,13 +413,13 @@ export default async function DashboardPage({
 
       {/* --- MODULES GRID --- */}
       {access.role !== "cliente" ? (
-        <section className="space-y-6">
-        <div className="flex items-center justify-between px-2">
-          <h2 className="text-2xl font-bold text-[#f3d8b6]">Moduli Operativi</h2>
-          <div className="h-px flex-1 bg-[#5c3a21]/30 mx-6 hidden md:block" />
+        <section className="space-y-5">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-xl md:text-2xl font-bold text-[#f3d8b6] tracking-tight">Moduli Operativi</h2>
+          <div className="h-px flex-1 bg-gradient-to-r from-[#5c3a21]/40 via-white/[0.08] to-transparent mx-6 hidden md:block" />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
           {HOME_MODULE_DEFS.filter((m) => m.visibleFor(access.role as StaffRole)).map(
             ({ visibleFor: _v, ...tile }) => (
               <ModuleCard key={tile.title} tile={tile} />
@@ -438,10 +439,10 @@ function QuickActionButton({ href, label, icon: Icon, primary = false }: { href:
     <Link
       href={href}
       className={`
-        flex items-center gap-3 rounded-2xl px-6 py-4 font-bold transition-all active:scale-95
-        ${primary 
-          ? "bg-[#0FA958] text-white shadow-[0_10px_30px_rgba(15,169,88,0.3)] hover:bg-[#0da052] hover:shadow-[0_15px_40px_rgba(15,169,88,0.4)]" 
-          : "bg-white/5 border border-[#5c3a21]/60 text-[#f3d8b6] hover:bg-white/10"
+        flex items-center gap-3 rounded-xl px-5 py-3.5 text-sm font-bold transition-premium active:scale-[0.98]
+        ${primary
+          ? "bg-[#0FA958] text-white shadow-[0_8px_24px_-8px_rgba(15,169,88,0.45)] hover:bg-[#0da052]"
+          : "bg-white/[0.04] border border-white/[0.1] text-[#f3d8b6] hover:bg-white/[0.08] hover:border-white/[0.14]"
         }
       `}
     >
@@ -456,11 +457,11 @@ function ModuleCard({ tile }: { tile: Tile }) {
   const isLocked = tile.kind === "locked";
 
   const containerClasses = `
-    group relative h-full rounded-[2rem] p-8 overflow-hidden
-    bg-[#24140e]/80 border border-[#5c3a21]/60 backdrop-blur-md
-    shadow-[0_10px_40px_rgba(0,0,0,0.2)]
-    transition-all duration-500
-    ${isLocked ? "opacity-60 cursor-not-allowed" : "hover:border-[#f3d8b6]/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(0,0,0,0.4)]"}
+    group relative h-full rounded-2xl p-6 md:p-7 overflow-hidden
+    border border-white/[0.08] bg-gradient-to-br from-[#2a1610]/55 via-[#24140e]/40 to-[#160a06]/70
+    shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_12px_36px_-20px_rgba(0,0,0,0.5)]
+    transition-premium
+    ${isLocked ? "opacity-60 cursor-not-allowed" : "hover:border-[#f3d8b6]/35 hover:-translate-y-1 hover:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_18px_44px_-16px_rgba(0,0,0,0.55)]"}
   `;
 
   const CardContent = (
@@ -479,18 +480,20 @@ function ModuleCard({ tile }: { tile: Tile }) {
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#f3d8b6]/15 to-transparent" aria-hidden />
+
+      <div className="space-y-5">
         {/* Icona Box */}
-        <div className="inline-flex rounded-2xl p-4 bg-gradient-to-br from-[#3a2217] to-[#24140e] border border-[#5c3a21] group-hover:border-[#f3d8b6]/40 transition-colors">
-          <Icon className="text-[#f3d8b6]" size={32} strokeWidth={1.5} />
+        <div className="inline-flex rounded-xl p-3.5 bg-white/[0.04] border border-white/[0.08] group-hover:border-[#f3d8b6]/30 group-hover:bg-white/[0.06] transition-premium">
+          <Icon className="text-[#f3d8b6]/90 group-hover:text-[#f3d8b6]" size={28} strokeWidth={1.75} />
         </div>
 
         {/* Testi */}
-        <div className="space-y-2">
-          <h3 className="text-2xl font-black text-[#f3d8b6] group-hover:text-white transition-colors">
+        <div className="space-y-1.5">
+          <h3 className="text-xl font-black text-[#f3d8b6] group-hover:text-white/95 transition-premium tracking-tight">
             {tile.title}
           </h3>
-          <p className="text-[#c9b299] leading-relaxed font-medium">
+          <p className="text-[#c9b299]/90 text-sm leading-relaxed font-medium">
             {tile.subtitle}
           </p>
         </div>
@@ -510,7 +513,7 @@ function ModuleCard({ tile }: { tile: Tile }) {
       </div>
 
       {/* Effetto Hover Background */}
-      <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-[#f3d8b6]/5 blur-[60px] rounded-full group-hover:bg-[#f3d8b6]/10 transition-colors" />
+      <div className="absolute -bottom-10 -right-10 w-28 h-28 bg-[#f3d8b6]/4 blur-[50px] rounded-full group-hover:bg-[#f3d8b6]/8 transition-premium pointer-events-none" />
     </div>
   );
 

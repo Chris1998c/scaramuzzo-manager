@@ -101,6 +101,28 @@ function isPlaceholderLine(line: any): boolean {
   return line && (line._placeholder === true || line.id?.startsWith?.("placeholder-"));
 }
 
+/** UI: gerarchia linee orarie nella griglia (solo stile). */
+function agendaSlotRowBorderClass(timeLabel: string, isFirstRow: boolean): string {
+  if (isFirstRow) return "";
+  if (timeLabel.endsWith(":00")) return "border-t border-white/[0.13]";
+  if (timeLabel.endsWith(":30")) return "border-t border-white/[0.07]";
+  return "border-t border-white/[0.028]";
+}
+
+function agendaSlotTimeLabelClass(timeLabel: string): string {
+  if (timeLabel.endsWith(":00"))
+    return "text-[12px] font-mono font-bold text-[#f3d8b6]/92 tabular-nums leading-none";
+  if (timeLabel.endsWith(":30"))
+    return "text-[10px] font-mono font-semibold text-white/52 tabular-nums leading-none";
+  return "";
+}
+
+/** UI: leggera alternanza righe per ridurre effetto “buco nero”. */
+function agendaSlotRowSurfaceClass(timeLabel: string): string {
+  if (timeLabel.endsWith(":00")) return "bg-white/[0.024]";
+  return "";
+}
+
 /** Badge stato (coerente con ServiceBox, solo per placeholder). */
 function placeholderStatusMeta(status: string | null | undefined) {
   const s = String(status || "scheduled");
@@ -850,24 +872,24 @@ function buildLanes(
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-1.5 md:p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.08] bg-black/25 p-1.5 md:p-2 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]">
           <button
             onClick={gotoPrev}
-            className="p-2.5 rounded-xl text-white/60 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
+            className="p-2.5 rounded-xl text-white/60 hover:text-[#f3d8b6] hover:bg-white/10 transition-premium"
             title="Precedente"
           >
             <ChevronLeft size={16} />
           </button>
           <button
             onClick={gotoToday}
-            className="h-11 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white/90 transition-colors"
+            className="h-11 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white/90 transition-premium"
             title="Oggi"
           >
             Oggi
           </button>
           <button
             onClick={gotoNext}
-            className="p-2.5 rounded-xl text-white/60 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
+            className="p-2.5 rounded-xl text-white/60 hover:text-[#f3d8b6] hover:bg-white/10 transition-premium"
             title="Successivo"
           >
             <ChevronRight size={16} />
@@ -875,7 +897,7 @@ function buildLanes(
           <div className="w-px h-6 bg-white/10 mx-0.5" />
           <button
             onClick={() => setView("day")}
-            className={`flex items-center gap-2 h-11 px-4 md:px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${view === "day"
+            className={`flex items-center gap-2 h-11 px-4 md:px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-premium ${view === "day"
               ? "bg-[#f3d8b6] text-black"
               : "text-white/50 hover:text-white/80 hover:bg-white/10"
               }`}
@@ -884,7 +906,7 @@ function buildLanes(
           </button>
           <button
             onClick={() => setView("week")}
-            className={`flex items-center gap-2 h-11 px-4 md:px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${view === "week"
+            className={`flex items-center gap-2 h-11 px-4 md:px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-premium ${view === "week"
               ? "bg-[#f3d8b6] text-black"
               : "text-white/50 hover:text-white/80 hover:bg-white/10"
               }`}
@@ -951,12 +973,16 @@ function buildLanes(
       {/* MASTER GRID CONTAINER */}
       <div
         ref={masterRef}
-        className="flex-1 min-h-0 relative overflow-hidden flex flex-col rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]"
+        className="flex-1 min-h-0 relative overflow-hidden flex flex-col rounded-[1.25rem] border border-white/[0.1] bg-gradient-to-b from-[#22120c] via-scz-dark to-[#160a06] shadow-agenda-panel ring-1 ring-white/[0.04]"
       >
+        <div
+          className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_80%_45%_at_50%_0%,rgba(243,216,182,0.055),transparent_70%)]"
+          aria-hidden
+        />
         {/* HEADER COLONNE */}
-        <div className="flex flex-shrink-0 border-b border-white/[0.22] bg-black/20 z-30">
-          <div className="w-20 flex-shrink-0 bg-black/20 border-r border-white/25" />
-          <div ref={headerRef} className="flex-1 overflow-hidden bg-black/20">
+        <div className="relative z-30 flex flex-shrink-0 border-b border-white/[0.12] bg-gradient-to-b from-[#2a1610]/95 via-[#1c0f0a]/75 to-[#160a06]/55 backdrop-blur-[2px]">
+          <div className="w-[4.25rem] flex-shrink-0 border-r border-white/[0.1] bg-white/[0.02]" />
+          <div ref={headerRef} className="flex-1 overflow-hidden">
             <div className={`flex ${shouldScrollX ? "w-max" : "w-full"}`}>
               {view === "day"
                 ? dayGridStaff.map((s: any, idx: number) => (
@@ -964,10 +990,11 @@ function buildLanes(
                     key={s?.id != null ? String(s.id) : `col-${s.name}`}
                     ref={idx === 0 ? dayProbeRef : undefined}
                     className={[
-                      "flex-shrink-0 flex flex-col items-center justify-center px-2 py-3 border-r border-white/[0.22] transition-[background-color,box-shadow] duration-150",
+                      "flex-shrink-0 flex flex-col items-center justify-center gap-1 px-3 py-4 min-h-[3.5rem] border-r border-white/[0.1]",
+                      "bg-white/[0.03] transition-[background-color,box-shadow] duration-300 ease-premium",
                       agendaDragCol != null && agendaDragCol === idx
-                        ? "bg-[#f3d8b6]/[0.14] shadow-[inset_0_0_42px_rgba(243,216,182,0.14)] ring-2 ring-inset ring-[#f3d8b6]/45"
-                        : "",
+                        ? "bg-[#f3d8b6]/[0.12] shadow-[inset_0_0_32px_rgba(243,216,182,0.1)] ring-1 ring-inset ring-[#f3d8b6]/35"
+                        : "hover:bg-white/[0.05]",
                     ].join(" ")}
                     style={{
                       width: shouldScrollX ? colWidth : dayColWidth,
@@ -975,9 +1002,10 @@ function buildLanes(
                       minWidth: shouldScrollX ? colWidth : undefined,
                     }}
                   >
-                    <span className="text-xs font-black uppercase tracking-wider text-white/90 truncate text-center">
+                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#f3d8b6]/95 truncate text-center leading-tight max-w-full px-1">
                       {s.name}
                     </span>
+                    <span className="w-8 h-px rounded-full bg-gradient-to-r from-transparent via-[#f3d8b6]/35 to-transparent" aria-hidden />
                     {s.is_virtual ? (
                       <span className="text-[10px] text-white/45 mt-0.5">Senza collaboratore</span>
                     ) : (() => {
@@ -1010,7 +1038,7 @@ function buildLanes(
                   return (
                   <div
                     key={d.date}
-                    className="flex-shrink-0 px-3 md:p-4 flex flex-col items-center justify-center border-r border-white/[0.22]"
+                    className="flex-shrink-0 px-3 md:px-4 py-3.5 flex flex-col items-center justify-center border-r border-white/[0.1]"
                     style={{
                       width: colWidth,
                       flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
@@ -1044,37 +1072,39 @@ function buildLanes(
         </div>
 
         {/* BODY */}
-        <div className="flex-1 flex overflow-hidden relative bg-scz-dark min-h-0">
+        <div className="relative z-[2] flex-1 flex overflow-hidden min-h-0 bg-gradient-to-b from-[#1c0f0a]/90 via-scz-dark to-[#160a06]">
           <div
             ref={timeColumnRef}
-            className="w-20 flex-shrink-0 overflow-hidden bg-scz-dark border-r border-white/25 z-20"
+            className="w-[4.25rem] flex-shrink-0 overflow-hidden border-r border-white/[0.1] bg-gradient-to-b from-[#22120c] to-[#160a06] z-20"
           >
             {hours.map((h: string, hourIdx: number) => (
               <div
                 key={h}
                 style={{ height: slotPx }}
                 className={[
-                  "flex flex-col items-center justify-start pt-0.5 border-b border-white/[0.22] leading-none transition-colors duration-150 hover:bg-white/[0.05]",
+                  "flex flex-col items-center justify-start pt-1.5 leading-none transition-colors duration-300 ease-premium",
+                  agendaSlotRowBorderClass(h, hourIdx === 0),
+                  agendaSlotRowSurfaceClass(h),
                   view === "day" &&
                   agendaDragSlot != null &&
                   agendaDragSlot === hourIdx
-                    ? "bg-[#f3d8b6]/22 shadow-[inset_0_0_20px_rgba(243,216,182,0.12)]"
+                    ? "bg-[#f3d8b6]/16"
                     : "",
                 ].join(" ")}
               >
-                <span className="text-[11px] font-mono font-bold text-white/65 leading-none">
-                  {h.endsWith(":00") || h.endsWith(":30") ? h : ""}
-                </span>
+                {(h.endsWith(":00") || h.endsWith(":30")) && (
+                  <span className={agendaSlotTimeLabelClass(h)}>{h}</span>
+                )}
               </div>
             ))}
           </div>
           <div
             ref={gridContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-auto custom-scrollbar relative bg-scz-dark"
+            className="flex-1 overflow-auto custom-scrollbar relative bg-gradient-to-br from-[#1c0f0a] via-scz-dark to-[#180b07]"
           >
             <div
-              className={`flex relative bg-scz-dark ${shouldScrollX ? "w-max" : "w-full"
+              className={`flex relative ${shouldScrollX ? "w-max" : "w-full"
                 }`}
             >
               {view === "day"
@@ -1091,9 +1121,10 @@ function buildLanes(
                     <div
                       key={mid ?? `virtual-${member?.name ?? "na"}`}
                       className={[
-                        "relative border-r border-white/[0.22] transition-[background-color,box-shadow] duration-150 bg-scz-dark",
+                        "relative border-r border-white/[0.1] transition-[background-color,box-shadow] duration-300 ease-premium",
+                        colIdx % 2 === 0 ? "bg-white/[0.012]" : "bg-transparent",
                         agendaDragCol != null && agendaDragCol === colIdx
-                          ? "bg-[#f3d8b6]/[0.13] shadow-[inset_0_0_48px_rgba(243,216,182,0.16)] ring-2 ring-inset ring-[#f3d8b6]/42"
+                          ? "bg-[#f3d8b6]/[0.1] shadow-[inset_0_0_36px_rgba(243,216,182,0.12)] ring-1 ring-inset ring-[#f3d8b6]/32"
                           : "",
                       ].join(" ")}
                       style={{
@@ -1111,13 +1142,13 @@ function buildLanes(
                           role="presentation"
                           style={{ height: slotPx }}
                           className={[
-                            "relative z-0 border-b border-white/[0.22] transition-colors duration-150",
+                            "relative z-0 transition-colors duration-300 ease-premium",
+                            agendaSlotRowBorderClass(h, hourIdx === 0),
+                            agendaSlotRowSurfaceClass(h),
                             salonClosedToday
                               ? "cursor-not-allowed opacity-60"
-                              : "cursor-crosshair hover:bg-white/[0.07] active:bg-white/[0.1]",
-                            dragHere
-                              ? "bg-[#f3d8b6]/18 shadow-[inset_0_1px_0_rgba(243,216,182,0.18)]"
-                              : "",
+                              : "cursor-crosshair hover:bg-white/[0.04] active:bg-white/[0.07]",
+                            dragHere ? "bg-[#f3d8b6]/14" : "",
                           ].join(" ")}
                           onClick={() => {
                             if (salonClosedToday) return;
@@ -1133,8 +1164,8 @@ function buildLanes(
                           style={{ top: currentTimeLineTopPx }}
                           aria-hidden
                         >
-                          <div className="relative w-full h-[2px] bg-[#ff6b6b]/30">
-                            <div className="absolute -left-1 -top-[3px] w-2 h-2 rounded-full bg-[#ff6b6b]/70 shadow-[0_0_6px_rgba(255,107,107,0.4)]" />
+                          <div className="relative w-full h-px bg-gradient-to-r from-[#f3d8b6]/10 via-[#f3d8b6]/55 to-[#f3d8b6]/10">
+                            <div className="absolute -left-[3px] -top-[3px] w-[7px] h-[7px] rounded-full bg-[#f3d8b6]/85 ring-2 ring-[#f3d8b6]/15" />
                           </div>
                         </div>
                       ) : null}
@@ -1197,23 +1228,28 @@ function buildLanes(
                   return (
                     <div
                       key={day.date}
-                      className="relative border-r border-white/[0.22] bg-scz-dark"
+                      className={[
+                        "relative border-r border-white/[0.1]",
+                        colIdx % 2 === 0 ? "bg-white/[0.012]" : "bg-transparent",
+                      ].join(" ")}
                       style={{
                         width: colWidth,
                         flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
                         minWidth: shouldScrollX ? colWidth : undefined,
                       }}
                     >
-                      {hours.map((h: string) => (
+                      {hours.map((h: string, hourIdx: number) => (
                         <div
                           key={h}
                           role="presentation"
                           style={{ height: slotPx }}
                           className={[
-                            "relative z-0 border-b border-white/[0.22] transition-colors",
+                            "relative z-0 transition-colors duration-300 ease-premium",
+                            agendaSlotRowBorderClass(h, hourIdx === 0),
+                            agendaSlotRowSurfaceClass(h),
                             dayClosed
                               ? "cursor-not-allowed opacity-60"
-                              : "cursor-crosshair hover:bg-white/[0.07] active:bg-white/[0.1]",
+                              : "cursor-crosshair hover:bg-white/[0.04] active:bg-white/[0.07]",
                           ].join(" ")}
                           onClick={() => {
                             if (dayClosed) return;

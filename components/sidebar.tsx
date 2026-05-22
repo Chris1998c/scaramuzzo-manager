@@ -26,7 +26,7 @@ import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 type MenuItem = {
   name: string;
   href: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
   badge?: string;
 };
 
@@ -70,15 +70,14 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, closeSidebar } = useUI();
 
-  // ✅ ruolo corrente (source già in app: ActiveSalonProvider)
   const { role, isReady, activeSalonId, allowedSalons } = useActiveSalon();
 
-  const salonBrandLine = useMemo(() => {
-    if (!isReady) return "Scaramuzzo …";
-    if (activeSalonId == null) return "Scaramuzzo —";
-    const name = allowedSalons.find((s) => s.id === activeSalonId)?.name?.trim();
-    return name ? `Scaramuzzo - ${name}` : "Scaramuzzo —";
+  const salonDisplayName = useMemo(() => {
+    if (!isReady) return null;
+    if (activeSalonId == null) return null;
+    return allowedSalons.find((s) => s.id === activeSalonId)?.name?.trim() || null;
   }, [isReady, activeSalonId, allowedSalons]);
+
   const isCliente = isReady && role === "cliente";
   const isCoordinator = isReady && role === "coordinator";
   const isReception = isReady && role === "reception";
@@ -125,105 +124,180 @@ export default function Sidebar() {
     <AnimatePresence>
       {sidebarOpen && (
         <motion.aside
-          initial={{ x: -260 }}
-          animate={{ x: 0 }}
-          exit={{ x: -260 }}
-          transition={{ type: "spring", stiffness: 240, damping: 22 }}
-          className="fixed left-0 top-0 h-full w-72 z-50
-          bg-scz-dark border-r border-scz-medium/40 p-6 flex flex-col shadow-xl"
+          initial={{ x: -280, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: -280, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 320, damping: 34 }}
+          className="fixed left-2 right-2 sm:left-3 sm:right-auto top-3 bottom-3 z-50 w-auto sm:w-[17.25rem] flex flex-col pointer-events-none"
         >
-          {/* Close (mobile) */}
-          <button
-            onClick={closeSidebar}
-            className="absolute right-4 top-4 p-2 rounded-xl bg-black/25 border border-white/10 hover:bg-black/35"
-            aria-label="Chiudi menu"
-            title="Chiudi"
+          <div
+            className="pointer-events-auto flex flex-col h-full rounded-[1.35rem] sidebar-glass
+            border border-white/[0.08] shadow-sidebar-float overflow-hidden"
           >
-            <X size={18} className="text-white/80" />
-          </button>
-
-          {/* Brand */}
-          <div className="flex items-center gap-3 mb-8 mt-2">
-            <Image
-              src="/logo-scaramuzzo.webp"
-              width={42}
-              height={42}
-              alt="Scaramuzzo"
-              className="rounded-2xl shadow-premium border border-white/10"
-              priority
+            {/* Bronze edge glow */}
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-scz-gold/35 to-transparent"
+              aria-hidden
             />
-            <div className="min-w-0">
-              <div
-                className="text-[10px] font-bold text-white/45 leading-snug truncate"
-                title={salonBrandLine}
+
+            <div className="relative flex flex-col h-full p-5">
+              {/* Close (mobile) */}
+              <button
+                onClick={closeSidebar}
+                className="lg:hidden absolute right-3.5 top-3.5 p-2 rounded-xl bg-black/30 border border-white/[0.08]
+                hover:bg-black/45 hover:border-white/15 transition-premium"
+                aria-label="Chiudi menu"
+                title="Chiudi"
               >
-                {salonBrandLine}
-              </div>
-              <h1 className="text-xl font-extrabold tracking-tight text-scz-gold leading-none">
-                Manager
-              </h1>
-            </div>
-          </div>
+                <X size={17} className="text-white/75" strokeWidth={2} />
+              </button>
 
-          {/* Menu */}
-          <nav className="flex-1 flex flex-col gap-6">
-            {visibleSections.map((section) => (
-              <div key={section.title}>
-                <div className="text-[10px] font-black tracking-[0.25em] uppercase text-white/30 mb-2">
-                  {section.title}
+              {/* Brand */}
+              <div className="flex items-center gap-3.5 mb-6 mt-0.5 pr-8 lg:pr-0">
+                <div className="relative shrink-0">
+                  <div
+                    className="absolute -inset-1 rounded-[1.1rem] bg-scz-gold/15 blur-md opacity-70"
+                    aria-hidden
+                  />
+                  <Image
+                    src="/logo-scaramuzzo.webp"
+                    width={44}
+                    height={44}
+                    alt="Scaramuzzo"
+                    className="relative rounded-[1.1rem] shadow-premium border border-white/12"
+                    priority
+                  />
                 </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-[1.35rem] font-extrabold tracking-tight text-scz-gold leading-none">
+                    Manager
+                  </h1>
+                  <p className="text-[10px] font-semibold text-white/40 mt-1 tracking-wide">
+                    Scaramuzzo Studio
+                  </p>
+                </div>
+              </div>
 
-                <div className="flex flex-col gap-1">
-                  {section.items.map((item) => {
-                    const active = isActivePath(pathname, item.href);
-                    const Icon = item.icon;
+              {/* Salon badge */}
+              <div className="mb-7">
+                {salonDisplayName ? (
+                  <div
+                    className="inline-flex max-w-full items-center gap-2 rounded-full border border-scz-gold/25
+                    bg-gradient-to-r from-scz-gold/[0.12] to-scz-gold/[0.04] px-3 py-1.5 shadow-bronze-glow"
+                    title={salonDisplayName}
+                  >
+                    <span
+                      className="shrink-0 w-1.5 h-1.5 rounded-full bg-scz-gold shadow-[0_0_8px_rgba(197,165,114,0.55)]"
+                      aria-hidden
+                    />
+                    <span className="truncate text-[11px] font-bold text-[#f3d8b6]/95 tracking-wide">
+                      {salonDisplayName}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/25 px-3 py-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white/25 animate-pulse" aria-hidden />
+                    <span className="text-[11px] font-semibold text-white/40">
+                      {!isReady ? "Caricamento salone…" : "Nessun salone attivo"}
+                    </span>
+                  </div>
+                )}
+              </div>
 
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        onClick={handleNavClick}
-                        className={[
-                          "group relative flex items-center justify-between gap-3 px-3 py-2.5 rounded-2xl transition",
-                          active
-                            ? "bg-scz-medium/55 text-white border border-white/10"
-                            : "text-scz-gold/85 hover:bg-scz-medium/30 border border-transparent hover:border-white/10",
-                        ].join(" ")}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Icon
-                            size={18}
+              {/* Menu */}
+              <nav className="flex-1 flex flex-col gap-7 overflow-y-auto overflow-x-hidden pr-0.5 -mr-0.5">
+                {visibleSections.map((section, sectionIdx) => (
+                  <div key={section.title}>
+                    {sectionIdx > 0 ? (
+                      <div
+                        className="mb-5 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent"
+                        aria-hidden
+                      />
+                    ) : null}
+                    <div className="text-[9px] font-bold tracking-[0.22em] uppercase text-white/28 mb-2.5 pl-1">
+                      {section.title}
+                    </div>
+
+                    <div className="flex flex-col gap-0.5">
+                      {section.items.map((item) => {
+                        const active = isActivePath(pathname, item.href);
+                        const Icon = item.icon;
+
+                        return (
+                          <Link
+                            key={item.name}
+                            href={item.href}
+                            onClick={handleNavClick}
                             className={[
-                              "shrink-0",
-                              active
-                                ? "text-[#f3d8b6]"
-                                : "text-[#f3d8b6]/70 group-hover:text-[#f3d8b6]",
+                              "group relative flex items-center justify-between gap-3 px-2.5 py-2 rounded-xl transition-premium",
+                              active ? "text-white" : "text-white/55 hover:text-white/85",
                             ].join(" ")}
-                          />
-                          <span className="truncate text-sm font-bold">{item.name}</span>
-                        </div>
+                          >
+                            {active ? (
+                              <motion.span
+                                layoutId="sidebarActivePill"
+                                className="absolute inset-0 rounded-xl bg-white/[0.07] border border-white/[0.1]
+                                shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_8px_24px_-8px_rgba(0,0,0,0.5)]"
+                                transition={{
+                                  type: "spring",
+                                  stiffness: 420,
+                                  damping: 36,
+                                }}
+                              />
+                            ) : null}
 
-                        {item.badge ? (
-                          <span className="shrink-0 text-[10px] font-black tracking-wider px-2 py-1 rounded-xl bg-black/25 border border-white/10 text-white/70">
-                            {item.badge}
-                          </span>
-                        ) : null}
+                            <div className="relative z-10 flex items-center gap-3 min-w-0">
+                              <span
+                                className={[
+                                  "flex items-center justify-center w-8 h-8 rounded-lg shrink-0 transition-premium",
+                                  active
+                                    ? "bg-scz-gold/15 text-[#f3d8b6]"
+                                    : "bg-transparent text-[#f3d8b6]/55 group-hover:bg-white/[0.04] group-hover:text-[#f3d8b6]/85",
+                                ].join(" ")}
+                              >
+                                <Icon size={17} strokeWidth={active ? 2.25 : 1.85} />
+                              </span>
+                              <span
+                                className={[
+                                  "truncate text-[13px] transition-premium",
+                                  active ? "font-bold" : "font-semibold group-hover:font-bold",
+                                ].join(" ")}
+                              >
+                                {item.name}
+                              </span>
+                            </div>
 
-                        {/* Active glow */}
-                        {active ? (
-                          <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-[#f3d8b6]/20 shadow-[0_10px_30px_rgba(243,216,182,0.08)]" />
-                        ) : null}
-                      </Link>
-                    );
-                  })}
+                            {item.badge ? (
+                              <span
+                                className="relative z-10 shrink-0 text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-md
+                                bg-black/30 border border-white/[0.08] text-white/60"
+                              >
+                                {item.badge}
+                              </span>
+                            ) : null}
+
+                            {active ? (
+                              <span
+                                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-1 h-4 rounded-full
+                                bg-gradient-to-b from-scz-gold/80 to-scz-gold/30 shadow-[0_0_10px_rgba(197,165,114,0.35)]"
+                                aria-hidden
+                              />
+                            ) : null}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+
+              {/* Footer */}
+              <div className="pt-5 mt-2 border-t border-white/[0.06]">
+                <div className="text-[10px] text-white/30 font-medium tracking-wide">
+                  © Scaramuzzo Studio SRL
                 </div>
               </div>
-            ))}
-          </nav>
-
-          {/* Footer mini */}
-          <div className="pt-4 border-t border-white/5">
-            <div className="text-[10px] text-white/35 font-bold">© Scaramuzzo Studio SRL</div>
+            </div>
           </div>
         </motion.aside>
       )}
