@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -45,12 +46,29 @@ export function ConfirmActionDialog({
   loading = false,
   onConfirm,
 }: ConfirmActionDialogProps) {
-  function handleConfirm() {
-    void Promise.resolve(onConfirm());
+  const [confirming, setConfirming] = useState(false);
+  const busy = loading || confirming;
+
+  async function handleConfirm() {
+    if (busy) return;
+    setConfirming(true);
+    try {
+      await onConfirm();
+      onOpenChange(false);
+    } catch {
+      // Resta aperto: l'handler mostra toast/errore inline
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  function handleOpenChange(next: boolean) {
+    if (!next && busy) return;
+    onOpenChange(next);
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent
         size="default"
         className={cn(
@@ -68,21 +86,21 @@ export function ConfirmActionDialog({
         </AlertDialogHeader>
         <AlertDialogFooter className="border-t border-white/10 bg-black/20 sm:justify-end gap-2">
           <AlertDialogCancel
-            disabled={loading}
+            disabled={busy}
             className="rounded-xl border border-white/10 bg-black/30 text-white/90 hover:bg-black/40"
           >
             {cancelLabel}
           </AlertDialogCancel>
           <button
             type="button"
-            disabled={loading}
+            disabled={busy}
             onClick={() => void handleConfirm()}
             className={cn(
               "inline-flex h-8 items-center justify-center rounded-lg px-4 text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed",
               confirmButtonClass[variant],
             )}
           >
-            {loading ? "Attendere…" : confirmLabel}
+            {busy ? "Attendere…" : confirmLabel}
           </button>
         </AlertDialogFooter>
       </AlertDialogContent>

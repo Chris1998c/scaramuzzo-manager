@@ -13,7 +13,7 @@ interface ConfirmDialogProps {
   loading?: boolean;
 }
 
-/** @deprecated Prefer ConfirmActionDialog with open/onOpenChange — wrapper per compatibilità. */
+/** Wrapper compatibile (isOpen/onClose) su ConfirmActionDialog Radix. */
 export function ConfirmDialog({
   isOpen,
   onClose,
@@ -35,10 +35,7 @@ export function ConfirmDialog({
       confirmLabel={confirmLabel}
       variant={variant}
       loading={loading}
-      onConfirm={async () => {
-        await onConfirm();
-        onClose();
-      }}
+      onConfirm={onConfirm}
     />
   );
 }

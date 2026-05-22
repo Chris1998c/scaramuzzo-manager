@@ -281,7 +281,7 @@ export default function EditAppointmentModal({
   }
 
   async function performDeleteAppointment() {
-    if (!appointment?.id) return;
+    if (!appointment?.id || saving) return;
 
     setSaving(true);
     setErr("");
@@ -295,11 +295,16 @@ export default function EditAppointmentModal({
         throw new Error(json.error || json.details || "Errore eliminazione");
       }
 
+      setShowDeleteConfirm(false);
+      toast.success("Appuntamento eliminato.");
       onUpdated?.();
       close();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      setErr(e?.message || "Errore eliminazione");
+      const msg = e instanceof Error ? e.message : "Errore eliminazione";
+      toast.error(msg);
+      setErr(msg);
+      throw e;
     } finally {
       setSaving(false);
     }
@@ -327,13 +332,16 @@ export default function EditAppointmentModal({
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(json.error || "Errore aggiornamento stato");
+      setLifecycleConfirm(null);
       onUpdated?.();
       close();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Errore aggiornamento stato");
+      const msg = e instanceof Error ? e.message : "Errore aggiornamento stato";
+      toast.error(msg);
+      setErr(msg);
+      throw e;
     } finally {
       setSaving(false);
-      setLifecycleConfirm(null);
     }
   }
 
@@ -723,18 +731,24 @@ export default function EditAppointmentModal({
 
       <ConfirmDialog
         isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
+        onClose={() => {
+          if (!saving) setShowDeleteConfirm(false);
+        }}
         onConfirm={performDeleteAppointment}
         title="Elimina appuntamento"
         description="Vuoi eliminare questo appuntamento? L'operazione non può essere annullata."
         confirmLabel="Elimina"
         variant="danger"
+        loading={saving}
       />
 
       <ConfirmDialog
         isOpen={lifecycleConfirm === "cancelled"}
-        onClose={() => setLifecycleConfirm(null)}
-        onConfirm={() => void applyLifecycleStatus("cancelled")}
+        onClose={() => {
+          if (!saving) setLifecycleConfirm(null);
+        }}
+        onConfirm={() => applyLifecycleStatus("cancelled")}
+        loading={saving}
         title="Segna come annullato"
         description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
         confirmLabel="Segna come annullato"
@@ -742,8 +756,11 @@ export default function EditAppointmentModal({
       />
       <ConfirmDialog
         isOpen={lifecycleConfirm === "no_show"}
-        onClose={() => setLifecycleConfirm(null)}
-        onConfirm={() => void applyLifecycleStatus("no_show")}
+        onClose={() => {
+          if (!saving) setLifecycleConfirm(null);
+        }}
+        onConfirm={() => applyLifecycleStatus("no_show")}
+        loading={saving}
         title="Segna come no-show"
         description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
         confirmLabel="Segna come no-show"
