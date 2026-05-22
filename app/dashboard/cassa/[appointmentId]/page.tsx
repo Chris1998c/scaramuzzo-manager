@@ -287,6 +287,11 @@ setProducts(cashProducts);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Errore salvataggio");
       await refreshCassaStatus(salonId);
+      toast.success(
+        next
+          ? "Stampante fiscale attiva per questa sessione."
+          : "Stampante fiscale disattivata: le vendite si salveranno senza stampa.",
+      );
     } catch (e: any) {
       setPrinterEnabled(!next);
       toast.error(e?.message || "Errore");
@@ -691,6 +696,38 @@ setProducts(cashProducts);
               <p className="mt-2 text-xs font-medium text-red-400/90">{cassa.error}</p>
             )}
           </div>
+          {cassa?.is_open && (
+            <div className="w-full sm:w-auto rounded-xl border border-white/10 bg-black/25 px-4 py-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-[10px] font-black uppercase tracking-wider text-white/40">
+                  Stampante fiscale
+                </div>
+                <span
+                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    printerEnabled
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      : "bg-amber-500/15 text-amber-200 border border-amber-500/30"
+                  }`}
+                >
+                  {printerEnabled ? "ON" : "OFF"}
+                </span>
+              </div>
+              <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-white/90">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-white/20 bg-black/40"
+                  checked={printerEnabled}
+                  onChange={(e) => void setPrinterEnabledPersist(e.target.checked)}
+                />
+                <span>Stampante fiscale attiva in questa sessione</span>
+              </label>
+              <p className="text-[11px] text-white/50 leading-snug">
+                {printerEnabled
+                  ? "Alla chiusura scontrino: vendita salvata e stampa fiscale accodata (Print Bridge + job esistente)."
+                  : "Alla chiusura scontrino: vendita salvata senza stampa fiscale."}
+              </p>
+            </div>
+          )}
           {!cassa?.is_open && (
             <div className="flex flex-wrap items-center gap-3 shrink-0">
               <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
@@ -1054,10 +1091,10 @@ setProducts(cashProducts);
                 />
                 <span>Stampante fiscale attiva</span>
               </label>
-              <span className="text-[10px] text-white/45 max-w-[220px]">
+              <span className="text-[10px] text-white/45 max-w-[280px]">
                 {printerEnabled
-                  ? "Serve Print Bridge raggiungibile dal server."
-                  : "Registrazione vendita senza stampa (fiscale in attesa)."}
+                  ? "Vendita con stampa fiscale (flusso esistente)."
+                  : "Vendita salvata senza stampa fiscale."}
               </span>
             </div>
           )}

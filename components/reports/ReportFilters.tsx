@@ -2,6 +2,7 @@
 
 import { useEffect, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 
 type StaffOption = { id: number; name: string };
 
@@ -88,7 +89,7 @@ export default function ReportFilters({
         } catch {
           // noop
         }
-        window.alert(msg);
+        toast.error(msg);
         return;
       }
 
@@ -101,8 +102,9 @@ export default function ReportFilters({
       a.click();
       a.remove();
       URL.revokeObjectURL(href);
+      toast.success(`Export ${kind.toUpperCase()} scaricato.`);
     } catch {
-      window.alert(`Errore di rete durante export ${kind.toUpperCase()}`);
+      toast.error(`Errore di rete durante export ${kind.toUpperCase()}`);
     }
   }
 

@@ -8,6 +8,8 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { toast } from "sonner";
 import WalkInModal from "@/components/in-sala/WalkInModal";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
+import { LogOut } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/ui/ConfirmActionDialog";
 type CashStatus = {
   ok: boolean;
   role?: "reception" | "coordinator" | "magazzino" | string;
@@ -63,6 +65,8 @@ export default function InSalaPage() {
   const [closeCashValue, setCloseCashValue] = useState<number>(0);
   const [closeCashNotes, setCloseCashNotes] = useState<string>("");
   const [walkInOpen, setWalkInOpen] = useState(false);
+  const [removingId, setRemovingId] = useState<number | null>(null);
+  const [togliDaSalaTargetId, setTogliDaSalaTargetId] = useState<number | null>(null);
 
   function fmtEur(n: unknown) {
     const x = typeof n === "number" ? n : Number(n);
@@ -87,7 +91,7 @@ export default function InSalaPage() {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "id, customer_id, start_time, end_time, status, source, notes, customers(id, first_name, last_name), staff(id, name)",
+        "id, customer_id, start_time, end_time, status, source, notes, sale_id, customers(id, first_name, last_name), staff(id, name)",
       )
       .eq("salon_id", Number(activeSalonId))
       .eq("status", "in_sala")
@@ -248,6 +252,44 @@ export default function InSalaPage() {
 
   async function refreshAll(options?: { silent?: boolean }) {
     await Promise.all([loadAppointments(options), loadCashStatus(options)]);
+  }
+
+  function requestTogliDaSala(appointmentId: number) {
+    const row = rows.find((r) => Number(r?.id) === appointmentId);
+    const saleId = Number(row?.sale_id);
+    if (Number.isFinite(saleId) && saleId > 0) {
+      toast.error("Appuntamento già chiuso/venduto: non è possibile togliere dalla sala.");
+      return;
+    }
+    if (String(row?.status || "") !== "in_sala") {
+      toast.error("L'appuntamento non è in sala.");
+      return;
+    }
+    setTogliDaSalaTargetId(appointmentId);
+  }
+
+  async function confirmTogliDaSala() {
+    const appointmentId = togliDaSalaTargetId;
+    if (appointmentId == null) return;
+
+    setRemovingId(appointmentId);
+    try {
+      const res = await fetch("/api/agenda/togli-da-sala", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointment_id: appointmentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Operazione non riuscita");
+      toast.success("Cliente rimosso dalla sala.");
+      setTogliDaSalaTargetId(null);
+      await loadAppointments({ silent: true });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Errore";
+      toast.error(msg);
+    } finally {
+      setRemovingId(null);
+    }
   }
 
   function handleWalkInCreated(appointmentId: number) {
@@ -570,6 +612,23 @@ export default function InSalaPage() {
                     <div className="flex flex-wrap gap-2 shrink-0">
                       <button
                         type="button"
+                        onClick={() => requestTogliDaSala(Number(a.id))}
+                        disabled={
+                          removingId === Number(a.id) ||
+                          (Number.isFinite(Number(a?.sale_id)) && Number(a.sale_id) > 0)
+                        }
+                        title={
+                          Number.isFinite(Number(a?.sale_id)) && Number(a.sale_id) > 0
+                            ? "Appuntamento già chiuso/venduto"
+                            : "Riporta l'appuntamento a prenotato"
+                        }
+                        className="h-11 px-4 rounded-xl border border-amber-500/35 bg-amber-500/10 text-amber-100 font-bold uppercase tracking-[0.1em] text-[10px] hover:bg-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+                      >
+                        <LogOut size={14} aria-hidden />
+                        {removingId === Number(a.id) ? "Rimozione..." : "Togli dalla sala"}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => router.push(`/dashboard/cassa/${a.id}`)}
                         className="h-11 px-5 rounded-xl bg-[#f3d8b6] text-black font-black uppercase tracking-[0.15em] text-[10px] hover:opacity-95 active:scale-[0.98] transition-all border border-[#f3d8b6]"
                       >
@@ -709,6 +768,21 @@ export default function InSalaPage() {
         isOpen={walkInOpen}
         close={() => setWalkInOpen(false)}
         onCreated={handleWalkInCreated}
+      />
+
+      <ConfirmActionDialog
+        open={togliDaSalaTargetId != null}
+        onOpenChange={(open) => {
+          if (!open && removingId == null) setTogliDaSalaTargetId(null);
+        }}
+        title="Togli dalla sala"
+        description={
+          "Il cliente uscirà dalla lista «In sala» e l'appuntamento tornerà a «prenotato».\n\nNessuna vendita verrà modificata."
+        }
+        confirmLabel="Togli dalla sala"
+        variant="warning"
+        loading={removingId != null}
+        onConfirm={confirmTogliDaSala}
       />
     </div>
   );

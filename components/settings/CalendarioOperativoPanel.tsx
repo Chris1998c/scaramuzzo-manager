@@ -29,6 +29,8 @@ import {
   type OperationalCalendarCard,
   type OperationalExceptionFormKind,
 } from "@/lib/operationalCalendarSettings";
+import { ConfirmActionDialog } from "@/components/ui/ConfirmActionDialog";
+import { toast } from "sonner";
 
 type SalonOption = { id: number; name: string };
 
@@ -77,6 +79,8 @@ export default function CalendarioOperativoPanel({
   const [notes, setNotes] = useState("");
   const [editSalonId, setEditSalonId] = useState<number | null>(null);
   const [editStaffId, setEditStaffId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<OperationalCalendarCard | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setPickedSalonId(headerSalonId);
@@ -162,28 +166,37 @@ export default function CalendarioOperativoPanel({
     }
   }
 
-  async function handleDelete(card: OperationalCalendarCard) {
-    if (!canManage || effectiveSalonId == null) return;
-    if (!window.confirm("Eliminare questa eccezione?")) return;
+  async function confirmDeleteException() {
+    const card = deleteTarget;
+    if (!card || !canManage || effectiveSalonId == null) return;
+
+    setDeleting(true);
     setError(null);
     setOkMsg(null);
-    const res =
-      card.kind === "salon"
-        ? await deleteSalonOperationalDayAction(card.id, effectiveSalonId)
-        : await deleteStaffScheduleOverrideAction(card.id, effectiveSalonId);
-    if (!res.ok) {
-      setError(res.error);
-      return;
+    try {
+      const res =
+        card.kind === "salon"
+          ? await deleteSalonOperationalDayAction(card.id, effectiveSalonId)
+          : await deleteStaffScheduleOverrideAction(card.id, effectiveSalonId);
+      if (!res.ok) {
+        setError(res.error);
+        toast.error(res.error ?? "Eliminazione non riuscita");
+        return;
+      }
+      setOkMsg("Eccezione eliminata.");
+      toast.success("Eccezione eliminata.");
+      setDeleteTarget(null);
+      if (
+        (card.kind === "salon" && editSalonId === card.id) ||
+        (card.kind === "staff" && editStaffId === card.id)
+      ) {
+        setFormOpen(false);
+        resetForm();
+      }
+      void loadMonth();
+    } finally {
+      setDeleting(false);
     }
-    setOkMsg("Eccezione eliminata.");
-    if (
-      (card.kind === "salon" && editSalonId === card.id) ||
-      (card.kind === "staff" && editStaffId === card.id)
-    ) {
-      setFormOpen(false);
-      resetForm();
-    }
-    void loadMonth();
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -539,7 +552,7 @@ export default function CalendarioOperativoPanel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleDelete(card)}
+                      onClick={() => setDeleteTarget(card)}
                       className="inline-flex items-center gap-1 rounded-xl border border-red-500/30 bg-red-950/20 px-3 py-1.5 text-xs font-bold text-red-200/90 hover:bg-red-950/40"
                     >
                       <Trash2 size={14} />
@@ -552,6 +565,18 @@ export default function CalendarioOperativoPanel({
           })}
         </ul>
       )}
+      <ConfirmActionDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+        title="Elimina eccezione"
+        description="Vuoi eliminare questa eccezione dal calendario operativo? L'operazione non può essere annullata."
+        confirmLabel="Elimina"
+        variant="danger"
+        loading={deleting}
+        onConfirm={confirmDeleteException}
+      />
     </div>
   );
 }
