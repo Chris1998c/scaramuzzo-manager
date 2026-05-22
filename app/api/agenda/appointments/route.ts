@@ -20,9 +20,12 @@ import {
 } from "@/lib/agenda/assertStaffSchedule";
 import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import {
+  assertBatchInternalStaffSlotsFree,
   assertStaffSlotFree,
   computeLineEndTime,
-  isStaffSlotConflictError,
+  isStaffSlotConflictFromDbError,
+  isStaffSlotConflictOrDbError,
+  STAFF_SLOT_CONFLICT_MESSAGE,
 } from "@/lib/agenda/assertStaffSlotFree";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 
@@ -175,6 +178,31 @@ export async function POST(req: Request) {
         : undefined;
 
     let cursorMs = parseLocal(snappedStart).getTime();
+    const batchLines: Array<{
+      staffId: number | null;
+      startTime: string;
+      durationMinutes: number;
+    }> = [];
+    for (const line of normalizedLines) {
+      const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
+      batchLines.push({
+        staffId: line.staff_id,
+        startTime: lineStart,
+        durationMinutes: line.duration_minutes,
+      });
+      cursorMs += line.duration_minutes * 60_000;
+    }
+
+    try {
+      assertBatchInternalStaffSlotsFree(batchLines);
+    } catch (e) {
+      if (isStaffSlotConflictOrDbError(e)) {
+        return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
+      }
+      throw e;
+    }
+
+    cursorMs = parseLocal(snappedStart).getTime();
     for (const line of normalizedLines) {
       if (line.staff_id != null) {
         const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
@@ -234,7 +262,12 @@ export async function POST(req: Request) {
       };
 
       const { error: lineErr } = await supabaseAdmin.from("appointment_services").insert(row);
-      if (lineErr) throw new Error(lineErr.message);
+      if (lineErr) {
+        if (isStaffSlotConflictFromDbError(lineErr)) {
+          return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
+        }
+        throw new Error(lineErr.message);
+      }
 
       cursorMs += line.duration_minutes * 60_000;
     }
@@ -244,9 +277,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, appointment_id: appointmentId });
   } catch (e) {
-    if (isStaffScheduleConflictError(e) || isStaffSlotConflictError(e)) {
+    if (isStaffScheduleConflictError(e) || isStaffSlotConflictOrDbError(e)) {
       return NextResponse.json(
-        { error: (e as Error).message },
+        {
+          error: isStaffSlotConflictOrDbError(e)
+            ? STAFF_SLOT_CONFLICT_MESSAGE
+            : (e as Error).message,
+        },
         { status: 409 },
       );
     }

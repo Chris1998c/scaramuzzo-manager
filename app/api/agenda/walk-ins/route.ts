@@ -13,9 +13,12 @@ import {
 } from "@/lib/agenda/assertStaffSchedule";
 import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import {
+  assertBatchInternalStaffSlotsFree,
   assertStaffSlotFree,
   computeLineEndTime,
-  isStaffSlotConflictError,
+  isStaffSlotConflictFromDbError,
+  isStaffSlotConflictOrDbError,
+  STAFF_SLOT_CONFLICT_MESSAGE,
 } from "@/lib/agenda/assertStaffSlotFree";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 import {
@@ -131,6 +134,33 @@ export async function POST(req: Request) {
         : undefined;
 
     let cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
+    const batchLines: Array<{
+      staffId: number | null;
+      startTime: string;
+      durationMinutes: number;
+    }> = [];
+    for (const serviceId of serviceIds) {
+      const resolved = resolvedServices.data.get(serviceId);
+      if (!resolved) continue;
+      const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
+      batchLines.push({
+        staffId,
+        startTime: lineStart,
+        durationMinutes: resolved.duration_minutes,
+      });
+      cursorMs += resolved.duration_minutes * 60_000;
+    }
+
+    try {
+      assertBatchInternalStaffSlotsFree(batchLines);
+    } catch (e) {
+      if (isStaffSlotConflictOrDbError(e)) {
+        return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
+      }
+      throw e;
+    }
+
+    cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
     for (const serviceId of serviceIds) {
       const resolved = resolvedServices.data.get(serviceId);
       if (!resolved) continue;
@@ -199,7 +229,12 @@ export async function POST(req: Request) {
       };
 
       const { error: lineErr } = await supabaseAdmin.from("appointment_services").insert(lineRow);
-      if (lineErr) throw new Error(lineErr.message);
+      if (lineErr) {
+        if (isStaffSlotConflictFromDbError(lineErr)) {
+          return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
+        }
+        throw new Error(lineErr.message);
+      }
 
       cursorMs += resolved.duration_minutes * 60_000;
     }
@@ -209,9 +244,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, appointment_id: appointmentId });
   } catch (e) {
-    if (isStaffScheduleConflictError(e) || isStaffSlotConflictError(e)) {
+    if (isStaffScheduleConflictError(e) || isStaffSlotConflictOrDbError(e)) {
       return NextResponse.json(
-        { error: (e as Error).message },
+        {
+          error: isStaffSlotConflictOrDbError(e)
+            ? STAFF_SLOT_CONFLICT_MESSAGE
+            : (e as Error).message,
+        },
         { status: 409 },
       );
     }

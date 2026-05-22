@@ -34,16 +34,81 @@ function lineEndMs(startTime: string, durationMinutes: number): number {
 }
 
 /** [startA, endA) vs [startB, endB) */
-function intervalsOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+export function staffSlotIntervalsOverlap(
+  aStart: number,
+  aEnd: number,
+  bStart: number,
+  bEnd: number,
+): boolean {
   return aStart < bEnd && aEnd > bStart;
 }
 
-function isTerminalAppointmentStatus(status: string): boolean {
+export function isTerminalAppointmentStatus(status: string): boolean {
   return TERMINAL_APPOINTMENT_STATUSES.has(status.trim().toLowerCase());
+}
+
+function messageFromUnknown(e: unknown): string {
+  if (!e) return "";
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  if (typeof e === "object") {
+    const o = e as { message?: unknown; details?: unknown; hint?: unknown };
+    return [o.message, o.details, o.hint].filter(Boolean).map(String).join(" ");
+  }
+  return "";
 }
 
 export function isStaffSlotConflictError(e: unknown): boolean {
   return e instanceof Error && e.message === STAFF_SLOT_CONFLICT_MESSAGE;
+}
+
+/** Errore da trigger/Raise Postgres (PostgREST o Error con messaggio nel testo). */
+export function isStaffSlotConflictFromDbError(e: unknown): boolean {
+  if (isStaffSlotConflictError(e)) return true;
+  return messageFromUnknown(e).includes(STAFF_SLOT_CONFLICT_MESSAGE);
+}
+
+export function isStaffSlotConflictOrDbError(e: unknown): boolean {
+  return isStaffSlotConflictError(e) || isStaffSlotConflictFromDbError(e);
+}
+
+export type BatchStaffSlotLine = {
+  staffId: number | null;
+  startTime: string;
+  durationMinutes: number;
+};
+
+/**
+ * Overlap tra righe dello stesso payload (stesso staff) prima dell'insert batch.
+ * @throws Error con STAFF_SLOT_CONFLICT_MESSAGE
+ */
+export function assertBatchInternalStaffSlotsFree(lines: BatchStaffSlotLine[]): void {
+  const intervals: Array<{ staffId: number; startMs: number; endMs: number }> = [];
+
+  for (const line of lines) {
+    if (line.staffId == null || line.durationMinutes <= 0) continue;
+    const startMs = parseLocal(line.startTime).getTime();
+    if (!Number.isFinite(startMs)) continue;
+    const endMs = startMs + line.durationMinutes * 60_000;
+    if (endMs <= startMs) continue;
+    intervals.push({ staffId: line.staffId, startMs, endMs });
+  }
+
+  for (let i = 0; i < intervals.length; i++) {
+    for (let j = i + 1; j < intervals.length; j++) {
+      if (intervals[i].staffId !== intervals[j].staffId) continue;
+      if (
+        staffSlotIntervalsOverlap(
+          intervals[i].startMs,
+          intervals[i].endMs,
+          intervals[j].startMs,
+          intervals[j].endMs,
+        )
+      ) {
+        throw new Error(STAFF_SLOT_CONFLICT_MESSAGE);
+      }
+    }
+  }
 }
 
 /**
@@ -151,7 +216,7 @@ export async function assertStaffSlotFree(input: AssertStaffSlotFreeInput): Prom
     const existingStartMs = parseLocal(existingStart).getTime();
     const existingEndMs = lineEndMs(existingStart, duration);
 
-    if (intervalsOverlap(newStartMs, newEndMs, existingStartMs, existingEndMs)) {
+    if (staffSlotIntervalsOverlap(newStartMs, newEndMs, existingStartMs, existingEndMs)) {
       throw new Error(STAFF_SLOT_CONFLICT_MESSAGE);
     }
   }

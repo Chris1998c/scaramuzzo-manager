@@ -12,7 +12,9 @@ import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar
 import {
   assertStaffSlotFree,
   computeLineEndTime,
-  isStaffSlotConflictError,
+  isStaffSlotConflictFromDbError,
+  isStaffSlotConflictOrDbError,
+  STAFF_SLOT_CONFLICT_MESSAGE,
 } from "@/lib/agenda/assertStaffSlotFree";
 import { canModifyAppointmentHeader } from "@/lib/agenda/appointmentLifecycle";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
@@ -302,7 +304,12 @@ export async function PATCH(
             .from("appointment_services")
             .update(patch)
             .eq("id", (l as { id: number }).id);
-          if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
+          if (uErr) {
+            if (isStaffSlotConflictFromDbError(uErr)) {
+              return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
+            }
+            return NextResponse.json({ error: uErr.message }, { status: 500 });
+          }
         }
       }
 
@@ -335,9 +342,13 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (isStaffScheduleConflictError(e) || isStaffSlotConflictError(e)) {
+    if (isStaffScheduleConflictError(e) || isStaffSlotConflictOrDbError(e)) {
       return NextResponse.json(
-        { error: (e as Error).message },
+        {
+          error: isStaffSlotConflictOrDbError(e)
+            ? STAFF_SLOT_CONFLICT_MESSAGE
+            : (e as Error).message,
+        },
         { status: 409 },
       );
     }

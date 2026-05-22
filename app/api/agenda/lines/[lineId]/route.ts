@@ -20,7 +20,9 @@ import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar
 import {
   assertStaffSlotFree,
   computeLineEndTime,
-  isStaffSlotConflictError,
+  isStaffSlotConflictFromDbError,
+  isStaffSlotConflictOrDbError,
+  STAFF_SLOT_CONFLICT_MESSAGE,
 } from "@/lib/agenda/assertStaffSlotFree";
 import { canModifyAppointmentAgendaLine } from "@/lib/agenda/appointmentLifecycle";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
@@ -177,7 +179,12 @@ export async function PATCH(
       .update(clean)
       .eq("id", lineId)
       .select("id");
-    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+    if (updErr) {
+      if (isStaffSlotConflictFromDbError(updErr)) {
+        return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
+      }
+      return NextResponse.json({ error: updErr.message }, { status: 500 });
+    }
     if (!updatedRows?.length) {
       return NextResponse.json({ error: "Update non applicato" }, { status: 404 });
     }
@@ -189,9 +196,13 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (isStaffScheduleConflictError(e) || isStaffSlotConflictError(e)) {
+    if (isStaffScheduleConflictError(e) || isStaffSlotConflictOrDbError(e)) {
       return NextResponse.json(
-        { error: (e as Error).message },
+        {
+          error: isStaffSlotConflictOrDbError(e)
+            ? STAFF_SLOT_CONFLICT_MESSAGE
+            : (e as Error).message,
+        },
         { status: 409 },
       );
     }
