@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
@@ -17,6 +17,13 @@ import {
 } from "@/lib/staffSchedule";
 import OperationalDayBanner from "@/components/agenda/OperationalDayBanner";
 import { fetchAgendaServices } from "@/lib/servicesCatalog";
+import {
+  buildSequentialServiceTimeline,
+  filterServicesByQuery,
+  totalTimelineMinutes,
+} from "@/lib/agenda/appointmentModalForm";
+import { useOneShotModalSession } from "@/lib/agenda/appointmentModalSession";
+import CustomerSearchField from "@/components/customers/CustomerSearchField";
 import { SLOT_MINUTES } from "@/components/agenda/utils";
 import { Search, X } from "lucide-react";
 
@@ -30,10 +37,6 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const { activeSalonId } = useActiveSalon();
 
-  const [customers, setCustomers] = useState<
-    { id: string; full_name: string; phone: string | null }[]
-  >([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<typeof customers>([]);
   const [services, setServices] = useState<
     { id: number; name: string; duration: number | null }[]
   >([]);
@@ -47,7 +50,6 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
 
   const walkInDay = useMemo(() => isoDateFromLocalDate(nowRomeLocalDate()), [isOpen]);
 
-  const [qCustomer, setQCustomer] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [staffId, setStaffId] = useState("");
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
@@ -56,52 +58,25 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  useEffect(() => {
-    if (!isOpen || !activeSalonId) return;
+  const resetForm = useCallback(() => {
     setErr("");
     setSaving(false);
-    setQCustomer("");
     setCustomerId("");
     setStaffId("");
     setSelectedServiceIds([]);
     setQService("");
     setNotes("");
-    void Promise.all([loadCustomers(), loadServices(), loadStaff()]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, activeSalonId]);
+  }, []);
+
+  const sessionKey =
+    isOpen && activeSalonId ? `walkin-${activeSalonId}-${walkInDay}` : null;
+  useOneShotModalSession(isOpen && !!activeSalonId, sessionKey, resetForm);
 
   useEffect(() => {
-    const q = qCustomer.toLowerCase().trim();
-    if (!q) {
-      setFilteredCustomers(customers);
-      return;
-    }
-    setFilteredCustomers(
-      customers.filter((c) => {
-        const full = c.full_name.toLowerCase();
-        const phone = String(c.phone ?? "").toLowerCase();
-        return full.includes(q) || phone.includes(q);
-      }),
-    );
-  }, [qCustomer, customers]);
-
-  async function loadCustomers() {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, first_name, last_name, phone")
-      .order("last_name");
-    if (error) {
-      console.error(error);
-      return;
-    }
-    const list = (data ?? []).map((c) => ({
-      id: String(c.id),
-      full_name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim(),
-      phone: c.phone != null ? String(c.phone) : null,
-    }));
-    setCustomers(list);
-    setFilteredCustomers(list);
-  }
+    if (!isOpen || !activeSalonId) return;
+    void Promise.all([loadServices(), loadStaff()]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, activeSalonId, walkInDay]);
 
   async function loadServices() {
     if (!activeSalonId) {
@@ -167,17 +142,39 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
     [staffListAll, staffScheduleMap, walkInDay, operationalSnapshot, staffId],
   );
 
+  const filteredServices = useMemo(
+    () => filterServicesByQuery(services, qService),
+    [services, qService],
+  );
+
+  /** Walk-in: orario effettivo = now (server); preview durata allineata ad AgendaModal. */
+  const walkInStartTime = useMemo(() => {
+    const d = nowRomeLocalDate();
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  }, [isOpen]);
+
+  const serviceTimeline = useMemo(
+    () =>
+      buildSequentialServiceTimeline({
+        currentDate: walkInDay,
+        startTime: walkInStartTime,
+        serviceIds: selectedServiceIds,
+        services,
+        slotMinutes: SLOT_MINUTES,
+      }),
+    [walkInDay, walkInStartTime, selectedServiceIds, services],
+  );
+
+  const totalMinutes = useMemo(
+    () => totalTimelineMinutes(serviceTimeline),
+    [serviceTimeline],
+  );
+
   function toggleService(id: number) {
     setSelectedServiceIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   }
-
-  const filteredServices = useMemo(() => {
-    const q = qService.toLowerCase().trim();
-    if (!q) return services;
-    return services.filter((s) => s.name.toLowerCase().includes(q));
-  }, [services, qService]);
 
   async function submit() {
     if (saving || !activeSalonId || salonClosed) return;
@@ -250,29 +247,17 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
             <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
               Cliente
             </label>
-            <div className="relative mt-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-              <input
-                value={qCustomer}
-                onChange={(e) => setQCustomer(e.target.value)}
+            <div className="mt-1">
+              <CustomerSearchField
+                supabase={supabase}
+                enabled={isOpen && !!activeSalonId}
+                preloadSalonId={activeSalonId}
+                selectedCustomerId={customerId}
+                onSelectCustomerId={setCustomerId}
+                disabled={saving}
                 placeholder="Cerca nome o telefono..."
-                className="w-full rounded-xl border border-white/10 bg-black/40 py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-[#f3d8b6]/40"
+                dropdownZIndexClass="z-[60]"
               />
-            </div>
-            <div className="mt-2 max-h-36 overflow-y-auto rounded-xl border border-white/10 bg-black/30 divide-y divide-white/5">
-              {filteredCustomers.slice(0, 50).map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCustomerId(c.id)}
-                  className={`w-full px-3 py-2 text-left text-sm flex justify-between gap-2 hover:bg-white/5 ${
-                    customerId === c.id ? "bg-[#f3d8b6]/15 text-[#f3d8b6]" : "text-white/80"
-                  }`}
-                >
-                  <span>{c.full_name}</span>
-                  {c.phone ? <span className="text-white/40 shrink-0">{c.phone}</span> : null}
-                </button>
-              ))}
             </div>
           </section>
 
@@ -306,9 +291,16 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
           </section>
 
           <section>
-            <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
-              Servizi
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
+                Servizi
+              </label>
+              {selectedServiceIds.length > 0 && (
+                <span className="text-[10px] font-mono text-white/45 tabular-nums">
+                  {totalMinutes} min
+                </span>
+              )}
+            </div>
             <div className="relative mt-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
               <input

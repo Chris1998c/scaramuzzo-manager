@@ -47,6 +47,42 @@ export function isStaffSlotConflictError(e: unknown): boolean {
 }
 
 /**
+ * Finestra query su appointment_services.start_time:
+ * giorno/i dello slot + giorno precedente (righe notturne che sforano).
+ */
+export function computeOverlapQueryWindow(
+  startTime: string,
+  endTime: string,
+): { windowStart: string; windowEnd: string } {
+  const start = parseLocal(startTime);
+  const end = parseLocal(endTime);
+
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+
+  const windowStartDay = new Date(startDay);
+  windowStartDay.setDate(windowStartDay.getDate() - 1);
+
+  const windowEndDay = new Date(endDay);
+  windowEndDay.setHours(23, 59, 59, 999);
+
+  return {
+    windowStart: toNoZ(
+      new Date(
+        windowStartDay.getFullYear(),
+        windowStartDay.getMonth(),
+        windowStartDay.getDate(),
+        0,
+        0,
+        0,
+        0,
+      ),
+    ),
+    windowEnd: toNoZ(windowEndDay),
+  };
+}
+
+/**
  * Verifica su DB che lo staff non abbia righe agenda sovrapposte nello stesso salone.
  * @throws Error con STAFF_SLOT_CONFLICT_MESSAGE se c'è overlap
  */
@@ -67,6 +103,8 @@ export async function assertStaffSlotFree(input: AssertStaffSlotFreeInput): Prom
     throw new Error("Intervallo orario non valido");
   }
 
+  const { windowStart, windowEnd } = computeOverlapQueryWindow(startTime, endTime);
+
   const { data: rows, error } = await supabase
     .from("appointment_services")
     .select(
@@ -83,7 +121,9 @@ export async function assertStaffSlotFree(input: AssertStaffSlotFreeInput): Prom
     `,
     )
     .eq("staff_id", staffId)
-    .eq("appointments.salon_id", salonId);
+    .eq("appointments.salon_id", salonId)
+    .gte("start_time", windowStart)
+    .lte("start_time", windowEnd);
 
   if (error) {
     throw new Error(error.message);

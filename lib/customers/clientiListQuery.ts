@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { customerMatchesSearch } from "@/lib/customers/customerSearch";
 
 export type ClientiListRow = {
   id: string;
@@ -125,5 +126,8 @@ export async function searchCustomersForClienti(
     addRows(d2 as Record<string, unknown>[] | null);
   }
 
-  return { data: sortByLastName([...merged.values()]).slice(0, limit), error: null };
+  const matched = [...merged.values()].filter((row) =>
+    customerMatchesSearch(row, rawQuery),
+  );
+  return { data: sortByLastName(matched).slice(0, limit), error: null };
 }

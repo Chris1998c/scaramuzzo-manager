@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
+import { filterCustomersBySearch } from "@/lib/customers/customerSearch";
 
 const PAGE_SIZE = 1000;
 const MS_DAY = 86_400_000;
@@ -668,14 +669,10 @@ export default function MarketingWhatsAppClient({
     [customers, filterPreset],
   );
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return afterFilter;
-    return afterFilter.filter((c) => {
-      const blob = `${c.first_name} ${c.last_name} ${c.phone}`.toLowerCase();
-      return blob.includes(q);
-    });
-  }, [afterFilter, search]);
+  const filtered = useMemo(
+    () => filterCustomersBySearch(afterFilter, search),
+    [afterFilter, search],
+  );
 
   const sortedRows = useMemo(
     () => sortCustomers(filtered, sortMode),

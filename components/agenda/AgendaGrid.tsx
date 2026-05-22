@@ -3,16 +3,11 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
-import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import {
-  fetchStaffScheduleForSalon,
   isoDayOfWeekFromISODateLocal,
   isStaffVisibleOnAgendaDayForSalon,
-  type StaffScheduleBySalon,
 } from "@/lib/staffSchedule";
 import {
-  fetchOperationalCalendarRange,
-  fetchOperationalCalendarSnapshot,
   isSalonClosedOnDate,
   isSalonExtraOpenOnDate,
   type SalonOperationalDay,
@@ -23,14 +18,11 @@ import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import AgendaModal from "./AgendaModal";
 import EditAppointmentModal from "./EditAppointmentModal";
-import ServiceBox from "./ServiceBox";
+import { MemoServiceBox } from "./ServiceBox";
 import CalendarModal from "./CalendarModal";
-import {
-  AGENDA_LIST_SELECT,
-  normalizeAgendaRows,
-  type AgendaAppointment,
-  type AgendaServiceLine,
-} from "@/lib/agenda/agendaContract";
+import type { AgendaAppointment, AgendaServiceLine } from "@/lib/agenda/agendaContract";
+import { buildAgendaLanes } from "@/lib/agenda/agendaGridLanes";
+import { useAgendaData } from "./useAgendaData";
 
 import {
   agendaGridDayStartLabel,
@@ -250,24 +242,27 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
 
   // Stati
   const [view, setView] = useState<ViewMode>("day");
-  const [staff, setStaff] = useState<any[]>([]);
-  const [appointments, setAppointments] = useState<AgendaAppointment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  /** Per salone attivo: staff_id → giorni ISO (1–7) con orario; assente → tutti i giorni (legacy). */
-  const [staffScheduleByStaffId, setStaffScheduleByStaffId] = useState<StaffScheduleBySalon>(
-    () => new Map(),
-  );
-  const [opSalonDay, setOpSalonDay] = useState<SalonOperationalDay | null>(null);
-  const [opStaffOverrides, setOpStaffOverrides] = useState<Map<string, StaffDateOverride>>(
-    () => new Map(),
-  );
-  const [opSalonDaysByDate, setOpSalonDaysByDate] = useState<Map<string, SalonOperationalDay>>(
-    () => new Map(),
-  );
-  const [opStaffOverridesByDate, setOpStaffOverridesByDate] = useState<
-    Map<string, Map<string, StaffDateOverride>>
-  >(() => new Map());
+
+  const {
+    staff,
+    appointments,
+    loading,
+    staffScheduleByStaffId,
+    opSalonDay,
+    opStaffOverrides,
+    opSalonDaysByDate,
+    opStaffOverridesByDate,
+    weekDays,
+    loadAppointments,
+    loadOperationalCalendar,
+  } = useAgendaData({
+    supabase,
+    activeSalonId,
+    isReady,
+    currentDate,
+    view,
+  });
 
   // Modali
   const [selectedSlot, setSelectedSlot] = useState<{
@@ -313,10 +308,23 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
     const start = agendaGridDayStartLabel(activeSalonId ?? 0);
     return generateHours(start, "20:30", SLOT_MINUTES);
   }, [activeSalonId]);
-  const weekDays = useMemo(
-    () => generateWeekDaysFromDate(currentDate),
-    [currentDate]
-  );
+
+  const refreshAppointmentsSilent = useCallback(() => {
+    if (activeSalonId == null) return;
+    void loadAppointments(activeSalonId, { silent: true });
+  }, [activeSalonId, loadAppointments]);
+
+  const openEditAppointment = useCallback((app: AgendaAppointment) => {
+    setEditingAppointment(app);
+  }, []);
+
+  const handleAgendaDragColumnChange = useCallback((col: number | null) => {
+    setAgendaDragCol(col);
+  }, []);
+
+  const handleAgendaDragSlotChange = useCallback((slot: number | null) => {
+    setAgendaDragSlot(slot);
+  }, []);
 
   useEffect(() => {
     if (view !== "day" || currentDate !== isoDate(new Date())) return;
@@ -525,125 +533,6 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
     };
   }, [view, shouldScrollX, dayGridStaff.length, layoutTick]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (activeSalonId == null) return;
-      const m = await fetchStaffScheduleForSalon(supabase, activeSalonId);
-      if (!cancelled) setStaffScheduleByStaffId(m);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeSalonId, supabase]);
-
-  const loadOperationalCalendar = useCallback(async () => {
-    if (activeSalonId == null || !currentDate) {
-      setOpSalonDay(null);
-      setOpStaffOverrides(new Map());
-      setOpSalonDaysByDate(new Map());
-      setOpStaffOverridesByDate(new Map());
-      return;
-    }
-
-    if (view === "day") {
-      const snap = await fetchOperationalCalendarSnapshot(
-        supabase,
-        activeSalonId,
-        currentDate,
-      );
-      setOpSalonDay(snap.salonDay);
-      setOpStaffOverrides(snap.staffOverrides);
-      setOpSalonDaysByDate(new Map());
-      setOpStaffOverridesByDate(new Map());
-      return;
-    }
-
-    const from = weekDays[0]?.date;
-    const to = weekDays[6]?.date;
-    if (!from || !to) return;
-    const range = await fetchOperationalCalendarRange(supabase, activeSalonId, from, to);
-    setOpSalonDay(null);
-    setOpStaffOverrides(new Map());
-    setOpSalonDaysByDate(range.salonDaysByDate);
-    setOpStaffOverridesByDate(range.staffOverridesByDate);
-  }, [activeSalonId, currentDate, view, weekDays, supabase]);
-
-  useEffect(() => {
-    void loadOperationalCalendar();
-  }, [loadOperationalCalendar]);
-
-  // ===== DATA LOADING =====
-
-  const loadStaff = useCallback(
-    async (salonId: number) => {
-      try {
-        const rows = await fetchActiveStaffForSalon(supabase, salonId, "*");
-        setStaff((rows as any[]) ?? []);
-      } catch (error) {
-        console.error("Errore caricamento staff:", error);
-        setStaff([]);
-      }
-    },
-    [supabase]
-  );
-
-  const loadAppointments = useCallback(
-    async (salonId: number, options?: { silent?: boolean }) => {
-      if (!currentDate) return;
-      const silent = options?.silent === true;
-      if (!silent) setLoading(true);
-
-      let startRange: string;
-      let endRange: string;
-
-      if (view === "day") {
-        startRange = `${currentDate}T00:00:00`;
-        endRange = `${currentDate}T23:59:59`;
-      } else {
-        startRange = `${weekDays[0].date}T00:00:00`;
-        endRange = `${weekDays[6].date}T23:59:59`;
-      }
-
-      const { data: raw, error } = await supabase
-        .from("appointments")
-        .select(AGENDA_LIST_SELECT)
-        .eq("salon_id", salonId)
-        .gte("start_time", startRange)
-        .lte("start_time", endRange)
-        .order("start_time", { ascending: true })
-        .order("start_time", {
-          foreignTable: "appointment_services",
-          ascending: true,
-        });
-
-      if (error) {
-        console.error("Errore appuntamenti:", {
-          message: error?.message,
-          details: error?.details,
-          hint: error?.hint,
-          code: error?.code,
-        });
-        setAppointments([]);
-        if (!silent) setLoading(false);
-        else console.warn("[agenda] refresh appuntamenti:", error?.message);
-        return;
-      }
-
-      setAppointments(normalizeAgendaRows((raw ?? []) as unknown[]));
-      if (!silent) setLoading(false);
-    },
-    [currentDate, view, supabase, weekDays]
-  );
-
-  useEffect(() => {
-    if (!isReady) return;
-    if (activeSalonId == null) return;
-
-    loadStaff(activeSalonId);
-    loadAppointments(activeSalonId);
-  }, [isReady, activeSalonId, currentDate, view, loadStaff, loadAppointments]);
-
   useVisibilityPolling({
     enabled: isReady && activeSalonId != null,
     canPoll: () =>
@@ -768,94 +657,6 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
       </div>
     );
   }
-
-  // ===============================
-  // COLLISION / STACKING ENGINE
-  // ===============================
-
-  function minutesFromTimeStr(ts: string) {
-    const raw = String(ts || "");
-    const timePart = raw.includes("T") ? raw.split("T")[1] : raw.split(" ")[1];
-    const time = timePart || "00:00:00";
-    const [hh, mm] = time.split(":").map(Number);
-    return (hh || 0) * 60 + (mm || 0);
-  }
-
-function buildLanes(
-  pairs: Array<{ app: any; line: any }>
-): Array<{ app: any; line: any; laneIndex: number; laneCount: number }> {
-  if (!pairs.length) return [];
-
-  const base = pairs.map((p) => ({
-    app: p.app,
-    line: p.line,
-    laneIndex: 0,
-    laneCount: 1,
-  }));
-
-  const items = pairs
-    .map((p, idx) => {
-      const start = minutesFromTimeStr(p.line?.start_time);
-
-      const raw =
-        Number(p.line?.duration_minutes ?? p.line?.services?.duration ?? SLOT_MINUTES) ||
-        SLOT_MINUTES;
-
-      // deve matchare ServiceBox MIN_HEIGHT
-      const MIN_HEIGHT_PX = Math.max(56, slotPx * 1.35);
-      const minSlots = Math.ceil(MIN_HEIGHT_PX / slotPx);
-      const minDur = minSlots * SLOT_MINUTES;
-
-      const duration = Math.max(raw, minDur);
-      const end = start + duration;
-
-      return { idx, start, end };
-    })
-    .sort((a, b) => a.start - b.start);
-
-  type Active = { idx: number; end: number; lane: number };
-  const active: Active[] = [];
-  let currentMaxLanes = 1;
-
-  for (const item of items) {
-    // 1) rimuovi eventi terminati
-    for (let i = active.length - 1; i >= 0; i--) {
-      if (active[i].end <= item.start) active.splice(i, 1);
-    }
-
-    // ✅ 2) se cluster finito, resetta la larghezza (Google-style)
-    if (active.length === 0) {
-      currentMaxLanes = 1;
-    }
-
-    // 3) trova prima lane libera
-    let lane = 0;
-    const used = new Set(active.map((a) => a.lane));
-    while (used.has(lane)) lane++;
-
-    active.push({ idx: item.idx, end: item.end, lane });
-
-    // 4) calcola quante lane servono nel cluster corrente
-    currentMaxLanes = Math.max(
-      currentMaxLanes,
-      Math.max(...active.map((a) => a.lane)) + 1
-    );
-
-    // 5) assegna laneIndex/laneCount al corrente
-    base[item.idx].laneIndex = lane;
-    base[item.idx].laneCount = currentMaxLanes;
-
-    // 6) aggiorna anche tutti gli attivi (così pure i primi si stringono)
-    for (const a of active) {
-      base[a.idx].laneCount = currentMaxLanes;
-    }
-  }
-
-  return base;
-}
-
-
-
 
 
 
@@ -1116,7 +917,7 @@ function buildLanes(
                   const columnKey = mid ?? null;
                   const pairs = dayLinesByStaff.get(columnKey) ?? [];
 
-                  const laid = buildLanes(pairs);
+                  const laid = buildAgendaLanes(pairs, slotPx);
                   return (
                     <div
                       key={mid ?? `virtual-${member?.name ?? "na"}`}
@@ -1183,7 +984,7 @@ function buildLanes(
                                 appointment={app}
                                 line={line}
                                 hours={hours}
-                                onClick={() => setEditingAppointment(app)}
+                                onClick={() => openEditAppointment(app)}
                                 colWidth={columnWidth}
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
                                 laneIndex={laneIndex}
@@ -1191,14 +992,12 @@ function buildLanes(
                                 agendaContextDay={currentDate}
                               />
                             ) : (
-                              <ServiceBox
+                              <MemoServiceBox
                                 appointment={app}
                                 line={line}
                                 hours={hours}
-                                onClick={() => setEditingAppointment(app)}
-                                onUpdated={() =>
-                                  loadAppointments(activeSalonId, { silent: true })
-                                }
+                                onClick={() => openEditAppointment(app)}
+                                onUpdated={refreshAppointmentsSilent}
                                 enableHorizontal={true}
                                 colWidth={columnWidth}
                                 columnIndex={colIdx}
@@ -1209,8 +1008,8 @@ function buildLanes(
                                 laneIndex={laneIndex}
                                 laneCount={laneCount}
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
-                                onAgendaDragColumnChange={setAgendaDragCol}
-                                onAgendaDragSlotChange={setAgendaDragSlot}
+                                onAgendaDragColumnChange={handleAgendaDragColumnChange}
+                                onAgendaDragSlotChange={handleAgendaDragSlotChange}
                                 agendaContextDay={currentDate}
                               />
                             )}
@@ -1270,20 +1069,18 @@ function buildLanes(
                                 appointment={app}
                                 line={line}
                                 hours={hours}
-                                onClick={() => setEditingAppointment(app)}
+                                onClick={() => openEditAppointment(app)}
                                 colWidth={colWidth}
                                 isHighlighted={highlightAppointmentId != null && String(app?.id) === String(highlightAppointmentId)}
                                 agendaContextDay={day.date}
                               />
                             ) : (
-                              <ServiceBox
+                              <MemoServiceBox
                                 appointment={app}
                                 line={line}
                                 hours={hours}
-                                onClick={() => setEditingAppointment(app)}
-                                onUpdated={() =>
-                                  loadAppointments(activeSalonId, { silent: true })
-                                }
+                                onClick={() => openEditAppointment(app)}
+                                onUpdated={refreshAppointmentsSilent}
                                 enableHorizontal={false}
                                 colWidth={colWidth}
                                 columnIndex={colIdx}

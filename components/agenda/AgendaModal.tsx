@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
@@ -30,7 +30,17 @@ import {
   Clock3,
 } from "lucide-react";
 import { agendaGridDayStartLabel, generateHours, SLOT_MINUTES } from "./utils";
+import {
+  buildSequentialServiceTimeline,
+  filterServicesByQuery,
+  numOr,
+  resolveGridStartTime,
+  toStrOrNull,
+  totalTimelineMinutes,
+} from "@/lib/agenda/appointmentModalForm";
+import { useModalFieldTouches } from "@/lib/agenda/appointmentModalSession";
 import { fetchAgendaServices } from "@/lib/servicesCatalog";
+import CustomerSearchField from "@/components/customers/CustomerSearchField";
 
 interface Props {
   isOpen: boolean;
@@ -38,16 +48,6 @@ interface Props {
   currentDate: string; // yyyy-mm-dd
   selectedSlot: { time: string; staffId: string | null } | null;
   onCreated?: () => void;
-}
-
-function toStrOrNull(v: unknown): string | null {
-  if (v === null || v === undefined || v === "") return null;
-  return String(v);
-}
-
-function numOr(v: unknown, fallback: number): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
 }
 
 /* ================= COMPONENT ================= */
@@ -64,8 +64,6 @@ export default function AgendaModal({
 
   /* ================= DATA ================= */
 
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [staffListAll, setStaffListAll] = useState<{ id: number; name: string }[]>([]);
   const [staffScheduleMap, setStaffScheduleMap] = useState<
@@ -77,7 +75,6 @@ export default function AgendaModal({
 
   /* ================= FORM ================= */
 
-  const [qCustomer, setQCustomer] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
   const [serviceAssignments, setServiceAssignments] = useState<
@@ -88,7 +85,11 @@ export default function AgendaModal({
 
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [startTime, setStartTime] = useState<string>("");
+  /** Source of truth submit/UI: orario inizio (non usare selectedSlot.time dopo init). */
+  const [selectedStartTime, setSelectedStartTime] = useState<string>("");
+  const openedSlotKeyRef = useRef<string | null>(null);
+  const initialSlotStaffIdRef = useRef<string | null>(null);
+  const { touchedRef, resetTouches, markStartTimeTouched } = useModalFieldTouches();
 
   const agendaHours = useMemo(
     () =>
@@ -107,62 +108,43 @@ useEffect(() => {
 
   setErr("");
   setSaving(false);
-  setQCustomer("");
   setCustomerId("");
   setSelectedServiceIds([]);
   setServiceAssignments({});
   setNotes("");
   setQService("");
 
-  void Promise.all([loadCustomers(), loadServices(), loadStaff()]);
+  void Promise.all([loadServices(), loadStaff()]);
 }, [isOpen, activeSalonId, currentDate]);
 
   useEffect(() => {
-    if (!isOpen || !selectedSlot || !agendaHours.length) return;
-    const t = selectedSlot.time;
-    setStartTime(agendaHours.includes(t) ? t : agendaHours[0] ?? t);
-  }, [isOpen, selectedSlot?.time, agendaHours]);
+    if (!isOpen) {
+      openedSlotKeyRef.current = null;
+      initialSlotStaffIdRef.current = null;
+      return;
+    }
+    if (!selectedSlot) return;
 
+    const slotKey = `${selectedSlot.time}|${selectedSlot.staffId ?? ""}`;
+    if (openedSlotKeyRef.current === slotKey) return;
 
-  /* ================= FILTER CLIENT ================= */
+    openedSlotKeyRef.current = slotKey;
+    initialSlotStaffIdRef.current = selectedSlot.staffId;
+    resetTouches();
+    setSelectedStartTime(resolveGridStartTime(selectedSlot.time, agendaHours));
+  }, [isOpen, selectedSlot?.time, selectedSlot?.staffId, agendaHours, resetTouches]);
 
   useEffect(() => {
-    const q = qCustomer.toLowerCase().trim();
-    if (!q) {
-      setFilteredCustomers(customers);
-      return;
-    }
+    if (!isOpen || !selectedSlot || agendaHours.length === 0) return;
+    if (touchedRef.current.startTime) return;
+    setSelectedStartTime((prev) => {
+      if (prev && agendaHours.includes(prev)) return prev;
+      return resolveGridStartTime(selectedSlot.time, agendaHours);
+    });
+  }, [agendaHours.length, isOpen, selectedSlot?.time, touchedRef]);
 
-    setFilteredCustomers(
-      customers.filter((c: any) => {
-        const full = String(c.full_name ?? "").toLowerCase();
-        const phone = String(c.phone ?? "").toLowerCase();
-        return full.includes(q) || phone.includes(q);
-      })
-    );
-  }, [qCustomer, customers]);
 
   /* ================= LOADERS ================= */
-
-  async function loadCustomers() {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, first_name, last_name, phone")
-      .order("last_name");
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    const list = (data || []).map((c: any) => ({
-      ...c,
-      full_name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim(),
-    }));
-
-    setCustomers(list);
-    setFilteredCustomers(list);
-  }
 
   async function loadServices() {
     if (!activeSalonId) {
@@ -249,7 +231,7 @@ useEffect(() => {
       } else {
         setServiceAssignments((p) => ({
           ...p,
-          [id]: selectedSlot?.staffId ?? null,
+          [id]: initialSlotStaffIdRef.current,
         }));
         return [...prev, id];
       }
@@ -258,45 +240,27 @@ useEffect(() => {
 
   /* ================= TIMELINE ================= */
 
-  const serviceTimeline = useMemo(() => {
-    if (!selectedSlot || !startTime) return [];
-
-    let cursor = new Date(`${currentDate}T${startTime}:00`);
-
-    return selectedServiceIds.map((sid) => {
-      const s = services.find((x) => x.id === sid);
-      const duration = Math.max(SLOT_MINUTES, Number(s?.duration ?? SLOT_MINUTES));
-
-      const item = {
-        id: sid,
-        name: s?.name,
-        duration,
-        startDate: new Date(cursor),
-        startTime: cursor.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-
-      cursor = new Date(cursor.getTime() + duration * 60000);
-      return item;
-    });
-  }, [selectedServiceIds, services, currentDate, selectedSlot, startTime]);
-
-  const totalMinutes = useMemo(
-    () => serviceTimeline.reduce((acc, s) => acc + s.duration, 0),
-    [serviceTimeline]
+  const serviceTimeline = useMemo(
+    () =>
+      buildSequentialServiceTimeline({
+        currentDate,
+        startTime: selectedStartTime,
+        serviceIds: selectedServiceIds,
+        services,
+        slotMinutes: SLOT_MINUTES,
+      }),
+    [selectedServiceIds, services, currentDate, selectedStartTime],
   );
 
-  const filteredServicesForUi = useMemo(() => {
-    const q = qService.toLowerCase().trim();
-    if (!q) return services;
-    return services.filter((s: any) =>
-      String(s.name ?? "")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [qService, services]);
+  const totalMinutes = useMemo(
+    () => totalTimelineMinutes(serviceTimeline),
+    [serviceTimeline],
+  );
+
+  const filteredServicesForUi = useMemo(
+    () => filterServicesByQuery(services, qService),
+    [qService, services],
+  );
 
   /* ================= SAVE ================= */
 
@@ -306,6 +270,7 @@ useEffect(() => {
 
     if (!activeSalonId) return setErr("Salone non configurato.");
     if (!customerId) return setErr("Seleziona un cliente.");
+    if (!selectedStartTime) return setErr("Seleziona un orario.");
     if (!selectedServiceIds.length)
       return setErr("Seleziona almeno un servizio.");
 
@@ -313,7 +278,9 @@ useEffect(() => {
     setErr("");
 
     try {
-      const startDt = snapToAgendaSlot(new Date(`${currentDate}T${selectedSlot.time}:00`));
+      const startDt = snapToAgendaSlot(
+        new Date(`${currentDate}T${selectedStartTime}:00`),
+      );
       const payload = {
         salon_id: Number(activeSalonId),
         customer_id: customerId,
@@ -352,7 +319,7 @@ useEffect(() => {
     }
   }
 
-  if (!isOpen || !selectedSlot || !startTime) return null;
+  if (!isOpen || !selectedSlot || !selectedStartTime) return null;
 
   /* ================= UI ================= */
 
@@ -372,14 +339,17 @@ useEffect(() => {
             <h2 className="text-2xl font-black text-[#f3d8b6] mt-0.5">
               {currentDate}
               <span className="text-white/20 mx-2 font-light">/</span>
-              {startTime}
+              {selectedStartTime}
             </h2>
             <label className="mt-3 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
               Orario inizio (slot griglia)
               <select
-                value={startTime}
+                value={selectedStartTime}
                 disabled={saving}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={(e) => {
+                  markStartTimeTouched();
+                  setSelectedStartTime(e.target.value);
+                }}
                 className="mt-1.5 w-full max-w-[11rem] rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
               >
                 {agendaHours.map((h) => (
@@ -408,34 +378,15 @@ useEffect(() => {
               <User size={18} /> Cliente
             </div>
 
-            <div className="relative">
-              <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20"
-                size={18}
-              />
-              <input
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-[#f3d8b6]/50 transition-all"
-                placeholder="Cerca cliente..."
-                value={qCustomer}
-                onChange={(e) => setQCustomer(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
-              {filteredCustomers.slice(0, 20).map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCustomerId(c.id)}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold transition ${
-                    customerId === c.id
-                      ? "bg-[#f3d8b6] text-black"
-                      : "bg-white/5 text-white/70"
-                  }`}
-                >
-                  {c.full_name}
-                </button>
-              ))}
-            </div>
+            <CustomerSearchField
+              supabase={supabase}
+              enabled={isOpen && !!activeSalonId}
+              preloadSalonId={activeSalonId}
+              selectedCustomerId={customerId}
+              onSelectCustomerId={setCustomerId}
+              disabled={saving}
+              dropdownZIndexClass="z-[140]"
+            />
           </div>
 
           {/* Servizi */}

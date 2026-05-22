@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { AGENDA_LIST_SELECT } from "@/lib/agenda/agendaContract";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import { customerMatchesSearch } from "@/lib/customers/customerSearch";
 
 interface Props {
   onSelectAppointment?: (a: any) => void;
@@ -161,7 +162,18 @@ export default function SearchPalette({
     const q = query.toLowerCase();
 
     const foundCustomers = customers
-      .filter((c) => customerLabel(c).toLowerCase().includes(q))
+      .filter((c) =>
+        customerMatchesSearch(
+          {
+            first_name: c.first_name,
+            last_name: c.last_name,
+            phone: c.phone,
+            customer_code: c.customer_code,
+            email: c.email,
+          },
+          query,
+        ),
+      )
       .map((c) => ({ type: "customer", ...c }));
 
     const foundAppointments = appointments

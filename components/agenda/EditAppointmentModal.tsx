@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabaseClient";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
@@ -17,6 +17,8 @@ import { useRouter } from "next/navigation";
 import { X, User, FlaskConical, Banknote, Trash2, Save } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { agendaGridDayStartLabel, generateHours, SLOT_MINUTES } from "./utils";
+import { resolveGridStartTime } from "@/lib/agenda/appointmentModalForm";
+import { useModalFieldTouches } from "@/lib/agenda/appointmentModalSession";
 import {
   clampDurationMinutes,
   parseLocal,
@@ -33,6 +35,7 @@ import {
   type AgendaLifecycleTarget,
 } from "@/lib/agenda/appointmentLifecycle";
 import { agendaStatusMeta } from "@/lib/agenda/agendaStatusMeta";
+import CustomerSearchField from "@/components/customers/CustomerSearchField";
 
 interface Props {
   isOpen: boolean;
@@ -41,14 +44,6 @@ interface Props {
   selectedDay: string;
   onUpdated?: () => void;
 }
-
-type EditCustomerRow = {
-  id: string | number;
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-  full_name: string;
-};
 
 type EditStaffRow = { id: number | null; name: string };
 
@@ -82,8 +77,6 @@ export default function EditAppointmentModal({
   const router = useRouter();
   const { activeSalonId } = useActiveSalon();
 
-  const [customers, setCustomers] = useState<EditCustomerRow[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<EditCustomerRow[]>([]);
   const [staffAll, setStaffAll] = useState<EditStaffRow[]>([]);
   const [staffScheduleMap, setStaffScheduleMap] = useState<
     import("@/lib/staffSchedule").StaffScheduleBySalon
@@ -92,11 +85,14 @@ export default function EditAppointmentModal({
     import("@/lib/salonOperationalCalendar").OperationalCalendarSnapshot
   >(() => ({ salonDay: null, staffOverrides: new Map() }));
 
-  const [qCustomer, setQCustomer] = useState("");
-  const [customer, setCustomer] = useState<string>("");
+  const [customerId, setCustomerId] = useState<string>("");
   const [staffId, setStaffId] = useState<string | null>(null);
   const [notes, setNotes] = useState<string>("");
-  const [time, setTime] = useState<string>("08:00");
+  /** Source of truth submit/UI per orario (non usare appointment.start_time dopo init). */
+  const [selectedStartTime, setSelectedStartTime] = useState<string>("08:00");
+  const seededAppointmentIdRef = useRef<string | number | null>(null);
+  const { touchedRef, resetTouches, markStartTimeTouched, markCustomerTouched } =
+    useModalFieldTouches();
 
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string>("");
@@ -110,67 +106,45 @@ export default function EditAppointmentModal({
   );
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      seededAppointmentIdRef.current = null;
+      return;
+    }
 
     setErr("");
     setSaving(false);
-    setQCustomer("");
-
-    void loadCustomers();
     void loadStaffForSalon();
 
-    if (appointment) {
-      setCustomer(String(appointment.customer_id ?? ""));
-      setStaffId(appointment.staff_id != null ? String(appointment.staff_id) : null);
-      setNotes(String(appointment.notes ?? ""));
-      const t0 = timeFromTsSafe(appointment.start_time);
-      setTime(hours.includes(t0) ? t0 : hours[0] ?? t0);
-    } else {
-      setCustomer("");
-      setStaffId(null);
-      setNotes("");
-      setTime(hours[0] ?? "08:00");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, activeSalonId, appointment?.id, hours, selectedDay]);
+    if (!appointment) return;
+    const apptId = appointment.id;
+    if (seededAppointmentIdRef.current === apptId) return;
 
-  // filtro clienti
-  useEffect(() => {
-    const q = qCustomer.toLowerCase().trim();
-    if (!q) {
-      setFilteredCustomers(customers);
-      return;
-    }
-    setFilteredCustomers(
-      customers.filter((c) => {
-        const full = String(c.full_name ?? "").toLowerCase();
-        const phone = String(c.phone ?? "").toLowerCase();
-        return full.includes(q) || phone.includes(q);
-      })
+    seededAppointmentIdRef.current = apptId;
+    resetTouches();
+    setCustomerId(String(appointment.customer_id ?? ""));
+    setStaffId(appointment.staff_id != null ? String(appointment.staff_id) : null);
+    setNotes(String(appointment.notes ?? ""));
+    setSelectedStartTime(
+      resolveGridStartTime(timeFromTsSafe(appointment.start_time), hours),
     );
-  }, [qCustomer, customers]);
+  }, [isOpen, activeSalonId, appointment?.id, selectedDay, resetTouches]);
 
-  async function loadCustomers() {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, first_name, last_name, phone")
-      .order("last_name", { ascending: true });
+  useEffect(() => {
+    if (!isOpen || !appointment || hours.length === 0) return;
+    if (touchedRef.current.startTime) return;
+    setSelectedStartTime((prev) => {
+      if (prev && hours.includes(prev)) return prev;
+      return resolveGridStartTime(timeFromTsSafe(appointment.start_time), hours);
+    });
+  }, [hours.length, isOpen, appointment?.id, appointment?.start_time, touchedRef]);
 
-    if (error) {
-      console.error(error);
-      setCustomers([]);
-      setFilteredCustomers([]);
-      return;
-    }
-
-    const list = (data || []).map((c: any) => ({
-      ...c,
-      full_name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim(),
-    }));
-
-    setCustomers(list);
-    setFilteredCustomers(list);
-  }
+  const handleCustomerSelect = useCallback(
+    (id: string) => {
+      markCustomerTouched();
+      setCustomerId(id);
+    },
+    [markCustomerTouched],
+  );
 
   async function loadStaffForSalon() {
     if (!activeSalonId) {
@@ -234,15 +208,17 @@ export default function EditAppointmentModal({
 
     setErr("");
 
-    const customer_id = customer ? String(customer) : null;
+    const customer_id = customerId ? String(customerId) : null;
     if (!customer_id) return setErr("Seleziona un cliente valido.");
-    if (!time) return setErr("Seleziona un orario.");
+    if (!selectedStartTime) return setErr("Seleziona un orario.");
 
     setSaving(true);
 
     try {
       const oldStart = parseLocal(appointment.start_time);
-      const newStart = snapToAgendaSlot(parseLocal(`${selectedDay}T${time}:00`));
+      const newStart = snapToAgendaSlot(
+        parseLocal(`${selectedDay}T${selectedStartTime}:00`),
+      );
       const deltaMs = newStart.getTime() - oldStart.getTime();
       const staffNorm = normalizeStaffId(staffId);
       const timeChanged = deltaMs !== 0;
@@ -381,7 +357,7 @@ export default function EditAppointmentModal({
   }
 
   function getClienteIdForSchedeLink(): string | null {
-    const fromForm = customer?.trim() ?? "";
+    const fromForm = customerId?.trim() ?? "";
     if (fromForm) return fromForm;
     const aid = appointment?.customer_id;
     if (aid == null || aid === "") return null;
@@ -402,7 +378,7 @@ export default function EditAppointmentModal({
 
   const headerCustomer = appointment?.customers ? safeName(appointment.customers) : "Appuntamento";
   const headerStatus = agendaStatusMeta(appointment?.status);
-  const headerTime = timeFromTsSafe(appointment?.start_time);
+  const headerTime = selectedStartTime || timeFromTsSafe(appointment?.start_time);
 
   const status = String(appointment?.status ?? "").toLowerCase();
   const isNoShow = status === "no_show" || status === "noshow";
@@ -608,29 +584,18 @@ export default function EditAppointmentModal({
                 <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/45">
                   Cliente
                 </div>
-                <input
-                  type="text"
+                <CustomerSearchField
+                  supabase={supabase}
+                  enabled={isOpen}
+                  preloadSalonId={activeSalonId}
+                  selectedCustomerId={customerId}
+                  onSelectCustomerId={handleCustomerSelect}
+                  initialDisplayLabel={headerCustomer}
+                  disabled={saving || formLocked}
+                  variant="compact"
                   placeholder="Cerca nome o telefono"
-                  className="w-full rounded-lg bg-black/40 border border-white/10 px-2.5 py-2 text-xs text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
-                  disabled={saving || formLocked}
-                  value={qCustomer}
-                  onChange={(e) => setQCustomer(e.target.value)}
+                  dropdownZIndexClass="z-[170]"
                 />
-
-                <select
-                  className="w-full rounded-lg bg-black/40 border border-white/10 px-2.5 py-2 text-xs text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
-                  value={customer}
-                  disabled={saving || formLocked}
-                  onChange={(e) => setCustomer(e.target.value)}
-                >
-                  <option value="">Seleziona cliente</option>
-                  {filteredCustomers.map((c) => (
-                    <option key={String(c.id)} value={String(c.id)}>
-                      {c.full_name}
-                      {c.phone ? ` · ${c.phone}` : ""}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -640,9 +605,12 @@ export default function EditAppointmentModal({
                   </div>
                   <select
                     className="w-full rounded-lg bg-black/40 border border-white/10 px-2 py-2 text-xs text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
-                    value={time}
+                    value={selectedStartTime}
                     disabled={saving || formLocked}
-                    onChange={(e) => setTime(e.target.value)}
+                    onChange={(e) => {
+                      markStartTimeTouched();
+                      setSelectedStartTime(e.target.value);
+                    }}
                   >
                     {hours.map((h) => (
                       <option key={h} value={h}>

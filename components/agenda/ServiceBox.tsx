@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useRouter } from "next/navigation";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
@@ -76,7 +77,31 @@ interface Props {
   agendaContextDay?: string | null;
 }
 
-export default function ServiceBox({
+function serviceBoxPropsEqual(prev: Props, next: Props): boolean {
+  if (prev.line.id !== next.line.id) return false;
+  if (prev.appointment.id !== next.appointment.id) return false;
+  if (prev.isHighlighted !== next.isHighlighted) return false;
+  if (prev.colWidth !== next.colWidth) return false;
+  if (prev.columnIndex !== next.columnIndex) return false;
+  if (prev.columnsCount !== next.columnsCount) return false;
+  if (prev.gridHeightPx !== next.gridHeightPx) return false;
+  if (prev.laneIndex !== next.laneIndex) return false;
+  if (prev.laneCount !== next.laneCount) return false;
+  if (prev.enableHorizontal !== next.enableHorizontal) return false;
+  if (prev.columnStaffId !== next.columnStaffId) return false;
+  if (prev.agendaContextDay !== next.agendaContextDay) return false;
+  if (prev.line.start_time !== next.line.start_time) return false;
+  if (prev.line.duration_minutes !== next.line.duration_minutes) return false;
+  if (prev.appointment.status !== next.appointment.status) return false;
+  if (prev.hours !== next.hours) return false;
+  if (prev.staffOrder.length !== next.staffOrder.length) return false;
+  for (let i = 0; i < prev.staffOrder.length; i++) {
+    if (prev.staffOrder[i] !== next.staffOrder[i]) return false;
+  }
+  return true;
+}
+
+function ServiceBox({
   appointment,
   line,
   hours,
@@ -725,3 +750,7 @@ export default function ServiceBox({
     </motion.div>
   );
 }
+
+const MemoServiceBox = React.memo(ServiceBox, serviceBoxPropsEqual);
+export { MemoServiceBox };
+export default MemoServiceBox;
