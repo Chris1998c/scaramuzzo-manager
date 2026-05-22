@@ -16,6 +16,7 @@ import {
   UserSquare2,
   FileText,
   Receipt,
+  Radio,
   Settings,
 } from "lucide-react";
 import { canAccessFiscalJobsWeb } from "@/lib/fiscalJobsWebAccessShared";
@@ -53,6 +54,7 @@ const sections: MenuSection[] = [
       { name: "WhatsApp manuale", icon: MessageCircle, href: "/dashboard/marketing" },
       { name: "Report", icon: FileText, href: "/dashboard/report" },
       { name: "Job fiscali", icon: Receipt, href: "/dashboard/fiscale" },
+      { name: "Bridge stampa", icon: Radio, href: "/dashboard/fiscale/bridge" },
     ],
   },
   {
@@ -96,6 +98,7 @@ export default function Sidebar() {
           }
           if (it.href === "/dashboard/report") return isCoordinator;
           if (it.href === "/dashboard/fiscale") return canSeeFiscalJobs;
+          if (it.href === "/dashboard/fiscale/bridge") return canSeeFiscalJobs;
           if (it.href === "/dashboard/marketing") return canSeeCrmAndMarketing;
           if (it.href === "/dashboard/presenze") return canSeePresenze;
           if (it.href === "/dashboard/clienti") return canSeeCrmAndMarketing;

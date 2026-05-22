@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { Receipt } from "lucide-react";
+import Link from "next/link";
+import { Receipt, Radio } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 import {
@@ -116,7 +117,14 @@ export default async function FiscalePage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 sm:justify-end">
+          <div className="flex flex-wrap gap-2 sm:justify-end items-center">
+            <Link
+              href="/dashboard/fiscale/bridge"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-white/5"
+            >
+              <Radio size={14} />
+              Bridge stampa
+            </Link>
             <StatChip label="Righe" value={rows.length} />
             <StatChip label="Pending" value={pendingCount} variant="warn" />
             <StatChip label="Failed" value={failedCount} variant="err" />
