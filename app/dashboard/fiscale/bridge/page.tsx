@@ -2,15 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Radio } from "lucide-react";
 
-import BridgeInstallationsPanel from "@/components/fiscal/BridgeInstallationsPanel";
-import { buildBridgeDashboardRows } from "@/lib/bridge/buildBridgeDashboardRows";
-import { fetchBridgeInstallationsForDashboard } from "@/lib/bridge/bridgeDb";
+import BridgeEnterpriseMonitor from "@/components/fiscal/BridgeEnterpriseMonitor";
+import { fetchBridgeEnterprisePageData } from "@/lib/bridge/fetchBridgeEnterprisePage";
 import {
   canManageBridgeTokens,
   canViewBridgeDashboard,
   resolveBridgeSalonFilter,
 } from "@/lib/bridge/bridgeWebAccess";
 import { canPickSalonFilterOnFiscalJobs } from "@/lib/fiscalJobsWebAccess";
+import { canActOnFiscalJobsWeb } from "@/lib/fiscalJobsWebAccessShared";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 
@@ -39,9 +39,9 @@ export default async function BridgeMonitorPage({ searchParams }: PageProps) {
   const querySalonId = Number.isFinite(querySalonNum) ? Math.trunc(querySalonNum) : null;
   const salonFilter = resolveBridgeSalonFilter(access, querySalonId);
 
-  const rows = await fetchBridgeInstallationsForDashboard(salonFilter);
-  const dashboard = buildBridgeDashboardRows(rows);
+  const { rows, bundlesByInstallationId } = await fetchBridgeEnterprisePageData(salonFilter);
   const canManage = canManageBridgeTokens(access.role);
+  const canActFiscal = canActOnFiscalJobsWeb(access.role);
   const showSalonFilter = canPickSalonFilterOnFiscalJobs(access.role);
 
   return (
@@ -92,9 +92,11 @@ export default async function BridgeMonitorPage({ searchParams }: PageProps) {
         </p>
       ) : null}
 
-      <BridgeInstallationsPanel
-        initialRows={dashboard}
+      <BridgeEnterpriseMonitor
+        initialRows={rows}
+        initialBundles={bundlesByInstallationId}
         canManage={canManage}
+        canActFiscal={canActFiscal}
         salonFilter={salonFilter}
       />
     </div>

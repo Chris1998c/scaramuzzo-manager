@@ -48,9 +48,15 @@ export type BridgeHeartbeatInput = {
   };
   supabase_reachable?: boolean;
   fpmate_reachable?: boolean;
-  queue?: { pending?: number | null; processing?: number | null };
+  queue?: {
+    pending?: number | null;
+    processing?: number | null;
+    failed?: number | null;
+  };
   queue_pending?: number | null;
   queue_processing?: number | null;
+  queue_failed?: number | null;
+  reconcile_required?: number | null;
   last_job?: Record<string, unknown> | null;
   last_job_status?: string | null;
   last_local_job?: Record<string, unknown> | null;
@@ -71,6 +77,11 @@ export function normalizeAndSanitizeHeartbeatPayload(
     raw.queue_processing ??
     raw.queue?.processing ??
     null;
+  const failed =
+    raw.queue_failed ??
+    (raw.queue as { failed?: number } | undefined)?.failed ??
+    null;
+  const reconcileRequired = raw.reconcile_required ?? null;
 
   const normalized: Record<string, unknown> = {
     bridge_id: raw.bridge_id ?? null,
@@ -87,6 +98,8 @@ export function normalizeAndSanitizeHeartbeatPayload(
     config_valid: checks.config_valid ?? null,
     queue_pending: pending,
     queue_processing: processing,
+    queue_failed: failed,
+    reconcile_required: reconcileRequired,
     last_job: raw.last_job ?? null,
     last_job_status:
       raw.last_job_status ??

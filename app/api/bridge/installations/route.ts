@@ -5,12 +5,12 @@ import {
   fetchBridgeInstallationsForDashboard,
   listBridgeTokensForInstallation,
 } from "@/lib/bridge/bridgeDb";
-import { buildBridgeDashboardRows } from "@/lib/bridge/buildBridgeDashboardRows";
 import {
   canManageBridgeTokens,
   canViewBridgeDashboard,
   resolveBridgeSalonFilter,
 } from "@/lib/bridge/bridgeWebAccess";
+import { fetchBridgeEnterprisePageData } from "@/lib/bridge/fetchBridgeEnterprisePage";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 
@@ -37,14 +37,15 @@ export async function GET(req: Request) {
     Number.isFinite(querySalonNum) ? Math.trunc(querySalonNum!) : null,
   );
 
-  const rows = await fetchBridgeInstallationsForDashboard(salonFilter);
-  const dashboard = buildBridgeDashboardRows(rows);
+  const { rows, bundlesByInstallationId } = await fetchBridgeEnterprisePageData(salonFilter);
 
   return NextResponse.json({
     success: true,
     salon_filter: salonFilter,
     can_manage: canManageBridgeTokens(access.role),
-    installations: dashboard,
+    installations: rows,
+    rows,
+    bundles: bundlesByInstallationId,
   });
 }
 

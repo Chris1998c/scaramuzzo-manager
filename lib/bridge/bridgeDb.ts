@@ -89,7 +89,51 @@ export async function applyBridgeHeartbeat(
     console.error("[bridge] heartbeat update", error);
     return { ok: false, status: 500, error: "update_failed" };
   }
+
+  const { error: histErr } = await supabaseAdmin.from("bridge_heartbeats").insert({
+    bridge_installation_id: installation.id,
+    salon_id: installation.salon_id,
+    bridge_id: installation.bridge_id,
+    status: update.status,
+    version: update.version,
+    health: update.last_health,
+  });
+
+  if (histErr) {
+    console.error("[bridge] heartbeat history insert", histErr);
+    return { ok: false, status: 500, error: "history_insert_failed" };
+  }
+
   return { ok: true };
+}
+
+export type BridgeHeartbeatHistoryRow = {
+  id: string;
+  created_at: string;
+  status: string | null;
+  version: string | null;
+  health: Record<string, unknown>;
+};
+
+export async function fetchBridgeHeartbeatHistory(
+  installationId: string,
+  limit = 20,
+): Promise<BridgeHeartbeatHistoryRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from("bridge_heartbeats")
+    .select("id, created_at, status, version, health")
+    .eq("bridge_installation_id", installationId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: String(r.id),
+    created_at: String(r.created_at),
+    status: r.status != null ? String(r.status) : null,
+    version: r.version != null ? String(r.version) : null,
+    health: (r.health ?? {}) as Record<string, unknown>,
+  }));
 }
 
 export async function fetchBridgeInstallationsForDashboard(salonId: number | null) {
