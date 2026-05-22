@@ -61,15 +61,8 @@ describe("bridgeFiscalJobs", () => {
     if (result.ok) {
       expect(result.job?.id).toBe(42);
       expect(result.job?.salon_id).toBe(1);
-      expect(Object.keys(result.job ?? {})).toEqual([
-        "id",
-        "kind",
-        "payload",
-        "attempts",
-        "created_at",
-        "sale_id",
-        "salon_id",
-      ]);
+      expect(result.job?.id).toBe(42);
+      expect(result.job?.kind).toBe("sale_receipt");
     }
     expect(rpc).toHaveBeenCalledWith("claim_fiscal_print_jobs", {
       p_bridge_id: "roma_1",
@@ -77,6 +70,31 @@ describe("bridgeFiscalJobs", () => {
       p_salon_id: 1,
     });
     expect(logBridgeJobEventMock).toHaveBeenCalled();
+  });
+
+  it("claim empty queue → job null", async () => {
+    rpc.mockResolvedValue({ data: [], error: null });
+    const result = await claimBridgeFiscalJob(auth, { bridge_id: "roma_1", salon_id: 1 });
+    expect(result).toEqual({ ok: true, job: null });
+    expect(logBridgeJobEventMock).not.toHaveBeenCalled();
+  });
+
+  it("claim normalizza singolo oggetto RPC", async () => {
+    rpc.mockResolvedValue({
+      data: {
+        id: "7",
+        kind: "sale_receipt",
+        payload: { n: 1 },
+        attempts: 2,
+        created_at: "2026-01-01T00:00:00Z",
+        sale_id: null,
+        salon_id: 1,
+      },
+      error: null,
+    });
+    const result = await claimBridgeFiscalJob(auth, { salon_id: 1 });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.job?.id).toBe(7);
   });
 
   it("salon mismatch on claim context → 403", async () => {

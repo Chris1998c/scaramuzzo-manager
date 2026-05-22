@@ -16,7 +16,17 @@ export async function withBridgeAuth(
       { status: authResult.status },
     );
   }
-  return handler(authResult.auth);
+  try {
+    return await handler(authResult.auth);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : undefined;
+    console.error("[bridge] jobs handler uncaught", { message: msg, stack });
+    return NextResponse.json(
+      { ok: false, error: "internal_error", detail: msg },
+      { status: 500 },
+    );
+  }
 }
 
 export function bridgeJobError(

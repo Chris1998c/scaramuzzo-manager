@@ -9,6 +9,11 @@ import {
   validateBridgeRequeueGate,
   type BridgeFiscalJobOwnership,
 } from "@/lib/bridge/bridgeJobValidation";
+import {
+  mapClaimRpcError,
+  normalizeClaimRpcRows,
+  type ClaimRpcRow,
+} from "@/lib/bridge/bridgeClaimRpc";
 import { buildFinalizeResult } from "@/lib/fiscal/buildFinalizeResult";
 import type { BridgeInstallationRecord } from "@/lib/bridge/processBridgeHeartbeat";
 
@@ -20,16 +25,9 @@ export type BridgeClaimedJob = {
   created_at: string;
   sale_id: number | null;
   salon_id: number;
-};
-
-type ClaimRpcRow = {
-  id: number;
-  kind: string;
-  payload: unknown;
-  attempts: number | null;
-  created_at: string;
-  sale_id: number | null;
-  salon_id: number;
+  status?: string;
+  locked_by?: string | null;
+  locked_at?: string | null;
 };
 
 type FinalizeRpcRow = {
@@ -43,13 +41,16 @@ type FinalizeRpcRow = {
 
 function serializeClaimedJob(row: ClaimRpcRow): BridgeClaimedJob {
   return {
-    id: Number(row.id),
-    kind: String(row.kind),
+    id: row.id,
+    kind: row.kind,
     payload: row.payload ?? null,
-    attempts: Number(row.attempts ?? 0),
-    created_at: String(row.created_at),
-    sale_id: row.sale_id != null ? Number(row.sale_id) : null,
-    salon_id: Number(row.salon_id),
+    attempts: row.attempts,
+    created_at: row.created_at,
+    sale_id: row.sale_id,
+    salon_id: row.salon_id,
+    status: row.status != null ? String(row.status) : "processing",
+    locked_by: row.locked_by != null ? String(row.locked_by) : null,
+    locked_at: row.locked_at != null ? String(row.locked_at) : null,
   };
 }
 
@@ -67,30 +68,94 @@ export async function claimBridgeFiscalJob(
   if (!ctx.ok) return ctx;
 
   const inst = auth.installation;
-  const { data, error } = await supabaseAdmin.rpc("claim_fiscal_print_jobs", {
-    p_bridge_id: inst.bridge_id,
-    p_limit: 1,
-    p_salon_id: inst.salon_id,
-  });
+  const salonId = coerceClaimSalonId(inst.salon_id);
+  if (salonId == null) {
+    console.error("[bridge] claim invalid installation salon_id", {
+      installation_id: inst.id,
+      salon_id: inst.salon_id,
+    });
+    return { ok: false, status: 500, error: "installation_salon_invalid" };
+  }
 
-  if (error) {
-    console.error("[bridge] claim_fiscal_print_jobs", error);
+  let data: unknown;
+  let error: { message?: string; code?: string; details?: string } | null;
+  try {
+    const rpcRes = await supabaseAdmin.rpc("claim_fiscal_print_jobs", {
+      p_bridge_id: inst.bridge_id,
+      p_limit: 1,
+      p_salon_id: salonId,
+    });
+    data = rpcRes.data;
+    error = rpcRes.error;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[bridge] claim_fiscal_print_jobs threw", {
+      bridge_id: inst.bridge_id,
+      salon_id: salonId,
+      message: msg,
+    });
     return { ok: false, status: 500, error: "claim_failed" };
   }
 
-  const rows = (Array.isArray(data) ? data : data ? [data] : []) as ClaimRpcRow[];
-  const first = rows[0] ?? null;
-  if (!first) {
+  if (error) {
+    const mapped = mapClaimRpcError(error.message ?? "claim_failed", error.code);
+    console.error("[bridge] claim_fiscal_print_jobs rpc error", {
+      bridge_id: inst.bridge_id,
+      salon_id: salonId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      mapped: mapped.error,
+    });
+    return { ok: false, status: mapped.status, error: mapped.error };
+  }
+
+  const rows = normalizeClaimRpcRows(data);
+  if (rows.length === 0) {
+    if (claimRpcRawNonEmpty(data)) {
+      console.warn("[bridge] claim rpc returned data but no parseable job row", {
+        bridge_id: inst.bridge_id,
+        salon_id: salonId,
+        data_type: Array.isArray(data) ? "array" : typeof data,
+        raw_length: Array.isArray(data) ? data.length : 1,
+      });
+    }
     return { ok: true, job: null };
   }
 
+  const first = rows[0];
   const job = serializeClaimedJob(first);
-  await logBridgeJobEvent(inst, "claim", {
-    job_id: job.id,
-    payload: { kind: job.kind },
-  });
+
+  try {
+    await logBridgeJobEvent(inst, "claim", {
+      job_id: job.id,
+      payload: { kind: job.kind },
+    });
+  } catch (auditErr) {
+    console.error("[bridge] claim audit failed (non-blocking)", {
+      job_id: job.id,
+      error: auditErr instanceof Error ? auditErr.message : String(auditErr),
+    });
+  }
 
   return { ok: true, job };
+}
+
+function claimRpcRawNonEmpty(data: unknown): boolean {
+  if (data == null) return false;
+  if (Array.isArray(data)) return data.length > 0;
+  return typeof data === "object";
+}
+
+function coerceClaimSalonId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  }
+  return null;
 }
 
 export async function finalizeBridgeFiscalJob(
