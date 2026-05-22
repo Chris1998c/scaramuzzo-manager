@@ -26,14 +26,18 @@ PC cassa (bridge token)
             → claim_fiscal_print_jobs / finalize_fiscal_job_atomic / …
 ```
 
-### Endpoint Manager da implementare
+### Endpoint Manager (implementati)
 
-| Bridge oggi (Supabase RPC) | Manager API futura |
-|----------------------------|-------------------|
-| `claim_fiscal_print_jobs` | `POST /api/bridge/fiscal-jobs/claim` |
-| `finalize_fiscal_job_atomic` | `POST /api/bridge/fiscal-jobs/:id/finalize` |
-| `requeue_fiscal_print_job` (non critici) | `POST /api/bridge/fiscal-jobs/:id/requeue` |
-| select queue stats | incluso in heartbeat o `GET /api/bridge/fiscal-jobs/stats` |
+| Bridge oggi (Supabase RPC) | Manager API |
+|----------------------------|-------------|
+| `claim_fiscal_print_jobs` | `POST /api/bridge/jobs/claim` |
+| `claim` (shortcut) | `GET /api/bridge/jobs/next` |
+| `finalize_fiscal_job_atomic` | `POST /api/bridge/jobs/finalize` |
+| `requeue_fiscal_print_job` | `POST /api/bridge/jobs/requeue` |
+| heartbeat / queue stats | `POST /api/bridge/heartbeat` |
+
+Auth: `Authorization: Bearer <bridge token>` — `lib/bridge/auth.ts`.
+Audit: tabella `bridge_job_events` (claim, finalize_*, requeue, reconcile).
 
 **Invarianti da preservare:**
 
@@ -54,7 +58,7 @@ PC cassa (bridge token)
 
 ## Checklist rimozione service role dal bridge
 
-- [ ] Manager espone claim/finalize/requeue con bridge token
+- [x] Manager espone claim/finalize/requeue con bridge token
 - [ ] Bridge: rimuovere `@supabase/supabase-js` worker path
 - [ ] Bridge: `BRIDGE_MANAGER_API_URL` + stesso token heartbeat
 - [ ] Rotazione token per salone documentata

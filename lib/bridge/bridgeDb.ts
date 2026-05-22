@@ -1,7 +1,11 @@
 import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { hashBridgeToken, generateBridgeToken } from "@/lib/bridge/bridgeToken";
+import { authenticateBridgeBearer } from "@/lib/bridge/auth";
+import { generateBridgeToken } from "@/lib/bridge/bridgeToken";
+
+export { authenticateBridgeBearer };
+export type { BridgeTokenAuth } from "@/lib/bridge/auth";
 import {
   buildHeartbeatUpdate,
   type BridgeInstallationRecord,
@@ -9,65 +13,6 @@ import {
 import type { BridgeHeartbeatInput } from "@/lib/bridge/sanitizeBridgeHealth";
 import { resolveTenantIdForBridge } from "@/lib/bridge/tenantFoundation";
 import { isValidBridgeSalonId } from "@/lib/bridge/bridgeWebAccess";
-
-export type BridgeTokenAuthRow = {
-  token_id: string;
-  installation: BridgeInstallationRecord;
-};
-
-export async function authenticateBridgeBearer(
-  plainToken: string,
-): Promise<
-  | { ok: true; auth: BridgeTokenAuthRow }
-  | { ok: false; status: number; error: string }
-> {
-  const hash = hashBridgeToken(plainToken);
-  const now = new Date().toISOString();
-
-  const { data: tokenRow, error } = await supabaseAdmin
-    .from("bridge_tokens")
-    .select(
-      "id, revoked_at, expires_at, bridge_installation_id, bridge_installations ( id, bridge_id, salon_id, revoked_at )",
-    )
-    .eq("token_hash", hash)
-    .maybeSingle();
-
-  if (error) {
-    console.error("[bridge] token lookup", error);
-    return { ok: false, status: 500, error: "token_lookup_failed" };
-  }
-  if (!tokenRow) {
-    return { ok: false, status: 401, error: "invalid_token" };
-  }
-  if (tokenRow.revoked_at) {
-    return { ok: false, status: 401, error: "token_revoked" };
-  }
-  if (tokenRow.expires_at && tokenRow.expires_at < now) {
-    return { ok: false, status: 401, error: "token_expired" };
-  }
-
-  const rawInst = tokenRow.bridge_installations as
-    | BridgeInstallationRecord
-    | BridgeInstallationRecord[]
-    | null;
-  const inst = Array.isArray(rawInst) ? rawInst[0] ?? null : rawInst;
-  if (!inst) {
-    return { ok: false, status: 401, error: "installation_missing" };
-  }
-  if (inst.revoked_at) {
-    return { ok: false, status: 401, error: "installation_revoked" };
-  }
-
-  await supabaseAdmin
-    .from("bridge_tokens")
-    .update({ last_used_at: now })
-    .eq("id", tokenRow.id);
-
-  return {
-    ok: true,
-    auth: { token_id: tokenRow.id, installation: inst },
-  };
-}
 
 export async function applyBridgeHeartbeat(
   installation: BridgeInstallationRecord,

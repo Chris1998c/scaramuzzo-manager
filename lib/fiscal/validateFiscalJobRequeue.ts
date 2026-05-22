@@ -1,5 +1,3 @@
-import "server-only";
-
 import type { FiscalPrintJobActionRecord } from "@/lib/fiscal/fetchFiscalPrintJobById";
 
 export function validateRequeueFiscalJob(
