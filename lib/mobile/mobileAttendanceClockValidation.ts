@@ -103,8 +103,8 @@ export function rejectPoorGpsAccuracy(
 }
 
 /**
- * Salone effettivo per timbratura: body opzionale, altrimenti primario JWT.
- * Deve essere incluso in salon_ids del token.
+ * @deprecated Timbratura clock usa detectClockSalonFromGps (ignora salon_id client).
+ * Mantenuto per compat test legacy; non usare in app/api/mobile/attendance/clock.
  */
 export function resolveClockSalonId(
   requestedSalonId: number | null,

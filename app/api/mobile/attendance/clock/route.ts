@@ -1,42 +1,20 @@
-// Timbratura con geofence 500m — flusso presenza ufficiale in produzione (attendance_logs + audit GPS).
+// Timbratura GPS: geofence sul salone autorizzato più vicino (staff_salons + primario); ignora salon_id client.
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  detectClockSalonFromGps,
+  type SalonGeo,
+} from "@/lib/mobile/mobileClockSalonDetect";
 import {
   parseClockRequestBody,
   rejectMockedLocation,
   rejectPoorGpsAccuracy,
-  resolveClockSalonId,
 } from "@/lib/mobile/mobileAttendanceClockValidation";
+import { resolveStaffSalonIds } from "@/lib/mobile/mobileStaffSalons";
 import { verifyMobileBearerFromRequest } from "@/lib/mobileSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const GEOFENCE_MAX_METERS = 500;
-
-function toRadians(value: number): number {
-  return (value * Math.PI) / 180;
-}
-
-function getDistanceMeters(
-  lat: number,
-  lng: number,
-  salonLat: number,
-  salonLng: number,
-): number {
-  const earthRadiusMeters = 6_371_000;
-  const dLat = toRadians(salonLat - lat);
-  const dLng = toRadians(salonLng - lng);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat)) *
-      Math.cos(toRadians(salonLat)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return earthRadiusMeters * c;
-}
 
 export async function POST(req: Request) {
   try {
@@ -60,16 +38,11 @@ export async function POST(req: Request) {
     }
 
     const staffId = auth.token.sid;
-    const salonId = resolveClockSalonId(parsed.body.salonId, auth.token);
-    if (salonId == null) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const { lat, lng } = parsed.body;
 
     const { data: staff, error: staffError } = await supabaseAdmin
       .from("staff")
-      .select("id, active, mobile_enabled")
+      .select("id, salon_id, active, mobile_enabled")
       .eq("id", staffId)
       .maybeSingle();
 
@@ -85,41 +58,66 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
     }
 
-    const { data: salon, error: salonError } = await supabaseAdmin
-      .from("salons")
-      .select("id, lat, lng")
-      .eq("id", salonId)
-      .maybeSingle();
+    const authorizedSalonIds = await resolveStaffSalonIds(
+      supabaseAdmin,
+      staffId,
+      staff.salon_id as number | null,
+    );
 
-    if (salonError) {
-      throw salonError;
-    }
-
-    if (!salon) {
+    if (!authorizedSalonIds.length) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const salonLat = salon?.lat != null ? Number(salon.lat) : NaN;
-    const salonLng = salon?.lng != null ? Number(salon.lng) : NaN;
+    const tokenSalonSet = new Set(auth.token.salon_ids);
+    const effectiveIds = authorizedSalonIds.filter((id) => tokenSalonSet.has(id));
+    const salonIdsToLoad = effectiveIds.length ? effectiveIds : authorizedSalonIds;
 
-    if (!Number.isFinite(salonLat) || !Number.isFinite(salonLng)) {
-      return NextResponse.json(
-        { success: false, error: "Coordinate salone non configurate" },
-        { status: 400 },
-      );
+    const { data: salonRows, error: salonsError } = await supabaseAdmin
+      .from("salons")
+      .select("id, name, lat, lng")
+      .in("id", salonIdsToLoad);
+
+    if (salonsError) {
+      throw salonsError;
     }
 
-    const distance = getDistanceMeters(lat, lng, salonLat, salonLng);
+    const authorizedSalons: SalonGeo[] = (salonRows ?? [])
+      .map((row) => {
+        const id = Number((row as { id: unknown }).id);
+        const name = String((row as { name: unknown }).name ?? "").trim() || `Salone ${id}`;
+        const latVal = (row as { lat: unknown }).lat;
+        const lngVal = (row as { lng: unknown }).lng;
+        return {
+          id,
+          name,
+          lat: latVal != null ? Number(latVal) : NaN,
+          lng: lngVal != null ? Number(lngVal) : NaN,
+        };
+      })
+      .filter((s) => Number.isInteger(s.id) && s.id > 0);
 
-    if (distance > GEOFENCE_MAX_METERS) {
+    const detected = detectClockSalonFromGps(lat, lng, authorizedSalons);
+
+    if (!detected.ok) {
+      if (detected.reason === "no_coordinates") {
+        return NextResponse.json(
+          { success: false, error: "Coordinate salone non configurate" },
+          { status: 400 },
+        );
+      }
       return NextResponse.json(
         {
           success: false,
           error: "Sei troppo lontano dal salone per timbrare",
+          ...(detected.nearestSalonId != null
+            ? { nearest_salon_id: detected.nearestSalonId }
+            : {}),
         },
         { status: 403 },
       );
     }
+
+    const salonId = detected.salonId;
 
     const { data: last, error: lastErr } = await supabaseAdmin
       .from("attendance_logs")
@@ -155,6 +153,9 @@ export async function POST(req: Request) {
       success: true,
       new_status: newType,
       salon_id: salonId,
+      detected_salon_id: salonId,
+      detected_salon_name: detected.salonName,
+      distance_meters: Math.round(detected.distanceMeters),
     });
   } catch (error) {
     console.error("mobile attendance clock route error:", error);

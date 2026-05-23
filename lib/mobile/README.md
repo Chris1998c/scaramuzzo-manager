@@ -18,6 +18,7 @@ Payload: `sid`, `salon_id` (primario), `salon_ids[]` (primario + `staff_salons`)
 ## Timbratura GPS
 
 - `POST /api/mobile/attendance/clock`: colonne audit su `attendance_logs`; rifiuto se `isMocked` o `accuracy` > 100 m.
+- **Multi-salone:** il salone è rilevato dal GPS (`detectClockSalonFromGps`) tra i saloni in `staff_salons` + primario; `salon_id` nel body **ignorato**. Risposta: `detected_salon_id`, `detected_salon_name`, `distance_meters`.
 
 ## Team App (repo separato)
 
