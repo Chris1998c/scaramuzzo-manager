@@ -57,6 +57,10 @@ describe("buildStaffKpiFromRows", () => {
     expect(result).toHaveLength(1);
     expect(result[0].staff_name).toBe("Mario");
     expect(result[0].customers_served).toBe(2);
+    expect(result[0].customers_with_retail).toBe(1);
+    expect(result[0].customers_without_retail).toBe(1);
+    expect(result[0].retail_penetration_pct).toBe(50);
+    expect(result[0].discounted_receipts_count).toBe(1);
     expect(result[0].services_qty).toBe(1);
     expect(result[0].products_qty).toBe(2);
     expect(result[0].gross.real).toBe(85);
@@ -70,5 +74,14 @@ describe("buildStaffKpiFromRows", () => {
   it("esclude righe senza staff_id", () => {
     const rows: ReportRow[] = [row({ staff_id: 0 as unknown as number })];
     expect(buildStaffKpiFromRows(rows, new Map())).toHaveLength(0);
+  });
+
+  it("segna scontrini senza customer_id", () => {
+    const rows: ReportRow[] = [
+      row({ staff_id: 2, sale_id: 200, item_discount: 0 }),
+    ];
+    const result = buildStaffKpiFromRows(rows, new Map());
+    expect(result[0].receipts_without_customer).toBe(1);
+    expect(result[0].customers_served).toBe(0);
   });
 });

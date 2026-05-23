@@ -22,6 +22,9 @@ import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
 import { flattenStaffKpiRow } from "@/lib/reports/flattenStaffKpiForExport";
+import { getDirectionReport } from "@/lib/reports/getDirectionReport";
+import { mapDirectionReportToPdfPayload } from "@/lib/reports/mapDirectionReportPdf";
+import DirectionReportPdf from "@/lib/pdf/templates/DirectionReportPdf";
 
 export const runtime = "nodejs";
 
@@ -34,7 +37,8 @@ type TabKey =
   | "agenda"
   | "clienti"
   | "servizi"
-  | "prodotti";
+  | "prodotti"
+  | "direzione";
 const SUPPORTED_EXPORT_TABS = new Set<TabKey>([
   "turnover",
   "daily",
@@ -45,6 +49,7 @@ const SUPPORTED_EXPORT_TABS = new Set<TabKey>([
   "clienti",
   "servizi",
   "prodotti",
+  "direzione",
 ]);
 
 function toInt(x: string | null) {
@@ -178,20 +183,20 @@ function ReportPdfDoc(props: {
   tab: string;
   salonName: string;
   salonId: number;
-  dateFrom: string;
-  dateTo: string;
+  reportDateFrom: string;
+  reportDateTo: string;
   totals: Record<string, any>;
   rowsPreview: Array<{ a: any; b: any; c: any }>;
   rowsTitle: string;
 }) {
-  const { tab, salonName, salonId, dateFrom, dateTo, totals, rowsPreview, rowsTitle } = props;
+  const { tab, salonName, salonId, reportDateFrom, reportDateTo, totals, rowsPreview, rowsTitle } = props;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <Text style={styles.title}>Report — {safeStr(tab)}</Text>
         <Text style={styles.meta}>
-          Salone: {safeStr(salonName)} (ID {salonId}) — Periodo: {dateFrom} → {dateTo}
+          Salone: {safeStr(salonName)} (ID {salonId}) — Periodo: {reportDateFrom} → {reportDateTo}
         </Text>
 
         <KeyValueBox title="Totali" data={totals} />
@@ -236,8 +241,8 @@ export async function GET(req: Request) {
     const tabRaw = url.searchParams.get("tab");
     const tab = parseTab(tabRaw);
     const salonId = toInt(url.searchParams.get("salon_id"));
-    const dateFrom = url.searchParams.get("date_from");
-    const dateTo = url.searchParams.get("date_to");
+    const dateFromParam = url.searchParams.get("date_from");
+    const dateToParam = url.searchParams.get("date_to");
 
     const staffIdRaw = url.searchParams.get("staff_id");
     const hasStaffId = !!staffIdRaw && staffIdRaw.trim().length > 0;
@@ -270,12 +275,19 @@ export async function GET(req: Request) {
         headers: { "Content-Type": "application/json" },
       });
     }
-    if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
-      return new Response(JSON.stringify({ error: "date_from/date_to non valide" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+    if (!isIsoDate(dateFromParam) || !isIsoDate(dateToParam) || dateFromParam > dateToParam) {
+      if (tab !== "direzione") {
+        return new Response(JSON.stringify({ error: "date_from/date_to non valide" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
+
+    const reportDateFrom = isIsoDate(dateFromParam)
+      ? dateFromParam
+      : new Date().toISOString().slice(0, 10);
+    const reportDateTo = isIsoDate(dateToParam) ? dateToParam : reportDateFrom;
     if (hasStaffId && (!Number.isFinite(staffId) || (staffId ?? 0) <= 0)) {
       return new Response(JSON.stringify({ error: "staff_id non valido" }), {
         status: 400,
@@ -292,6 +304,22 @@ export async function GET(req: Request) {
 
     const salonName = salonRow?.name ? String(salonRow.name) : `Salon ${salonId}`;
 
+    if (tab === "direzione") {
+      const report = await getDirectionReport(salonId);
+      const payload = mapDirectionReportToPdfPayload(report, salonName);
+      const document = React.createElement(DirectionReportPdf, payload);
+      const buffer = await renderPdfToBuffer(document);
+      const today = new Date().toISOString().slice(0, 10);
+      return new Response(buffer as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="riepilogo-direzionale-${salonId}-${today}.pdf"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
     // DATA by tab (preview compatta)
     let totals: Record<string, any> = {};
     let rowsPreview: Array<{ a: any; b: any; c: any }> = [];
@@ -306,8 +334,8 @@ export async function GET(req: Request) {
     if (["turnover", "daily", "top", "staff"].includes(tab)) {
       const sales = await getSalonTurnoverAnalytics({
         salonId,
-        dateFrom,
-        dateTo,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
         staffId,
         paymentMethod,
         itemType,
@@ -357,7 +385,11 @@ export async function GET(req: Request) {
     }
 
     if (tab === "cassa") {
-      const cash = await getCashSessionsReport({ salonId, dateFrom, dateTo });
+      const cash = await getCashSessionsReport({
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+      });
       totals = cash.totals ?? {};
       rowsTitle = "Cash Sessions";
       rowsPreview = (cash.sessions ?? []).slice(0, 35).map((r: any) => ({
@@ -368,7 +400,11 @@ export async function GET(req: Request) {
     }
 
     if (tab === "agenda") {
-      const agenda = await getAgendaReport({ salonId, dateFrom, dateTo });
+      const agenda = await getAgendaReport({
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+      });
       totals = agenda.totals ?? {};
       rowsTitle = "No-show / Giornaliero";
       rowsPreview = (agenda.daily ?? []).slice(0, 35).map((r: any) => ({
@@ -381,8 +417,8 @@ export async function GET(req: Request) {
     if (tab === "clienti") {
       const clients = await getClientsReport({
         salonId,
-        dateFrom,
-        dateTo,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
         staffId,
         paymentMethod,
       });
@@ -398,8 +434,8 @@ export async function GET(req: Request) {
     if (tab === "servizi") {
       const services = await getServicesReport({
         salonId,
-        dateFrom,
-        dateTo,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
         staffId,
         paymentMethod,
         itemType,
@@ -417,8 +453,8 @@ export async function GET(req: Request) {
     if (tab === "prodotti") {
       const products = await getProductsReport({
         salonId,
-        dateFrom,
-        dateTo,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
         staffId,
         paymentMethod,
       });
@@ -441,8 +477,8 @@ export async function GET(req: Request) {
       tab === "turnover"
         ? React.createElement(SalonTurnoverPdf, {
             salonName,
-            dateFrom,
-            dateTo,
+            dateFrom: reportDateFrom,
+            dateTo: reportDateTo,
             totals: totals as Totals,
             rows: turnoverRows,
           })
@@ -450,8 +486,8 @@ export async function GET(req: Request) {
             tab,
             salonName,
             salonId,
-            dateFrom,
-            dateTo,
+            reportDateFrom,
+            reportDateTo,
             totals,
             rowsPreview,
             rowsTitle,
@@ -463,7 +499,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="report-${tab}-${salonId}-${dateFrom}-${dateTo}.pdf"`,
+        "Content-Disposition": `attachment; filename="report-${tab}-${salonId}-${reportDateFrom}-${reportDateTo}.pdf"`,
         "Cache-Control": "no-store",
       },
     });

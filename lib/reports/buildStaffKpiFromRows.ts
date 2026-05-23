@@ -14,14 +14,22 @@ import {
   type ReportLineInput,
   type VatDisplayMode,
 } from "@/lib/reports/reportLineKpiMath";
+import { computeRetailPenetration } from "@/lib/reports/retailPenetration";
 
 export type StaffKpiRow = {
   staff_id: number;
   staff_name: string;
   customers_served: number;
+  customers_with_retail: number;
+  customers_without_retail: number;
+  /** null se nessun cliente collegato agli scontrini. */
+  retail_penetration_pct: number | null;
   services_qty: number;
   products_qty: number;
   receipts_count: number;
+  discounted_receipts_count: number;
+  /** Scontrini senza customer_id collegato. */
+  receipts_without_customer: number;
   gross: MoneyTriple & {
     discount_pct: number;
     avg_ticket_real: number;
@@ -53,6 +61,9 @@ type StaffAgg = {
   staff_name: string;
   receipts: Set<number>;
   customers: Set<string>;
+  customersWithRetail: Set<string>;
+  discountedReceipts: Set<number>;
+  receiptsWithoutCustomer: Set<number>;
   services_qty: number;
   products_qty: number;
   lines: ReportLineInput[];
@@ -76,6 +87,9 @@ export function buildStaffKpiFromRows(
         staff_name: String(r.staff_name ?? `Staff ${sid}`),
         receipts: new Set(),
         customers: new Set(),
+        customersWithRetail: new Set(),
+        discountedReceipts: new Set(),
+        receiptsWithoutCustomer: new Set(),
         services_qty: 0,
         products_qty: 0,
         lines: [],
@@ -92,7 +106,14 @@ export function buildStaffKpiFromRows(
     if (Number.isFinite(saleId) && saleId > 0) {
       agg.receipts.add(saleId);
       const cid = customerBySaleId.get(saleId);
-      if (cid) agg.customers.add(cid);
+      if (cid) {
+        agg.customers.add(cid);
+      } else {
+        agg.receiptsWithoutCustomer.add(saleId);
+      }
+      if (Number(r.item_discount) > 0) {
+        agg.discountedReceipts.add(saleId);
+      }
     }
 
     const qty = Number(r.quantity) || 1;
@@ -103,6 +124,10 @@ export function buildStaffKpiFromRows(
       agg.products_qty += qty;
       agg.retail_gross += line.line_total_gross;
       agg.retail_net += line.line_net;
+      if (Number.isFinite(saleId) && saleId > 0) {
+        const cid = customerBySaleId.get(saleId);
+        if (cid) agg.customersWithRetail.add(cid);
+      }
     }
   }
 
@@ -119,13 +144,23 @@ export function buildStaffKpiFromRows(
         retail: roundMoney(retail),
       });
 
+      const penetration = computeRetailPenetration(
+        agg.customers.size,
+        agg.customersWithRetail.size,
+      );
+
       return {
         staff_id: agg.staff_id,
         staff_name: agg.staff_name,
-        customers_served: agg.customers.size,
+        customers_served: penetration.customers_served,
+        customers_with_retail: penetration.customers_with_retail,
+        customers_without_retail: penetration.customers_without_retail,
+        retail_penetration_pct: penetration.retail_penetration_pct,
         services_qty: agg.services_qty,
         products_qty: agg.products_qty,
         receipts_count: receipts,
+        discounted_receipts_count: agg.discountedReceipts.size,
+        receipts_without_customer: agg.receiptsWithoutCustomer.size,
         gross: enrich(money.gross, agg.retail_gross),
         net: enrich(money.net, agg.retail_net),
       };

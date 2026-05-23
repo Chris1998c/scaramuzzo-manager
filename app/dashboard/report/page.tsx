@@ -24,6 +24,7 @@ import { getProductsReport } from "@/lib/reports/getProductsReport";
 import { getWhatsAppReminderLog } from "@/lib/reports/getWhatsAppReminderLog";
 import { getDirectionReport } from "@/lib/reports/getDirectionReport";
 import { getDirectionCrmActions } from "@/lib/reports/getDirectionCrmActions";
+import { getColorAbsentCustomers } from "@/lib/reports/getColorAbsentCustomers";
 
 import ReportSalonSync from "./ReportSalonSync";
 import ReportFilters from "@/components/reports/ReportFilters";
@@ -274,13 +275,27 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
           paymentMethod,
         })
       : {
-          totals: { customers_total: 0, new_customers: 0, returning_customers: 0, repeat_rate: 0 },
+          totals: {
+            customers_total: 0,
+            new_customers: 0,
+            returning_customers: 0,
+            repeat_rate: 0,
+            customers_with_retail: 0,
+            customers_without_retail: 0,
+            retail_penetration_pct: null,
+          },
           newCustomers: [],
           topSpenders: [],
         };
 
   const crmActions =
-    salonId && macro === "clienti" ? await getDirectionCrmActions(salonId) : null;
+    salonId && macro === "clienti"
+      ? await (async () => {
+          const base = await getDirectionCrmActions(salonId);
+          const colorAbsent = await getColorAbsentCustomers(salonId);
+          return { ...base, colorAbsent };
+        })()
+      : null;
 
   const servicesReport =
     salonId && macro === "vendite" && venditeSubtab === "servizi"

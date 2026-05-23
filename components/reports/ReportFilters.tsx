@@ -70,13 +70,16 @@ export default function ReportFilters({
   }, [salonId]);
 
   function exportPdf() {
-    if (!exportTab) {
-      toast.error("Export non disponibile per il Riepilogo. Usa Vendite o Team.");
-      return;
-    }
     const params = new URLSearchParams(searchParams.toString());
     params.set("salon_id", String(salonId));
-    params.set("tab", exportTab);
+    if (macroTab === "riepilogo") {
+      params.set("tab", "direzione");
+    } else if (!exportTab) {
+      toast.error("Export PDF non disponibile per questa sezione.");
+      return;
+    } else {
+      params.set("tab", exportTab);
+    }
     void downloadExport("pdf", `/api/reports/export/pdf?${params.toString()}`);
   }
 

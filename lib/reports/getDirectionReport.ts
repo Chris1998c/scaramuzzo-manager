@@ -16,10 +16,17 @@ import {
 } from "@/lib/reports/getDirectionCrmActions";
 import {
   buildDirectionAlerts,
+  computeTodayRetailPenetration,
   pickCrmActionQueue,
   type CrmActionItem,
   type DirectionAlert,
 } from "@/lib/reports/getDirectionAlerts";
+import { getColorAbsentCustomers } from "@/lib/reports/getColorAbsentCustomers";
+import {
+  getOpenCashSessionHours,
+  getSalonLowStockCount,
+} from "@/lib/reports/getSalonOperationalSignals";
+import { discountPercent } from "@/lib/reports/reportLineKpiMath";
 import {
   sameWeekdayLastWeek,
   startOfMonthISO,
@@ -153,7 +160,13 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
   const lastWeekSame = sameWeekdayLastWeek(todayIso);
   const weekStart = startOfWeekISO(todayIso);
 
-  const crm = await getDirectionCrmActions(salonId);
+  const crmBase = await getDirectionCrmActions(salonId);
+  const [colorAbsent, openCashHours, lowStockCount] = await Promise.all([
+    getColorAbsentCustomers(salonId),
+    getOpenCashSessionHours(salonId),
+    getSalonLowStockCount(salonId),
+  ]);
+  const crm = { ...crmBase, colorAbsent };
 
   const [
     todayTurnover,
@@ -211,12 +224,23 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
 
   const staffToday = buildStaffKpiFromRows(todayTurnover.rows, todayCustomers);
 
+  const todayDiscountPct = discountPercent(
+    todaySnap.money.gross.full,
+    todaySnap.money.gross.discount,
+  );
+
   const alerts = buildDirectionAlerts({
     staffToday,
     noShowToday: agendaToday.totals.no_show,
     noShowWeek: agendaWeek.totals.no_show,
+    appointmentsToday: agendaToday.totals.appointments,
     crm,
     salonId,
+    todayDiscountPct,
+    todayRetailPenetrationPct: computeTodayRetailPenetration(staffToday),
+    openCashHours,
+    lowStockCount,
+    colorAbsentCount: colorAbsent.length,
   });
 
   return {

@@ -45,7 +45,7 @@ export default function ReportAgendaKpiRow({ totals }: { totals: Totals }) {
         </div>
 
         <div className={card}>
-          <div className={label}>Completion %</div>
+          <div className={label}>Appuntamenti chiusi</div>
           <div className="text-2xl font-extrabold text-white mt-1">
             {Math.round(totals.completion_rate)}%
           </div>
@@ -53,7 +53,7 @@ export default function ReportAgendaKpiRow({ totals }: { totals: Totals }) {
       </div>
 
       <div className="mt-4 text-xs text-white/40">
-        Nota: “Completion %” = completati / (appuntamenti totali) nel periodo.
+        Appuntamenti chiusi sul totale del periodo.
       </div>
     </div>
   );

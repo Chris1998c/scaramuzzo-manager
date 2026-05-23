@@ -6,6 +6,7 @@ import type { DirectionReport } from "@/lib/reports/getDirectionReport";
 import { CRM_CATEGORY_LABELS } from "@/lib/reports/getDirectionAlerts";
 import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
 import ReportVatToggle from "@/components/reports/ReportVatToggle";
+import ReportCrmCustomerActions from "@/components/reports/ReportCrmCustomerActions";
 import {
   formatReportInt,
   formatReportMoney,
@@ -170,31 +171,7 @@ export default function ReportDirectionView({ data, salonLabel }: Props) {
                   </p>
                   <p className="text-xs text-white/40 truncate">{c.detail}</p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Link
-                    href={`/dashboard/clienti/${c.customer_id}`}
-                    className="rounded-lg border border-scz-gold/30 bg-scz-gold/10 px-3 py-1.5 text-xs font-bold text-scz-gold hover:bg-scz-gold/20"
-                  >
-                    Apri profilo
-                  </Link>
-                  {c.whatsapp_ready ? (
-                    <Link
-                      href="/dashboard/marketing"
-                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300"
-                      title="Invio da Marketing WhatsApp"
-                    >
-                      WhatsApp
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/dashboard/marketing"
-                      className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-white/35"
-                      title="Consenso o telefono mancante"
-                    >
-                      Marketing
-                    </Link>
-                  )}
-                </div>
+                <ReportCrmCustomerActions customerId={c.customer_id} phone={c.phone} />
               </li>
             ))
           )}

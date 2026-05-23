@@ -7,6 +7,8 @@ import {
 const MS_DAY = 86_400_000;
 const LIST_LIMIT = 8;
 
+import type { ColorAbsentCustomer } from "@/lib/reports/colorAbsentSegment";
+
 export type CrmActionCustomer = {
   customer_id: string;
   customer_name: string;
@@ -22,6 +24,7 @@ export type DirectionCrmActions = {
   topSpenders: CrmActionCustomer[];
   noShowCustomers: CrmActionCustomer[];
   noRetailBuyers: CrmActionCustomer[];
+  colorAbsent: ColorAbsentCustomer[];
 };
 
 function displayName(
@@ -272,5 +275,6 @@ export async function getDirectionCrmActions(
     topSpenders,
     noShowCustomers,
     noRetailBuyers: noRetailBuyers.slice(0, LIST_LIMIT),
+    colorAbsent: [],
   };
 }

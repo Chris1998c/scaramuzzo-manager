@@ -36,7 +36,7 @@ export default function ReportClientsKpiRow({ totals }: { totals: Totals }) {
         </div>
 
         <div className={card}>
-          <div className={label}>Repeat %</div>
+          <div className={label}>Clienti fedeli</div>
           <div className="text-2xl font-extrabold text-white mt-1">
             {Math.round(totals.repeat_rate)}%
           </div>
@@ -44,7 +44,7 @@ export default function ReportClientsKpiRow({ totals }: { totals: Totals }) {
       </div>
 
       <div className="mt-4 text-xs text-white/40">
-        Repeat % = clienti con almeno 2 appuntamenti nel periodo / clienti del periodo.
+        Clienti con almeno 2 visite nel periodo.
       </div>
     </div>
   );

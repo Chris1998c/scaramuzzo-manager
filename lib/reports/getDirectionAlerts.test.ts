@@ -12,9 +12,14 @@ function staffRow(discountPct: number): StaffKpiRow {
     staff_id: 1,
     staff_name: "Anna",
     customers_served: 3,
+    customers_with_retail: 0,
+    customers_without_retail: 3,
+    retail_penetration_pct: 0,
     services_qty: 4,
     products_qty: 0,
     receipts_count: 3,
+    discounted_receipts_count: 0,
+    receipts_without_customer: 0,
     gross: {
       real: 100,
       full: 120,
@@ -42,17 +47,33 @@ const emptyCrm: DirectionCrmActions = {
   topSpenders: [],
   noShowCustomers: [],
   noRetailBuyers: [],
+  colorAbsent: [],
 };
+
+function alertInput(
+  partial: Partial<Parameters<typeof buildDirectionAlerts>[0]> = {},
+): Parameters<typeof buildDirectionAlerts>[0] {
+  return {
+    staffToday: [],
+    noShowToday: 0,
+    noShowWeek: 0,
+    appointmentsToday: 0,
+    crm: emptyCrm,
+    salonId: 1,
+    todayDiscountPct: 0,
+    todayRetailPenetrationPct: null,
+    openCashHours: null,
+    lowStockCount: 0,
+    colorAbsentCount: 0,
+    ...partial,
+  };
+}
 
 describe("buildDirectionAlerts", () => {
   it("prioritizes high discount staff", () => {
-    const alerts = buildDirectionAlerts({
-      staffToday: [staffRow(20)],
-      noShowToday: 0,
-      noShowWeek: 0,
-      crm: emptyCrm,
-      salonId: 1,
-    });
+    const alerts = buildDirectionAlerts(
+      alertInput({ staffToday: [staffRow(20)] }),
+    );
     expect(alerts.some((a) => a.id === "staff-discount")).toBe(true);
     expect(alerts[0]?.href).toContain("tab=team");
   });
@@ -77,14 +98,27 @@ describe("buildDirectionAlerts", () => {
         whatsapp_ready: false,
       })),
     };
-    const alerts = buildDirectionAlerts({
-      staffToday: [staffRow(20), staffRow(18)],
-      noShowToday: 2,
-      noShowWeek: 5,
-      crm,
-      salonId: 2,
-    });
+    const alerts = buildDirectionAlerts(
+      alertInput({
+        staffToday: [staffRow(20), staffRow(18)],
+        noShowToday: 2,
+        noShowWeek: 5,
+        crm,
+        salonId: 2,
+      }),
+    );
     expect(alerts.length).toBeLessThanOrEqual(5);
+  });
+
+  it("prioritizza cassa aperta e colore assenti", () => {
+    const alerts = buildDirectionAlerts(
+      alertInput({
+        openCashHours: 10,
+        colorAbsentCount: 5,
+      }),
+    );
+    expect(alerts.some((a) => a.id === "cash-open")).toBe(true);
+    expect(alerts.some((a) => a.id === "color-absent")).toBe(true);
   });
 });
 
@@ -114,6 +148,7 @@ describe("pickCrmActionQueue", () => {
       ],
       noShowCustomers: [],
       noRetailBuyers: [],
+      colorAbsent: [],
     };
     const queue = pickCrmActionQueue(crm, 5);
     expect(queue.length).toBeLessThanOrEqual(5);

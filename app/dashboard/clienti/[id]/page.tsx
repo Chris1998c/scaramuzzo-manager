@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import ClienteProfile from "./cliente-profile";
 import SchedeTecniche from "./schede-tecniche";
 import ClientInsightsPanel from "./ClientInsightsPanel";
+import ClientTimelinePanel from "./ClientTimelinePanel";
 import ClienteAnagraficaForm from "./ClienteAnagraficaForm";
 
 type Params = { id: string };
@@ -106,6 +107,7 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-1 space-y-6">
           <ClienteProfile customerId={customer.id} />
+          <ClientTimelinePanel customerId={customer.id} />
           <ClientInsightsPanel customerId={customer.id} />
         </div>
 

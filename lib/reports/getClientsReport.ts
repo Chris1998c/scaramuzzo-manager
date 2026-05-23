@@ -57,12 +57,12 @@ export async function getClientsReport(filters: ClientsReportFilters) {
     new Set(apptList.map((a: any) => a.customer_id).filter(Boolean).map(String))
   );
 
-  // 2) Customers anagrafica (per nomi)
+  // 2) Customers anagrafica (per nomi e telefono)
   const customersMap = new Map<string, any>();
   if (customerIds.length) {
     const { data: customers, error: custErr } = await supabase
       .from("customers")
-      .select("id, customer_code, first_name, last_name, name")
+      .select("id, customer_code, first_name, last_name, name, phone, marketing_whatsapp_opt_in")
       .in("id", customerIds);
 
     if (custErr) throw new Error(custErr.message);
@@ -175,14 +175,66 @@ export async function getClientsReport(filters: ClientsReportFilters) {
 
   topSpenders.sort((a, b) => b.gross_total - a.gross_total);
 
+  // 7) Retail penetration nel periodo (clienti appuntamento con almeno 1 prodotto)
+  const saleIds: number[] = [];
+  const saleCustomer = new Map<number, string>();
+  for (const s of (sales ?? []) as any[]) {
+    const sid = Number(s?.id);
+    const cid = s?.customer_id ? String(s.customer_id) : null;
+    if (Number.isFinite(sid) && sid > 0) {
+      saleIds.push(sid);
+      if (cid) saleCustomer.set(sid, cid);
+    }
+  }
+
+  const productBuyers = new Set<string>();
+  if (saleIds.length) {
+    const chunkSize = 200;
+    for (let i = 0; i < saleIds.length; i += chunkSize) {
+      const chunk = saleIds.slice(i, i + chunkSize);
+      const { data: items, error: itemsErr } = await supabase
+        .from("sale_items")
+        .select("sale_id, product_id")
+        .in("sale_id", chunk)
+        .not("product_id", "is", null);
+
+      if (itemsErr) throw new Error(itemsErr.message);
+
+      for (const it of items ?? []) {
+        const saleId = Number((it as { sale_id?: unknown }).sale_id);
+        const cid = saleCustomer.get(saleId);
+        if (cid) productBuyers.add(cid);
+      }
+    }
+  }
+
+  const customersWithRetail = customerIds.filter((cid) => productBuyers.has(cid)).length;
+  const customersWithoutRetail = Math.max(0, customersTotal - customersWithRetail);
+  const retailPenetrationPct =
+    customersTotal > 0
+      ? Math.round((customersWithRetail / customersTotal) * 1000) / 10
+      : null;
+
+  function customerPhone(cid: string): string | null {
+    const p = String(customersMap.get(cid)?.phone ?? "").trim();
+    return p || null;
+  }
+
   return {
     totals: {
       customers_total: customersTotal,
       new_customers: newCustomers,
       returning_customers: returningCustomers,
       repeat_rate: repeatRate,
+      customers_with_retail: customersWithRetail,
+      customers_without_retail: customersWithoutRetail,
+      retail_penetration_pct: retailPenetrationPct,
     },
     newCustomers: newCustomersRows.sort((a, b) => (a.first_visit_day < b.first_visit_day ? -1 : 1)),
-    topSpenders: topSpenders.slice(0, 20),
+    topSpenders: topSpenders.slice(0, 20).map((r) => ({
+      ...r,
+      phone: customerPhone(r.customer_id),
+      detail: `Spesa periodo ${r.gross_total.toFixed(2)} €`,
+    })),
   };
 }

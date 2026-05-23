@@ -70,7 +70,7 @@ export default function ReportPeriodComparison({
       <div className="grid gap-6 p-6 md:grid-cols-3">
         <div className="rounded-xl border border-white/10 bg-black/20 p-5">
           <div className="text-xs font-black uppercase tracking-wider text-white/40">
-            Lordo
+            Incassato
           </div>
           <div className="mt-2 flex flex-wrap items-baseline gap-1">
             <span className="text-xl font-extrabold text-white">
@@ -82,7 +82,7 @@ export default function ReportPeriodComparison({
 
         <div className="rounded-xl border border-white/10 bg-black/20 p-5">
           <div className="text-xs font-black uppercase tracking-wider text-white/40">
-            Netto
+            Imponibile
           </div>
           <div className="mt-2 flex flex-wrap items-baseline gap-1">
             <span className="text-xl font-extrabold text-white">
