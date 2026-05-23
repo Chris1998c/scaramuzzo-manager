@@ -4,6 +4,27 @@ import type { BridgeLastJobSummary } from "@/lib/bridge/bridgeFiscalTypes";
 
 export type FiscalCassaStatus = "operativo" | "attenzione" | "offline";
 
+const DEV_BRIDGE_ID_RE = /dev|macbook|localhost|test/i;
+
+/** Bridge di sviluppo locale — non confonderlo con la cassa reale del salone. */
+export function isBridgeDevEnvironment(bridgeId: string): boolean {
+  const id = String(bridgeId ?? "").trim().toLowerCase();
+  if (!id) return false;
+  return DEV_BRIDGE_ID_RE.test(id);
+}
+
+export function partitionBridgeRows<T extends { bridge_id: string }>(
+  rows: T[],
+): { production: T[]; development: T[] } {
+  const production: T[] = [];
+  const development: T[] = [];
+  for (const row of rows) {
+    if (isBridgeDevEnvironment(row.bridge_id)) development.push(row);
+    else production.push(row);
+  }
+  return { production, development };
+}
+
 export type HumanProblem = {
   code: string;
   title: string;
@@ -182,6 +203,53 @@ export function formatJobActivity(
     primary: statusIt,
     secondary: when ? when : null,
   };
+}
+
+export type BridgeFleetKpis = {
+  total: number;
+  online: number;
+  attenzione: number;
+  offline: number;
+  criticalJobs: number;
+};
+
+export function computeBridgeFleetKpis(
+  productionRows: BridgeDashboardEnrichedRow[],
+  bundles: Record<string, { fiscal_snapshot?: BridgeFiscalSnapshot | null } | undefined>,
+): BridgeFleetKpis {
+  let online = 0;
+  let attenzione = 0;
+  let offline = 0;
+  let criticalJobs = 0;
+
+  for (const row of productionRows) {
+    const status = deriveFiscalCassaStatus(row);
+    if (status === "operativo") online += 1;
+    else if (status === "attenzione") attenzione += 1;
+    else offline += 1;
+
+    const snap = bundles[row.id]?.fiscal_snapshot ?? row.fiscal_snapshot;
+    if (snap) criticalJobs += snap.critical_jobs.length;
+  }
+
+  return {
+    total: productionRows.length,
+    online,
+    attenzione,
+    offline,
+    criticalJobs,
+  };
+}
+
+/** Etichetta breve per riga compatta (es. ultimo scontrino). */
+export function compactJobTimeLabel(
+  job: BridgeLastJobSummary | null,
+  empty = "—",
+): string {
+  if (!job) return empty;
+  const act = formatJobActivity(job, empty);
+  if (act.secondary) return act.primary === "Completato" ? "OK" : act.primary;
+  return act.primary;
 }
 
 export function extractTechnicalHealth(health: Record<string, unknown>): {

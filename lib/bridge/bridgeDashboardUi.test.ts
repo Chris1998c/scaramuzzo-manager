@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  computeBridgeFleetKpis,
   deriveFiscalCassaStatus,
   humanProblemsFromRow,
+  isBridgeDevEnvironment,
+  partitionBridgeRows,
   printerStatusLabel,
 } from "@/lib/bridge/bridgeDashboardUi";
 import type { BridgeDashboardEnrichedRow } from "@/lib/bridge/buildBridgeDashboardRows";
@@ -60,6 +63,30 @@ describe("bridgeDashboardUi", () => {
   it("printer labels", () => {
     expect(printerStatusLabel(true).label).toBe("Raggiungibile");
     expect(printerStatusLabel(false).ok).toBe(false);
+  });
+
+  it("rileva bridge dev", () => {
+    expect(isBridgeDevEnvironment("bridge-dev-macbook")).toBe(true);
+    expect(isBridgeDevEnvironment("roma_cassa_1")).toBe(false);
+  });
+
+  it("partiziona production vs development", () => {
+    const { production, development } = partitionBridgeRows([
+      { bridge_id: "roma_cassa_1" },
+      { bridge_id: "bridge-dev-macbook" },
+    ]);
+    expect(production).toHaveLength(1);
+    expect(development).toHaveLength(1);
+  });
+
+  it("KPI fleet production", () => {
+    const kpis = computeBridgeFleetKpis(
+      [row({}), row({ online: false })],
+      {},
+    );
+    expect(kpis.total).toBe(2);
+    expect(kpis.offline).toBe(1);
+    expect(kpis.online).toBe(1);
   });
 
   it("human problems da warning", () => {

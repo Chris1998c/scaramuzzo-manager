@@ -45,37 +45,23 @@ export default async function BridgeMonitorPage({ searchParams }: PageProps) {
   const showSalonFilter = canPickSalonFilterOnFiscalJobs(access.role);
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-6 pb-4">
-      <section className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
-        <div className="flex flex-col gap-4 p-5 md:p-7 bg-black/20 border-b border-white/10 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4 min-w-0">
-            <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
-              <Radio className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
-            </div>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-                Cassa fiscale
-              </div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                Stato stampanti e cassa
-              </h1>
-              <p className="text-[#c9b299] mt-1 text-sm md:text-base max-w-xl">
-                Controllo rapido: la cassa è collegata, la stampante risponde e gli ultimi documenti
-                fiscali.
-                {canManage ? " Il coordinator può gestire i collegamenti in fondo pagina." : ""}
-              </p>
-            </div>
+    <div className="max-w-[1600px] mx-auto space-y-4 pb-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 py-1">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="shrink-0 rounded-xl p-2 bg-black/30 border border-white/10">
+            <Radio className="text-[#f3d8b6]" size={22} strokeWidth={1.7} />
           </div>
-          <div className="flex flex-wrap gap-2 text-sm">
-            <Link
-              href="/dashboard/fiscale"
-              className="rounded-xl border border-white/10 px-3 py-2 text-[#f3d8b6] hover:bg-white/5"
-            >
-              ← Job fiscali
-            </Link>
-          </div>
+          <h1 className="text-xl md:text-2xl font-extrabold text-[#f3d8b6] tracking-tight">
+            Stato stampanti e casse
+          </h1>
         </div>
-      </section>
+        <Link
+          href="/dashboard/fiscale"
+          className="rounded-xl border border-white/10 px-3 py-1.5 text-sm text-[#f3d8b6] hover:bg-white/5"
+        >
+          ← Job fiscali
+        </Link>
+      </header>
 
       {showSalonFilter ? (
         <p className="text-sm text-[#c9b299]">
