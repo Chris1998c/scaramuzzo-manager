@@ -1,6 +1,8 @@
 // lib/reports/getSalonTurnoverAnalytics.ts
 
 import { getSalonTurnover, TurnoverFilters } from "./getSalonTurnover";
+import { buildStaffKpiFromRows } from "./buildStaffKpiFromRows";
+import { fetchCustomerIdsForRows } from "./reportSaleCustomers";
 
 function shiftPeriod(dateFrom: string, dateTo: string) {
   const from = new Date(dateFrom);
@@ -132,105 +134,11 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
     }));
 
   // =========================
-  // STAFF PERFORMANCE (BOSS-LIKE)
+  // STAFF PERFORMANCE (enterprise KPI)
   // =========================
 
-  const staffMap = new Map<
-    string,
-    {
-      staff_id: number;
-      staff_name: string;
-      receipts: Set<number>;
-      gross: number;
-      net: number;
-
-      services_gross: number;
-      products_gross: number;
-
-      services_qty: number;
-      products_qty: number;
-    }
-  >();
-
-  for (const r of rows) {
-    const rr: any = r;
-    const sid = Number(rr.staff_id ?? 0);
-    if (!sid) continue;
-
-    const sname = String(rr.staff_name ?? `Staff ${sid}`);
-    const key = `${sid}`;
-
-    if (!staffMap.has(key)) {
-      staffMap.set(key, {
-        staff_id: sid,
-        staff_name: sname,
-        receipts: new Set<number>(),
-        gross: 0,
-        net: 0,
-        services_gross: 0,
-        products_gross: 0,
-        services_qty: 0,
-        products_qty: 0,
-      });
-    }
-
-    const x = staffMap.get(key)!;
-
-    const lineGross = n(rr.line_total_gross);
-    const lineNet = n(rr.line_net);
-    const qty = n(rr.quantity ?? 1);
-
-    x.receipts.add(Number(rr.sale_id));
-    x.gross += lineGross;
-    x.net += lineNet;
-
-    if (rr.item_type === "service") {
-      x.services_gross += lineGross;
-      x.services_qty += qty;
-    }
-
-    if (rr.item_type === "product") {
-      x.products_gross += lineGross;
-      x.products_qty += qty;
-    }
-  }
-
-  const staffPerformance = Array.from(staffMap.values())
-    .sort((a, b) => b.gross - a.gross)
-    .map((x) => {
-      const receipts_count = x.receipts.size;
-
-      const avg_ticket =
-        receipts_count > 0 ? x.gross / receipts_count : 0;
-
-      const services_avg_price =
-        x.services_qty > 0 ? x.services_gross / x.services_qty : 0;
-
-      const products_avg_price =
-        x.products_qty > 0 ? x.products_gross / x.products_qty : 0;
-
-      return {
-        staff_id: x.staff_id,
-        staff_name: x.staff_name,
-
-        receipts_count,
-
-        // fatturato
-        gross_total: x.gross,
-        net_total: x.net,
-        gross_services: x.services_gross,
-        gross_products: x.products_gross,
-
-        // quantità
-        services_qty: x.services_qty,
-        products_qty: x.products_qty,
-
-        // medie (Boss-style)
-        avg_ticket,
-        services_avg_price,
-        products_avg_price,
-      };
-    });
+  const customerBySale = await fetchCustomerIdsForRows(rows);
+  const staffPerformance = buildStaffKpiFromRows(rows, customerBySale);
 
   // =========================
   // CONFRONTO PERIODO PRECEDENTE

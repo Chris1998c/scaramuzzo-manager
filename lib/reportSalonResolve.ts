@@ -12,6 +12,7 @@ export function pickDefaultSalonIdForReport(
 }
 
 export const REPORT_TAB_KEYS = [
+  "riepilogo",
   "turnover",
   "daily",
   "top",
@@ -33,5 +34,5 @@ export function normalizeReportTab(raw: unknown): ReportTabKey {
       : Array.isArray(raw) && raw.length
         ? String(raw[0])
         : "";
-  return (REPORT_TAB_KEYS as readonly string[]).includes(s) ? (s as ReportTabKey) : "turnover";
+  return (REPORT_TAB_KEYS as readonly string[]).includes(s) ? (s as ReportTabKey) : "riepilogo";
 }

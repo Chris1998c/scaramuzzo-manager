@@ -30,6 +30,7 @@ export type ReportRow = {
   staff_id: number | null;
   staff_name: string | null;
   payment_method: string | null;
+  vat_rate?: number | null;
   /** Stato fiscale vendita (solo UI scontrino: non filtra fatturato/totali) */
   fiscal_status?: string | null;
 };
@@ -138,6 +139,12 @@ function normalizeRow(r: any): ReportRow {
     (r?.payment_method as string | null) ??
     null;
 
+  const vat_rateRaw = r?.vat_rate ?? null;
+  const vat_rate =
+    vat_rateRaw != null && Number.isFinite(Number(vat_rateRaw))
+      ? Number(vat_rateRaw)
+      : null;
+
   return {
     sale_item_id,
     id,
@@ -155,6 +162,7 @@ function normalizeRow(r: any): ReportRow {
     staff_id,
     staff_name,
     payment_method,
+    vat_rate,
   };
 }
 

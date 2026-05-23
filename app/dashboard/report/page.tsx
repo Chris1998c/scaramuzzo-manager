@@ -19,6 +19,7 @@ import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
 import { getWhatsAppReminderLog } from "@/lib/reports/getWhatsAppReminderLog";
+import { getDirectionReport } from "@/lib/reports/getDirectionReport";
 
 import ReportSalonSync from "./ReportSalonSync";
 import ReportFilters from "@/components/reports/ReportFilters";
@@ -28,7 +29,8 @@ import ReportPeriodComparison from "@/components/reports/ReportPeriodComparison"
 import ReportRowsTable from "@/components/reports/ReportRowsTable";
 import ReportDailyTable from "@/components/reports/ReportDailyTable";
 import ReportTopItemsTable from "@/components/reports/ReportTopItemsTable";
-import ReportStaffPerformanceTable from "@/components/reports/ReportStaffPerformanceTable";
+import ReportStaffEnterpriseTable from "@/components/reports/ReportStaffEnterpriseTable";
+import ReportDirectionView from "@/components/reports/ReportDirectionView";
 
 import ReportCashKpiRow from "@/components/reports/ReportCashKpiRow";
 import ReportCashSessionsTable from "@/components/reports/ReportCashSessionsTable";
@@ -261,6 +263,9 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       ? await getWhatsAppReminderLog({ salonId, dateFrom, dateTo })
       : { rows: [], totals: { sent: 0, failed: 0, skipped: 0, pending: 0 } };
 
+  const directionReport =
+    salonId && tab === "riepilogo" ? await getDirectionReport(salonId) : null;
+
   const { totals, rows, daily, topItems, staffPerformance, previousTotals } = salesAnalytics;
 
   return (
@@ -292,6 +297,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       <div className="bg-scz-dark border border-white/10 rounded-2xl p-4 flex gap-2 flex-wrap">
         {(
           [
+            ["riepilogo", "Riepilogo"],
             ["turnover", "Turnover"],
             ["daily", "Giornaliero"],
             ["top", "Top Items"],
@@ -315,6 +321,10 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
           </a>
         ))}
       </div>
+
+      {tab === "riepilogo" && salonId > 0 && directionReport ? (
+        <ReportDirectionView data={directionReport} salonLabel={reportSalonLabel} />
+      ) : null}
 
       {/* === VENDITE: hero + KPI + confronto + filtri attivi === */}
       {needSales && (
@@ -356,7 +366,9 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
           {tab === "turnover" && <ReportRowsTable rows={(rows ?? []).slice(0, 400)} />}
           {tab === "daily" && <ReportDailyTable rows={daily ?? []} />}
           {tab === "top" && <ReportTopItemsTable rows={topItems ?? []} />}
-          {tab === "staff" && <ReportStaffPerformanceTable rows={staffPerformance ?? []} />}
+          {tab === "staff" && (
+            <ReportStaffEnterpriseTable rows={staffPerformance ?? []} />
+          )}
         </section>
       )}
 
