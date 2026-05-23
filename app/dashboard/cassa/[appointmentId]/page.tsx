@@ -7,6 +7,10 @@ import { createClient } from "@/lib/supabaseClient";
 import { fetchCashServices } from "@/lib/servicesCatalog";
 import { agendaVisualFromServiceRow } from "@/lib/agendaServiceVisual";
 import Link from "next/link";
+import {
+  CASSA_STOCK_INSUFFICIENT_CODE,
+  formatCassaStockInsufficientMessage,
+} from "@/lib/cassa/cassaStockError";
 import { toast } from "sonner";
 import FiscalDocumentCard from "@/components/cassa/FiscalDocumentCard";
 import {
@@ -536,8 +540,28 @@ setProducts(cashProducts);
       });
 
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
+        if (data?.code === CASSA_STOCK_INSUFFICIENT_CODE) {
+          const pid =
+            data?.product_id != null && Number.isFinite(Number(data.product_id))
+              ? Number(data.product_id)
+              : null;
+          const productName =
+            pid != null
+              ? items.find((it) => it.kind === "product" && it.id === pid)?.name
+              : null;
+          toast.error(
+            formatCassaStockInsufficientMessage({
+              productId: pid,
+              productName,
+            }),
+            { duration: 10_000 }
+          );
+          setClosing(false);
+          return;
+        }
         throw new Error(data?.error || "Errore durante il salvataggio");
+      }
 
       const rawJob = data?.fiscal_print_job_id;
       const jobId =

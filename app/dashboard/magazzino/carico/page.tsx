@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, SALONS } from "@/lib/constants";
+import { applyProductSearchOr } from "@/lib/magazzino/productSearch";
 
 interface ProductRow {
   product_id?: number;
@@ -202,8 +203,7 @@ function CaricoInner() {
           .eq("active", true)
           .order("name", { ascending: true });
 
-        const s = search.trim();
-        if (s) q = q.ilike("name", `%${s}%`);
+        q = applyProductSearchOr(q, search);
 
         const { data, error } = await q;
         if (error) throw error;
@@ -232,8 +232,7 @@ function CaricoInner() {
           .eq("salon_id", MAGAZZINO_CENTRALE_ID)
           .order("name", { ascending: true });
 
-        const s = search.trim();
-        if (s) q = q.ilike("name", `%${s}%`);
+        q = applyProductSearchOr(q, search);
 
         const { data, error } = await q;
         if (error) throw error;
@@ -264,8 +263,7 @@ function CaricoInner() {
         setLoadingList(true);
         try {
           let q = supabase.from("products").select("id, name, category, barcode").eq("active", true).order("name", { ascending: true });
-          const s = search.trim();
-          if (s) q = q.ilike("name", `%${s}%`);
+          q = applyProductSearchOr(q, search);
           const { data, error } = await q;
           if (error) throw error;
           const rows = ((data ?? []) as { id: number; name: string; category: string | null; barcode: string | null }[]).map((r) => ({
@@ -292,8 +290,7 @@ function CaricoInner() {
           .select("product_id, name, category, barcode, quantity")
           .eq("salon_id", MAGAZZINO_CENTRALE_ID)
           .order("name", { ascending: true });
-        const s = search.trim();
-        if (s) q = q.ilike("name", `%${s}%`);
+        q = applyProductSearchOr(q, search);
         const { data, error } = await q;
         if (error) throw error;
         setList((data as ProductRow[]) || []);

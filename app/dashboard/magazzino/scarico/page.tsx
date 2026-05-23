@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
+import { applyProductSearchOr } from "@/lib/magazzino/productSearch";
 
 type Role = "coordinator" | "magazzino" | "reception" | "cliente" | string;
 
@@ -222,8 +223,7 @@ function ScaricoInner() {
           .gt("quantity", 0)
           .order("name", { ascending: true });
 
-        const s = search.trim();
-        if (s) q = q.ilike("name", `%${s}%`);
+        q = applyProductSearchOr(q, search);
 
         const { data, error } = await q;
         if (error) throw error;

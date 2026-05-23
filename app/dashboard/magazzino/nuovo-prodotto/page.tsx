@@ -1,9 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
+
+function createRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 export default function NuovoProdottoPage() {
   const { role, isReady, activeSalonId, allowedSalons, receptionSalonId } = useActiveSalon();
@@ -31,6 +38,8 @@ export default function NuovoProdottoPage() {
   );
   const [initialQty, setInitialQty] = useState("0");
   const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const pendingRequestIdRef = useRef<string | null>(null);
 
   async function creaProdotto() {
     if (!name || !category) return;
@@ -43,42 +52,59 @@ export default function NuovoProdottoPage() {
       return;
     }
 
+    if (submitting) return;
+
+    const requestId = pendingRequestIdRef.current ?? createRequestId();
+    pendingRequestIdRef.current = requestId;
+
     const qty = Number(initialQty) || 0;
-    const res = await fetch("/api/magazzino/nuovo-prodotto", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim(),
-        category: category.trim(),
-        barcode: barcode || null,
-        cost: Number(cost) || 0,
-        type,
-        description: description || null,
-        initialQty: qty,
-        initialStockSalonId: stockTargetSalonId,
-      }),
-    });
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/magazzino/nuovo-prodotto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          category: category.trim(),
+          barcode: barcode || null,
+          cost: Number(cost) || 0,
+          type,
+          description: description || null,
+          initialQty: qty,
+          initialStockSalonId: stockTargetSalonId,
+          request_id: requestId,
+        }),
+      });
 
-    const json = await res.json();
+      const json = await res.json();
 
-    if (!res.ok) {
-      toast.error(json.error || "Errore creazione prodotto");
-      return;
+      if (!res.ok) {
+        toast.error(json.error || "Errore creazione prodotto");
+        return;
+      }
+
+      pendingRequestIdRef.current = null;
+
+      setName("");
+      setCategory("");
+      setBarcode("");
+      setCost("");
+      setType("rivendita");
+      setInitialQty("0");
+      setDescription("");
+
+      toast.success(
+        json.idempotent
+          ? "Prodotto già creato (richiesta ripetuta)."
+          : qty > 0 && stockTargetLabel
+            ? `Prodotto creato. Giacenza iniziale: ${stockTargetLabel}.`
+            : "Prodotto creato.",
+      );
+    } catch {
+      toast.error("Errore di rete durante la creazione.");
+    } finally {
+      setSubmitting(false);
     }
-
-    setName("");
-    setCategory("");
-    setBarcode("");
-    setCost("");
-    setType("rivendita");
-    setInitialQty("0");
-    setDescription("");
-
-    toast.success(
-      qty > 0 && stockTargetLabel
-        ? `Prodotto creato. Giacenza iniziale: ${stockTargetLabel}.`
-        : "Prodotto creato.",
-    );
   }
 
   if (!isReady) {

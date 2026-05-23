@@ -7,7 +7,10 @@ import { LayoutList, ChevronUp, ChevronDown } from "lucide-react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import {
-  fetchInventarioCatalog,
+  fetchInventarioCatalogPage,
+  fetchInventarioCategories,
+  INVENTARIO_PAGE_SIZE,
+  INVENTARIO_SOTTOSORTA_THRESHOLD,
   type InventarioProductRow,
 } from "@/lib/magazzino/inventarioCatalog";
 
@@ -30,7 +33,12 @@ export default function InventarioPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState("");
   const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
   const [showOnlySottoscorta, setShowOnlySottoscorta] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sottoscortaCount, setSottoscortaCount] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
   const [sortKey, setSortKey] = useState<"name" | "category" | "quantity" | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
@@ -57,11 +65,14 @@ export default function InventarioPage() {
       ? "—"
       : allowedSalons.find((s) => s.id === ctxSalonId)?.name ?? `Salone ${ctxSalonId}`;
 
-  async function fetchProducts(salonId: number, search: string, cat: string) {
-    return fetchInventarioCatalog(supabase, salonId, search, cat);
-  }
+  useEffect(() => {
+    if (!isReady) return;
+    fetchInventarioCategories(supabase)
+      .then(setCategories)
+      .catch((e) => console.error(e));
+  }, [isReady, supabase]);
 
-  // Fetch quando cambia salone o filtri.
+  // Fetch quando cambia salone, filtri o pagina.
   useEffect(() => {
     let cancelled = false;
 
@@ -72,6 +83,9 @@ export default function InventarioPage() {
 
       if (ctxSalonId == null) {
         setProducts([]);
+        setTotalCount(0);
+        setSottoscortaCount(0);
+        setPageCount(1);
         setLoading(false);
         setErrMsg(
           isWarehouse
@@ -83,13 +97,25 @@ export default function InventarioPage() {
 
       try {
         setLoading(true);
-        const rows = await fetchProducts(ctxSalonId, filter, category);
-        if (!cancelled) setProducts(rows);
-      } catch (e: any) {
+        const result = await fetchInventarioCatalogPage(supabase, ctxSalonId, {
+          search: filter,
+          category,
+          sottoscortaOnly: showOnlySottoscorta,
+          page,
+        });
+        if (cancelled) return;
+        setProducts(result.rows);
+        setTotalCount(result.totalCount);
+        setSottoscortaCount(result.sottoscortaCount);
+        setPageCount(result.pageCount);
+      } catch (e: unknown) {
         console.error(e);
         if (!cancelled) {
           setProducts([]);
-          setErrMsg(e?.message ?? "Errore nel caricamento inventario.");
+          setTotalCount(0);
+          setSottoscortaCount(0);
+          setPageCount(1);
+          setErrMsg(e instanceof Error ? e.message : "Errore nel caricamento inventario.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -100,25 +126,11 @@ export default function InventarioPage() {
     return () => {
       cancelled = true;
     };
-  }, [isReady, ctxSalonId, filter, category, isWarehouse, supabase]);
-
-  const totalProducts = products.length;
-  const inSottoscorta = products.filter((p) => p.quantity <= 5).length;
-
-  const categoriesFromData = useMemo(
-    () =>
-      [...new Set(products.map((p) => p.category).filter((c): c is string => c != null && String(c).trim() !== ""))].sort(),
-    [products]
-  );
-
-  const displayedProducts = useMemo(
-    () => (showOnlySottoscorta ? products.filter((p) => p.quantity <= 5) : products),
-    [products, showOnlySottoscorta]
-  );
+  }, [isReady, ctxSalonId, filter, category, showOnlySottoscorta, page, isWarehouse, supabase]);
 
   const sortedProducts = useMemo(() => {
-    if (!sortKey) return displayedProducts;
-    const list = [...displayedProducts];
+    if (!sortKey) return products;
+    const list = [...products];
     const mult = sortDir === "asc" ? 1 : -1;
     list.sort((a, b) => {
       if (sortKey === "name") {
@@ -135,7 +147,7 @@ export default function InventarioPage() {
       return 0;
     });
     return list;
-  }, [displayedProducts, sortKey, sortDir]);
+  }, [products, sortKey, sortDir]);
 
   function handleSort(col: "name" | "category" | "quantity") {
     if (sortKey === col) {
@@ -168,7 +180,7 @@ export default function InventarioPage() {
     const a = document.createElement("a");
     const date = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `inventario-salone-${ctxSalonId}-${date}.csv`;
+    a.download = `inventario-salone-${ctxSalonId}-pag${page}-${date}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -226,10 +238,12 @@ export default function InventarioPage() {
               Stampa
             </button>
             <button
+              type="button"
+              title={`Esporta CSV della pagina corrente (${page})`}
               className="px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
               onClick={handleExportCsv}
             >
-              Esporta CSV
+              Esporta CSV (pagina)
             </button>
             <button
               className="px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
@@ -238,11 +252,19 @@ export default function InventarioPage() {
                 try {
                   setLoading(true);
                   setErrMsg(null);
-                  const rows = await fetchProducts(ctxSalonId, filter, category);
-                  setProducts(rows);
-                } catch (e: any) {
+                  const result = await fetchInventarioCatalogPage(supabase, ctxSalonId, {
+                    search: filter,
+                    category,
+                    sottoscortaOnly: showOnlySottoscorta,
+                    page,
+                  });
+                  setProducts(result.rows);
+                  setTotalCount(result.totalCount);
+                  setSottoscortaCount(result.sottoscortaCount);
+                  setPageCount(result.pageCount);
+                } catch (e: unknown) {
                   console.error(e);
-                  setErrMsg(e?.message ?? "Errore aggiornamento inventario.");
+                  setErrMsg(e instanceof Error ? e.message : "Errore aggiornamento inventario.");
                 } finally {
                   setLoading(false);
                 }
@@ -258,16 +280,16 @@ export default function InventarioPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-2xl p-5 bg-black/20 border border-white/10">
           <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-            Totale prodotti
+            Prodotti (filtri attivi)
           </div>
-          <div className="text-3xl font-extrabold text-[#f3d8b6]">{totalProducts}</div>
+          <div className="text-3xl font-extrabold text-[#f3d8b6]">{totalCount}</div>
         </div>
         <div className="rounded-2xl p-5 bg-black/20 border border-white/10">
           <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-            In sottoscorta
+            In sottoscorta (≤{INVENTARIO_SOTTOSORTA_THRESHOLD})
           </div>
-          <div className={`text-3xl font-extrabold ${inSottoscorta > 0 ? "text-red-400" : "text-[#f3d8b6]"}`}>
-            {inSottoscorta}
+          <div className={`text-3xl font-extrabold ${sottoscortaCount > 0 ? "text-red-400" : "text-[#f3d8b6]"}`}>
+            {sottoscortaCount}
           </div>
         </div>
       </div>
@@ -280,9 +302,12 @@ export default function InventarioPage() {
             <label className="block text-xs font-semibold text-white/70 mb-1.5">Cerca prodotto</label>
             <input
               className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder:text-white/40 focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
-              placeholder="Nome prodotto..."
+              placeholder="Nome o barcode…"
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div>
@@ -290,10 +315,13 @@ export default function InventarioPage() {
             <select
               className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setPage(1);
+              }}
             >
               <option value="">Tutte le categorie</option>
-              {categoriesFromData.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
@@ -305,7 +333,10 @@ export default function InventarioPage() {
               <input
                 type="checkbox"
                 checked={showOnlySottoscorta}
-                onChange={(e) => setShowOnlySottoscorta(e.target.checked)}
+                onChange={(e) => {
+                  setShowOnlySottoscorta(e.target.checked);
+                  setPage(1);
+                }}
                 className="rounded border-white/30 bg-black/30 text-[#f3d8b6] focus:ring-[#f3d8b6]/50"
               />
               <span className="text-sm font-medium text-white/90">Solo sottoscorta</span>
@@ -363,17 +394,23 @@ export default function InventarioPage() {
 
                 <td className="p-3">
                   <div className="flex flex-col gap-1">
-                    <span className={p.quantity <= 5 ? "font-bold text-red-600" : ""}>
+                    <span
+                      className={
+                        p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD
+                          ? "font-bold text-red-600"
+                          : ""
+                      }
+                    >
                       {p.quantity}
                     </span>
                     <span
                       className={`inline-flex w-fit px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                        p.quantity <= 5
+                        p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD
                           ? "bg-red-500/20 text-red-700"
                           : "bg-[#341A09]/15 text-[#341A09]/80"
                       }`}
                     >
-                      {p.quantity <= 5 ? "Sottoscorta" : "OK"}
+                      {p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD ? "Sottoscorta" : "OK"}
                     </span>
                   </div>
                 </td>
@@ -419,12 +456,40 @@ export default function InventarioPage() {
 
         {sortedProducts.length === 0 && (
           <div className="text-center text-sm opacity-60 py-10">
-            {products.length === 0
-              ? "Nessun prodotto trovato."
-              : "Nessun prodotto in sottoscorta nella lista attuale."}
+            Nessun prodotto trovato con i filtri attuali.
           </div>
         )}
       </div>
+
+      {totalCount > 0 && (
+        <p className="text-xs text-white/45 text-center">
+          Pagina {page} di {pageCount} — {INVENTARIO_PAGE_SIZE} prodotti per pagina
+        </p>
+      )}
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between gap-3 px-2">
+          <button
+            type="button"
+            disabled={page <= 1}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Precedente
+          </button>
+          <span className="text-xs text-white/50 tabular-nums">
+            {page} / {pageCount}
+          </span>
+          <button
+            type="button"
+            disabled={page >= pageCount}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40"
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+          >
+            Successiva
+          </button>
+        </div>
+      )}
     </div>
   );
 }

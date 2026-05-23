@@ -6,10 +6,9 @@ import { MAGAZZINO_CENTRALE_ID, isOperationalSalonId } from "@/lib/constants";
 import { getUserAccess } from "@/lib/getUserAccess";
 import {
   idempotentTransferResponse,
-  isUniqueViolation,
   requireClientRequestIdResponse,
-  resolveTransferIdempotent,
 } from "@/lib/magazzino/idempotency";
+import { parseCreateTransferRpcResult } from "@/lib/magazzino/transferRpc";
 
 type TransferItem = { id: number | string; qty: number | string };
 
@@ -109,13 +108,13 @@ export async function POST(req: Request) {
 
     const rows = items
       .map((it) => ({
-        product_id: Number(it?.id),
+        id: Number(it?.id),
         qty: Number(it?.qty),
       }))
       .filter(
         (r) =>
-          Number.isFinite(r.product_id) &&
-          r.product_id > 0 &&
+          Number.isFinite(r.id) &&
+          r.id > 0 &&
           Number.isFinite(r.qty) &&
           r.qty > 0
       );
@@ -140,93 +139,34 @@ export async function POST(req: Request) {
         : null;
     const noteWithMarker = appendTransferMarker(note, clientRequestId);
 
-    const existing = await resolveTransferIdempotent({
-      clientRequestId,
-      executeNow,
-      actorId: userId,
+    const { data, error } = await supabaseAdmin.rpc("create_and_execute_transfer", {
+      p_from_salon: fromSalon,
+      p_to_salon: toSalon,
+      p_items: rows,
+      p_client_request_id: clientRequestId,
+      p_actor_id: userId,
+      p_date: date,
+      p_causale: causale,
+      p_note: noteWithMarker,
+      p_execute_now: executeNow,
     });
-    if (existing) {
-      return idempotentTransferResponse(existing.transfer_id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const { data: transfer, error: transferError } = await supabaseAdmin
-      .from("transfers")
-      .insert({
-        from_salon: fromSalon,
-        to_salon: toSalon,
-        date,
-        causale,
-        note: noteWithMarker,
-        status: executeNow ? "ready" : "draft",
-        client_request_id: clientRequestId,
-      })
-      .select("id")
-      .single();
-
-    if (transferError) {
-      if (isUniqueViolation(transferError)) {
-        const replay = await resolveTransferIdempotent({
-          clientRequestId,
-          executeNow,
-          actorId: userId,
-        });
-        if (replay) {
-          return idempotentTransferResponse(replay.transfer_id);
-        }
-      }
-      return NextResponse.json(
-        { error: transferError.message ?? "Errore creazione transfer" },
-        { status: 500 }
-      );
+    const parsed = parseCreateTransferRpcResult(data);
+    if (!parsed?.ok || parsed.transfer_id == null) {
+      return NextResponse.json({ error: "Risposta transfer non valida" }, { status: 500 });
     }
 
-    if (!transfer) {
-      return NextResponse.json({ error: "Errore creazione transfer" }, { status: 500 });
+    if (parsed.idempotent) {
+      return idempotentTransferResponse(parsed.transfer_id);
     }
 
-    const itemsInsert = rows.map((r) => ({
-      transfer_id: transfer.id,
-      product_id: r.product_id,
-      qty: r.qty,
-    }));
-
-    const { error: itemsError } = await supabaseAdmin
-      .from("transfer_items")
-      .insert(itemsInsert);
-
-    if (itemsError) {
-      await supabaseAdmin.from("transfers").delete().eq("id", transfer.id);
-      return NextResponse.json({ error: itemsError.message }, { status: 500 });
-    }
-
-    if (executeNow) {
-      const { error: execError } = await supabaseAdmin.rpc("execute_transfer", {
-        p_transfer_id: transfer.id,
-        p_actor_id: userId,
-      });
-
-      if (execError) {
-        console.error("execute_transfer failed", {
-          transferId: transfer.id,
-          error: execError.message,
-        });
-
-        await supabaseAdmin
-          .from("transfer_items")
-          .delete()
-          .eq("transfer_id", transfer.id);
-
-        await supabaseAdmin.from("transfers").delete().eq("id", transfer.id);
-
-        return NextResponse.json({ error: execError.message }, { status: 500 });
-      }
-    }
-
-    return NextResponse.json({ ok: true, transfer_id: transfer.id }, { status: 200 });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Errore interno" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: true, transfer_id: parsed.transfer_id }, { status: 200 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Errore interno";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -7,6 +7,7 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { toast } from "sonner";
 import { Zap, ArrowLeft, Search, PackageMinus, AlertCircle } from "lucide-react";
 import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
+import { applyProductSearchOr } from "@/lib/magazzino/productSearch";
 
 interface Product {
   product_id: number;
@@ -52,12 +53,13 @@ export default function RapidaPage() {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let q = supabase
         .from("products_with_stock")
-        .select("product_id, name, quantity")
+        .select("product_id, name, quantity, barcode")
         .eq("salon_id", salonId)
-        .ilike("name", `%${query.trim()}%`)
         .order("name");
+      q = applyProductSearchOr(q, query);
+      const { data, error } = await q;
 
       if (error) throw error;
       setResults((data as Product[]) || []);

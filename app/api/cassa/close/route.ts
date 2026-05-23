@@ -4,6 +4,7 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { checkPrintBridgeReachable } from "@/lib/printBridgeHealth";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { mapCassaStockRpcError } from "@/lib/cassa/cassaStockError";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -883,6 +884,17 @@ export async function POST(req: Request) {
 
     if (rpcErr) {
       console.error("[CASSA_CLOSE_PRODUCT_ERROR]", rpcErr);
+      const stockErr = mapCassaStockRpcError(rpcErr.message);
+      if (stockErr) {
+        return NextResponse.json(
+          {
+            error: stockErr.message,
+            code: stockErr.code,
+            product_id: stockErr.productId,
+          },
+          { status: stockErr.status }
+        );
+      }
       return NextResponse.json(
         { error: rpcErr.message ?? "Errore chiusura cassa" },
         { status: 500 }
