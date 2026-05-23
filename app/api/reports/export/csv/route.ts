@@ -9,6 +9,7 @@ import { getAgendaReport } from "@/lib/reports/getAgendaReport";
 import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
+import { flattenStaffKpiRow } from "@/lib/reports/flattenStaffKpiForExport";
 
 export const runtime = "nodejs";
 
@@ -197,7 +198,9 @@ export async function GET(req: Request) {
       if (tab === "turnover") for (const r of sales.rows ?? []) out.push({ TYPE: "ROW", ...r });
       if (tab === "daily") for (const r of sales.daily ?? []) out.push({ TYPE: "DAY", ...r });
       if (tab === "top") for (const r of sales.topItems ?? []) out.push({ TYPE: "ITEM", ...r });
-      if (tab === "staff") for (const r of sales.staffPerformance ?? []) out.push({ TYPE: "STAFF_ROW", ...r });
+      if (tab === "staff")
+        for (const r of sales.staffPerformance ?? [])
+          out.push({ TYPE: "STAFF_ROW", ...flattenStaffKpiRow(r) });
     }
 
     if (tab === "cassa") {

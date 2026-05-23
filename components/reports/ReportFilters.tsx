@@ -8,7 +8,6 @@ type StaffOption = { id: number; name: string };
 
 type Props = {
   salonId: number;
-  /** Nome salone per contesto (coerenza Vista / URL). */
   salonLabel?: string | null;
   dateFrom: string;
   dateTo: string;
@@ -16,6 +15,8 @@ type Props = {
   paymentMethod: string | null;
   itemType: string | null;
   staffOptions: StaffOption[];
+  macroTab: string;
+  exportTab: string | null;
 };
 
 export default function ReportFilters({
@@ -27,6 +28,8 @@ export default function ReportFilters({
   paymentMethod,
   itemType,
   staffOptions,
+  macroTab,
+  exportTab,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -67,14 +70,24 @@ export default function ReportFilters({
   }, [salonId]);
 
   function exportPdf() {
+    if (!exportTab) {
+      toast.error("Export non disponibile per il Riepilogo. Usa Vendite o Team.");
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set("salon_id", String(salonId));
+    params.set("tab", exportTab);
     void downloadExport("pdf", `/api/reports/export/pdf?${params.toString()}`);
   }
 
   function exportCsv() {
+    if (!exportTab) {
+      toast.error("Export non disponibile per il Riepilogo. Usa Vendite o Team.");
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set("salon_id", String(salonId));
+    params.set("tab", exportTab);
     void downloadExport("csv", `/api/reports/export/csv?${params.toString()}`);
   }
 
@@ -115,9 +128,7 @@ export default function ReportFilters({
           <div className="text-xs uppercase tracking-[0.25em] text-white/40 font-black">
             REPORT ENTERPRISE
           </div>
-          <div className="text-xl font-extrabold text-scz-gold">
-            Vendite & Performance
-          </div>
+          <div className="text-xl font-extrabold text-scz-gold">Centro decisionale</div>
           {salonId > 0 && (
             <p className="mt-2 text-xs text-white/50">
               Dati per salone:{" "}
@@ -146,7 +157,13 @@ export default function ReportFilters({
         </div>
       </div>
 
-      <div className="grid md:grid-cols-5 gap-4">
+      {macroTab === "riepilogo" ? (
+        <p className="text-xs text-white/40 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+          Il <span className="font-bold text-white/60">Riepilogo</span> mostra oggi e mese corrente.
+          I filtri data sotto si applicano a Vendite, Team e Clienti.
+        </p>
+      ) : (
+        <div className="grid md:grid-cols-5 gap-4">
         <input
           type="date"
           value={dateFrom}
@@ -193,7 +210,8 @@ export default function ReportFilters({
           <option value="service">Servizi</option>
           <option value="product">Prodotti</option>
         </select>
-      </div>
+        </div>
+      )}
 
       {isPending && <div className="text-xs text-white/40">Aggiornamento report...</div>}
     </div>

@@ -21,6 +21,7 @@ import { getAgendaReport } from "@/lib/reports/getAgendaReport";
 import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
+import { flattenStaffKpiRow } from "@/lib/reports/flattenStaffKpiForExport";
 
 export const runtime = "nodejs";
 
@@ -339,16 +340,19 @@ export async function GET(req: Request) {
         rowsTitle = "Top Items";
         rowsPreview = (sales.topItems ?? []).slice(0, 35).map((r: any) => ({
           a: r.item_type ?? "",
-          b: r.item_name ?? r.service_name ?? r.product_name ?? "Item",
+          b: r.name ?? r.item_name ?? r.service_name ?? r.product_name ?? "Item",
           c: r.gross_total ?? r.gross ?? "",
         }));
       } else if (tab === "staff") {
         rowsTitle = "Performance Staff";
-        rowsPreview = (sales.staffPerformance ?? []).slice(0, 35).map((r: any) => ({
-          a: r.staff_name ?? r.staff_id ?? "",
-          b: `Servizi ${r.services_qty ?? 0} / Prodotti ${r.products_qty ?? 0}`,
-          c: r.gross_total ?? "",
-        }));
+        rowsPreview = (sales.staffPerformance ?? []).slice(0, 35).map((r: any) => {
+          const flat = flattenStaffKpiRow(r);
+          return {
+            a: flat.staff_name ?? flat.staff_id ?? "",
+            b: `Servizi ${flat.services_qty ?? 0} / Prodotti ${flat.products_qty ?? 0}`,
+            c: flat.incassato_lordo ?? "",
+          };
+        });
       }
     }
 

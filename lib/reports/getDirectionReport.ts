@@ -1,4 +1,6 @@
 import { getSalonTurnover } from "@/lib/reports/getSalonTurnover";
+import { buildStaffKpiFromRows, type StaffKpiRow } from "@/lib/reports/buildStaffKpiFromRows";
+import { getAgendaReport } from "@/lib/reports/getAgendaReport";
 import {
   aggregateMoneyTriples,
   avgTicket,
@@ -12,15 +14,19 @@ import {
   getDirectionCrmActions,
   type DirectionCrmActions,
 } from "@/lib/reports/getDirectionCrmActions";
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function startOfMonthISO() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-}
+import {
+  buildDirectionAlerts,
+  pickCrmActionQueue,
+  type CrmActionItem,
+  type DirectionAlert,
+} from "@/lib/reports/getDirectionAlerts";
+import {
+  sameWeekdayLastWeek,
+  startOfMonthISO,
+  startOfWeekISO,
+  todayISO,
+  yesterdayISO,
+} from "@/lib/reports/reportPeriodCompare";
 
 function shiftPeriod(dateFrom: string, dateTo: string) {
   const from = new Date(dateFrom);
@@ -42,7 +48,6 @@ function toLineInput(r: {
   line_net: number;
   line_vat?: number;
   vat_rate?: number | null;
-  item_type?: string | null;
 }): ReportLineInput {
   return {
     price: r.price,
@@ -67,6 +72,13 @@ export type PeriodSnapshot = {
   avg_ticket_net: number;
 };
 
+export type DayCompare = {
+  amount_gross: number;
+  amount_net: number;
+  pct_gross: number | null;
+  pct_net: number | null;
+};
+
 export type DirectionReport = {
   today: PeriodSnapshot;
   month: PeriodSnapshot;
@@ -75,15 +87,18 @@ export type DirectionReport = {
     net_real_pct: number | null;
     receipts_pct: number | null;
   };
+  vsYesterday: DayCompare;
+  vsLastWeekSameDay: DayCompare;
   crm: DirectionCrmActions;
+  crmActions: CrmActionItem[];
+  alerts: DirectionAlert[];
+  staffToday: StaffKpiRow[];
 };
 
 function buildSnapshot(
   dateFrom: string,
   dateTo: string,
-  totals: {
-    receipts_count?: number;
-  },
+  totals: { receipts_count?: number },
   rows: Array<{
     price: number;
     quantity: number;
@@ -130,15 +145,30 @@ function buildSnapshot(
   };
 }
 
+
 export async function getDirectionReport(salonId: number): Promise<DirectionReport> {
   const todayIso = todayISO();
   const monthStart = startOfMonthISO();
+  const yesterday = yesterdayISO(todayIso);
+  const lastWeekSame = sameWeekdayLastWeek(todayIso);
+  const weekStart = startOfWeekISO(todayIso);
 
   const crm = await getDirectionCrmActions(salonId);
 
-  const [todayTurnover, monthTurnover] = await Promise.all([
+  const [
+    todayTurnover,
+    monthTurnover,
+    yesterdayTurnover,
+    lastWeekTurnover,
+    agendaToday,
+    agendaWeek,
+  ] = await Promise.all([
     getSalonTurnover({ salonId, dateFrom: todayIso, dateTo: todayIso }),
     getSalonTurnover({ salonId, dateFrom: monthStart, dateTo: todayIso }),
+    getSalonTurnover({ salonId, dateFrom: yesterday, dateTo: yesterday }),
+    getSalonTurnover({ salonId, dateFrom: lastWeekSame, dateTo: lastWeekSame }),
+    getAgendaReport({ salonId, dateFrom: todayIso, dateTo: todayIso }),
+    getAgendaReport({ salonId, dateFrom: weekStart, dateTo: todayIso }),
   ]);
 
   const { prevFrom, prevTo } = shiftPeriod(monthStart, todayIso);
@@ -169,14 +199,25 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
     monthCustomers,
   );
 
+  const yesterdayMoney = aggregateMoneyTriples(yesterdayTurnover.rows.map(toLineInput));
+  const lastWeekMoney = aggregateMoneyTriples(lastWeekTurnover.rows.map(toLineInput));
+
   const prevMonthLines = await getSalonTurnover({
     salonId,
     dateFrom: prevFrom,
     dateTo: prevTo,
   });
-  const prevMoney = aggregateMoneyTriples(
-    prevMonthLines.rows.map(toLineInput),
-  );
+  const prevMoney = aggregateMoneyTriples(prevMonthLines.rows.map(toLineInput));
+
+  const staffToday = buildStaffKpiFromRows(todayTurnover.rows, todayCustomers);
+
+  const alerts = buildDirectionAlerts({
+    staffToday,
+    noShowToday: agendaToday.totals.no_show,
+    noShowWeek: agendaWeek.totals.no_show,
+    crm,
+    salonId,
+  });
 
   return {
     today: todaySnap,
@@ -189,11 +230,25 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
         Number(prevMonthTotals.receipts_count ?? 0),
       ),
     },
+    vsYesterday: {
+      amount_gross: yesterdayMoney.gross.real,
+      amount_net: yesterdayMoney.net.real,
+      pct_gross: pctChange(todaySnap.money.gross.real, yesterdayMoney.gross.real),
+      pct_net: pctChange(todaySnap.money.net.real, yesterdayMoney.net.real),
+    },
+    vsLastWeekSameDay: {
+      amount_gross: lastWeekMoney.gross.real,
+      amount_net: lastWeekMoney.net.real,
+      pct_gross: pctChange(todaySnap.money.gross.real, lastWeekMoney.gross.real),
+      pct_net: pctChange(todaySnap.money.net.real, lastWeekMoney.net.real),
+    },
     crm,
+    crmActions: pickCrmActionQueue(crm, 5),
+    alerts,
+    staffToday,
   };
 }
 
-/** Esportato per test: diff reale vs teorico */
 export function moneyDiff(triple: MoneyTriple): number {
   return roundMoney(triple.full - triple.real);
 }

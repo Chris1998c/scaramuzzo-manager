@@ -12,6 +12,8 @@ export type CrmActionCustomer = {
   customer_name: string;
   detail: string;
   gross_total?: number;
+  phone?: string | null;
+  whatsapp_ready?: boolean;
 };
 
 export type DirectionCrmActions = {
@@ -153,6 +155,7 @@ export async function getDirectionCrmActions(
       last_name?: string | null;
       phone?: string | null;
       email?: string | null;
+      marketing_whatsapp_opt_in?: boolean | null;
     }
   >();
 
@@ -162,7 +165,7 @@ export async function getDirectionCrmActions(
       const chunk = customerIds.slice(i, i + chunkSize);
       const { data: customers, error: custErr } = await supabase
         .from("customers")
-        .select("id, first_name, last_name, phone, email")
+        .select("id, first_name, last_name, phone, email, marketing_whatsapp_opt_in")
         .in("id", chunk);
 
       if (custErr) throw new Error(custErr.message);
@@ -173,9 +176,21 @@ export async function getDirectionCrmActions(
           last_name?: string | null;
           phone?: string | null;
           email?: string | null;
+          marketing_whatsapp_opt_in?: boolean | null;
         });
       }
     }
+  }
+
+  function enrichCustomer(cid: string, base: Omit<CrmActionCustomer, "phone" | "whatsapp_ready">): CrmActionCustomer {
+    const row = customersMap.get(cid);
+    const phone = row?.phone ? String(row.phone).trim() : null;
+    const optIn = Boolean(row?.marketing_whatsapp_opt_in);
+    return {
+      ...base,
+      phone: phone || null,
+      whatsapp_ready: Boolean(phone && optIn),
+    };
   }
 
   const notReturned60: CrmActionCustomer[] = [];
@@ -185,26 +200,30 @@ export async function getDirectionCrmActions(
     const last = lastVisitMs.get(cid) ?? null;
     const label = displayName(customersMap.get(cid), cid);
     if (last == null || last < cutoff60) {
-      notReturned60.push({
-        customer_id: cid,
-        customer_name: label,
-        detail:
-          last == null
-            ? "Nessuna visita registrata"
-            : `Ultima visita ${new Date(last).toLocaleDateString("it-IT")}`,
-        gross_total: spendMap.get(cid),
-      });
+      notReturned60.push(
+        enrichCustomer(cid, {
+          customer_id: cid,
+          customer_name: label,
+          detail:
+            last == null
+              ? "Nessuna visita registrata"
+              : `Ultima visita ${new Date(last).toLocaleDateString("it-IT")}`,
+          gross_total: spendMap.get(cid),
+        }),
+      );
     }
     if (last == null || last < cutoff90) {
-      notReturned90.push({
-        customer_id: cid,
-        customer_name: label,
-        detail:
-          last == null
-            ? "Nessuna visita registrata"
-            : `Ultima visita ${new Date(last).toLocaleDateString("it-IT")}`,
-        gross_total: spendMap.get(cid),
-      });
+      notReturned90.push(
+        enrichCustomer(cid, {
+          customer_id: cid,
+          customer_name: label,
+          detail:
+            last == null
+              ? "Nessuna visita registrata"
+              : `Ultima visita ${new Date(last).toLocaleDateString("it-IT")}`,
+          gross_total: spendMap.get(cid),
+        }),
+      );
     }
   }
 
@@ -212,32 +231,38 @@ export async function getDirectionCrmActions(
   notReturned90.sort((a, b) => (b.gross_total ?? 0) - (a.gross_total ?? 0));
 
   const topSpenders: CrmActionCustomer[] = [...spendMap.entries()]
-    .map(([cid, gross]) => ({
-      customer_id: cid,
-      customer_name: displayName(customersMap.get(cid), cid),
-      detail: "Spesa storica salone",
-      gross_total: gross,
-    }))
+    .map(([cid, gross]) =>
+      enrichCustomer(cid, {
+        customer_id: cid,
+        customer_name: displayName(customersMap.get(cid), cid),
+        detail: "Spesa storica salone",
+        gross_total: gross,
+      }),
+    )
     .sort((a, b) => (b.gross_total ?? 0) - (a.gross_total ?? 0))
     .slice(0, LIST_LIMIT);
 
   const noShowCustomers: CrmActionCustomer[] = [...noShowIds]
-    .map((cid) => ({
-      customer_id: cid,
-      customer_name: displayName(customersMap.get(cid), cid),
-      detail: "Ha fatto almeno un no-show (storico)",
-    }))
+    .map((cid) =>
+      enrichCustomer(cid, {
+        customer_id: cid,
+        customer_name: displayName(customersMap.get(cid), cid),
+        detail: "Ha fatto almeno un no-show (storico)",
+      }),
+    )
     .slice(0, LIST_LIMIT);
 
   const noRetailBuyers: CrmActionCustomer[] = [];
   for (const cid of apptCustomerIds) {
     if (productBuyers.has(cid)) continue;
-    noRetailBuyers.push({
-      customer_id: cid,
-      customer_name: displayName(customersMap.get(cid), cid),
-      detail: "Visite in salone ma nessun acquisto prodotto",
-      gross_total: spendMap.get(cid),
-    });
+    noRetailBuyers.push(
+      enrichCustomer(cid, {
+        customer_id: cid,
+        customer_name: displayName(customersMap.get(cid), cid),
+        detail: "Visite in salone ma nessun acquisto prodotto",
+        gross_total: spendMap.get(cid),
+      }),
+    );
   }
   noRetailBuyers.sort((a, b) => (b.gross_total ?? 0) - (a.gross_total ?? 0));
 

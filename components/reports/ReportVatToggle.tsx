@@ -35,7 +35,7 @@ export default function ReportVatToggle({ mode, onChange, className = "" }: Prop
             : "text-white/45 hover:text-white/70"
         }`}
       >
-        Senza IVA
+        Imponibile
       </button>
     </div>
   );
