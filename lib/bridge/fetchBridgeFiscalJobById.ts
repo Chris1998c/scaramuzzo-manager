@@ -2,7 +2,7 @@ import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { assertBridgeJobSalonOwnership } from "@/lib/bridge/bridgeJobValidation";
-import type { BridgeInstallation } from "@/lib/bridge/bridgeInstallations";
+import type { BridgeInstallationRecord } from "@/lib/bridge/processBridgeHeartbeat";
 
 const JOB_DETAIL_SELECT =
   "id, salon_id, kind, status, created_at, completed_at, processed_at, locked_at, locked_by, sale_id, cash_session_id, attempts, error_message, result, payload";
@@ -19,7 +19,7 @@ function truncateResultField(result: unknown): unknown {
 }
 
 export async function fetchBridgeFiscalJobById(
-  installation: BridgeInstallation,
+  installation: BridgeInstallationRecord,
   jobId: number,
 ): Promise<
   | { ok: true; job: Record<string, unknown> }
@@ -46,7 +46,10 @@ export async function fetchBridgeFiscalJobById(
     }
 
     const row = data as Record<string, unknown>;
-    const own = assertBridgeJobSalonOwnership(installation, row);
+    const own = assertBridgeJobSalonOwnership(installation, {
+      salon_id: Number(row.salon_id),
+      locked_by: row.locked_by != null ? String(row.locked_by) : null,
+    });
     if (!own.ok) return own;
 
     const job = { ...row };
