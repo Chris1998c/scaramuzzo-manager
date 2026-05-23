@@ -1,47 +1,18 @@
-// Timbratura con geofence 500m — flusso presenza ufficiale in produzione (attendance_logs).
+// Timbratura con geofence 500m — flusso presenza ufficiale in produzione (attendance_logs + audit GPS).
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { verifyMobileToken } from "@/lib/mobileSession";
+import {
+  parseClockRequestBody,
+  rejectMockedLocation,
+  rejectPoorGpsAccuracy,
+  resolveClockSalonId,
+} from "@/lib/mobile/mobileAttendanceClockValidation";
+import { verifyMobileBearerFromRequest } from "@/lib/mobileSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const GEOFENCE_MAX_METERS = 500;
-
-type ClockRequestBody = {
-  lat?: number;
-  lng?: number;
-};
-
-type MobileAuthClockResult =
-  | { ok: true; staffId: number; tokenSalonId: number }
-  | { ok: false; response: NextResponse };
-
-function bearerFromRequest(req: Request): string | null {
-  const h = req.headers.get("authorization")?.trim();
-  if (!h) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h);
-  return m ? m[1].trim() : null;
-}
-
-/** JWT obbligatorio: identità solo dal token, nessun staff_id da body/query. */
-function getMobileAuthUser(req: Request): MobileAuthClockResult {
-  const token = bearerFromRequest(req);
-  if (!token) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-  const v = verifyMobileToken(token);
-  if (!v.ok) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-  return { ok: true, staffId: v.sid, tokenSalonId: v.salon_id };
-}
 
 function toRadians(value: number): number {
   return (value * Math.PI) / 180;
@@ -51,7 +22,7 @@ function getDistanceMeters(
   lat: number,
   lng: number,
   salonLat: number,
-  salonLng: number
+  salonLng: number,
 ): number {
   const earthRadiusMeters = 6_371_000;
   const dLat = toRadians(salonLat - lat);
@@ -69,21 +40,36 @@ function getDistanceMeters(
 
 export async function POST(req: Request) {
   try {
-    const auth = getMobileAuthUser(req);
+    const auth = verifyMobileBearerFromRequest(req);
     if (!auth.ok) return auth.response;
 
-    const body = (await req.json()) as ClockRequestBody;
-    const staffId = auth.staffId;
-    const lat = Number(body.lat);
-    const lng = Number(body.lng);
-
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    const rawBody: unknown = await req.json();
+    const parsed = parseClockRequestBody(rawBody);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
     }
+
+    const mocked = rejectMockedLocation(parsed.body.isMocked);
+    if (mocked.reject) {
+      return NextResponse.json({ success: false, error: mocked.error }, { status: 403 });
+    }
+
+    const poorAcc = rejectPoorGpsAccuracy(parsed.body.accuracyM);
+    if (poorAcc.reject) {
+      return NextResponse.json({ success: false, error: poorAcc.error }, { status: 403 });
+    }
+
+    const staffId = auth.token.sid;
+    const salonId = resolveClockSalonId(parsed.body.salonId, auth.token);
+    if (salonId == null) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { lat, lng } = parsed.body;
 
     const { data: staff, error: staffError } = await supabaseAdmin
       .from("staff")
-      .select("id, salon_id, mobile_enabled")
+      .select("id, active, mobile_enabled")
       .eq("id", staffId)
       .maybeSingle();
 
@@ -91,22 +77,12 @@ export async function POST(req: Request) {
       throw staffError;
     }
 
-    if (!staff) {
+    if (!staff || !staff.active) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (!staff.mobile_enabled) {
       return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
-    }
-
-    const salonIdRaw = staff.salon_id;
-    if (salonIdRaw == null || !Number.isInteger(Number(salonIdRaw)) || Number(salonIdRaw) <= 0) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-    const salonId = Number(salonIdRaw);
-
-    if (auth.tokenSalonId !== salonId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { data: salon, error: salonError } = await supabaseAdmin
@@ -129,7 +105,7 @@ export async function POST(req: Request) {
     if (!Number.isFinite(salonLat) || !Number.isFinite(salonLng)) {
       return NextResponse.json(
         { success: false, error: "Coordinate salone non configurate" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -141,7 +117,7 @@ export async function POST(req: Request) {
           success: false,
           error: "Sei troppo lontano dal salone per timbrare",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -163,6 +139,12 @@ export async function POST(req: Request) {
       staff_id: staffId,
       salon_id: salonId,
       type: newType,
+      latitude: lat,
+      longitude: lng,
+      accuracy_m: parsed.body.accuracyM,
+      is_mocked: false,
+      device_id: parsed.body.deviceId,
+      app_version: parsed.body.appVersion,
     });
 
     if (insertError) {
@@ -172,6 +154,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       new_status: newType,
+      salon_id: salonId,
     });
   } catch (error) {
     console.error("mobile attendance clock route error:", error);

@@ -1,7 +1,11 @@
 // Stats periodo Team: JWT Bearer obbligatorio; periodo da body (from/to); identità solo dal token.
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { verifyMobileToken, romeDayKeyFromIso } from "@/lib/mobileSession";
+import {
+  resolveMobileSalonIdFromBody,
+  romeDayKeyFromIso,
+  verifyMobileBearerFromRequest,
+} from "@/lib/mobileSession";
 import {
   SALES_LEDGER_OPERATION_TYPE,
   SALES_LEDGER_STATUS,
@@ -15,7 +19,7 @@ type StatsBody = {
   from?: string;
   /** Inclusive calendar day `YYYY-MM-DD`. */
   to?: string;
-  /** Optional; if sent, must match `staff.salon_id` or the request is rejected. */
+  /** Opzionale; se inviato deve essere in `salon_ids` del JWT (default: salone primario). */
   salon_id?: number | null;
 };
 
@@ -33,38 +37,6 @@ function periodBounds(from: string, to: string): { fromTs: string; toTs: string 
     fromTs: `${from}T00:00:00`,
     toTs: `${to}T23:59:59.999`,
   };
-}
-
-type MobileAuthUserResult =
-  | { ok: true; staffId: number; tokenSalonId: number }
-  | { ok: false; response: NextResponse };
-
-function bearerFromRequest(req: Request): string | null {
-  const h = req.headers.get("authorization")?.trim();
-  if (!h) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h);
-  return m ? m[1].trim() : null;
-}
-
-/**
- * Autenticazione mobile per questa route: solo JWT (MOBILE_JWT_SECRET), nessun staff_id da body/query.
- */
-function getMobileAuthUser(req: Request): MobileAuthUserResult {
-  const token = bearerFromRequest(req);
-  if (!token) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-  const v = verifyMobileToken(token);
-  if (!v.ok) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-  return { ok: true, staffId: v.sid, tokenSalonId: v.salon_id };
 }
 
 /** PostgREST may return a single embedded row as object or one-element array. */
@@ -235,17 +207,13 @@ async function fetchWorkedDaysDistinctInPeriod(
 
 export async function POST(req: Request) {
   try {
-    const auth = getMobileAuthUser(req);
+    const auth = verifyMobileBearerFromRequest(req);
     if (!auth.ok) return auth.response;
 
     const body = (await req.json()) as StatsBody;
-    const staffId = auth.staffId;
+    const staffId = auth.token.sid;
     const from = String(body.from ?? "").trim();
     const to = String(body.to ?? "").trim();
-    const bodySalonId =
-      body.salon_id === undefined || body.salon_id === null
-        ? null
-        : Number(body.salon_id);
     if (!isValidYmd(from) || !isValidYmd(to)) {
       return NextResponse.json(
         { error: "Invalid period: from and to must be YYYY-MM-DD" },
@@ -256,9 +224,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid period: from must be <= to" }, { status: 400 });
     }
 
+    const salonId = resolveMobileSalonIdFromBody(body.salon_id, auth.token);
+    if (salonId == null) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { data: staffRow, error: staffErr } = await supabaseAdmin
       .from("staff")
-      .select("id, salon_id, mobile_enabled")
+      .select("id, active, mobile_enabled")
       .eq("id", staffId)
       .maybeSingle();
 
@@ -266,21 +239,11 @@ export async function POST(req: Request) {
       console.error("mobile stats staff lookup:", staffErr.message);
       return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
     }
-    if (!staffRow) {
+    if (!staffRow || !staffRow.active) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!staffRow.mobile_enabled) {
       return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
-    }
-
-    const salonIdRaw = staffRow.salon_id;
-    if (salonIdRaw == null || !Number.isInteger(Number(salonIdRaw)) || Number(salonIdRaw) <= 0) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-    const salonId = Number(salonIdRaw);
-
-    if (auth.tokenSalonId !== salonId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { data: salonRow, error: salonErr } = await supabaseAdmin
@@ -295,12 +258,6 @@ export async function POST(req: Request) {
     }
     if (!salonRow) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    if (bodySalonId != null) {
-      if (!Number.isInteger(bodySalonId) || bodySalonId <= 0 || bodySalonId !== salonId) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
     }
 
     const { fromTs, toTs } = periodBounds(from, to);

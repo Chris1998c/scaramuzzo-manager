@@ -1,10 +1,11 @@
-// Agenda giornaliera Team: stesso contratto Bearer + compat body.staff_id (lib/mobileSession).
+// Agenda giornaliera Team: Bearer JWT + salon_id opzionale (deve essere in salon_ids del token).
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { resolveMobileStaffId } from "@/lib/mobileSession";
+import { resolveMobileSalonIdFromBody, resolveMobileStaffId } from "@/lib/mobileSession";
 
 type Body = {
   staff_id?: number;
+  salon_id?: number | null;
 };
 
 /** Inizio giornata odierna (Europe/Rome) come `YYYY-MM-DDT00:00:00` per confronto con `timestamp without time zone`. */
@@ -20,6 +21,7 @@ function startOfTodayRomeLocal(): string {
 
 type AppointmentRowRaw = {
   id: number;
+  salon_id?: number | null;
   start_time: string;
   end_time: string | null;
   status: string | null;
@@ -67,10 +69,14 @@ export async function POST(req: Request) {
     if (!idRes.ok) return idRes.response;
 
     const staffId = idRes.staffId;
+    const filterSalonId = resolveMobileSalonIdFromBody(body.salon_id, idRes.token);
+    if (filterSalonId == null) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { data: staffRow, error: staffErr } = await supabaseAdmin
       .from("staff")
-      .select("id, mobile_enabled")
+      .select("id, active, mobile_enabled")
       .eq("id", staffId)
       .maybeSingle();
 
@@ -78,7 +84,7 @@ export async function POST(req: Request) {
       console.error("my-appointments staff lookup:", staffErr.message);
       return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
     }
-    if (!staffRow) {
+    if (!staffRow || !staffRow.active) {
       return NextResponse.json({ error: "Staff not found" }, { status: 404 });
     }
     if (!staffRow.mobile_enabled) {
@@ -93,6 +99,7 @@ export async function POST(req: Request) {
           .from("appointments")
           .select("id")
           .eq("staff_id", staffId)
+          .eq("salon_id", filterSalonId)
           .gte("start_time", startFrom),
         supabaseAdmin
           .from("appointment_services")
@@ -125,6 +132,7 @@ export async function POST(req: Request) {
           .from("appointments")
           .select("id")
           .in("id", Array.from(rawLineIds))
+          .eq("salon_id", filterSalonId)
           .gte("start_time", startFrom);
 
         if (lineFutureErr) {
@@ -139,7 +147,7 @@ export async function POST(req: Request) {
     }
 
     if (idSet.size === 0) {
-      return NextResponse.json({ success: true, rows: [] });
+      return NextResponse.json({ success: true, rows: [], salon_id: filterSalonId });
     }
 
     const { data: appts, error: apptsErr } = await supabaseAdmin
@@ -147,6 +155,7 @@ export async function POST(req: Request) {
       .select(
         `
           id,
+          salon_id,
           start_time,
           end_time,
           status,
@@ -167,6 +176,7 @@ export async function POST(req: Request) {
         `,
       )
       .in("id", Array.from(idSet))
+      .eq("salon_id", filterSalonId)
       .gte("start_time", startFrom)
       .order("start_time", { ascending: true })
       .order("id", { foreignTable: "appointment_services", ascending: true });
@@ -185,7 +195,7 @@ export async function POST(req: Request) {
       services: serviceNamesFromAppointment(a),
     }));
 
-    return NextResponse.json({ success: true, rows });
+    return NextResponse.json({ success: true, rows, salon_id: filterSalonId });
   } catch (error) {
     console.error("mobile my-appointments error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -12,8 +12,7 @@
 - [ ] NEXT_PUBLIC_SUPABASE_ANON_KEY presente
 - [ ] SUPABASE_SERVICE_ROLE_KEY presente
 - [ ] SUPABASE_JWT_SECRET presente se usato nel progetto
-- [ ] MOBILE_JWT_SECRET presente
-- [ ] MOBILE_AUTH_STRICT impostato come deciso
+- [ ] MOBILE_JWT_SECRET presente (obbligatorio: login mobile risponde 503 senza token se manca)
 - [ ] fiscal callback secret presente
 - [ ] nessuna env legacy/duplicata che crea ambiguità
 
