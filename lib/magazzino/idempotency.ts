@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { StockLedgerRpcFields } from "@/lib/magazzino/ledgerLinks";
+import { parseStockMoveRpcResult } from "@/lib/magazzino/stockMoveResult";
 
 const CLIENT_REQUEST_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -114,12 +115,7 @@ export async function runStockMoveIdempotent(args: {
   | { ok: true; idempotent?: boolean; duplicate_movement_id?: number }
   | { error: string }
 > {
-  const existing = await findStockMovementByClientRequestId(args.clientRequestId);
-  if (existing) {
-    return { ok: true, idempotent: true, duplicate_movement_id: existing.id };
-  }
-
-  const { error } = await supabaseAdmin.rpc(
+  const { data, error } = await supabaseAdmin.rpc(
     "stock_move",
     stockMoveRpc({
       ...args.rpc,
@@ -131,6 +127,14 @@ export async function runStockMoveIdempotent(args: {
   );
 
   if (!error) {
+    const parsed = parseStockMoveRpcResult(data);
+    if (parsed?.idempotent && parsed.movement_id != null) {
+      return {
+        ok: true,
+        idempotent: true,
+        duplicate_movement_id: parsed.movement_id,
+      };
+    }
     return { ok: true };
   }
 

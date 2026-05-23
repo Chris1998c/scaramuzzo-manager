@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
+import { movimentiRange, totalPages } from "@/lib/magazzino/stockMoveResult";
 import { History, RefreshCw } from "lucide-react";
 
 interface Movement {
@@ -46,7 +47,14 @@ export default function MovimentiPage() {
 
   const [movements, setMovements] = useState<Movement[]>([]);
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"" | "carico" | "scarico" | "trasferimento">("");
+  const [typeFilter, setTypeFilter] = useState<
+    "" | "carico" | "scarico" | "trasferimento" | "vendita" | "storno"
+  >("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingMovements, setLoadingMovements] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
@@ -129,30 +137,45 @@ export default function MovimentiPage() {
   // ---------------------------
   // FETCH MOVEMENTS (filtrato SEMPRE su ctxSalonId)
   // ---------------------------
-  async function fetchMovements(salonId: number, searchText: string, type: typeof typeFilter) {
+  async function fetchMovements(
+    salonId: number,
+    searchText: string,
+    type: typeof typeFilter,
+    pageNum: number,
+    fromDate: string,
+    toDate: string,
+  ) {
+    setLoadingMovements(true);
+    const { from, to } = movimentiRange(pageNum);
+
     let query = supabase
       .from("movimenti_view")
-      .select("*")
+      .select("*", { count: "exact" })
       .order("created_at", { ascending: false });
 
-    // Movimenti in cui il salone corrente compare come from_salon o to_salon.
     query = query.or(`from_salon.eq.${salonId},to_salon.eq.${salonId}`);
 
     const st = searchText.trim();
     if (st) query = query.ilike("product_name", `%${st}%`);
     if (type) query = query.eq("movement_type", type);
+    if (fromDate) query = query.gte("created_at", `${fromDate}T00:00:00`);
+    if (toDate) query = query.lte("created_at", `${toDate}T23:59:59.999`);
 
-    const { data, error } = await query;
+    const { data, error, count } = await query.range(from, to);
+
+    setLoadingMovements(false);
 
     if (error) {
       console.error(error);
       setMovements([]);
+      setTotalCount(0);
       setErrMsg("Errore nel caricamento movimenti.");
       return;
     }
 
     setErrMsg(null);
     setMovements((data as Movement[]) || []);
+    setTotalCount(count ?? 0);
   }
 
   // fetch automatico quando cambia ctx/filtri
@@ -168,9 +191,23 @@ export default function MovimentiPage() {
       if (role !== "reception" && userSalonId == null) return;
     }
 
-    fetchMovements(ctxSalonId, search, typeFilter);
+    fetchMovements(ctxSalonId, search, typeFilter, page, dateFrom, dateTo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, loadingUser, role, receptionSalonId, userSalonId, ctxSalonId, search, typeFilter]);
+  }, [
+    isReady,
+    loadingUser,
+    role,
+    receptionSalonId,
+    userSalonId,
+    ctxSalonId,
+    search,
+    typeFilter,
+    page,
+    dateFrom,
+    dateTo,
+  ]);
+
+  const pageCount = totalPages(totalCount);
 
   function formatDate(dateString: string): string {
     const d = new Date(dateString);
@@ -195,6 +232,12 @@ export default function MovimentiPage() {
     }
     if (m.movement_type === "trasferimento") {
       return `${from == null ? "-" : salonLabel(from)} → ${to == null ? "-" : salonLabel(to)}`;
+    }
+    if (m.movement_type === "vendita") {
+      return `Vendita da ${from == null ? "-" : salonLabel(from)}`;
+    }
+    if (m.movement_type === "storno") {
+      return `Storno su ${to == null ? "-" : salonLabel(to)}`;
     }
     return m.movement_type;
   }
@@ -287,7 +330,10 @@ export default function MovimentiPage() {
           <button
             type="button"
             className="shrink-0 self-start sm:self-center inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-            onClick={() => ctxSalonId != null && fetchMovements(ctxSalonId, search, typeFilter)}
+            onClick={() =>
+              ctxSalonId != null &&
+              fetchMovements(ctxSalonId, search, typeFilter, page, dateFrom, dateTo)
+            }
           >
             <RefreshCw size={18} />
             Aggiorna
@@ -300,14 +346,17 @@ export default function MovimentiPage() {
         <div className="text-[10px] font-black uppercase tracking-wider text-white/50">
           Filtri
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-semibold text-white/70 mb-1.5">Cerca prodotto</label>
             <input
               className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder:text-white/40 focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
               placeholder="Nome prodotto..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div>
@@ -315,19 +364,53 @@ export default function MovimentiPage() {
             <select
               className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+              onChange={(e) => {
+                setTypeFilter(e.target.value as typeof typeFilter);
+                setPage(1);
+              }}
             >
               <option value="">Tutti i movimenti</option>
               <option value="carico">Solo carichi</option>
               <option value="scarico">Solo scarichi</option>
               <option value="trasferimento">Solo trasferimenti</option>
+              <option value="vendita">Solo vendite</option>
+              <option value="storno">Solo storni</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-white/70 mb-1.5">Dal</label>
+            <input
+              type="date"
+              className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-white/70 mb-1.5">Al</label>
+            <input
+              type="date"
+              className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+            />
           </div>
           <div className="flex items-end">
             <button
               type="button"
               className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-              onClick={() => ctxSalonId != null && fetchMovements(ctxSalonId, search, typeFilter)}
+              onClick={() => {
+                setPage(1);
+                if (ctxSalonId != null) {
+                  fetchMovements(ctxSalonId, search, typeFilter, 1, dateFrom, dateTo);
+                }
+              }}
             >
               <RefreshCw size={16} />
               Aggiorna
@@ -338,6 +421,14 @@ export default function MovimentiPage() {
 
       {/* TABELLA */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
+        {loadingMovements && (
+          <p className="px-4 py-3 text-sm text-white/50 border-b border-white/10">Caricamento…</p>
+        )}
+        {!loadingMovements && totalCount > 0 && (
+          <p className="px-4 py-2 text-xs text-white/50 border-b border-white/10">
+            {totalCount} movimenti — pagina {page} di {pageCount}
+          </p>
+        )}
         {movements.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[800px]">
@@ -372,9 +463,9 @@ export default function MovimentiPage() {
                     <td className="p-3">
                       <span
                         className={`inline-flex px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                          m.movement_type === "carico"
+                          m.movement_type === "carico" || m.movement_type === "storno"
                             ? "bg-emerald-500/20 text-emerald-300"
-                            : m.movement_type === "scarico"
+                            : m.movement_type === "scarico" || m.movement_type === "vendita"
                               ? "bg-red-500/20 text-red-300"
                               : "bg-[#f3d8b6]/15 text-[#f3d8b6]"
                         }`}
@@ -389,7 +480,7 @@ export default function MovimentiPage() {
               </tbody>
             </table>
           </div>
-        ) : (
+        ) : !loadingMovements ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="rounded-2xl p-4 bg-black/20 border border-white/10 mb-3">
               <History className="text-white/30" size={36} strokeWidth={1.5} />
@@ -398,6 +489,29 @@ export default function MovimentiPage() {
             <p className="text-white/40 text-sm mt-1">
               Modifica i filtri o attendi nuovi movimenti per questo salone.
             </p>
+          </div>
+        ) : null}
+        {pageCount > 1 && !loadingMovements && (
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-white/10 bg-black/20">
+            <button
+              type="button"
+              disabled={page <= 1}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40 hover:bg-white/5"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Precedente
+            </button>
+            <span className="text-xs text-white/50 tabular-nums">
+              {page} / {pageCount}
+            </span>
+            <button
+              type="button"
+              disabled={page >= pageCount}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40 hover:bg-white/5"
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            >
+              Successiva
+            </button>
           </div>
         )}
       </div>
