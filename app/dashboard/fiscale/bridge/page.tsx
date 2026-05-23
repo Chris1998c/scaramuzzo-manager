@@ -54,14 +54,15 @@ export default async function BridgeMonitorPage({ searchParams }: PageProps) {
             </div>
             <div>
               <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-                Modulo fiscale
+                Cassa fiscale
               </div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                Bridge stampa
+                Stato stampanti e cassa
               </h1>
-              <p className="text-[#c9b299] mt-1 text-sm md:text-base">
-                Heartbeat dai PC cassa · token scoped · preparazione SaaS
-                {canManage ? " · gestione token coordinator" : " · sola lettura"}
+              <p className="text-[#c9b299] mt-1 text-sm md:text-base max-w-xl">
+                Controllo rapido: la cassa è collegata, la stampante risponde e gli ultimi documenti
+                fiscali.
+                {canManage ? " Il coordinator può gestire i collegamenti in fondo pagina." : ""}
               </p>
             </div>
           </div>
@@ -77,18 +78,17 @@ export default async function BridgeMonitorPage({ searchParams }: PageProps) {
       </section>
 
       {showSalonFilter ? (
-        <p className="text-xs text-[#c9b299]">
-          Filtro salone:{" "}
+        <p className="text-sm text-[#c9b299]">
+          Stai visualizzando:{" "}
           {salonFilter != null ? (
-            <strong className="text-[#f3d8b6]">{salonFilter}</strong>
+            <strong className="text-[#f3d8b6]">salone {salonFilter}</strong>
           ) : (
-            "tutti i saloni"
-          )}{" "}
-          — usa <code className="text-white/70">?salon_id=1</code> nell&apos;URL
+            <strong className="text-[#f3d8b6]">tutti i saloni</strong>
+          )}
         </p>
       ) : salonFilter != null ? (
-        <p className="text-xs text-[#c9b299]">
-          Salone operativo: <strong className="text-[#f3d8b6]">{salonFilter}</strong>
+        <p className="text-sm text-[#c9b299]">
+          Il tuo salone: <strong className="text-[#f3d8b6]">{salonFilter}</strong>
         </p>
       ) : null}
 
