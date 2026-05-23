@@ -159,7 +159,7 @@ export default function RapidaPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             className="flex-1 min-w-0 p-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder:text-white/40 focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
-            placeholder="Nome prodotto…"
+            placeholder="Nome o barcode…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}

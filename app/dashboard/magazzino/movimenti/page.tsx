@@ -6,6 +6,18 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
 import { movimentiRange, totalPages } from "@/lib/magazzino/stockMoveResult";
 import { History, RefreshCw } from "lucide-react";
+import { movementBadgeLabel, movementBadgeTone, formatMagazzinoDateTime } from "@/lib/magazzino/magazzinoUi";
+import { MovementAuditLinks } from "@/components/magazzino/MovementAuditLinks";
+import {
+  MagazzinoFilterPanel,
+  MagazzinoHero,
+  MagazzinoLoading,
+  MagazzinoPageShell,
+  MagazzinoPagination,
+  MagazzinoSearchInput,
+  MagazzinoStatusBadge,
+} from "@/components/magazzino/ui/magazzinoUi";
+import { magazzinoInputClass, magazzinoSelectClass } from "@/lib/magazzino/magazzinoUi";
 
 interface Movement {
   id: number;
@@ -14,9 +26,10 @@ interface Movement {
   product_name: string;
   category: string | null;
   quantity: number;
-  movement_type: "carico" | "scarico" | "trasferimento" | string;
+  movement_type: "carico" | "scarico" | "trasferimento" | "vendita" | "storno" | string;
   from_salon: number | null;
   to_salon: number | null;
+  reason: string | null;
 }
 
 function toSalonId(v: unknown): number | null {
@@ -210,14 +223,7 @@ export default function MovimentiPage() {
   const pageCount = totalPages(totalCount);
 
   function formatDate(dateString: string): string {
-    const d = new Date(dateString);
-    return d.toLocaleString("it-IT", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatMagazzinoDateTime(dateString);
   }
 
   function formatDirection(m: Movement): string {
@@ -246,11 +252,7 @@ export default function MovimentiPage() {
   // UI STATES
   // ---------------------------
   if (!isReady || loadingUser) {
-    return (
-      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
-        Caricamento…
-      </div>
-    );
+    return <MagazzinoLoading />;
   }
 
   if (errMsg) {
@@ -430,7 +432,30 @@ export default function MovimentiPage() {
           </p>
         )}
         {movements.length > 0 ? (
-          <div className="overflow-x-auto">
+          <>
+          <div className="lg:hidden divide-y divide-white/10">
+            {movements.map((m) => (
+              <div key={m.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white truncate">{m.product_name}</p>
+                    <p className="text-xs text-white/50 mt-0.5">{formatDate(m.created_at)}</p>
+                  </div>
+                  <MagazzinoStatusBadge
+                    label={movementBadgeLabel(m.movement_type)}
+                    tone={movementBadgeTone(m.movement_type)}
+                  />
+                </div>
+                <p className="text-xs text-white/60">{formatDirection(m)} · qty {m.quantity}</p>
+                <MovementAuditLinks
+                  movementType={m.movement_type}
+                  productId={m.product_id}
+                  reason={m.reason}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b border-white/10 bg-black/20">
@@ -452,6 +477,9 @@ export default function MovimentiPage() {
                   <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
                     Direzione
                   </th>
+                  <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
+                    Collegamenti
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -461,25 +489,26 @@ export default function MovimentiPage() {
                     <td className="p-3 font-medium text-white">{m.product_name}</td>
                     <td className="p-3 text-white/60">{m.category ?? "—"}</td>
                     <td className="p-3">
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                          m.movement_type === "carico" || m.movement_type === "storno"
-                            ? "bg-emerald-500/20 text-emerald-300"
-                            : m.movement_type === "scarico" || m.movement_type === "vendita"
-                              ? "bg-red-500/20 text-red-300"
-                              : "bg-[#f3d8b6]/15 text-[#f3d8b6]"
-                        }`}
-                      >
-                        {m.movement_type}
-                      </span>
+                      <MagazzinoStatusBadge
+                        label={movementBadgeLabel(m.movement_type)}
+                        tone={movementBadgeTone(m.movement_type)}
+                      />
                     </td>
                     <td className="p-3 font-semibold text-[#f3d8b6] tabular-nums">{m.quantity}</td>
                     <td className="p-3 text-white/70 text-xs">{formatDirection(m)}</td>
+                    <td className="p-3">
+                      <MovementAuditLinks
+                        movementType={m.movement_type}
+                        productId={m.product_id}
+                        reason={m.reason}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          </>
         ) : !loadingMovements ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="rounded-2xl p-4 bg-black/20 border border-white/10 mb-3">

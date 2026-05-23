@@ -345,8 +345,56 @@ export default function InventarioPage() {
         </div>
       </div>
 
-      {/* TABELLA */}
-      <div className="bg-[#FFF9F4] text-[#341A09] p-6 rounded-xl shadow">
+      {/* MOBILE CARDS */}
+      <div className="md:hidden space-y-3">
+        {sortedProducts.map((p) => (
+          <div
+            key={p.product_id}
+            className="rounded-xl border border-white/10 bg-scz-dark p-4 space-y-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-bold text-white truncate">{p.name}</p>
+                <p className="text-xs text-white/50 mt-0.5">
+                  {p.category ?? "—"} · {p.barcode || "—"}
+                </p>
+              </div>
+              <span
+                className={`text-lg font-extrabold tabular-nums ${
+                  p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD ? "text-red-400" : "text-[#f3d8b6]"
+                }`}
+              >
+                {p.quantity}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {canCarico && (
+                <Link
+                  href={`/dashboard/magazzino/carico?product=${p.product_id}`}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0FA958] text-white"
+                >
+                  Carica
+                </Link>
+              )}
+              <Link
+                href={`/dashboard/magazzino/scarico?product=${p.product_id}`}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600/90 text-white"
+              >
+                Scarica
+              </Link>
+              <Link
+                href={`/dashboard/magazzino/prodotto/${p.product_id}`}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-black/30 border border-white/10 text-[#f3d8b6]"
+              >
+                Dettaglio
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* TABELLA desktop */}
+      <div className="hidden md:block bg-[#FFF9F4] text-[#341A09] p-6 rounded-xl shadow">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[#341A09]/20 font-semibold">

@@ -567,6 +567,11 @@ export default function TrasferimentiPage() {
                     );
                   })}
                 </ul>
+                <p className="rounded-xl border border-[#f3d8b6]/25 bg-[#f3d8b6]/10 px-4 py-3 text-sm text-[#f3d8b6]">
+                  Riepilogo: {selected.length} articol
+                  {selected.length === 1 ? "o" : "i"} ·{" "}
+                  {selected.reduce((a, s) => a + s.qty, 0)} unità totali → {toName}
+                </p>
                 <button
                   type="button"
                   className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base transition disabled:opacity-40 disabled:cursor-not-allowed"

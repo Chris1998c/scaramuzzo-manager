@@ -515,7 +515,7 @@ function CaricoInner() {
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Cerca prodotto..."
+                    placeholder="Nome o barcode…"
                     className="w-full pl-10 pr-4 py-3 rounded-xl border bg-white"
                   />
                 </div>
