@@ -270,45 +270,112 @@ export type CrmActionItem = {
   phone?: string | null;
   whatsapp_ready: boolean;
   category: "recall" | "top" | "noshow" | "no_retail" | "color_absent";
+  /** Segmenti aggiuntivi oltre al motivo principale (per badge UI). */
+  extra_reasons_count: number;
 };
 
-export function pickCrmActionQueue(crm: DirectionCrmActions, limit = 5): CrmActionItem[] {
-  const queue: CrmActionItem[] = [];
+type CrmQueueSource = {
+  customer_id: string;
+  customer_name: string;
+  detail: string;
+  gross_total?: number;
+  phone?: string | null;
+};
 
-  const push = (
-    items: Array<{
-      customer_id: string;
-      customer_name: string;
-      detail: string;
-      gross_total?: number;
-      phone?: string | null;
-      whatsapp_ready?: boolean;
-    }>,
-    category: CrmActionItem["category"],
-    reason: string,
-  ) => {
-    for (const c of items) {
-      if (queue.length >= limit) return;
-      queue.push({
-        customer_id: c.customer_id,
-        customer_name: c.customer_name,
-        reason,
-        detail: c.detail,
-        gross_total: c.gross_total,
-        phone: c.phone,
-        whatsapp_ready: Boolean(c.phone?.trim()),
-        category,
-      });
-    }
+type CrmQueueSegment = {
+  reasonKey: string;
+  category: CrmActionItem["category"];
+  reasonLabel: string;
+  pick: (crm: DirectionCrmActions) => CrmQueueSource[];
+};
+
+const CRM_QUEUE_SEGMENTS: CrmQueueSegment[] = [
+  {
+    reasonKey: "color_absent",
+    category: "color_absent",
+    reasonLabel: "Colore assente",
+    pick: (c) => c.colorAbsent,
+  },
+  {
+    reasonKey: "noshow",
+    category: "noshow",
+    reasonLabel: "No-show",
+    pick: (c) => c.noShowCustomers,
+  },
+  {
+    reasonKey: "recall_90",
+    category: "recall",
+    reasonLabel: "Da richiamare (90+ gg)",
+    pick: (c) => c.notReturned90,
+  },
+  {
+    reasonKey: "recall_60",
+    category: "recall",
+    reasonLabel: "Da richiamare (60+ gg)",
+    pick: (c) => c.notReturned60,
+  },
+  {
+    reasonKey: "no_retail",
+    category: "no_retail",
+    reasonLabel: "Senza prodotti",
+    pick: (c) => c.noRetailBuyers,
+  },
+  {
+    reasonKey: "top",
+    category: "top",
+    reasonLabel: "Miglior cliente",
+    pick: (c) => c.topSpenders,
+  },
+];
+
+function toCrmActionItem(
+  c: CrmQueueSource,
+  seg: CrmQueueSegment,
+  extra_reasons_count: number,
+): CrmActionItem {
+  const phone = c.phone ?? null;
+  return {
+    customer_id: c.customer_id,
+    customer_name: c.customer_name,
+    reason: seg.reasonLabel,
+    detail: c.detail,
+    gross_total: c.gross_total,
+    phone,
+    whatsapp_ready: Boolean(phone?.trim()),
+    category: seg.category,
+    extra_reasons_count,
   };
+}
 
-  push(crm.colorAbsent.slice(0, 1), "color_absent", "Colore assente");
-  push(crm.notReturned60.slice(0, 2), "recall", "Da richiamare");
-  push(crm.noShowCustomers.slice(0, 1), "noshow", "No-show");
-  push(crm.noRetailBuyers.slice(0, 1), "no_retail", "Senza prodotti");
-  push(crm.topSpenders.slice(0, 1), "top", "Miglior cliente");
+/** Coda “Da fare ora”: un cliente una volta, priorità segmento, badge motivi extra. */
+export function pickCrmActionQueue(crm: DirectionCrmActions, limit = 5): CrmActionItem[] {
+  const reasonKeysByCustomer = new Map<string, Set<string>>();
 
-  return queue.slice(0, limit);
+  for (const seg of CRM_QUEUE_SEGMENTS) {
+    for (const c of seg.pick(crm)) {
+      const id = String(c.customer_id ?? "").trim();
+      if (!id) continue;
+      const set = reasonKeysByCustomer.get(id) ?? new Set<string>();
+      set.add(seg.reasonKey);
+      reasonKeysByCustomer.set(id, set);
+    }
+  }
+
+  const queue: CrmActionItem[] = [];
+  const used = new Set<string>();
+
+  for (const seg of CRM_QUEUE_SEGMENTS) {
+    for (const c of seg.pick(crm)) {
+      if (queue.length >= limit) return queue;
+      const id = String(c.customer_id ?? "").trim();
+      if (!id || used.has(id)) continue;
+      used.add(id);
+      const reasonCount = reasonKeysByCustomer.get(id)?.size ?? 1;
+      queue.push(toCrmActionItem(c, seg, Math.max(0, reasonCount - 1)));
+    }
+  }
+
+  return queue;
 }
 
 export const CRM_CATEGORY_LABELS: Record<CrmActionItem["category"], string> = {

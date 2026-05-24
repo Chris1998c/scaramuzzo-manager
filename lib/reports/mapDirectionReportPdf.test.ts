@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DirectionReport } from "@/lib/reports/getDirectionReport";
 import { mapDirectionReportToPdfPayload } from "@/lib/reports/mapDirectionReportPdf";
+import { parseReportVatMode } from "@/lib/reports/reportVatMode";
 
 const baseReport = {
   today: {
@@ -86,16 +87,31 @@ const baseReport = {
 } satisfies DirectionReport;
 
 describe("mapDirectionReportPdf", () => {
-  it("mappa KPI direzionali per PDF", () => {
+  it("mappa KPI direzionali per PDF (default con IVA)", () => {
     const payload = mapDirectionReportToPdfPayload(baseReport, "Salone Test");
     expect(payload.salonName).toBe("Salone Test");
+    expect(payload.vatModeLabel).toBe("Valori con IVA");
     expect(payload.incassoOggi).toBe(500);
     expect(payload.topStaff).toHaveLength(1);
+    expect(payload.topStaff[0]?.incassato).toBe(300);
     expect(payload.recallCount).toBe(1);
     expect(payload.colorAbsentCount).toBe(1);
     expect(payload.alerts).toHaveLength(1);
     expect(payload.recallClients).toHaveLength(1);
     expect(payload.meseCorrente).toBe(12000);
     expect(payload.crmActions).toEqual([]);
+  });
+
+  it("rispetta vat_mode net e alias iva=imponibile", () => {
+    const payload = mapDirectionReportToPdfPayload(baseReport, "Salone Test", "net");
+    expect(payload.vatModeLabel).toBe("Valori imponibili");
+    expect(payload.incassoOggi).toBe(410);
+    expect(payload.meseCorrente).toBe(9800);
+    expect(payload.ticketMedioOggi).toBe(82);
+    expect(payload.meseTicketMedio).toBe(122);
+    expect(payload.vsIeriPct).toBe(25);
+    expect(payload.vsIeriAmount).toBe(328);
+    expect(payload.topStaff[0]?.incassato).toBe(246);
+    expect(parseReportVatMode("imponibile")).toBe("net");
   });
 });

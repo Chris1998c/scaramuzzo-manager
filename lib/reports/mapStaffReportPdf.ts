@@ -3,6 +3,8 @@ import { pickStaffMoney } from "@/lib/reports/buildStaffKpiFromRows";
 import { buildStaffDrillDown } from "@/lib/reports/buildStaffDrillDown";
 import { buildStaffTeamSummary } from "@/lib/reports/buildStaffTeamSummary";
 import type { ReportRow } from "@/lib/reports/getSalonTurnover";
+import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
+import { reportVatModeLabel } from "@/lib/reports/reportVatMode";
 import {
   computeStaffAlertBadges,
   computeTeamAvgTicket,
@@ -35,6 +37,7 @@ export type TeamPdfPayload = {
   dateFrom: string;
   dateTo: string;
   generatedAt: string;
+  vatModeLabel: string;
   summary: {
     incasso: number;
     listino: number;
@@ -54,21 +57,23 @@ export function mapStaffReportToPdfPayload(input: {
   staffPerformance: StaffKpiRow[];
   rows: ReportRow[];
   customerBySaleId?: Record<string, string>;
+  vatMode?: VatDisplayMode;
 }): TeamPdfPayload {
+  const vatMode = input.vatMode ?? "gross";
   const customerBySaleId = input.customerBySaleId ?? {};
-  const teamSummary = buildStaffTeamSummary(input.staffPerformance, "gross");
-  const teamAvgTicket = computeTeamAvgTicket(input.staffPerformance, "gross");
+  const teamSummary = buildStaffTeamSummary(input.staffPerformance, vatMode);
+  const teamAvgTicket = computeTeamAvgTicket(input.staffPerformance, vatMode);
 
   const staff: TeamPdfStaffBlock[] = input.staffPerformance.map((row, idx) => {
-    const m = pickStaffMoney(row, "gross");
+    const m = pickStaffMoney(row, vatMode);
     const drill = buildStaffDrillDown({
       staffId: row.staff_id,
       rows: input.rows,
       customerBySaleId,
       current: row,
-      vatMode: "gross",
+      vatMode,
     });
-    const badgeIds = computeStaffAlertBadges(row, teamAvgTicket, "gross");
+    const badgeIds = computeStaffAlertBadges(row, teamAvgTicket, vatMode);
 
     return {
       rank: idx + 1,
@@ -82,8 +87,16 @@ export function mapStaffReportToPdfPayload(input: {
       retail_eur: m.retail,
       retail_pct: row.retail_penetration_pct,
       clienti_serviti: row.customers_served,
-      topServices: drill.topServices,
-      topProducts: drill.topProducts,
+      topServices: drill.topServices.map((it) => ({
+        name: it.name,
+        quantity: it.quantity,
+        gross: vatMode === "gross" ? it.gross : it.net,
+      })),
+      topProducts: drill.topProducts.map((it) => ({
+        name: it.name,
+        quantity: it.quantity,
+        gross: vatMode === "gross" ? it.gross : it.net,
+      })),
       badges: badgeIds.map((id) => ({
         id,
         label: STAFF_ALERT_BADGE_META[id].label,
@@ -99,6 +112,7 @@ export function mapStaffReportToPdfPayload(input: {
     dateFrom: input.dateFrom,
     dateTo: input.dateTo,
     generatedAt: new Date().toLocaleString("it-IT"),
+    vatModeLabel: reportVatModeLabel(vatMode),
     summary: {
       incasso: teamSummary.incasso,
       listino: teamSummary.listino,

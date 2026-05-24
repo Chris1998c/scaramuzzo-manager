@@ -16,6 +16,7 @@ function PdfHeader({
   dateFrom,
   dateTo,
   generatedAt,
+  vatModeLabel,
 }: {
   title: string;
   salonName: string;
@@ -23,6 +24,7 @@ function PdfHeader({
   dateFrom: string;
   dateTo: string;
   generatedAt: string;
+  vatModeLabel: string;
 }) {
   return (
     <View style={s.headerWrap}>
@@ -45,8 +47,8 @@ function PdfHeader({
             <Text style={s.metaValue}>{generatedAt}</Text>
           </View>
           <View style={s.metaRow}>
-            <Text style={s.metaLabel}>Formato</Text>
-            <Text style={s.metaValue}>Report Team PDF</Text>
+            <Text style={s.metaLabel}>Importi</Text>
+            <Text style={s.metaValue}>{vatModeLabel}</Text>
           </View>
         </View>
       </View>
@@ -211,6 +213,7 @@ export default function TeamReportPdf(props: Props) {
           dateFrom={props.dateFrom}
           dateTo={props.dateTo}
           generatedAt={props.generatedAt}
+          vatModeLabel={props.vatModeLabel}
         />
         <TeamSummaryBlock summary={props.summary} />
         {props.staff.length === 0 ? (

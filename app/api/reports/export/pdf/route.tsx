@@ -29,7 +29,13 @@ import { getDirectionReport } from "@/lib/reports/getDirectionReport";
 import { mapDirectionReportToPdfPayload } from "@/lib/reports/mapDirectionReportPdf";
 import DirectionReportPdf from "@/lib/pdf/templates/DirectionReportPdf";
 import TeamReportPdf from "@/lib/pdf/templates/TeamReportPdf";
+import CashReportPdf from "@/lib/pdf/templates/CashReportPdf";
+import AgendaReportPdf from "@/lib/pdf/templates/AgendaReportPdf";
 import { mapStaffReportToPdfPayload } from "@/lib/reports/mapStaffReportPdf";
+import { mapCashReportToPdfPayload } from "@/lib/reports/mapCashReportPdf";
+import { mapAgendaReportToPdfPayload } from "@/lib/reports/mapAgendaReportPdf";
+import { resolveReportDateRange } from "@/lib/reports/reportDateRange";
+import { parseReportVatMode } from "@/lib/reports/reportVatMode";
 
 export const runtime = "nodejs";
 
@@ -277,19 +283,22 @@ export async function GET(req: Request) {
         headers: { "Content-Type": "application/json" },
       });
     }
-    if (!isIsoDate(dateFromParam) || !isIsoDate(dateToParam) || dateFromParam > dateToParam) {
-      if (tab !== "direzione") {
-        return new Response(JSON.stringify({ error: "date_from/date_to non valide" }), {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
+    const dateResolved = resolveReportDateRange({
+      dateFrom: dateFromParam,
+      dateTo: dateToParam,
+    });
+    if (tab !== "direzione" && dateResolved.needsRedirect) {
+      return new Response(JSON.stringify({ error: "date_from/date_to non valide" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    const reportDateFrom = isIsoDate(dateFromParam)
-      ? dateFromParam
-      : new Date().toISOString().slice(0, 10);
-    const reportDateTo = isIsoDate(dateToParam) ? dateToParam : reportDateFrom;
+    const reportDateFrom = dateResolved.dateFrom;
+    const reportDateTo = dateResolved.dateTo;
+    const vatMode = parseReportVatMode(
+      url.searchParams.get("vat_mode") ?? url.searchParams.get("iva"),
+    );
     if (hasStaffId && (!Number.isFinite(staffId) || (staffId ?? 0) <= 0)) {
       return new Response(JSON.stringify({ error: "staff_id non valido" }), {
         status: 400,
@@ -308,7 +317,7 @@ export async function GET(req: Request) {
 
     if (tab === "direzione") {
       const report = await getDirectionReport(salonId);
-      const payload = mapDirectionReportToPdfPayload(report, salonName);
+      const payload = mapDirectionReportToPdfPayload(report, salonName, vatMode);
       const document = React.createElement(DirectionReportPdf, payload);
       const buffer = await renderPdfToBuffer(document);
       const today = new Date().toISOString().slice(0, 10);
@@ -339,6 +348,7 @@ export async function GET(req: Request) {
         staffPerformance: sales.staffPerformance ?? [],
         rows: sales.rows ?? [],
         customerBySaleId: sales.customerBySaleId ?? {},
+        vatMode,
       });
       const document = React.createElement(TeamReportPdf, payload);
       const buffer = await renderPdfToBuffer(document);
@@ -347,6 +357,59 @@ export async function GET(req: Request) {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="report-team-${salonId}-${reportDateFrom}-${reportDateTo}.pdf"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    if (tab === "cassa") {
+      const cash = await getCashSessionsReport({
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+      });
+      const payload = mapCashReportToPdfPayload({
+        salonName,
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+        sessions: cash.sessions ?? [],
+        totals: cash.totals ?? {},
+      });
+      const document = React.createElement(CashReportPdf, payload);
+      const buffer = await renderPdfToBuffer(document);
+      return new Response(buffer as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="report-cassa-${salonId}-${reportDateFrom}-${reportDateTo}.pdf"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    if (tab === "agenda") {
+      const agenda = await getAgendaReport({
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+      });
+      const payload = mapAgendaReportToPdfPayload({
+        salonName,
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+        totals: agenda.totals ?? {},
+        daily: agenda.daily ?? [],
+        staffUtilization: agenda.staffUtilization ?? [],
+      });
+      const document = React.createElement(AgendaReportPdf, payload);
+      const buffer = await renderPdfToBuffer(document);
+      return new Response(buffer as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="report-agenda-${salonId}-${reportDateFrom}-${reportDateTo}.pdf"`,
           "Cache-Control": "no-store",
         },
       });
@@ -404,36 +467,6 @@ export async function GET(req: Request) {
           c: r.gross_total ?? r.gross ?? "",
         }));
       }
-    }
-
-    if (tab === "cassa") {
-      const cash = await getCashSessionsReport({
-        salonId,
-        dateFrom: reportDateFrom,
-        dateTo: reportDateTo,
-      });
-      totals = cash.totals ?? {};
-      rowsTitle = "Cash Sessions";
-      rowsPreview = (cash.sessions ?? []).slice(0, 35).map((r: any) => ({
-        a: r.session_date ?? r.opened_at ?? "",
-        b: `Aperta: ${r.opening_cash ?? ""} — Chiusa: ${r.closing_cash ?? ""}`,
-        c: r.gross_total ?? "",
-      }));
-    }
-
-    if (tab === "agenda") {
-      const agenda = await getAgendaReport({
-        salonId,
-        dateFrom: reportDateFrom,
-        dateTo: reportDateTo,
-      });
-      totals = agenda.totals ?? {};
-      rowsTitle = "No-show / Giornaliero";
-      rowsPreview = (agenda.daily ?? []).slice(0, 35).map((r: any) => ({
-        a: r.day ?? r.date ?? "",
-        b: `Done ${r.done ?? 0} — NoShow ${r.no_show ?? 0} — Canc ${r.cancelled ?? 0}`,
-        c: r.appointments ?? "",
-      }));
     }
 
     if (tab === "clienti") {

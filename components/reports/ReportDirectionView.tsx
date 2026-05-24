@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import type { DirectionReport } from "@/lib/reports/getDirectionReport";
-import { CRM_CATEGORY_LABELS } from "@/lib/reports/getDirectionAlerts";
-import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
 import ReportVatToggle from "@/components/reports/ReportVatToggle";
+import { useReportVatModeUrl } from "@/components/reports/useReportVatModeUrl";
 import ReportCrmCustomerActions from "@/components/reports/ReportCrmCustomerActions";
 import {
   formatReportInt,
@@ -39,7 +37,7 @@ function HeroKpi({ label, value, sub }: { label: string; value: string; sub?: st
 }
 
 export default function ReportDirectionView({ data, salonLabel }: Props) {
-  const [vatMode, setVatMode] = useState<VatDisplayMode>("gross");
+  const [vatMode, setVatMode] = useReportVatModeUrl();
 
   const money = vatMode === "gross" ? data.today.money.gross : data.today.money.net;
   const monthMoney = vatMode === "gross" ? data.month.money.gross : data.month.money.net;
@@ -166,8 +164,13 @@ export default function ReportDirectionView({ data, salonLabel }: Props) {
               >
                 <div className="min-w-0">
                   <p className="font-bold text-white truncate">{c.customer_name}</p>
-                  <p className="text-xs text-scz-gold/80 font-bold">
-                    {CRM_CATEGORY_LABELS[c.category]}
+                  <p className="text-xs text-scz-gold/80 font-bold flex flex-wrap items-center gap-1.5">
+                    <span>{c.reason}</span>
+                    {(c.extra_reasons_count ?? 0) > 0 ? (
+                      <span className="rounded-full border border-white/15 bg-black/30 px-1.5 py-0.5 text-[10px] font-bold text-white/55">
+                        +{c.extra_reasons_count} motivi
+                      </span>
+                    ) : null}
                   </p>
                   <p className="text-xs text-white/40 truncate">{c.detail}</p>
                 </div>

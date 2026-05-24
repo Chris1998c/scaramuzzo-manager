@@ -43,8 +43,15 @@ describe("flattenStaffKpiForExport", () => {
     const itRow = flattenStaffKpiRowItalian(sample);
     expect(itRow).toHaveProperty("Collaboratore", "Giulia");
     expect(itRow).toHaveProperty("Incassato", 100);
+    expect(itRow).toHaveProperty("Visualizzazione", "Valori con IVA");
     expect(itRow).toHaveProperty("Scontrini scontati", 1);
     expect(itRow).not.toHaveProperty("gross");
+  });
+
+  it("CSV italiano rispetta vat_mode net", () => {
+    const itRow = flattenStaffKpiRowItalian(sample, "net");
+    expect(itRow.Incassato).toBe(81.97);
+    expect(itRow.Visualizzazione).toBe("Valori imponibili");
   });
 
   it("espone campi piatti senza nested gross/net", () => {

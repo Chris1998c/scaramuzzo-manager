@@ -70,4 +70,18 @@ describe("mapStaffReportToPdfPayload", () => {
     expect(payload.staff).toHaveLength(1);
     expect(payload.staff[0].topServices[0]?.name).toBe("Taglio");
   });
+
+  it("rispetta vat_mode net nel payload PDF", () => {
+    const payload = mapStaffReportToPdfPayload({
+      salonName: "Salone Test",
+      salonId: 1,
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-23",
+      staffPerformance: [staffRow],
+      rows: [],
+      vatMode: "net",
+    });
+    expect(payload.vatModeLabel).toBe("Valori imponibili");
+    expect(payload.summary.incasso).toBe(246);
+  });
 });

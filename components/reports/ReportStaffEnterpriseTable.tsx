@@ -1,9 +1,9 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import { useReportVatModeUrl } from "@/components/reports/useReportVatModeUrl";
 import type { StaffKpiRow } from "@/lib/reports/buildStaffKpiFromRows";
 import { pickStaffMoney } from "@/lib/reports/buildStaffKpiFromRows";
-import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
 import type { StaffDrillDownByStaff } from "@/lib/reports/buildStaffDrillDownPayloadServer";
 import { adjustStaffDrillDownVat } from "@/lib/reports/adjustStaffDrillDownVat";
 import { buildStaffTeamSummary } from "@/lib/reports/buildStaffTeamSummary";
@@ -32,7 +32,7 @@ export default function ReportStaffEnterpriseTable({
   staffDrillDownByStaff = {},
   previousStaffRows = [],
 }: Props) {
-  const [vatMode, setVatMode] = useState<VatDisplayMode>("gross");
+  const [vatMode, setVatMode] = useReportVatModeUrl();
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const teamAvgTicket = useMemo(() => computeTeamAvgTicket(rows, vatMode), [rows, vatMode]);

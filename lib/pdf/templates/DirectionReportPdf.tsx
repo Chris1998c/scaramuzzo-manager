@@ -31,8 +31,8 @@ function Header({ p }: { p: Props }) {
             <Text style={s.metaValue}>{p.monthLabel}</Text>
           </View>
           <View style={s.metaRow}>
-            <Text style={s.metaLabel}>Documento</Text>
-            <Text style={s.metaValue}>PDF Riepilogo</Text>
+            <Text style={s.metaLabel}>Importi</Text>
+            <Text style={s.metaValue}>{p.vatModeLabel}</Text>
           </View>
         </View>
       </View>

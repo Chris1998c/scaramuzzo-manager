@@ -8,6 +8,8 @@ import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
 import { flattenStaffKpiRowItalian } from "@/lib/reports/flattenStaffKpiForExport";
+import { resolveReportDateRange } from "@/lib/reports/reportDateRange";
+import { parseReportVatMode, reportVatModeLabel } from "@/lib/reports/reportVatMode";
 import {
   exportUnauthorizedResponse,
   isExportAuthError,
@@ -156,12 +158,18 @@ export async function GET(req: Request) {
         headers: { "Content-Type": "application/json" },
       });
     }
-    if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
+    const dateResolved = resolveReportDateRange({ dateFrom, dateTo });
+    if (dateResolved.needsRedirect) {
       return new Response(JSON.stringify({ error: "date_from/date_to non valide" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
     }
+    const reportDateFrom = dateResolved.dateFrom;
+    const reportDateTo = dateResolved.dateTo;
+    const vatMode = parseReportVatMode(
+      url.searchParams.get("vat_mode") ?? url.searchParams.get("iva"),
+    );
     if (hasStaffId && (!Number.isFinite(staffId) || (staffId ?? 0) <= 0)) {
       return new Response(JSON.stringify({ error: "staff_id non valido" }), {
         status: 400,
@@ -175,8 +183,10 @@ export async function GET(req: Request) {
       TYPE: "META",
       tab,
       salon_id: salonId,
-      date_from: dateFrom,
-      date_to: dateTo,
+      date_from: reportDateFrom,
+      date_to: reportDateTo,
+      vat_mode: vatMode,
+      visualizzazione: reportVatModeLabel(vatMode),
       staff_id: staffId ?? "",
       payment_method: paymentMethod ?? "",
       item_type: itemType ?? "",
@@ -185,8 +195,8 @@ export async function GET(req: Request) {
     if (["turnover", "daily", "top", "staff"].includes(tab)) {
       const sales = await getSalonTurnoverAnalytics({
         salonId,
-        dateFrom,
-        dateTo,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
         staffId,
         paymentMethod,
         itemType,
@@ -200,17 +210,25 @@ export async function GET(req: Request) {
       if (tab === "top") for (const r of sales.topItems ?? []) out.push({ TYPE: "ITEM", ...r });
       if (tab === "staff")
         for (const r of sales.staffPerformance ?? [])
-          out.push({ TYPE: "STAFF_ROW", ...flattenStaffKpiRowItalian(r) });
+          out.push({ TYPE: "STAFF_ROW", ...flattenStaffKpiRowItalian(r, vatMode) });
     }
 
     if (tab === "cassa") {
-      const cash = await getCashSessionsReport({ salonId, dateFrom, dateTo });
+      const cash = await getCashSessionsReport({
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+      });
       out.push({ TYPE: "TOTALS", ...cash.totals });
       for (const r of cash.sessions ?? []) out.push({ TYPE: "SESSION", ...r });
     }
 
     if (tab === "agenda") {
-      const agenda = await getAgendaReport({ salonId, dateFrom, dateTo });
+      const agenda = await getAgendaReport({
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+      });
       out.push({ TYPE: "TOTALS", ...agenda.totals });
       for (const r of agenda.daily ?? []) out.push({ TYPE: "DAY", ...r });
       for (const r of agenda.staffUtilization ?? []) out.push({ TYPE: "STAFF_ROW", ...r });
@@ -219,8 +237,8 @@ export async function GET(req: Request) {
     if (tab === "clienti") {
       const clients = await getClientsReport({
         salonId,
-        dateFrom,
-        dateTo,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
         staffId,
         paymentMethod,
       });
@@ -232,8 +250,8 @@ export async function GET(req: Request) {
     if (tab === "servizi") {
       const services = await getServicesReport({
         salonId,
-        dateFrom,
-        dateTo,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
         staffId,
         paymentMethod,
         itemType,
@@ -245,8 +263,8 @@ export async function GET(req: Request) {
     if (tab === "prodotti") {
       const products = await getProductsReport({
         salonId,
-        dateFrom,
-        dateTo,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
         staffId,
         paymentMethod,
       });
@@ -261,7 +279,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="report-${tab}-${salonId}-${dateFrom}-${dateTo}.csv"`,
+        "Content-Disposition": `attachment; filename="report-${tab}-${salonId}-${reportDateFrom}-${reportDateTo}.csv"`,
         "Cache-Control": "no-store",
       },
     });

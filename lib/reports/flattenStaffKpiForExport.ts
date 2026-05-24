@@ -1,17 +1,22 @@
 import type { StaffKpiRow } from "@/lib/reports/buildStaffKpiFromRows";
+import { pickStaffMoney } from "@/lib/reports/buildStaffKpiFromRows";
+import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
+import { reportVatModeLabel } from "@/lib/reports/reportVatMode";
 
 /** Righe Team CSV con intestazioni italiane e colonne piatte (export enterprise). */
-export function flattenStaffKpiRowItalian(row: StaffKpiRow) {
+export function flattenStaffKpiRowItalian(row: StaffKpiRow, vatMode: VatDisplayMode = "gross") {
+  const m = pickStaffMoney(row, vatMode);
   return {
+    Visualizzazione: reportVatModeLabel(vatMode),
     Collaboratore: row.staff_name,
-    Incassato: row.gross.real,
-    "Valore a listino": row.gross.full,
-    "Sconti dati": row.gross.discount,
-    "Sconto %": row.gross.discount_pct,
+    Incassato: m.real,
+    "Valore a listino": m.full,
+    "Sconti dati": m.discount,
+    "Sconto %": m.discount_pct,
     "Clienti serviti": row.customers_served,
-    "Retail venduto": row.gross.retail,
+    "Retail venduto": m.retail,
     "Retail %": row.retail_penetration_pct,
-    "Scontrino medio": row.gross.avg_ticket_real,
+    "Scontrino medio": m.avg_ticket_real,
     "Scontrini scontati": row.discounted_receipts_count,
   };
 }

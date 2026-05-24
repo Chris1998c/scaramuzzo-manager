@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveReportNavigation } from "@/lib/reportSalonResolve";
+import {
+  pickDefaultSalonIdForReport,
+  resolveReportNavigation,
+} from "@/lib/reportSalonResolve";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 
 describe("resolveReportNavigation", () => {
   it("accetta tab cassa-audit con trattino", () => {
@@ -17,5 +21,17 @@ describe("resolveReportNavigation", () => {
 
   it("fallback riepilogo su tab sconosciuta", () => {
     expect(resolveReportNavigation("unknown-tab").macro).toBe("riepilogo");
+  });
+});
+
+describe("pickDefaultSalonIdForReport", () => {
+  it("non usa Magazzino Centrale come default se ci sono saloni operativi", () => {
+    expect(pickDefaultSalonIdForReport([1, 2, 3, 4, MAGAZZINO_CENTRALE_ID], MAGAZZINO_CENTRALE_ID)).toBe(
+      1,
+    );
+  });
+
+  it("preferisce default operativo del profilo", () => {
+    expect(pickDefaultSalonIdForReport([2, 3, MAGAZZINO_CENTRALE_ID], 3)).toBe(3);
   });
 });

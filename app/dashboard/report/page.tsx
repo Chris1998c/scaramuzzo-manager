@@ -4,6 +4,7 @@ import { Suspense, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import {
   CASSA_AUDIT_SUBTAB_KEYS,
   CASSA_AUDIT_SUBTAB_LABELS,
@@ -12,6 +13,10 @@ import {
   VENDITE_SUBTAB_KEYS,
   VENDITE_SUBTAB_LABELS,
 } from "@/lib/reportSalonResolve";
+import {
+  REPORT_MAX_PERIOD_DAYS,
+  resolveReportDateRange,
+} from "@/lib/reports/reportDateRange";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 
@@ -56,15 +61,6 @@ import ReportProductsTopTable from "@/components/reports/ReportProductsTopTable"
 import ReportProductsLowStockTable from "@/components/reports/ReportProductsLowStockTable";
 import ReportWhatsAppRemindersTable from "@/components/reports/ReportWhatsAppRemindersTable";
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function startOfMonthISO() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-}
-
 function toInt(x: string | undefined) {
   const n = x ? Number(x) : NaN;
   return Number.isFinite(n) ? Math.trunc(n) : null;
@@ -100,6 +96,8 @@ function EmptyDataNote({ children }: { children: ReactNode }) {
 function PeriodChips({
   dateFrom,
   dateTo,
+  spanDays,
+  periodWarning,
   staffId,
   staffOptions,
   paymentMethod,
@@ -107,15 +105,18 @@ function PeriodChips({
 }: {
   dateFrom: string;
   dateTo: string;
+  spanDays: number;
+  periodWarning?: boolean;
   staffId: number | null;
   staffOptions: Array<{ id: number; name: string }>;
   paymentMethod: string | null;
   itemType: string | null;
 }) {
   return (
+    <div className="space-y-2">
     <div className="flex flex-wrap items-center gap-2">
       <span className="rounded-full border border-white/20 bg-black/30 px-3 py-1.5 text-xs font-bold text-white/80">
-        Periodo: {dateFrom} → {dateTo}
+        Periodo: {dateFrom} → {dateTo} ({spanDays} gg)
       </span>
       {staffId != null && (
         <span className="rounded-full border border-scz-gold/30 bg-scz-gold/10 px-3 py-1.5 text-xs font-bold text-scz-gold">
@@ -133,6 +134,13 @@ function PeriodChips({
         </span>
       )}
     </div>
+    {periodWarning ? (
+      <p className="text-xs text-amber-200/85 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2">
+        Periodo molto lungo ({spanDays} giorni): le query Team/Clienti possono essere lente. Consigliato
+        ≤ {REPORT_MAX_PERIOD_DAYS} giorni.
+      </p>
+    ) : null}
+    </div>
   );
 }
 
@@ -149,14 +157,32 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
   const access = await getUserAccess();
   if (access.role !== "coordinator") redirect("/dashboard");
 
-  const dateFrom = (sp.date_from as string | undefined) ?? startOfMonthISO();
-  const dateTo = (sp.date_to as string | undefined) ?? todayISO();
+  const dateRange = resolveReportDateRange({
+    dateFrom: sp.date_from as string | undefined,
+    dateTo: sp.date_to as string | undefined,
+  });
+
   const staffId = toInt(sp.staff_id as string | undefined);
   const paymentMethod = (sp.payment_method as string | undefined) ?? null;
   const itemType = (sp.item_type as string | undefined) ?? null;
 
   const nav = resolveReportNavigation(sp.tab, sp.subtab);
   const { macro, venditeSubtab, cassaAuditSubtab, exportTab } = nav;
+
+  if (dateRange.needsRedirect) {
+    const redirectParams: Record<string, string> = {
+      date_from: dateRange.dateFrom,
+      date_to: dateRange.dateTo,
+      tab: macro,
+    };
+    if (macro === "vendite") redirectParams.subtab = venditeSubtab;
+    if (macro === "cassa_audit") redirectParams.subtab = cassaAuditSubtab;
+    redirect(`/dashboard/report?${mergeReportRedirectQuery(sp, redirectParams)}`);
+  }
+
+  const dateFrom = dateRange.dateFrom;
+  const dateTo = dateRange.dateTo;
+  const periodExceedsGuardrail = dateRange.exceedsMaxPeriod;
 
   const rawSalon = sp.salon_id;
   const querySalonNum =
@@ -386,6 +412,15 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
 
       <ReportMacroNav active={macro} baseParams={baseParams} />
 
+      {salonId === MAGAZZINO_CENTRALE_ID ? (
+        <EmptyDataNote>
+          <span className="font-bold text-amber-100/90">Magazzino Centrale</span>
+          <br />
+          Sede non operativa per report vendite/team/clienti: i dati possono essere assenti o non
+          rappresentativi. Seleziona un salone 1–4 dalla Vista per l&apos;analisi operativa.
+        </EmptyDataNote>
+      ) : null}
+
       {macro === "riepilogo" && salonId > 0 && directionReport ? (
         <ReportDirectionView data={directionReport} salonLabel={reportSalonLabel} />
       ) : null}
@@ -401,6 +436,8 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
           <PeriodChips
             dateFrom={dateFrom}
             dateTo={dateTo}
+            spanDays={dateRange.spanDays}
+            periodWarning={periodExceedsGuardrail}
             staffId={staffId}
             staffOptions={staffOptions}
             paymentMethod={paymentMethod}
@@ -415,7 +452,19 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       )}
 
       {macro === "clienti" && salonId > 0 && crmActions ? (
-        <ReportClientiSection clientsReport={clientsReport} crm={crmActions} />
+        <section className="space-y-4">
+          <PeriodChips
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            spanDays={dateRange.spanDays}
+            periodWarning={periodExceedsGuardrail}
+            staffId={staffId}
+            staffOptions={staffOptions}
+            paymentMethod={paymentMethod}
+            itemType={itemType}
+          />
+          <ReportClientiSection clientsReport={clientsReport} crm={crmActions} />
+        </section>
       ) : null}
 
       {macro === "vendite" && salonId > 0 && (
@@ -437,6 +486,8 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
           <PeriodChips
             dateFrom={dateFrom}
             dateTo={dateTo}
+            spanDays={dateRange.spanDays}
+            periodWarning={periodExceedsGuardrail}
             staffId={staffId}
             staffOptions={staffOptions}
             paymentMethod={paymentMethod}

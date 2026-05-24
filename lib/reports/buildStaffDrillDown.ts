@@ -6,7 +6,10 @@ import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
 export type StaffDrillDownItem = {
   name: string;
   quantity: number;
+  /** Lordo (con IVA). */
   gross: number;
+  /** Imponibile. */
+  net: number;
 };
 
 export type StaffDrillDownCustomerRef = {
@@ -17,12 +20,14 @@ export type StaffDrillDownCustomerRef = {
 export type StaffDrillDownCustomer = StaffDrillDownCustomerRef & {
   last_day: string;
   gross: number;
+  net: number;
   visits: number;
 };
 
 export type StaffDrillDownDay = {
   day: string;
   gross: number;
+  net: number;
   receipts: number;
 };
 
@@ -63,9 +68,10 @@ function aggregateItems(
         ? String(r.product_name ?? "Prodotto").trim() || "Prodotto"
         : String(r.service_name ?? "Servizio").trim() || "Servizio";
 
-    const prev = map.get(name) ?? { name, quantity: 0, gross: 0 };
+    const prev = map.get(name) ?? { name, quantity: 0, gross: 0, net: 0 };
     prev.quantity += n(r.quantity) || 1;
     prev.gross += n(r.line_total_gross);
+    prev.net += n(r.line_net);
     map.set(name, prev);
   }
 
@@ -86,18 +92,23 @@ export function buildStaffDrillDown(input: {
 
   const customersAll = new Set<string>();
   const customersWithProduct = new Set<string>();
-  const customerAgg = new Map<string, { last_day: string; gross: number; visits: Set<number> }>();
+  const customerAgg = new Map<
+    string,
+    { last_day: string; gross: number; net: number; visits: Set<number> }
+  >();
 
-  const dailyMap = new Map<string, { gross: number; receipts: Set<number> }>();
+  const dailyMap = new Map<string, { gross: number; net: number; receipts: Set<number> }>();
 
   for (const r of staffRows) {
     const saleId = Number(r.sale_id);
     const day = String(r.sale_day ?? "").slice(0, 10);
     const gross = n(r.line_total_gross);
+    const net = n(r.line_net);
 
     if (day) {
-      const d = dailyMap.get(day) ?? { gross: 0, receipts: new Set<number>() };
+      const d = dailyMap.get(day) ?? { gross: 0, net: 0, receipts: new Set<number>() };
       d.gross += gross;
+      d.net += net;
       if (Number.isFinite(saleId) && saleId > 0) d.receipts.add(saleId);
       dailyMap.set(day, d);
     }
@@ -109,8 +120,9 @@ export function buildStaffDrillDown(input: {
 
     customersAll.add(cid);
 
-    const agg = customerAgg.get(cid) ?? { last_day: "", gross: 0, visits: new Set<number>() };
+    const agg = customerAgg.get(cid) ?? { last_day: "", gross: 0, net: 0, visits: new Set<number>() };
     agg.gross += gross;
+    agg.net += net;
     agg.visits.add(saleId);
     if (day && (!agg.last_day || day > agg.last_day)) agg.last_day = day;
     customerAgg.set(cid, agg);
@@ -127,13 +139,14 @@ export function buildStaffDrillDown(input: {
       customer_id,
       last_day: v.last_day,
       gross: v.gross,
+      net: v.net,
       visits: v.visits.size,
     }))
     .sort((a, b) => (a.last_day < b.last_day ? 1 : a.last_day > b.last_day ? -1 : 0))
     .slice(0, 6);
 
   const dailyTrend: StaffDrillDownDay[] = [...dailyMap.entries()]
-    .map(([day, v]) => ({ day, gross: v.gross, receipts: v.receipts.size }))
+    .map(([day, v]) => ({ day, gross: v.gross, net: v.net, receipts: v.receipts.size }))
     .sort((a, b) => (a.day < b.day ? -1 : 1));
 
   const currentMoney = pickStaffMoney(input.current, mode);

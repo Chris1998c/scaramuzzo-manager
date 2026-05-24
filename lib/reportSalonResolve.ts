@@ -1,14 +1,32 @@
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { MAGAZZINO_CENTRALE_ID, REAL_SALON_IDS } from "@/lib/constants";
 
-/** Allineato a dashboard / Vista coordinator: hub se presente, poi default access, poi primo consentito. */
+export function isOperationalReportSalonId(salonId: number): boolean {
+  return (REAL_SALON_IDS as readonly number[]).includes(salonId);
+}
+
+/** Default Report/CRM: solo saloni operativi 1–4; Magazzino (5) mai default. */
 export function pickDefaultSalonIdForReport(
   allowedSalonIds: number[],
   defaultSalonId: number | null | undefined,
 ): number | null {
   if (!allowedSalonIds.length) return null;
-  if (allowedSalonIds.includes(MAGAZZINO_CENTRALE_ID)) return MAGAZZINO_CENTRALE_ID;
-  if (defaultSalonId != null && allowedSalonIds.includes(defaultSalonId)) return defaultSalonId;
-  return allowedSalonIds[0] ?? null;
+
+  const operational = allowedSalonIds.filter((id) => id !== MAGAZZINO_CENTRALE_ID);
+  const pool = operational.length ? operational : allowedSalonIds;
+
+  if (
+    defaultSalonId != null &&
+    defaultSalonId !== MAGAZZINO_CENTRALE_ID &&
+    pool.includes(defaultSalonId)
+  ) {
+    return defaultSalonId;
+  }
+
+  for (const id of REAL_SALON_IDS) {
+    if (pool.includes(id)) return id;
+  }
+
+  return pool[0] ?? null;
 }
 
 /** 5 macro sezioni top-level (Sprint 1). */

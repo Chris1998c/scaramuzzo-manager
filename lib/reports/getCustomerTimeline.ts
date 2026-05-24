@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { buildCustomerTimeline } from "@/lib/reports/buildCustomerTimeline";
+import { collectTimelineCatalogIds } from "@/lib/reports/collectTimelineCatalogIds";
 
 export async function getCustomerTimeline(customerId: string, salonId: number) {
   const cid = String(customerId ?? "").trim();
@@ -51,18 +52,31 @@ export async function getCustomerTimeline(customerId: string, salonId: number) {
     if (id && d) saleDateById.set(id, d);
   }
 
-  const [{ data: servicesMeta }, { data: productsMeta }] = await Promise.all([
-    supabaseAdmin.from("services").select("id, name"),
-    supabaseAdmin.from("products").select("id, name"),
-  ]);
+  const { serviceIds, productIds } = collectTimelineCatalogIds(saleItems);
 
   const serviceName = new Map<string, string>();
-  for (const s of servicesMeta ?? []) {
-    serviceName.set(String((s as { id?: unknown }).id), String((s as { name?: unknown }).name ?? "Servizio"));
-  }
   const productName = new Map<string, string>();
-  for (const p of productsMeta ?? []) {
-    productName.set(String((p as { id?: unknown }).id), String((p as { name?: unknown }).name ?? "Prodotto"));
+
+  const chunkSize = 200;
+  for (let i = 0; i < serviceIds.length; i += chunkSize) {
+    const chunk = serviceIds.slice(i, i + chunkSize);
+    const { data } = await supabaseAdmin.from("services").select("id, name").in("id", chunk);
+    for (const s of data ?? []) {
+      serviceName.set(
+        String((s as { id?: unknown }).id),
+        String((s as { name?: unknown }).name ?? "Servizio"),
+      );
+    }
+  }
+  for (let i = 0; i < productIds.length; i += chunkSize) {
+    const chunk = productIds.slice(i, i + chunkSize);
+    const { data } = await supabaseAdmin.from("products").select("id, name").in("id", chunk);
+    for (const p of data ?? []) {
+      productName.set(
+        String((p as { id?: unknown }).id),
+        String((p as { name?: unknown }).name ?? "Prodotto"),
+      );
+    }
   }
 
   return buildCustomerTimeline({
