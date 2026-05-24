@@ -7,8 +7,10 @@ import {
   customerContextErrorResponse,
   customerForbidden,
   customerNotFoundResponse,
+  customerRateLimitedResponse,
   customerServerError,
 } from "@/lib/customer-app/customerApiResponse";
+import { enforceCustomerApiRateLimit } from "@/lib/customer-app/customerApiRateLimit";
 import {
   cancelCustomerAppBooking,
   CustomerAppBookingCancelConflictError,
@@ -22,11 +24,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ bookingId: string }> },
 ) {
   try {
     const customerCtx = await requireCustomerContext();
+
+    const rate = enforceCustomerApiRateLimit(req, customerCtx.authUserId, "bookings_delete");
+    if (!rate.allowed) {
+      return customerRateLimitedResponse(rate.retryAfterSec);
+    }
 
     const { bookingId: bookingIdRaw } = await ctx.params;
     const bookingId = parseCustomerAppBookingId(bookingIdRaw);

@@ -31,4 +31,13 @@ describe("customerApiRateLimit", () => {
     const blocked = checkCustomerApiRateLimit(key, "bookings");
     expect(blocked.allowed).toBe(false);
   });
+
+  it("blocca dopo il limite bookings_delete", () => {
+    const key = customerApiRateLimitKey("1.2.3.4", "user-c", "bookings_delete");
+    for (let i = 0; i < 20; i++) {
+      expect(checkCustomerApiRateLimit(key, "bookings_delete").allowed).toBe(true);
+    }
+    const blocked = checkCustomerApiRateLimit(key, "bookings_delete");
+    expect(blocked.allowed).toBe(false);
+  });
 });

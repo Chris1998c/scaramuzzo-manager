@@ -9,6 +9,7 @@ const WINDOW_MS = 60_000;
 const MAX_STAFF_PER_WINDOW = 60;
 const MAX_AVAILABILITY_PER_WINDOW = 30;
 const MAX_BOOKINGS_PER_WINDOW = 10;
+const MAX_BOOKINGS_DELETE_PER_WINDOW = 20;
 
 type Bucket = {
   count: number;
@@ -21,7 +22,11 @@ export function _resetCustomerApiRateLimitStoreForTests(): void {
   store.clear();
 }
 
-export type CustomerApiRateLimitedRoute = "staff" | "availability" | "bookings";
+export type CustomerApiRateLimitedRoute =
+  | "staff"
+  | "availability"
+  | "bookings"
+  | "bookings_delete";
 
 export function customerApiRateLimitKey(
   ip: string,
@@ -44,7 +49,9 @@ export function checkCustomerApiRateLimit(
       ? MAX_AVAILABILITY_PER_WINDOW
       : route === "bookings"
         ? MAX_BOOKINGS_PER_WINDOW
-        : MAX_STAFF_PER_WINDOW;
+        : route === "bookings_delete"
+          ? MAX_BOOKINGS_DELETE_PER_WINDOW
+          : MAX_STAFF_PER_WINDOW;
   const now = Date.now();
   const bucket = store.get(key);
 

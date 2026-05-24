@@ -9,6 +9,13 @@ import {
   customerRateLimitedResponse,
   customerServerError,
 } from "@/lib/customer-app/customerApiResponse";
+import {
+  beginCustomerBookingIdempotency,
+  completeCustomerBookingIdempotency,
+  hashCustomerBookingPayload,
+  parseCustomerBookingIdempotencyKey,
+  releaseCustomerBookingIdempotency,
+} from "@/lib/customer-app/customerBookingIdempotency";
 import { enforceCustomerApiRateLimit } from "@/lib/customer-app/customerApiRateLimit";
 import {
   createCustomerAppBooking,
@@ -66,13 +73,56 @@ export async function POST(req: Request) {
       return customerBadRequest(parsed.error);
     }
 
-    const booking = await createCustomerAppBooking(
-      supabaseAdmin,
-      ctx.customerId,
-      parsed.data,
+    const idempotencyParsed = parseCustomerBookingIdempotencyKey(
+      req.headers.get("Idempotency-Key"),
     );
+    if (!idempotencyParsed.ok) {
+      return customerBadRequest(idempotencyParsed.error);
+    }
 
-    return NextResponse.json({ booking }, { status: 201 });
+    const requestHash = hashCustomerBookingPayload(parsed.data);
+    const idempotencyBegin = await beginCustomerBookingIdempotency(supabaseAdmin, {
+      userId: ctx.authUserId,
+      customerId: ctx.customerId,
+      idempotencyKey: idempotencyParsed.key,
+      requestHash,
+    });
+
+    if (idempotencyBegin.action === "replay") {
+      return NextResponse.json({ booking: idempotencyBegin.booking }, { status: 201 });
+    }
+    if (idempotencyBegin.action === "conflict") {
+      return customerConflictResponse(idempotencyBegin.message);
+    }
+
+    const idempotencyRecordId = idempotencyBegin.recordId;
+
+    try {
+      const booking = await createCustomerAppBooking(
+        supabaseAdmin,
+        ctx.customerId,
+        parsed.data,
+      );
+
+      if (idempotencyRecordId) {
+        await completeCustomerBookingIdempotency(
+          supabaseAdmin,
+          idempotencyRecordId,
+          booking,
+        );
+      }
+
+      return NextResponse.json({ booking }, { status: 201 });
+    } catch (bookingErr) {
+      if (idempotencyRecordId) {
+        try {
+          await releaseCustomerBookingIdempotency(supabaseAdmin, idempotencyRecordId);
+        } catch {
+          /* release best-effort */
+        }
+      }
+      throw bookingErr;
+    }
   } catch (e) {
     if (e instanceof CustomerAppBookingValidationError) {
       if (e.status === 403) {
