@@ -21,10 +21,11 @@ import { getAgendaReport } from "@/lib/reports/getAgendaReport";
 import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
-import { flattenStaffKpiRow } from "@/lib/reports/flattenStaffKpiForExport";
 import { getDirectionReport } from "@/lib/reports/getDirectionReport";
 import { mapDirectionReportToPdfPayload } from "@/lib/reports/mapDirectionReportPdf";
 import DirectionReportPdf from "@/lib/pdf/templates/DirectionReportPdf";
+import TeamReportPdf from "@/lib/pdf/templates/TeamReportPdf";
+import { mapStaffReportToPdfPayload } from "@/lib/reports/mapStaffReportPdf";
 
 export const runtime = "nodejs";
 
@@ -320,6 +321,36 @@ export async function GET(req: Request) {
       });
     }
 
+    if (tab === "staff") {
+      const sales = await getSalonTurnoverAnalytics({
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+        staffId,
+        paymentMethod,
+        itemType,
+      });
+      const payload = mapStaffReportToPdfPayload({
+        salonName,
+        salonId,
+        dateFrom: reportDateFrom,
+        dateTo: reportDateTo,
+        staffPerformance: sales.staffPerformance ?? [],
+        rows: sales.rows ?? [],
+        customerBySaleId: sales.customerBySaleId ?? {},
+      });
+      const document = React.createElement(TeamReportPdf, payload);
+      const buffer = await renderPdfToBuffer(document);
+      return new Response(buffer as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="report-team-${salonId}-${reportDateFrom}-${reportDateTo}.pdf"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
     // DATA by tab (preview compatta)
     let totals: Record<string, any> = {};
     let rowsPreview: Array<{ a: any; b: any; c: any }> = [];
@@ -331,7 +362,7 @@ export async function GET(req: Request) {
       net_total: number;
     }> = [];
 
-    if (["turnover", "daily", "top", "staff"].includes(tab)) {
+    if (["turnover", "daily", "top"].includes(tab)) {
       const sales = await getSalonTurnoverAnalytics({
         salonId,
         dateFrom: reportDateFrom,
@@ -371,16 +402,6 @@ export async function GET(req: Request) {
           b: r.name ?? r.item_name ?? r.service_name ?? r.product_name ?? "Item",
           c: r.gross_total ?? r.gross ?? "",
         }));
-      } else if (tab === "staff") {
-        rowsTitle = "Performance Staff";
-        rowsPreview = (sales.staffPerformance ?? []).slice(0, 35).map((r: any) => {
-          const flat = flattenStaffKpiRow(r);
-          return {
-            a: flat.staff_name ?? flat.staff_id ?? "",
-            b: `Servizi ${flat.services_qty ?? 0} / Prodotti ${flat.products_qty ?? 0}`,
-            c: flat.incassato_lordo ?? "",
-          };
-        });
       }
     }
 

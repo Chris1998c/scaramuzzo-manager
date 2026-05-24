@@ -23,11 +23,41 @@ function n(v: any) {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
 }
-function nameOf(c: any) {
+function nameOf(c: any, customerId?: string) {
   const fn = String(c?.first_name ?? "").trim();
   const ln = String(c?.last_name ?? "").trim();
   const full = `${fn} ${ln}`.trim();
-  return full || String(c?.name ?? "Cliente");
+  if (full) return full;
+  const phone = String(c?.phone ?? "").trim();
+  if (phone) return phone;
+  const email = String(c?.email ?? "").trim();
+  if (email) return email;
+  if (customerId) return `Cliente #${customerId}`;
+  return "Cliente";
+}
+
+async function loadCustomersByIds(
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  ids: string[],
+) {
+  const customersMap = new Map<string, any>();
+  if (!ids.length) return customersMap;
+
+  const chunkSize = 200;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const { data: customers, error: custErr } = await supabase
+      .from("customers")
+      .select("id, customer_code, first_name, last_name, phone, email, marketing_whatsapp_opt_in")
+      .in("id", chunk);
+
+    if (custErr) throw new Error(custErr.message);
+    for (const c of (customers ?? []) as any[]) {
+      if (c?.id) customersMap.set(String(c.id), c);
+    }
+  }
+
+  return customersMap;
 }
 
 export async function getClientsReport(filters: ClientsReportFilters) {
@@ -58,18 +88,7 @@ export async function getClientsReport(filters: ClientsReportFilters) {
   );
 
   // 2) Customers anagrafica (per nomi e telefono)
-  const customersMap = new Map<string, any>();
-  if (customerIds.length) {
-    const { data: customers, error: custErr } = await supabase
-      .from("customers")
-      .select("id, customer_code, first_name, last_name, name, phone, marketing_whatsapp_opt_in")
-      .in("id", customerIds);
-
-    if (custErr) throw new Error(custErr.message);
-    for (const c of (customers ?? []) as any[]) {
-      if (c?.id) customersMap.set(String(c.id), c);
-    }
-  }
+  const customersMap = await loadCustomersByIds(supabase, customerIds);
 
   // 3) Prima visita di ciascun cliente (tutto storico, per capire “nuovo”)
   // Nota: query minima per customerIds, non tutto DB
@@ -122,7 +141,7 @@ export async function getClientsReport(filters: ClientsReportFilters) {
       newCustomers += 1;
       newCustomersRows.push({
         customer_id: cid,
-        customer_name: nameOf(customersMap.get(cid)),
+        customer_name: nameOf(customersMap.get(cid), cid),
         first_visit_day: firstVisit,
         visits_in_period: visits,
       });
@@ -164,10 +183,18 @@ export async function getClientsReport(filters: ClientsReportFilters) {
     x.visits += 1;
   }
 
+  const spenderIds = [...spendMap.keys()].filter((cid) => !customersMap.has(cid));
+  if (spenderIds.length) {
+    const extra = await loadCustomersByIds(supabase, spenderIds);
+    for (const [cid, row] of extra.entries()) {
+      customersMap.set(cid, row);
+    }
+  }
+
   for (const [cid, v] of spendMap.entries()) {
     topSpenders.push({
       customer_id: cid,
-      customer_name: nameOf(customersMap.get(cid)),
+      customer_name: nameOf(customersMap.get(cid), cid),
       visits: v.visits,
       gross_total: v.gross,
     });

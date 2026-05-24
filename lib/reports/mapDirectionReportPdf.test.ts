@@ -94,5 +94,8 @@ describe("mapDirectionReportPdf", () => {
     expect(payload.recallCount).toBe(1);
     expect(payload.colorAbsentCount).toBe(1);
     expect(payload.alerts).toHaveLength(1);
+    expect(payload.recallClients).toHaveLength(1);
+    expect(payload.meseCorrente).toBe(12000);
+    expect(payload.crmActions).toEqual([]);
   });
 });

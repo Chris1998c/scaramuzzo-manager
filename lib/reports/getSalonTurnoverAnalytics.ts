@@ -146,11 +146,19 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
 
   const { prevFrom, prevTo } = shiftPeriod(filters.dateFrom, filters.dateTo);
 
-  const { totals: previousTotals } = await getSalonTurnover({
+  const { totals: previousTotals, rows: previousRows } = await getSalonTurnover({
     ...filters,
     dateFrom: prevFrom,
     dateTo: prevTo,
   });
+
+  const previousCustomerBySale = await fetchCustomerIdsForRows(previousRows);
+  const previousStaffPerformance = buildStaffKpiFromRows(previousRows, previousCustomerBySale);
+
+  const customerBySaleId: Record<string, string> = {};
+  for (const [saleId, cid] of customerBySale.entries()) {
+    customerBySaleId[String(saleId)] = cid;
+  }
 
   return {
     totals,
@@ -159,5 +167,7 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
     topItems,
     staffPerformance,
     previousTotals,
+    previousStaffPerformance,
+    customerBySaleId,
   };
 }

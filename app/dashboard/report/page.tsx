@@ -249,6 +249,8 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
         topItems: [],
         staffPerformance: [],
         previousTotals: { gross_total: 0, net_total: 0, receipts_count: 0 },
+        previousStaffPerformance: [],
+        customerBySaleId: {},
       };
 
   const cashReport =
@@ -328,7 +330,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
   const directionReport =
     salonId && macro === "riepilogo" ? await getDirectionReport(salonId) : null;
 
-  const { totals, rows, daily, topItems, staffPerformance, previousTotals } = salesAnalytics;
+  const { totals, rows, daily, topItems, staffPerformance, previousTotals, previousStaffPerformance, customerBySaleId } = salesAnalytics;
 
   const venditeSubtabs = VENDITE_SUBTAB_KEYS.map((key) => ({
     key,
@@ -390,7 +392,12 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
             paymentMethod={paymentMethod}
             itemType={itemType}
           />
-          <ReportStaffEnterpriseTable rows={staffPerformance ?? []} />
+          <ReportStaffEnterpriseTable
+            rows={staffPerformance ?? []}
+            detailRows={rows}
+            customerBySaleId={customerBySaleId ?? {}}
+            previousStaffRows={previousStaffPerformance ?? []}
+          />
         </section>
       )}
 

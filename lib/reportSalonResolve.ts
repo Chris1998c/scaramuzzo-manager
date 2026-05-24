@@ -100,12 +100,13 @@ export function resolveReportNavigation(
   rawTab: unknown,
   rawSubtab?: unknown,
 ): ReportNavigation {
-  const tab =
+  const tabRaw =
     typeof rawTab === "string"
       ? rawTab
       : Array.isArray(rawTab) && rawTab.length
         ? String(rawTab[0])
         : "";
+  const tab = tabRaw.replace(/-/g, "_");
 
   const partial = LEGACY_TAB_TO_NAV[tab];
   const macro = partial?.macro ?? "riepilogo";
