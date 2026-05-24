@@ -19,4 +19,14 @@ export function customerServerError(logLabel: string, e: unknown): NextResponse 
   return NextResponse.json({ error: "Errore server" }, { status: 500 });
 }
 
+export function customerRateLimitedResponse(retryAfterSec: number): NextResponse {
+  return NextResponse.json(
+    { error: "Troppe richieste. Riprova tra poco." },
+    {
+      status: 429,
+      headers: { "Retry-After": String(Math.max(1, retryAfterSec)) },
+    },
+  );
+}
+
 export { CustomerContextError };
