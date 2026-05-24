@@ -5,6 +5,8 @@ import { canAccessClientiWeb } from "@/lib/clientiWebAccess";
 import { fetchCustomersBrowse } from "@/lib/customers/clientiListQuery";
 import ClientiView from "./ClientiView";
 
+export const dynamic = "force-dynamic";
+
 function isNextRedirect(e: unknown): boolean {
   return (
     typeof e === "object" &&

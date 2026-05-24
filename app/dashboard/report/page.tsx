@@ -19,6 +19,7 @@ import {
 } from "@/lib/reports/reportDateRange";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import { mergeStaffKpiWithSalonStaff } from "@/lib/reports/buildStaffKpiFromRows";
 
 import { getSalonTurnoverAnalytics } from "@/lib/reports/getSalonTurnoverAnalytics";
 import { getCashSessionsReport } from "@/lib/reports/getCashSessionsReport";
@@ -362,11 +363,16 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
   const { totals, rows, daily, topItems, staffPerformance, previousTotals, previousStaffPerformance, customerBySaleId } =
     salesAnalytics;
 
+  const teamStaffPerformance =
+    macro === "team" && salonId > 0 && !staffId
+      ? mergeStaffKpiWithSalonStaff(staffPerformance ?? [], staffOptions)
+      : (staffPerformance ?? []);
+
   const staffDrillDownByStaff =
-    salonId && macro === "team" && (staffPerformance?.length ?? 0) > 0
+    salonId && macro === "team" && teamStaffPerformance.length > 0
       ? await buildStaffDrillDownPayloadServer({
           rows: rows ?? [],
-          staffPerformance: staffPerformance ?? [],
+          staffPerformance: teamStaffPerformance,
           previousStaffPerformance: previousStaffPerformance ?? [],
           customerBySaleId: customerBySaleId ?? {},
         })
@@ -399,6 +405,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
         staffOptions={staffOptions}
         macroTab={macro}
         exportTab={exportTab}
+        periodSpanDays={dateRange.spanDays}
       />
 
       {salonId <= 0 ? (
@@ -444,7 +451,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
             itemType={itemType}
           />
           <ReportStaffEnterpriseTable
-            rows={staffPerformance ?? []}
+            rows={teamStaffPerformance}
             staffDrillDownByStaff={staffDrillDownByStaff}
             previousStaffRows={previousStaffPerformance ?? []}
           />

@@ -11,6 +11,7 @@ import {
   STAFF_ALERT_BADGE_META,
   type StaffAlertBadge,
 } from "@/lib/reports/staffKpiAlerts";
+import { isUnassignedStaffId, sortStaffKpiRows } from "@/lib/reports/staffKpiConstants";
 
 export type TeamPdfStaffBlock = {
   rank: number;
@@ -64,7 +65,9 @@ export function mapStaffReportToPdfPayload(input: {
   const teamSummary = buildStaffTeamSummary(input.staffPerformance, vatMode);
   const teamAvgTicket = computeTeamAvgTicket(input.staffPerformance, vatMode);
 
-  const staff: TeamPdfStaffBlock[] = input.staffPerformance.map((row, idx) => {
+  const sorted = sortStaffKpiRows(input.staffPerformance);
+  let rank = 0;
+  const staff: TeamPdfStaffBlock[] = sorted.map((row) => {
     const m = pickStaffMoney(row, vatMode);
     const drill = buildStaffDrillDown({
       staffId: row.staff_id,
@@ -74,9 +77,10 @@ export function mapStaffReportToPdfPayload(input: {
       vatMode,
     });
     const badgeIds = computeStaffAlertBadges(row, teamAvgTicket, vatMode);
+    if (!isUnassignedStaffId(row.staff_id)) rank += 1;
 
     return {
-      rank: idx + 1,
+      rank: isUnassignedStaffId(row.staff_id) ? 0 : rank,
       staff_id: row.staff_id,
       staff_name: row.staff_name,
       incassato: m.real,

@@ -3,6 +3,7 @@ import { pickStaffMoney } from "@/lib/reports/buildStaffKpiFromRows";
 import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
 import { computeRetailPenetration } from "@/lib/reports/retailPenetration";
 import { computeTeamAvgTicket } from "@/lib/reports/staffKpiAlerts";
+import { isUnassignedStaffId } from "@/lib/reports/staffKpiConstants";
 
 export type StaffTeamHighlight = {
   staff_id: number;
@@ -44,17 +45,22 @@ export function buildStaffTeamSummary(
 
   const penetration = computeRetailPenetration(served, withRetail);
 
-  const best = rows[0]
+  const realRows = rows.filter((r) => !isUnassignedStaffId(r.staff_id));
+  const rankedReal = [...realRows].sort(
+    (a, b) => pickStaffMoney(b, mode).real - pickStaffMoney(a, mode).real,
+  );
+
+  const best = rankedReal[0]
     ? {
-        staff_id: rows[0].staff_id,
-        staff_name: rows[0].staff_name,
-        value: pickStaffMoney(rows[0], mode).real,
+        staff_id: rankedReal[0].staff_id,
+        staff_name: rankedReal[0].staff_name,
+        value: pickStaffMoney(rankedReal[0], mode).real,
         label: "Incassato",
       }
     : null;
 
   let highestDiscount: StaffTeamHighlight | null = null;
-  for (const r of rows) {
+  for (const r of realRows) {
     if (r.receipts_count === 0) continue;
     const pct = pickStaffMoney(r, mode).discount_pct;
     if (!highestDiscount || pct > highestDiscount.value) {
@@ -68,7 +74,7 @@ export function buildStaffTeamSummary(
   }
 
   let lowestRetail: StaffTeamHighlight | null = null;
-  for (const r of rows) {
+  for (const r of realRows) {
     if (r.customers_served < 2) continue;
     const pct = r.retail_penetration_pct ?? 0;
     if (!lowestRetail || pct < lowestRetail.value) {
@@ -87,7 +93,7 @@ export function buildStaffTeamSummary(
     sconti,
     retail_penetration_pct: penetration.retail_penetration_pct,
     avg_ticket: computeTeamAvgTicket(rows, mode),
-    staff_count: rows.length,
+    staff_count: realRows.length,
     best_performer: best,
     highest_discount: highestDiscount,
     lowest_retail: lowestRetail,

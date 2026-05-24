@@ -15,6 +15,11 @@ import {
   type VatDisplayMode,
 } from "@/lib/reports/reportLineKpiMath";
 import { computeRetailPenetration } from "@/lib/reports/retailPenetration";
+import {
+  resolveRowStaffId,
+  UNASSIGNED_STAFF_ID,
+  UNASSIGNED_STAFF_NAME,
+} from "@/lib/reports/staffKpiConstants";
 
 export type StaffKpiRow = {
   staff_id: number;
@@ -78,13 +83,15 @@ export function buildStaffKpiFromRows(
   const map = new Map<number, StaffAgg>();
 
   for (const r of rows) {
-    const sid = Number(r.staff_id ?? 0);
-    if (!sid) continue;
+    const sid = resolveRowStaffId(r);
 
     if (!map.has(sid)) {
       map.set(sid, {
         staff_id: sid,
-        staff_name: String(r.staff_name ?? `Staff ${sid}`),
+        staff_name:
+          sid === UNASSIGNED_STAFF_ID
+            ? UNASSIGNED_STAFF_NAME
+            : String(r.staff_name ?? `Staff ${sid}`),
         receipts: new Set(),
         customers: new Set(),
         customersWithRetail: new Set(),
@@ -165,8 +172,21 @@ export function buildStaffKpiFromRows(
         net: enrich(money.net, agg.retail_net),
       };
     })
-    .sort((a, b) => b.gross.real - a.gross.real);
+    .sort((a, b) => {
+      if (a.staff_id === UNASSIGNED_STAFF_ID) return 1;
+      if (b.staff_id === UNASSIGNED_STAFF_ID) return -1;
+      return b.gross.real - a.gross.real;
+    });
 }
+
+export {
+  UNASSIGNED_STAFF_ID,
+  UNASSIGNED_STAFF_NAME,
+  emptyStaffKpiRow,
+  mergeStaffKpiWithSalonStaff,
+  sortStaffKpiRows,
+  isUnassignedStaffId,
+} from "@/lib/reports/staffKpiConstants";
 
 export function pickStaffMoney(row: StaffKpiRow, mode: VatDisplayMode) {
   return mode === "gross" ? row.gross : row.net;

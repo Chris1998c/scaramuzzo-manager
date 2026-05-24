@@ -8,7 +8,10 @@ import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
 import { flattenStaffKpiRowItalian } from "@/lib/reports/flattenStaffKpiForExport";
-import { resolveReportDateRange } from "@/lib/reports/reportDateRange";
+import { reportExportPeriodError, resolveReportDateRange } from "@/lib/reports/reportDateRange";
+import { mergeStaffKpiWithSalonStaff } from "@/lib/reports/buildStaffKpiFromRows";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import { parseReportVatMode, reportVatModeLabel } from "@/lib/reports/reportVatMode";
 import {
   exportUnauthorizedResponse,
@@ -167,6 +170,15 @@ export async function GET(req: Request) {
     }
     const reportDateFrom = dateResolved.dateFrom;
     const reportDateTo = dateResolved.dateTo;
+
+    const periodErr = reportExportPeriodError(dateResolved.spanDays);
+    if (periodErr) {
+      return new Response(JSON.stringify({ error: periodErr }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const vatMode = parseReportVatMode(
       url.searchParams.get("vat_mode") ?? url.searchParams.get("iva"),
     );
@@ -208,9 +220,21 @@ export async function GET(req: Request) {
       if (tab === "turnover") for (const r of sales.rows ?? []) out.push({ TYPE: "ROW", ...r });
       if (tab === "daily") for (const r of sales.daily ?? []) out.push({ TYPE: "DAY", ...r });
       if (tab === "top") for (const r of sales.topItems ?? []) out.push({ TYPE: "ITEM", ...r });
-      if (tab === "staff")
-        for (const r of sales.staffPerformance ?? [])
+      if (tab === "staff") {
+        let staffRows = sales.staffPerformance ?? [];
+        if (!staffId) {
+          const active = await fetchActiveStaffForSalon(supabaseAdmin, salonId, "id, name");
+          const salonStaff = (active ?? [])
+            .filter((s: any) => s?.id != null)
+            .map((s: any) => ({
+              id: Number(s.id),
+              name: String(s.name ?? `Staff ${s.id}`),
+            }));
+          staffRows = mergeStaffKpiWithSalonStaff(staffRows, salonStaff);
+        }
+        for (const r of staffRows)
           out.push({ TYPE: "STAFF_ROW", ...flattenStaffKpiRowItalian(r, vatMode) });
+      }
     }
 
     if (tab === "cassa") {

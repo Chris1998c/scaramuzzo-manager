@@ -3,6 +3,8 @@
 import { useEffect, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { filenameFromContentDisposition } from "@/lib/reports/exportDownload";
+import { reportExportPeriodError } from "@/lib/reports/reportDateRange";
 
 type StaffOption = { id: number; name: string };
 
@@ -17,6 +19,7 @@ type Props = {
   staffOptions: StaffOption[];
   macroTab: string;
   exportTab: string | null;
+  periodSpanDays: number;
 };
 
 export default function ReportFilters({
@@ -30,6 +33,7 @@ export default function ReportFilters({
   staffOptions,
   macroTab,
   exportTab,
+  periodSpanDays,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,7 +73,18 @@ export default function ReportFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salonId]);
 
+  function assertExportPeriodAllowed(): boolean {
+    if (macroTab === "riepilogo") return true;
+    const err = reportExportPeriodError(periodSpanDays);
+    if (err) {
+      toast.error(err);
+      return false;
+    }
+    return true;
+  }
+
   function exportPdf() {
+    if (!assertExportPeriodAllowed()) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("salon_id", String(salonId));
     if (macroTab === "riepilogo") {
@@ -84,6 +99,7 @@ export default function ReportFilters({
   }
 
   function exportCsv() {
+    if (!assertExportPeriodAllowed()) return;
     if (!exportTab) {
       toast.error("Export non disponibile per il Riepilogo. Usa Vendite o Team.");
       return;
@@ -113,7 +129,10 @@ export default function ReportFilters({
       const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = href;
-      a.download = `report-export.${kind}`;
+      a.download = filenameFromContentDisposition(
+        res.headers.get("Content-Disposition"),
+        `report-export.${kind}`,
+      );
       document.body.appendChild(a);
       a.click();
       a.remove();

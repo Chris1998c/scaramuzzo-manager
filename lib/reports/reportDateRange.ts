@@ -1,5 +1,15 @@
-/** Guardrail: periodi oltre questa soglia mostrano warning UI (Team/Clienti). */
+/** Guardrail: periodi oltre questa soglia mostrano warning UI (Team/Clienti) e bloccano export. */
 export const REPORT_MAX_PERIOD_DAYS = 366;
+
+export function reportExportPeriodError(
+  spanDays: number,
+  maxDays: number = REPORT_MAX_PERIOD_DAYS,
+): string | null {
+  if (spanDays > maxDays) {
+    return `Periodo troppo lungo (${spanDays} giorni). L'export è limitato a ${maxDays} giorni: riduci l'intervallo date.`;
+  }
+  return null;
+}
 
 export function isReportIsoDate(v: string | null | undefined): v is string {
   if (!v) return false;

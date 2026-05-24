@@ -1,6 +1,7 @@
 import type { StaffKpiRow } from "@/lib/reports/buildStaffKpiFromRows";
 import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
 import { pickStaffMoney } from "@/lib/reports/buildStaffKpiFromRows";
+import { isUnassignedStaffId } from "@/lib/reports/staffKpiConstants";
 
 export const HIGH_DISCOUNT_PCT = 15;
 /** Scontrino medio sotto il 75% della media team. */
@@ -40,7 +41,7 @@ export function computeTeamAvgTicket(
 ): number {
   let totalReal = 0;
   let totalReceipts = 0;
-  for (const r of rows) {
+  for (const r of rows.filter((row) => !isUnassignedStaffId(row.staff_id))) {
     const m = pickStaffMoney(r, mode);
     totalReal += m.real;
     totalReceipts += r.receipts_count;
@@ -53,6 +54,8 @@ export function computeStaffAlertBadges(
   teamAvgTicket: number,
   mode: VatDisplayMode = "gross",
 ): StaffAlertBadge[] {
+  if (isUnassignedStaffId(row.staff_id)) return [];
+
   const m = pickStaffMoney(row, mode);
   const badges: StaffAlertBadge[] = [];
 

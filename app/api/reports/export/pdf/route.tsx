@@ -34,7 +34,9 @@ import AgendaReportPdf from "@/lib/pdf/templates/AgendaReportPdf";
 import { mapStaffReportToPdfPayload } from "@/lib/reports/mapStaffReportPdf";
 import { mapCashReportToPdfPayload } from "@/lib/reports/mapCashReportPdf";
 import { mapAgendaReportToPdfPayload } from "@/lib/reports/mapAgendaReportPdf";
-import { resolveReportDateRange } from "@/lib/reports/reportDateRange";
+import { reportExportPeriodError, resolveReportDateRange } from "@/lib/reports/reportDateRange";
+import { mergeStaffKpiWithSalonStaff } from "@/lib/reports/buildStaffKpiFromRows";
+import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import { parseReportVatMode } from "@/lib/reports/reportVatMode";
 
 export const runtime = "nodejs";
@@ -296,6 +298,17 @@ export async function GET(req: Request) {
 
     const reportDateFrom = dateResolved.dateFrom;
     const reportDateTo = dateResolved.dateTo;
+
+    if (tab !== "direzione") {
+      const periodErr = reportExportPeriodError(dateResolved.spanDays);
+      if (periodErr) {
+        return new Response(JSON.stringify({ error: periodErr }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const vatMode = parseReportVatMode(
       url.searchParams.get("vat_mode") ?? url.searchParams.get("iva"),
     );
@@ -340,12 +353,23 @@ export async function GET(req: Request) {
         paymentMethod,
         itemType,
       });
+      let staffPerformance = sales.staffPerformance ?? [];
+      if (!staffId) {
+        const staffRows = await fetchActiveStaffForSalon(supabaseAdmin, salonId, "id, name");
+        const salonStaff = (staffRows ?? [])
+          .filter((s: any) => s?.id != null)
+          .map((s: any) => ({
+            id: Number(s.id),
+            name: String(s.name ?? `Staff ${s.id}`),
+          }));
+        staffPerformance = mergeStaffKpiWithSalonStaff(staffPerformance, salonStaff);
+      }
       const payload = mapStaffReportToPdfPayload({
         salonName,
         salonId,
         dateFrom: reportDateFrom,
         dateTo: reportDateTo,
-        staffPerformance: sales.staffPerformance ?? [],
+        staffPerformance,
         rows: sales.rows ?? [],
         customerBySaleId: sales.customerBySaleId ?? {},
         vatMode,

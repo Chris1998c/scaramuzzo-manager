@@ -1,5 +1,6 @@
 import type { StaffKpiRow } from "@/lib/reports/buildStaffKpiFromRows";
 import { pickStaffMoney } from "@/lib/reports/buildStaffKpiFromRows";
+import { UNASSIGNED_STAFF_ID } from "@/lib/reports/staffKpiConstants";
 import type { ReportRow } from "@/lib/reports/getSalonTurnover";
 import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
 
@@ -87,7 +88,13 @@ export function buildStaffDrillDown(input: {
   vatMode?: VatDisplayMode;
 }): StaffDrillDownData {
   const mode = input.vatMode ?? "gross";
-  const staffRows = input.rows.filter((r) => Number(r.staff_id) === input.staffId);
+  const staffRows = input.rows.filter((r) => {
+    const sid = Number(r.staff_id);
+    if (input.staffId === UNASSIGNED_STAFF_ID) {
+      return !Number.isFinite(sid) || sid <= 0;
+    }
+    return sid === input.staffId;
+  });
   const saleCustomer = input.customerBySaleId;
 
   const customersAll = new Set<string>();

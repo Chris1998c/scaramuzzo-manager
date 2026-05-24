@@ -13,6 +13,7 @@ import ReportStaffDrillDownPanel from "@/components/reports/ReportStaffDrillDown
 import { formatReportMoney } from "@/components/reports/reportFormatMoney";
 import { formatRetailPenetrationPct } from "@/lib/reports/retailPenetration";
 import { computeTeamAvgTicket } from "@/lib/reports/staffKpiAlerts";
+import { isUnassignedStaffId, sortStaffKpiRows } from "@/lib/reports/staffKpiConstants";
 
 type Props = {
   rows: StaffKpiRow[];
@@ -35,8 +36,12 @@ export default function ReportStaffEnterpriseTable({
   const [vatMode, setVatMode] = useReportVatModeUrl();
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  const teamAvgTicket = useMemo(() => computeTeamAvgTicket(rows, vatMode), [rows, vatMode]);
-  const summary = useMemo(() => buildStaffTeamSummary(rows, vatMode), [rows, vatMode]);
+  const displayRows = useMemo(() => sortStaffKpiRows(rows), [rows]);
+  const teamAvgTicket = useMemo(
+    () => computeTeamAvgTicket(displayRows, vatMode),
+    [displayRows, vatMode],
+  );
+  const summary = useMemo(() => buildStaffTeamSummary(displayRows, vatMode), [displayRows, vatMode]);
 
   const previousByStaff = useMemo(() => {
     const map = new Map<number, StaffKpiRow>();
@@ -72,16 +77,20 @@ export default function ReportStaffEnterpriseTable({
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {displayRows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-12 text-center text-white/40">
                     Nessun dato nel periodo selezionato.
                   </td>
                 </tr>
               ) : (
-                rows.map((r, idx) => {
+                (() => {
+                  let realRank = 0;
+                  return displayRows.map((r, idx) => {
                   const m = pickStaffMoney(r, vatMode);
                   const isOpen = expanded === r.staff_id;
+                  const virtual = isUnassignedStaffId(r.staff_id);
+                  if (!virtual) realRank += 1;
                   const baseDrill = staffDrillDownByStaff[String(r.staff_id)];
                   const drillDown =
                     isOpen && baseDrill
@@ -100,8 +109,14 @@ export default function ReportStaffEnterpriseTable({
                         onClick={() => setExpanded(isOpen ? null : r.staff_id)}
                       >
                         <td className="px-3 py-3 font-extrabold text-white">
-                          <span className={`mr-2 tabular-nums ${rankClass(idx)}`}>#{idx + 1}</span>
-                          {r.staff_name}
+                          {virtual ? (
+                            <span className="mr-2 text-white/35">—</span>
+                          ) : (
+                            <span className={`mr-2 tabular-nums ${rankClass(realRank - 1)}`}>
+                              #{realRank}
+                            </span>
+                          )}
+                          <span className={virtual ? "italic text-white/55" : ""}>{r.staff_name}</span>
                         </td>
                         <td className="px-3 py-3 text-right font-extrabold text-scz-gold tabular-nums">
                           {formatReportMoney(m.real)}
@@ -140,7 +155,8 @@ export default function ReportStaffEnterpriseTable({
                       ) : null}
                     </Fragment>
                   );
-                })
+                });
+                })()
               )}
             </tbody>
           </table>

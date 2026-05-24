@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveReportDateRange } from "@/lib/reports/reportDateRange";
+import { reportExportPeriodError, resolveReportDateRange } from "@/lib/reports/reportDateRange";
 
 describe("resolveReportDateRange", () => {
   it("corregge date invertite e segnala redirect", () => {
@@ -23,5 +23,15 @@ describe("resolveReportDateRange", () => {
       maxDays: 366,
     });
     expect(r.exceedsMaxPeriod).toBe(true);
+  });
+});
+
+describe("reportExportPeriodError", () => {
+  it("restituisce messaggio oltre soglia", () => {
+    expect(reportExportPeriodError(400, 366)).toMatch(/400 giorni/);
+  });
+
+  it("restituisce null entro soglia", () => {
+    expect(reportExportPeriodError(30, 366)).toBeNull();
   });
 });

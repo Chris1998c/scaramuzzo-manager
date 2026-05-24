@@ -71,9 +71,15 @@ describe("buildStaffKpiFromRows", () => {
     expect(result[0].receipts_count).toBe(2);
   });
 
-  it("esclude righe senza staff_id", () => {
-    const rows: ReportRow[] = [row({ staff_id: 0 as unknown as number })];
-    expect(buildStaffKpiFromRows(rows, new Map())).toHaveLength(0);
+  it("aggrega righe senza staff_id in Non assegnato", () => {
+    const rows: ReportRow[] = [
+      row({ staff_id: 0 as unknown as number, line_total_gross: 30, line_net: 24.59 }),
+    ];
+    const result = buildStaffKpiFromRows(rows, new Map());
+    expect(result).toHaveLength(1);
+    expect(result[0].staff_id).toBe(0);
+    expect(result[0].staff_name).toBe("Non assegnato");
+    expect(result[0].gross.real).toBe(30);
   });
 
   it("segna scontrini senza customer_id", () => {
