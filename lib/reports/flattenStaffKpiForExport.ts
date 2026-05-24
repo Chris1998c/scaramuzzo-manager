@@ -1,5 +1,21 @@
 import type { StaffKpiRow } from "@/lib/reports/buildStaffKpiFromRows";
 
+/** Righe Team CSV con intestazioni italiane e colonne piatte (export enterprise). */
+export function flattenStaffKpiRowItalian(row: StaffKpiRow) {
+  return {
+    Collaboratore: row.staff_name,
+    Incassato: row.gross.real,
+    "Valore a listino": row.gross.full,
+    "Sconti dati": row.gross.discount,
+    "Sconto %": row.gross.discount_pct,
+    "Clienti serviti": row.customers_served,
+    "Retail venduto": row.gross.retail,
+    "Retail %": row.retail_penetration_pct,
+    "Scontrino medio": row.gross.avg_ticket_real,
+    "Scontrini scontati": row.discounted_receipts_count,
+  };
+}
+
 /** Appiattisce StaffKpiRow per CSV/PDF (evita oggetti nested gross/net). */
 export function flattenStaffKpiRow(row: StaffKpiRow) {
   return {

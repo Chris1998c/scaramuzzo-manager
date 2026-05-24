@@ -153,6 +153,7 @@ function buildSnapshot(
 }
 
 
+/** Riepilogo: più snapshot turnover in parallelo; resta fan-out CRM/operativo separato. */
 export async function getDirectionReport(salonId: number): Promise<DirectionReport> {
   const todayIso = todayISO();
   const monthStart = startOfMonthISO();
@@ -168,11 +169,14 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
   ]);
   const crm = { ...crmBase, colorAbsent };
 
+  const { prevFrom, prevTo } = shiftPeriod(monthStart, todayIso);
+
   const [
     todayTurnover,
     monthTurnover,
     yesterdayTurnover,
     lastWeekTurnover,
+    prevMonthTurnover,
     agendaToday,
     agendaWeek,
   ] = await Promise.all([
@@ -180,16 +184,10 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
     getSalonTurnover({ salonId, dateFrom: monthStart, dateTo: todayIso }),
     getSalonTurnover({ salonId, dateFrom: yesterday, dateTo: yesterday }),
     getSalonTurnover({ salonId, dateFrom: lastWeekSame, dateTo: lastWeekSame }),
+    getSalonTurnover({ salonId, dateFrom: prevFrom, dateTo: prevTo }),
     getAgendaReport({ salonId, dateFrom: todayIso, dateTo: todayIso }),
     getAgendaReport({ salonId, dateFrom: weekStart, dateTo: todayIso }),
   ]);
-
-  const { prevFrom, prevTo } = shiftPeriod(monthStart, todayIso);
-  const { totals: prevMonthTotals } = await getSalonTurnover({
-    salonId,
-    dateFrom: prevFrom,
-    dateTo: prevTo,
-  });
 
   const [todayCustomers, monthCustomers] = await Promise.all([
     fetchCustomerIdsForRows(todayTurnover.rows),
@@ -215,12 +213,7 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
   const yesterdayMoney = aggregateMoneyTriples(yesterdayTurnover.rows.map(toLineInput));
   const lastWeekMoney = aggregateMoneyTriples(lastWeekTurnover.rows.map(toLineInput));
 
-  const prevMonthLines = await getSalonTurnover({
-    salonId,
-    dateFrom: prevFrom,
-    dateTo: prevTo,
-  });
-  const prevMoney = aggregateMoneyTriples(prevMonthLines.rows.map(toLineInput));
+  const prevMoney = aggregateMoneyTriples(prevMonthTurnover.rows.map(toLineInput));
 
   const staffToday = buildStaffKpiFromRows(todayTurnover.rows, todayCustomers);
 
@@ -251,7 +244,7 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
       net_real_pct: pctChange(monthSnap.money.net.real, prevMoney.net.real),
       receipts_pct: pctChange(
         monthSnap.receipts_count,
-        Number(prevMonthTotals.receipts_count ?? 0),
+        Number(prevMonthTurnover.totals.receipts_count ?? 0),
       ),
     },
     vsYesterday: {

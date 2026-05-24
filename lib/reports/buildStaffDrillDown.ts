@@ -9,8 +9,12 @@ export type StaffDrillDownItem = {
   gross: number;
 };
 
-export type StaffDrillDownCustomer = {
+export type StaffDrillDownCustomerRef = {
   customer_id: string;
+  customer_name?: string;
+};
+
+export type StaffDrillDownCustomer = StaffDrillDownCustomerRef & {
   last_day: string;
   gross: number;
   visits: number;
@@ -26,7 +30,7 @@ export type StaffDrillDownData = {
   topServices: StaffDrillDownItem[];
   topProducts: StaffDrillDownItem[];
   recentCustomers: StaffDrillDownCustomer[];
-  customersWithoutRetail: string[];
+  customersWithoutRetail: StaffDrillDownCustomerRef[];
   discountedReceipts: number;
   totalReceipts: number;
   dailyTrend: StaffDrillDownDay[];
@@ -152,7 +156,7 @@ export function buildStaffDrillDown(input: {
     topServices: aggregateItems(staffRows, "service"),
     topProducts: aggregateItems(staffRows, "product"),
     recentCustomers,
-    customersWithoutRetail: customersWithoutRetail.slice(0, 8),
+    customersWithoutRetail: customersWithoutRetail.slice(0, 8).map((customer_id) => ({ customer_id })),
     discountedReceipts: input.current.discounted_receipts_count,
     totalReceipts: input.current.receipts_count,
     dailyTrend,

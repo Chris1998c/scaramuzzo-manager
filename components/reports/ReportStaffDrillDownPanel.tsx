@@ -120,7 +120,9 @@ export default function ReportStaffDrillDownPanel({
             <ul className="space-y-1.5">
               {drillDown.recentCustomers.map((c) => (
                 <li key={c.customer_id} className="flex justify-between gap-2 text-xs">
-                  <span className="text-white/75">Cliente #{c.customer_id.slice(0, 8)}</span>
+                  <span className="truncate text-white/75">
+                    {c.customer_name ?? `Cliente #${c.customer_id}`}
+                  </span>
                   <span className="text-white/45">
                     {c.last_day} · {formatReportMoney(c.gross)}
                   </span>
@@ -135,12 +137,12 @@ export default function ReportStaffDrillDownPanel({
             <p className="text-xs text-white/40">Tutti i clienti con almeno un prodotto.</p>
           ) : (
             <ul className="flex flex-wrap gap-1.5">
-              {drillDown.customersWithoutRetail.map((cid) => (
+              {drillDown.customersWithoutRetail.map((c) => (
                 <li
-                  key={cid}
+                  key={c.customer_id}
                   className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-white/55"
                 >
-                  #{cid.slice(0, 8)}
+                  {c.customer_name ?? `Cliente #${c.customer_id}`}
                 </li>
               ))}
             </ul>

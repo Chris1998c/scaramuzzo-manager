@@ -88,7 +88,7 @@ describe("buildStaffDrillDown", () => {
     expect(drill.topServices[0]?.name).toBe("Taglio");
     expect(drill.topProducts[0]?.name).toBe("Shampoo");
     expect(drill.recentCustomers).toHaveLength(2);
-    expect(drill.customersWithoutRetail).toContain("c1");
+    expect(drill.customersWithoutRetail.map((c) => c.customer_id)).toContain("c1");
     expect(drill.periodComparison?.delta_pct).toBe(100);
   });
 });

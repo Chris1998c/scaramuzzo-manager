@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { StaffKpiRow } from "@/lib/reports/buildStaffKpiFromRows";
-import { flattenStaffKpiRow } from "@/lib/reports/flattenStaffKpiForExport";
+import {
+  flattenStaffKpiRow,
+  flattenStaffKpiRowItalian,
+} from "@/lib/reports/flattenStaffKpiForExport";
 
 const sample: StaffKpiRow = {
   staff_id: 1,
@@ -36,6 +39,14 @@ const sample: StaffKpiRow = {
 };
 
 describe("flattenStaffKpiForExport", () => {
+  it("CSV italiano ha intestazioni enterprise", () => {
+    const itRow = flattenStaffKpiRowItalian(sample);
+    expect(itRow).toHaveProperty("Collaboratore", "Giulia");
+    expect(itRow).toHaveProperty("Incassato", 100);
+    expect(itRow).toHaveProperty("Scontrini scontati", 1);
+    expect(itRow).not.toHaveProperty("gross");
+  });
+
   it("espone campi piatti senza nested gross/net", () => {
     const flat = flattenStaffKpiRow(sample);
     expect(flat.incassato_lordo).toBe(100);

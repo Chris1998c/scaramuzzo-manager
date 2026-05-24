@@ -25,6 +25,7 @@ import { getWhatsAppReminderLog } from "@/lib/reports/getWhatsAppReminderLog";
 import { getDirectionReport } from "@/lib/reports/getDirectionReport";
 import { getDirectionCrmActions } from "@/lib/reports/getDirectionCrmActions";
 import { getColorAbsentCustomers } from "@/lib/reports/getColorAbsentCustomers";
+import { buildStaffDrillDownPayloadServer } from "@/lib/reports/buildStaffDrillDownPayloadServer";
 
 import ReportSalonSync from "./ReportSalonSync";
 import ReportFilters from "@/components/reports/ReportFilters";
@@ -267,37 +268,39 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
           staffUtilization: [],
         };
 
-  const clientsReport =
-    salonId && macro === "clienti"
-      ? await getClientsReport({
-          salonId,
-          dateFrom,
-          dateTo,
-          staffId,
-          paymentMethod,
-        })
-      : {
-          totals: {
-            customers_total: 0,
-            new_customers: 0,
-            returning_customers: 0,
-            repeat_rate: 0,
-            customers_with_retail: 0,
-            customers_without_retail: 0,
-            retail_penetration_pct: null,
-          },
-          newCustomers: [],
-          topSpenders: [],
-        };
+  const emptyClientsReport = {
+    totals: {
+      customers_total: 0,
+      new_customers: 0,
+      returning_customers: 0,
+      repeat_rate: 0,
+      customers_with_retail: 0,
+      customers_without_retail: 0,
+      retail_penetration_pct: null,
+    },
+    newCustomers: [],
+    topSpenders: [],
+  };
 
-  const crmActions =
+  const [clientsReport, crmActions] =
     salonId && macro === "clienti"
-      ? await (async () => {
-          const base = await getDirectionCrmActions(salonId);
-          const colorAbsent = await getColorAbsentCustomers(salonId);
-          return { ...base, colorAbsent };
-        })()
-      : null;
+      ? await Promise.all([
+          getClientsReport({
+            salonId,
+            dateFrom,
+            dateTo,
+            staffId,
+            paymentMethod,
+          }),
+          (async () => {
+            const [base, colorAbsent] = await Promise.all([
+              getDirectionCrmActions(salonId),
+              getColorAbsentCustomers(salonId),
+            ]);
+            return { ...base, colorAbsent };
+          })(),
+        ])
+      : [emptyClientsReport, null];
 
   const servicesReport =
     salonId && macro === "vendite" && venditeSubtab === "servizi"
@@ -330,7 +333,18 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
   const directionReport =
     salonId && macro === "riepilogo" ? await getDirectionReport(salonId) : null;
 
-  const { totals, rows, daily, topItems, staffPerformance, previousTotals, previousStaffPerformance, customerBySaleId } = salesAnalytics;
+  const { totals, rows, daily, topItems, staffPerformance, previousTotals, previousStaffPerformance, customerBySaleId } =
+    salesAnalytics;
+
+  const staffDrillDownByStaff =
+    salonId && macro === "team" && (staffPerformance?.length ?? 0) > 0
+      ? await buildStaffDrillDownPayloadServer({
+          rows: rows ?? [],
+          staffPerformance: staffPerformance ?? [],
+          previousStaffPerformance: previousStaffPerformance ?? [],
+          customerBySaleId: customerBySaleId ?? {},
+        })
+      : {};
 
   const venditeSubtabs = VENDITE_SUBTAB_KEYS.map((key) => ({
     key,
@@ -394,8 +408,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
           />
           <ReportStaffEnterpriseTable
             rows={staffPerformance ?? []}
-            detailRows={rows}
-            customerBySaleId={customerBySaleId ?? {}}
+            staffDrillDownByStaff={staffDrillDownByStaff}
             previousStaffRows={previousStaffPerformance ?? []}
           />
         </section>

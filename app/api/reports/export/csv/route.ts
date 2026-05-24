@@ -1,15 +1,18 @@
 // app/api/report/export/csv/route.ts
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { getUserAccess } from "@/lib/getUserAccess";
-
 import { getSalonTurnoverAnalytics } from "@/lib/reports/getSalonTurnoverAnalytics";
 import { getCashSessionsReport } from "@/lib/reports/getCashSessionsReport";
 import { getAgendaReport } from "@/lib/reports/getAgendaReport";
 import { getClientsReport } from "@/lib/reports/getClientsReport";
 import { getServicesReport } from "@/lib/reports/getServicesReport";
 import { getProductsReport } from "@/lib/reports/getProductsReport";
-import { flattenStaffKpiRow } from "@/lib/reports/flattenStaffKpiForExport";
+import { flattenStaffKpiRowItalian } from "@/lib/reports/flattenStaffKpiForExport";
+import {
+  exportUnauthorizedResponse,
+  isExportAuthError,
+  requireCoordinatorExportAccess,
+} from "@/lib/reports/exportRouteAuth";
 
 export const runtime = "nodejs";
 
@@ -96,26 +99,23 @@ async function createRouteSupabase() {
 }
 
 export async function GET(req: Request) {
+  let supabase;
   try {
-    // AUTH (cookie-based)
- const supabase = await createRouteSupabase();
-    const { data: authData, error: authErr } = await supabase.auth.getUser();
+    supabase = await createRouteSupabase();
+  } catch {
+    return exportUnauthorizedResponse();
+  }
 
-    if (authErr || !authData?.user) {
-      return new Response(JSON.stringify({ error: "Non autenticato" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+  const { data: authData, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !authData?.user) {
+    return exportUnauthorizedResponse();
+  }
 
-    const access = await getUserAccess();
-    if (access.role !== "coordinator") {
-      return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-        status: 403,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+  const auth = await requireCoordinatorExportAccess();
+  if (!auth.ok) return auth.response;
+  const access = auth.access;
 
+  try {
     // PARAMS
     const url = new URL(req.url);
     const tabRaw = url.searchParams.get("tab");
@@ -200,7 +200,7 @@ export async function GET(req: Request) {
       if (tab === "top") for (const r of sales.topItems ?? []) out.push({ TYPE: "ITEM", ...r });
       if (tab === "staff")
         for (const r of sales.staffPerformance ?? [])
-          out.push({ TYPE: "STAFF_ROW", ...flattenStaffKpiRow(r) });
+          out.push({ TYPE: "STAFF_ROW", ...flattenStaffKpiRowItalian(r) });
     }
 
     if (tab === "cassa") {
@@ -265,8 +265,10 @@ export async function GET(req: Request) {
         "Cache-Control": "no-store",
       },
     });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e?.message ?? "Errore export CSV" }), {
+  } catch (e: unknown) {
+    if (isExportAuthError(e)) return exportUnauthorizedResponse();
+    const msg = e instanceof Error ? e.message : "Errore export CSV";
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });

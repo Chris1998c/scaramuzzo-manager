@@ -1,4 +1,6 @@
 import { createServerSupabase } from "@/lib/supabaseServer";
+import { formatCustomerDisplayName } from "@/lib/reports/customerDisplayName";
+import { filterColorCardCustomerIds } from "@/lib/reports/filterColorCardCustomersForSalon";
 import {
   COLOR_CARD_TYPES,
   evaluateColorAbsentCustomer,
@@ -9,26 +11,7 @@ import {
 } from "@/lib/reports/colorAbsentSegment";
 
 const LIST_LIMIT = 12;
-
-function displayName(
-  c: {
-    first_name?: string | null;
-    last_name?: string | null;
-    phone?: string | null;
-    email?: string | null;
-  } | undefined,
-  customerId: string,
-): string {
-  const fn = String(c?.first_name ?? "").trim();
-  const ln = String(c?.last_name ?? "").trim();
-  const full = `${fn} ${ln}`.trim();
-  if (full) return full;
-  const phone = String(c?.phone ?? "").trim();
-  if (phone) return phone;
-  const email = String(c?.email ?? "").trim();
-  if (email) return email;
-  return `Cliente #${customerId}`;
-}
+const chunkSize = 200;
 
 type ServiceRef = {
   name?: string | null;
@@ -65,6 +48,66 @@ export async function getColorAbsentCustomers(salonId: number): Promise<ColorAbs
 
   if (cardsErr) throw new Error(cardsErr.message);
 
+  type RawCard = {
+    customer_id: string;
+    service_type: string;
+    created_at: string;
+    salon_id: number | null;
+  };
+
+  const rawCards: RawCard[] = [];
+  for (const row of cards ?? []) {
+    const cid = String((row as { customer_id?: unknown }).customer_id ?? "");
+    const st = String((row as { service_type?: unknown }).service_type ?? "");
+    if (!cid || !isColorCardType(st)) continue;
+    rawCards.push({
+      customer_id: cid,
+      service_type: st,
+      created_at: String((row as { created_at?: unknown }).created_at ?? ""),
+      salon_id:
+        (row as { salon_id?: unknown }).salon_id == null
+          ? null
+          : Number((row as { salon_id?: unknown }).salon_id),
+    });
+  }
+
+  const candidateIds = [...new Set(rawCards.map((c) => c.customer_id))];
+  if (!candidateIds.length) return [];
+
+  const customersActiveInSalon = new Set<string>();
+
+  for (let i = 0; i < candidateIds.length; i += chunkSize) {
+    const chunk = candidateIds.slice(i, i + chunkSize);
+    const [{ data: apptIds }, { data: saleIds }] = await Promise.all([
+      supabase
+        .from("appointments")
+        .select("customer_id")
+        .eq("salon_id", salonId)
+        .in("customer_id", chunk),
+      supabase
+        .from("sales")
+        .select("customer_id")
+        .eq("salon_id", salonId)
+        .in("customer_id", chunk)
+        .not("customer_id", "is", null),
+    ]);
+
+    for (const a of apptIds ?? []) {
+      const cid = String((a as { customer_id?: unknown }).customer_id ?? "");
+      if (cid) customersActiveInSalon.add(cid);
+    }
+    for (const s of saleIds ?? []) {
+      const cid = String((s as { customer_id?: unknown }).customer_id ?? "");
+      if (cid) customersActiveInSalon.add(cid);
+    }
+  }
+
+  const eligible = filterColorCardCustomerIds({
+    cards: rawCards.map((c) => ({ customer_id: c.customer_id, salon_id: c.salon_id })),
+    salonId,
+    customersActiveInSalon,
+  });
+
   type CardAgg = {
     hasLightening: boolean;
     lastCardAt: string | null;
@@ -72,18 +115,15 @@ export async function getColorAbsentCustomers(salonId: number): Promise<ColorAbs
 
   const cardByCustomer = new Map<string, CardAgg>();
 
-  for (const row of cards ?? []) {
-    const cid = String((row as { customer_id?: unknown }).customer_id ?? "");
-    const st = String((row as { service_type?: unknown }).service_type ?? "");
-    if (!cid || !isColorCardType(st)) continue;
+  for (const row of rawCards) {
+    if (!eligible.has(row.customer_id)) continue;
 
-    const created = String((row as { created_at?: unknown }).created_at ?? "");
-    const agg = cardByCustomer.get(cid) ?? { hasLightening: false, lastCardAt: null };
-    if (isLighteningCardType(st)) agg.hasLightening = true;
-    if (created && (!agg.lastCardAt || created > agg.lastCardAt)) {
-      agg.lastCardAt = created;
+    const agg = cardByCustomer.get(row.customer_id) ?? { hasLightening: false, lastCardAt: null };
+    if (isLighteningCardType(row.service_type)) agg.hasLightening = true;
+    if (row.created_at && (!agg.lastCardAt || row.created_at > agg.lastCardAt)) {
+      agg.lastCardAt = row.created_at;
     }
-    cardByCustomer.set(cid, agg);
+    cardByCustomer.set(row.customer_id, agg);
   }
 
   const customerIds = [...cardByCustomer.keys()];
@@ -99,7 +139,6 @@ export async function getColorAbsentCustomers(salonId: number): Promise<ColorAbs
     }
   >();
 
-  const chunkSize = 200;
   for (let i = 0; i < customerIds.length; i += chunkSize) {
     const chunk = customerIds.slice(i, i + chunkSize);
     const { data: customers, error: custErr } = await supabase
@@ -159,7 +198,7 @@ export async function getColorAbsentCustomers(salonId: number): Promise<ColorAbs
   for (const [cid, cardAgg] of cardByCustomer.entries()) {
     const evaluated = evaluateColorAbsentCustomer({
       customerId: cid,
-      customerName: displayName(customersMap.get(cid), cid),
+      customerName: formatCustomerDisplayName(customersMap.get(cid), cid),
       phone: customersMap.get(cid)?.phone ? String(customersMap.get(cid)!.phone).trim() : null,
       hasLighteningHistory: cardAgg.hasLightening,
       lastCardAt: cardAgg.lastCardAt,

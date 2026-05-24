@@ -3,9 +3,9 @@
 import { Fragment, useMemo, useState } from "react";
 import type { StaffKpiRow } from "@/lib/reports/buildStaffKpiFromRows";
 import { pickStaffMoney } from "@/lib/reports/buildStaffKpiFromRows";
-import type { ReportRow } from "@/lib/reports/getSalonTurnover";
 import type { VatDisplayMode } from "@/lib/reports/reportLineKpiMath";
-import { buildStaffDrillDown } from "@/lib/reports/buildStaffDrillDown";
+import type { StaffDrillDownByStaff } from "@/lib/reports/buildStaffDrillDownPayloadServer";
+import { adjustStaffDrillDownVat } from "@/lib/reports/adjustStaffDrillDownVat";
 import { buildStaffTeamSummary } from "@/lib/reports/buildStaffTeamSummary";
 import ReportVatToggle from "@/components/reports/ReportVatToggle";
 import ReportTeamSummary from "@/components/reports/ReportTeamSummary";
@@ -16,8 +16,7 @@ import { computeTeamAvgTicket } from "@/lib/reports/staffKpiAlerts";
 
 type Props = {
   rows: StaffKpiRow[];
-  detailRows?: ReportRow[];
-  customerBySaleId?: Record<string, string>;
+  staffDrillDownByStaff?: StaffDrillDownByStaff;
   previousStaffRows?: StaffKpiRow[];
 };
 
@@ -30,8 +29,7 @@ function rankClass(idx: number): string {
 
 export default function ReportStaffEnterpriseTable({
   rows,
-  detailRows = [],
-  customerBySaleId = {},
+  staffDrillDownByStaff = {},
   previousStaffRows = [],
 }: Props) {
   const [vatMode, setVatMode] = useState<VatDisplayMode>("gross");
@@ -84,16 +82,16 @@ export default function ReportStaffEnterpriseTable({
                 rows.map((r, idx) => {
                   const m = pickStaffMoney(r, vatMode);
                   const isOpen = expanded === r.staff_id;
-                  const drillDown = isOpen
-                    ? buildStaffDrillDown({
-                        staffId: r.staff_id,
-                        rows: detailRows,
-                        customerBySaleId,
-                        current: r,
-                        previous: previousByStaff.get(r.staff_id) ?? null,
-                        vatMode,
-                      })
-                    : null;
+                  const baseDrill = staffDrillDownByStaff[String(r.staff_id)];
+                  const drillDown =
+                    isOpen && baseDrill
+                      ? adjustStaffDrillDownVat(
+                          baseDrill,
+                          r,
+                          previousByStaff.get(r.staff_id),
+                          vatMode,
+                        )
+                      : null;
 
                   return (
                     <Fragment key={r.staff_id}>
