@@ -22,4 +22,13 @@ describe("customerApiRateLimit", () => {
       expect(blocked.retryAfterSec).toBeGreaterThan(0);
     }
   });
+
+  it("blocca dopo il limite bookings", () => {
+    const key = customerApiRateLimitKey("1.2.3.4", "user-b", "bookings");
+    for (let i = 0; i < 10; i++) {
+      expect(checkCustomerApiRateLimit(key, "bookings").allowed).toBe(true);
+    }
+    const blocked = checkCustomerApiRateLimit(key, "bookings");
+    expect(blocked.allowed).toBe(false);
+  });
 });

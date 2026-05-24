@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireCustomerContext } from "@/app/api/customer/v1/_lib/requireCustomerContext";
+import { MAX_CUSTOMER_APP_SERVICE_IDS } from "@/lib/customer-app/customerAppLimits";
 import {
   customerBadRequest,
   customerContextErrorResponse,
@@ -45,6 +46,11 @@ export async function GET(req: Request) {
     const serviceIds = parseCustomerAppServiceIds(url);
     if (!serviceIds?.length) {
       return customerBadRequest("service_ids obbligatorio");
+    }
+    if (serviceIds.length > MAX_CUSTOMER_APP_SERVICE_IDS) {
+      return customerBadRequest(
+        `service_ids: massimo ${MAX_CUSTOMER_APP_SERVICE_IDS} servizi`,
+      );
     }
 
     const isoDate = parseCustomerAppIsoDate(url.searchParams.get("date"));

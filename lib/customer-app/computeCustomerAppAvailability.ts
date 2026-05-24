@@ -218,10 +218,6 @@ export async function computeCustomerAppAvailability(
       cursor + totalDuration <= dayEndMin;
       cursor += SLOT_MINUTES
     ) {
-      if (slots.length >= MAX_CUSTOMER_AVAILABILITY_SLOTS) {
-        return slots;
-      }
-
       const startTime = toNoZ(snapToAgendaSlot(parseLocal(minutesToAgendaStart(isoDate, cursor))));
       const endTime = computeLineEndTime(startTime, totalDuration);
 

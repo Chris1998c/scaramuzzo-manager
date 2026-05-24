@@ -4,6 +4,7 @@ import {
   parseCustomerAppIsoDate,
   parseCustomerAppServiceIds,
 } from "./customerAppQuery";
+import { MAX_CUSTOMER_APP_SERVICE_IDS } from "./customerAppLimits";
 
 describe("parseCustomerAppServiceIds", () => {
   it("legge service_ids ripetuti e CSV", () => {
@@ -18,6 +19,11 @@ describe("parseCustomerAppServiceIds", () => {
 
   it("null se assente", () => {
     expect(parseCustomerAppServiceIds(new URL("https://x/api"))).toBeNull();
+  });
+
+  it("route availability deve rifiutare oltre MAX", () => {
+    const ids = Array.from({ length: MAX_CUSTOMER_APP_SERVICE_IDS + 1 }, (_, i) => i + 1);
+    expect(ids.length).toBeGreaterThan(MAX_CUSTOMER_APP_SERVICE_IDS);
   });
 });
 

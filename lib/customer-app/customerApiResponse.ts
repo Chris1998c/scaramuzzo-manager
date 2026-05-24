@@ -19,6 +19,10 @@ export function customerServerError(logLabel: string, e: unknown): NextResponse 
   return NextResponse.json({ error: "Errore server" }, { status: 500 });
 }
 
+export function customerConflictResponse(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 409 });
+}
+
 export function customerRateLimitedResponse(retryAfterSec: number): NextResponse {
   return NextResponse.json(
     { error: "Troppe richieste. Riprova tra poco." },

@@ -26,7 +26,9 @@ export function parseCustomerAppServiceIds(url: URL): number[] | null {
     ),
   ];
 
-  return ids.length ? ids : null;
+  if (!ids.length) return null;
+
+  return ids;
 }
 
 export function parseCustomerAppIsoDate(raw: unknown): string | null {
