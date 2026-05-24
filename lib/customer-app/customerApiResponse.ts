@@ -14,6 +14,14 @@ export function customerBadRequest(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
+export function customerForbidden(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 403 });
+}
+
+export function customerNotFoundResponse(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 404 });
+}
+
 export function customerServerError(logLabel: string, e: unknown): NextResponse {
   console.error(`[${logLabel}]`, e);
   return NextResponse.json({ error: "Errore server" }, { status: 500 });

@@ -5,6 +5,7 @@ import {
   customerBadRequest,
   customerConflictResponse,
   customerContextErrorResponse,
+  customerForbidden,
   customerRateLimitedResponse,
   customerServerError,
 } from "@/lib/customer-app/customerApiResponse";
@@ -14,7 +15,9 @@ import {
   CustomerAppBookingConflictError,
   CustomerAppBookingValidationError,
 } from "@/lib/customer-app/createCustomerAppBooking";
+import { fetchCustomerAppBookings } from "@/lib/customer-app/fetchCustomerAppBookings";
 import { parseCustomerAppBookingBody } from "@/lib/customer-app/parseCustomerAppBookingBody";
+import { parseCustomerAppBookingsQuery } from "@/lib/customer-app/parseCustomerAppBookingsQuery";
 import { isStaffScheduleConflictError } from "@/lib/agenda/assertStaffSchedule";
 import {
   isStaffSlotConflictOrDbError,
@@ -24,6 +27,29 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
+  try {
+    const ctx = await requireCustomerContext();
+
+    const parsed = parseCustomerAppBookingsQuery(new URL(req.url));
+    if (!parsed.ok) {
+      return customerBadRequest(parsed.error);
+    }
+
+    const bookings = await fetchCustomerAppBookings(
+      supabaseAdmin,
+      ctx.customerId,
+      parsed.data,
+    );
+
+    return NextResponse.json({ bookings });
+  } catch (e) {
+    const authRes = customerContextErrorResponse(e);
+    if (authRes) return authRes;
+    return customerServerError("customer/v1/bookings GET", e);
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -49,6 +75,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ booking }, { status: 201 });
   } catch (e) {
     if (e instanceof CustomerAppBookingValidationError) {
+      if (e.status === 403) {
+        return customerForbidden(e.message);
+      }
       return customerBadRequest(e.message);
     }
     if (e instanceof CustomerAppBookingConflictError) {
@@ -62,6 +91,6 @@ export async function POST(req: Request) {
     }
     const authRes = customerContextErrorResponse(e);
     if (authRes) return authRes;
-    return customerServerError("customer/v1/bookings", e);
+    return customerServerError("customer/v1/bookings POST", e);
   }
 }
