@@ -25,6 +25,7 @@ import {
 } from "@/lib/agenda/assertStaffSlotFree";
 import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
+import { loadAndEvaluateCustomerBookingPiegaRule } from "@/lib/customer-app/customerBookingServiceRules";
 import type { ParsedCustomerAppBookingBody } from "@/lib/customer-app/parseCustomerAppBookingBody";
 
 export type CustomerAppBookingServiceDto = {
@@ -103,6 +104,11 @@ export async function createCustomerAppBooking(
   const { salonId, serviceIds, staffId, startTime, notes } = input;
 
   await assertServicesBookableForCustomerApp(admin, serviceIds);
+
+  const piegaRule = await loadAndEvaluateCustomerBookingPiegaRule(admin, serviceIds);
+  if (!piegaRule.ok) {
+    throw new CustomerAppBookingValidationError(piegaRule.message);
+  }
 
   const staffGate = await assertStaffBelongsToSalon(admin, staffId, salonId);
   if (!staffGate.ok) {
