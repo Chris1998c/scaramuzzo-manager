@@ -1,20 +1,12 @@
 // POST /api/customer/claim/request-otp
 import { NextResponse } from "next/server";
 import { getAuthenticatedUserFromRequest } from "@/lib/getAuthenticatedUserFromRequest";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
-  claimOtpExpiresAtIso,
   findCustomerByCode,
-  getLinkBlock,
-  phoneUsableForOtp,
 } from "@/lib/customerClaim/claimShared";
-import { generateOtpDigits, hashClaimOtp } from "@/lib/customerClaim/otpCrypto";
-import { canRequestOtp, recordRequestOtp } from "@/lib/customerClaim/rateLimit";
-import { sendClaimOtpWhatsApp } from "@/lib/integrations/whatsappClaimOtp";
-import {
-  isCustomerClaimDebugOtpEnabled,
-  resolveCustomerClaimOtpPepper,
-} from "@/lib/customerClaimConfig";
+import { requestClaimOtpForCustomer } from "@/lib/customerClaim/requestClaimOtp";
+import { canRequestOtp } from "@/lib/customerClaim/rateLimit";
+import { resolveCustomerClaimOtpPepper } from "@/lib/customerClaimConfig";
 
 export async function POST(req: Request) {
   try {
@@ -81,111 +73,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const customerId = customer.id as string;
-    const phone = customer.phone as string | null;
-
-    if (!phoneUsableForOtp(phone)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Numero di telefono non valido o assente in anagrafica. Contatta il salone.",
-          code: "phone_not_eligible",
-        },
-        { status: 422 }
-      );
-    }
-
-    const link = await getLinkBlock(customerId, user.id);
-    if (!link.ok) {
-      return NextResponse.json(
-        { success: false, error: "Errore durante la verifica del collegamento." },
-        { status: 500 }
-      );
-    }
-    if (link.block === "customer_already_linked") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Questo profilo cliente è già collegato a un account.",
-          code: "customer_already_linked",
-        },
-        { status: 409 }
-      );
-    }
-    if (link.block === "user_already_linked") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Il tuo account è già collegato a un profilo cliente.",
-          code: "user_already_linked",
-        },
-        { status: 409 }
-      );
-    }
-
-    await supabaseAdmin
-      .from("customer_claim_otp_challenges")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("customer_id", customerId);
-
-    const otpDigits = generateOtpDigits();
-    const otp_hash = hashClaimOtp(otpDigits);
-    const expires_at = claimOtpExpiresAtIso();
-
-    const { data: row, error: insErr } = await supabaseAdmin
-      .from("customer_claim_otp_challenges")
-      .insert({
-        user_id: user.id,
-        customer_id: customerId,
-        otp_hash,
-        expires_at,
-        attempt_count: 0,
-      })
-      .select("id, expires_at")
-      .maybeSingle();
-
-    if (insErr || !row) {
-      return NextResponse.json(
-        { success: false, error: "Impossibile creare la verifica OTP." },
-        { status: 500 }
-      );
-    }
-
-    recordRequestOtp(user.id);
-
-    const send = await sendClaimOtpWhatsApp({
-      phoneRaw: String(phone),
-      otpDigits,
+    const result = await requestClaimOtpForCustomer({
+      userId: user.id,
+      customerId: customer.id as string,
+      phone: customer.phone as string,
     });
 
-    if (!send.ok) {
-      await supabaseAdmin
-        .from("customer_claim_otp_challenges")
-        .delete()
-        .eq("id", row.id);
-      return NextResponse.json(
-        {
-          success: false,
-          error: send.error ?? "Invio OTP non riuscito.",
-          code: "otp_delivery_failed",
-        },
-        { status: 502 }
-      );
-    }
-
-    const debugOtp = isCustomerClaimDebugOtpEnabled();
-
-    return NextResponse.json({
-      success: true,
-      challenge_id: row.id,
-      expires_at: row.expires_at,
-      delivery: send.skipped
-        ? { channel: "whatsapp", status: "skipped", reason: send.reason }
-        : { channel: "whatsapp", status: "queued" },
-      ...(debugOtp ? { _debug_otp: otpDigits } : {}),
-    });
+    return result.response;
   } catch {
     return NextResponse.json(
       { success: false, error: "Richiesta non valida." },
