@@ -28,7 +28,7 @@ export async function DELETE(
   ctx: { params: Promise<{ bookingId: string }> },
 ) {
   try {
-    const customerCtx = await requireCustomerContext();
+    const customerCtx = await requireCustomerContext(req);
 
     const rate = enforceCustomerApiRateLimit(req, customerCtx.authUserId, "bookings_delete");
     if (!rate.allowed) {

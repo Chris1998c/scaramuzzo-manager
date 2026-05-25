@@ -1,4 +1,8 @@
 import "server-only";
+import {
+  createSupabaseClientForRequest,
+  parseAuthorizationBearer,
+} from "@/lib/getAuthenticatedUserFromRequest";
 import { createServerSupabase } from "@/lib/supabaseServer";
 
 export type RoleName = "coordinator" | "reception" | "magazzino" | "cliente";
@@ -18,7 +22,7 @@ function roleIdToName(roleId: number | null | undefined): RoleName {
   }
 }
 
-export async function getUserAccess(): Promise<{
+export async function getUserAccess(req?: Request): Promise<{
   role: RoleName;
   allowedSalonIds: number[];
   allowedSalons: { id: number; name: string }[];
@@ -26,12 +30,17 @@ export async function getUserAccess(): Promise<{
   staffId: number | null;
   staffSalonId: number | null;
 }> {
-  const supabase = await createServerSupabase();
+  const supabase = req
+    ? await createSupabaseClientForRequest(req)
+    : await createServerSupabase();
 
-  // 1) user autenticato
-  const { data: auth, error: authErr } = await supabase.auth.getUser();
-  if (authErr) throw authErr;
-  if (!auth?.user) throw new Error("Not authenticated");
+  const bearer = req ? parseAuthorizationBearer(req) : null;
+
+  // 1) user autenticato (cookie SSR o Bearer Expo)
+  const { data: auth, error: authErr } = bearer
+    ? await supabase.auth.getUser(bearer)
+    : await supabase.auth.getUser();
+  if (authErr || !auth?.user) throw new Error("Not authenticated");
 
   const userId = auth.user.id;
 

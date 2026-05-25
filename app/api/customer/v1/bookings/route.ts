@@ -37,7 +37,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const ctx = await requireCustomerContext();
+    const ctx = await requireCustomerContext(req);
 
     const parsed = parseCustomerAppBookingsQuery(new URL(req.url));
     if (!parsed.ok) {
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const ctx = await requireCustomerContext();
+    const ctx = await requireCustomerContext(req);
 
     const rate = enforceCustomerApiRateLimit(req, ctx.authUserId, "bookings");
     if (!rate.allowed) {

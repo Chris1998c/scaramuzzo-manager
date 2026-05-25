@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const ctx = await requireCustomerContext();
+    const ctx = await requireCustomerContext(req);
 
     const rate = enforceCustomerApiRateLimit(req, ctx.authUserId, "staff");
     if (!rate.allowed) {

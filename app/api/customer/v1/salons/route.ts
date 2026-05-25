@@ -6,16 +6,13 @@ import {
   customerContextErrorResponse,
   customerServerError,
 } from "@/lib/customer-app/customerApiResponse";
-import { createServerSupabase } from "@/lib/supabaseServer";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await requireCustomerContext();
-    const supabase = await createServerSupabase();
-    const salons = await fetchBookableSalons(supabase);
+    const ctx = await requireCustomerContext(req);
+    const salons = await fetchBookableSalons(ctx.supabase);
     return NextResponse.json({ salons });
   } catch (e) {
     const authRes = customerContextErrorResponse(e);

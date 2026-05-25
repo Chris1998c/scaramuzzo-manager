@@ -1,12 +1,19 @@
 import "server-only";
 
-import { createServerSupabase } from "@/lib/supabaseServer";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import {
+  createSupabaseClientForRequest,
+  getAuthenticatedUserFromRequest,
+} from "@/lib/getAuthenticatedUserFromRequest";
 import { getUserAccess, type RoleName } from "@/lib/getUserAccess";
 
 export type CustomerContext = {
   authUserId: string;
   customerId: string;
   access: Awaited<ReturnType<typeof getUserAccess>>;
+  /** Client sessione utente (cookie web o Bearer Expo) per query RLS. */
+  supabase: SupabaseClient;
 };
 
 export class CustomerContextError extends Error {
@@ -33,41 +40,51 @@ function assertClienteRole(role: RoleName): void {
 }
 
 /**
- * Contesto obbligatorio per future API /api/customer/v1/*.
+ * Contesto obbligatorio per API /api/customer/v1/*.
+ * Auth: Authorization Bearer (Expo) o cookie sessione (web).
  * customer_id proviene solo da customer_auth_links — mai dal body/query client.
  */
-export async function requireCustomerContext(): Promise<CustomerContext> {
+export async function requireCustomerContext(req: Request): Promise<CustomerContext> {
+  const authResult = await getAuthenticatedUserFromRequest(req);
+  if (!authResult.ok) {
+    throw new CustomerContextError(401, "Autenticazione richiesta.");
+  }
+
   let access: Awaited<ReturnType<typeof getUserAccess>>;
   try {
-    access = await getUserAccess();
+    access = await getUserAccess(req);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e ?? "");
     if (msg === "Not authenticated") {
       throw new CustomerContextError(401, "Autenticazione richiesta.");
     }
-    throw e;
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[requireCustomerContext] getUserAccess", e);
+    }
+    throw new CustomerContextError(
+      403,
+      "Impossibile verificare i permessi account.",
+    );
   }
 
   assertClienteRole(access.role);
 
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
-
-  if (authErr || !user) {
-    throw new CustomerContextError(401, "Autenticazione richiesta.");
-  }
+  const supabase = await createSupabaseClientForRequest(req);
 
   const { data: link, error: linkErr } = await supabase
     .from("customer_auth_links")
     .select("customer_id")
-    .eq("user_id", user.id)
+    .eq("user_id", authResult.user.id)
     .maybeSingle();
 
   if (linkErr) {
-    throw new Error(`customer_auth_links: ${linkErr.message}`);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[requireCustomerContext] customer_auth_links", linkErr);
+    }
+    throw new CustomerContextError(
+      403,
+      "Impossibile verificare il collegamento profilo cliente.",
+    );
   }
 
   const customerId =
@@ -81,8 +98,9 @@ export async function requireCustomerContext(): Promise<CustomerContext> {
   }
 
   return {
-    authUserId: user.id,
+    authUserId: authResult.user.id,
     customerId,
     access,
+    supabase,
   };
 }

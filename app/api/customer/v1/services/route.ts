@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    await requireCustomerContext();
+    await requireCustomerContext(req);
 
     const url = new URL(req.url);
     const salonId = parseCustomerAppSalonId(url.searchParams.get("salon_id"));

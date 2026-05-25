@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createClient, type User } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { createServerSupabase } from "@/lib/supabaseServer";
 
 function getSupabasePublicEnv(): { url: string; anonKey: string } {
@@ -48,4 +48,22 @@ export async function getAuthenticatedUserFromRequest(
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return { ok: false };
   return { ok: true, user: data.user };
+}
+
+/**
+ * Client Supabase con sessione utente per query RLS:
+ * Bearer → anon client con header Authorization; altrimenti cookie SSR.
+ */
+export async function createSupabaseClientForRequest(
+  req: Request,
+): Promise<SupabaseClient> {
+  const bearer = parseAuthorizationBearer(req);
+  if (bearer) {
+    const { url, anonKey } = getSupabasePublicEnv();
+    return createClient(url, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${bearer}` } },
+    });
+  }
+  return createServerSupabase();
 }

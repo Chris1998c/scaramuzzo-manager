@@ -6,26 +6,47 @@ import {
   requireCustomerContext,
 } from "./requireCustomerContext";
 
+vi.mock("@/lib/getAuthenticatedUserFromRequest", () => ({
+  getAuthenticatedUserFromRequest: vi.fn(),
+  createSupabaseClientForRequest: vi.fn(),
+}));
+
 vi.mock("@/lib/getUserAccess", () => ({
   getUserAccess: vi.fn(),
 }));
 
-vi.mock("@/lib/supabaseServer", () => ({
-  createServerSupabase: vi.fn(),
-}));
-
+import {
+  createSupabaseClientForRequest,
+  getAuthenticatedUserFromRequest,
+} from "@/lib/getAuthenticatedUserFromRequest";
 import { getUserAccess } from "@/lib/getUserAccess";
-import { createServerSupabase } from "@/lib/supabaseServer";
+
+const req = new Request("http://localhost/api/customer/v1/salons");
 
 describe("requireCustomerContext", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getAuthenticatedUserFromRequest).mockResolvedValue({
+      ok: true,
+      user: { id: "user-1" } as never,
+    });
+  });
+
+  it("401 se Bearer/cookie non autenticato", async () => {
+    vi.mocked(getAuthenticatedUserFromRequest).mockResolvedValueOnce({
+      ok: false,
+    });
+
+    await expect(requireCustomerContext(req)).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(getUserAccess).not.toHaveBeenCalled();
   });
 
   it("401 se getUserAccess non autenticato", async () => {
     vi.mocked(getUserAccess).mockRejectedValueOnce(new Error("Not authenticated"));
 
-    await expect(requireCustomerContext()).rejects.toMatchObject({
+    await expect(requireCustomerContext(req)).rejects.toMatchObject({
       status: 401,
     });
   });
@@ -40,7 +61,7 @@ describe("requireCustomerContext", () => {
       staffSalonId: 1,
     });
 
-    await expect(requireCustomerContext()).rejects.toSatisfy((e: unknown) => {
+    await expect(requireCustomerContext(req)).rejects.toSatisfy((e: unknown) => {
       expect(isCustomerContextError(e)).toBe(true);
       expect((e as CustomerContextError).status).toBe(403);
       return true;
@@ -57,13 +78,7 @@ describe("requireCustomerContext", () => {
       staffSalonId: null,
     });
 
-    vi.mocked(createServerSupabase).mockResolvedValueOnce({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: "user-1" } },
-          error: null,
-        }),
-      },
+    vi.mocked(createSupabaseClientForRequest).mockResolvedValueOnce({
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -73,7 +88,7 @@ describe("requireCustomerContext", () => {
       }),
     } as never);
 
-    await expect(requireCustomerContext()).rejects.toMatchObject({
+    await expect(requireCustomerContext(req)).rejects.toMatchObject({
       status: 403,
     });
   });
@@ -89,14 +104,7 @@ describe("requireCustomerContext", () => {
     });
 
     const customerId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-
-    vi.mocked(createServerSupabase).mockResolvedValueOnce({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: "user-1" } },
-          error: null,
-        }),
-      },
+    const supabaseMock = {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -107,11 +115,18 @@ describe("requireCustomerContext", () => {
           }),
         }),
       }),
-    } as never);
+    };
 
-    const ctx = await requireCustomerContext();
+    vi.mocked(createSupabaseClientForRequest).mockResolvedValueOnce(
+      supabaseMock as never,
+    );
+
+    const ctx = await requireCustomerContext(req);
     expect(ctx.authUserId).toBe("user-1");
     expect(ctx.customerId).toBe(customerId);
     expect(ctx.access.role).toBe("cliente");
+    expect(ctx.supabase).toBe(supabaseMock);
+    expect(getUserAccess).toHaveBeenCalledWith(req);
+    expect(getAuthenticatedUserFromRequest).toHaveBeenCalledWith(req);
   });
 });
