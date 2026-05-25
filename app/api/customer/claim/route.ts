@@ -2,7 +2,7 @@
 // Collega l'utente autenticato al record customers tramite customer_code (legacy v1).
 // Manual claim solo se CUSTOMER_CLAIM_ALLOW_CODE_MANUAL=true; altrimenti OTP (/claim/request-otp + verify-otp).
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabaseServer";
+import { getAuthenticatedUserFromRequest } from "@/lib/getAuthenticatedUserFromRequest";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { findCustomerByCode, getLinkBlock } from "@/lib/customerClaim/claimShared";
 import {
@@ -27,18 +27,14 @@ async function ensureClaimReadyForLink(_ctx: {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createServerSupabase();
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-
-    if (authErr || !user) {
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth.ok) {
       return NextResponse.json(
         { success: false, error: "Autenticazione richiesta." },
         { status: 401 }
       );
     }
+    const { user } = auth;
 
     const body = await req.json().catch(() => null);
     const raw = body?.customer_code;

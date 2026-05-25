@@ -1,6 +1,6 @@
 // POST /api/customer/claim/verify-otp
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabaseServer";
+import { getAuthenticatedUserFromRequest } from "@/lib/getAuthenticatedUserFromRequest";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   findCustomerByCode,
@@ -24,18 +24,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = await createServerSupabase();
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-
-    if (authErr || !user) {
+    const auth = await getAuthenticatedUserFromRequest(req);
+    if (!auth.ok) {
       return NextResponse.json(
         { success: false, error: "Autenticazione richiesta." },
         { status: 401 }
       );
     }
+    const { user } = auth;
 
     const body = await req.json().catch(() => null);
     const customer_code =
