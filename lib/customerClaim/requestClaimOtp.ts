@@ -10,6 +10,7 @@ import {
 import { generateOtpDigits, hashClaimOtp } from "@/lib/customerClaim/otpCrypto";
 import { canRequestOtp, recordRequestOtp } from "@/lib/customerClaim/rateLimit";
 import { sendClaimOtpWhatsApp } from "@/lib/integrations/whatsappClaimOtp";
+import { isClaimWhatsAppDeliveryRequired } from "@/lib/integrations/whatsappClaimConfig";
 import { isCustomerClaimDebugOtpEnabled } from "@/lib/customerClaimConfig";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -129,9 +130,28 @@ export async function requestClaimOtpForCustomer(params: {
         {
           success: false,
           error: send.error ?? "Invio OTP non riuscito.",
-          code: "otp_delivery_failed",
+          code: send.code ?? "otp_delivery_failed",
         },
-        { status: 502 },
+        { status: send.code?.includes("not_configured") ? 503 : 502 },
+      ),
+    };
+  }
+
+  if (send.skipped && isClaimWhatsAppDeliveryRequired()) {
+    await supabaseAdmin
+      .from("customer_claim_otp_challenges")
+      .delete()
+      .eq("id", row.id);
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          success: false,
+          error:
+            "Invio OTP WhatsApp non disponibile: configurare WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID e WHATSAPP_OTP_TEMPLATE_NAME.",
+          code: send.reason ?? "whatsapp_not_configured",
+        },
+        { status: 503 },
       ),
     };
   }
@@ -146,7 +166,11 @@ export async function requestClaimOtpForCustomer(params: {
       expires_at: row.expires_at,
       delivery: send.skipped
         ? { channel: "whatsapp", status: "skipped", reason: send.reason }
-        : { channel: "whatsapp", status: "queued" },
+        : {
+            channel: "whatsapp",
+            status: "sent",
+            message_id: send.providerMessageId ?? null,
+          },
       ...(debugOtp ? { _debug_otp: otpDigits } : {}),
     }),
   };

@@ -19,6 +19,11 @@
 ## 3) ENV CRITICHE – WHATSAPP
 - [ ] stato deciso chiaramente: reminders OFF per il pilota
 - [ ] WHATSAPP_ACCESS_TOKEN verificato o volutamente assente
+- [ ] WHATSAPP_PHONE_NUMBER_ID (claim OTP + invii Graph)
+- [ ] WHATSAPP_OTP_TEMPLATE_NAME — template Meta con body {{1}} = codice OTP
+- [ ] WHATSAPP_OTP_TEMPLATE_LANG (default `it`)
+- [ ] CUSTOMER_CLAIM_OTP_PEPPER (produzione, non placeholder dev)
+- [ ] CUSTOMER_CLAIM_DEBUG_OTP=false in produzione
 - [ ] WHATSAPP_APPOINTMENT_REMINDER_TEMPLATE_NAME verificato o volutamente assente
 - [ ] nessun cron attivo per reminders automatici se provider non configurato
 
