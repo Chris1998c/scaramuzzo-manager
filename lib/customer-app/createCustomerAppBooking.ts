@@ -2,12 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  parseLocal,
-  snapToAgendaSlot,
-  syncAppointmentHeaderFromDb,
-  toNoZ,
-} from "@/lib/agenda/agendaContract";
+import { syncAppointmentHeaderFromDb } from "@/lib/agenda/agendaContract";
 import {
   assertStaffBelongsToSalon,
   resolveAgendaServiceLines,
@@ -17,7 +12,6 @@ import {
   isoDateFromAgendaStartTime,
 } from "@/lib/agenda/assertStaffSchedule";
 import {
-  assertBatchInternalStaffSlotsFree,
   assertStaffSlotFree,
   computeLineEndTime,
   isStaffSlotConflictFromDbError,
@@ -25,6 +19,11 @@ import {
 } from "@/lib/agenda/assertStaffSlotFree";
 import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
+import {
+  assertCustomerBookingLinesInternallyFree,
+  buildCustomerBookingLines,
+  totalDurationMinutesFromLines,
+} from "@/lib/customer-app/buildCustomerBookingLines";
 import { loadAndEvaluateCustomerBookingPiegaRule } from "@/lib/customer-app/customerBookingServiceRules";
 import type { ParsedCustomerAppBookingBody } from "@/lib/customer-app/parseCustomerAppBookingBody";
 
@@ -150,39 +149,21 @@ export async function createCustomerAppBooking(
       ? await fetchOperationalCalendarSnapshot(admin, salonId, opIsoDate, [staffId])
       : undefined;
 
-  let cursorMs = parseLocal(snappedStart).getTime();
-  const batchLines: Array<{
-    staffId: number | null;
-    startTime: string;
-    durationMinutes: number;
-  }> = [];
-
-  for (const line of normalizedLines) {
-    const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
-    batchLines.push({
-      staffId: line.staff_id,
-      startTime: lineStart,
-      durationMinutes: line.duration_minutes,
-    });
-    cursorMs += line.duration_minutes * 60_000;
-  }
+  const builtLines = buildCustomerBookingLines(snappedStart, normalizedLines);
 
   try {
-    assertBatchInternalStaffSlotsFree(batchLines);
+    assertCustomerBookingLinesInternallyFree(builtLines);
   } catch {
     throw new CustomerAppBookingConflictError(STAFF_SLOT_CONFLICT_MESSAGE);
   }
 
-  cursorMs = parseLocal(snappedStart).getTime();
-  for (const line of normalizedLines) {
-    const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
-    const lineEnd = computeLineEndTime(lineStart, line.duration_minutes);
+  for (const built of builtLines) {
     await assertStaffScheduledForStartTime({
       supabase: admin,
       salonId,
-      staffId: line.staff_id,
-      startTime: lineStart,
-      durationMinutes: line.duration_minutes,
+      staffId: built.staff_id,
+      startTime: built.start_time,
+      durationMinutes: built.duration_minutes,
       scheduleMap,
       operationalSnapshot,
       operationalIsoDate: opIsoDate ?? undefined,
@@ -190,16 +171,15 @@ export async function createCustomerAppBooking(
     await assertStaffSlotFree({
       supabase: admin,
       salonId,
-      staffId: line.staff_id,
-      startTime: lineStart,
-      endTime: lineEnd,
+      staffId: built.staff_id,
+      startTime: built.start_time,
+      endTime: built.end_time,
     });
-    cursorMs += line.duration_minutes * 60_000;
   }
 
-  const totalDurationMs = cursorMs - parseLocal(snappedStart).getTime();
-  const headerEndTime = toNoZ(
-    snapToAgendaSlot(new Date(parseLocal(snappedStart).getTime() + totalDurationMs)),
+  const headerEndTime = computeLineEndTime(
+    builtLines[0].start_time,
+    totalDurationMinutesFromLines(builtLines),
   );
 
   let appointmentIdCreated: number | null = null;
@@ -231,20 +211,16 @@ export async function createCustomerAppBooking(
     appointmentIdCreated = appointmentId;
 
     const serviceDtos: CustomerAppBookingServiceDto[] = [];
-    cursorMs = parseLocal(snappedStart).getTime();
 
-    for (const line of normalizedLines) {
-      const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
-      const lineEnd = computeLineEndTime(lineStart, line.duration_minutes);
-
+    for (const built of builtLines) {
       const { error: lineErr } = await admin.from("appointment_services").insert({
         appointment_id: appointmentId,
-        service_id: line.service_id,
-        staff_id: line.staff_id,
-        start_time: lineStart,
-        duration_minutes: line.duration_minutes,
-        price: line.price,
-        vat_rate: line.vat_rate,
+        service_id: built.service_id,
+        staff_id: built.staff_id,
+        start_time: built.start_time,
+        duration_minutes: built.duration_minutes,
+        price: built.price,
+        vat_rate: built.vat_rate,
       });
 
       if (lineErr) {
@@ -255,15 +231,13 @@ export async function createCustomerAppBooking(
       }
 
       serviceDtos.push({
-        service_id: line.service_id,
-        staff_id: line.staff_id,
-        start_time: lineStart,
-        end_time: lineEnd,
-        duration: line.duration_minutes,
-        price: line.price,
+        service_id: built.service_id,
+        staff_id: built.staff_id,
+        start_time: built.start_time,
+        end_time: built.end_time,
+        duration: built.duration_minutes,
+        price: built.price,
       });
-
-      cursorMs += line.duration_minutes * 60_000;
     }
 
     const synced = await syncAppointmentHeaderFromDb(admin, appointmentId);
