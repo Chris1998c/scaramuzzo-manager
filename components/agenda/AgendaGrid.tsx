@@ -21,6 +21,7 @@ import EditAppointmentModal from "./EditAppointmentModal";
 import { MemoServiceBox } from "./ServiceBox";
 import CalendarModal from "./CalendarModal";
 import type { AgendaAppointment, AgendaServiceLine } from "@/lib/agenda/agendaContract";
+import { getAgendaDisplayServiceLines } from "@/lib/agenda/agendaGridDisplay";
 import { buildAgendaLanes } from "@/lib/agenda/agendaGridLanes";
 import { useAgendaData } from "./useAgendaData";
 
@@ -558,7 +559,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
         ? app.appointment_services
         : [];
       if (lines.length > 0) {
-        for (const line of lines) {
+        for (const line of getAgendaDisplayServiceLines(app)) {
           const sid = toIdStr(line?.staff_id);
           const key = sid ?? null;
           const arr = map.get(key) ?? [];
@@ -588,7 +589,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
         ? app.appointment_services
         : [];
       if (lines.length > 0) {
-        for (const line of lines) {
+        for (const line of getAgendaDisplayServiceLines(app)) {
           const dayKey = String(line?.start_time || "").slice(0, 10);
           if (!dayKey || !map.has(dayKey)) continue;
           map.get(dayKey)!.push({ app, line });

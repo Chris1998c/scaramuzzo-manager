@@ -69,12 +69,9 @@ export function normalizeStaffId(v: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-export function parseLocal(ts: string): Date {
-  const [date, time] = String(ts).split("T");
-  const [y, m, d] = String(date || "").split("-").map(Number);
-  const [hh, mm, ss] = String(time || "00:00:00").split(":").map(Number);
-  return new Date(y || 0, (m || 1) - 1, d || 1, hh || 0, mm || 0, ss || 0, 0);
-}
+import { parseAgendaLocalTs as parseLocal } from "@/lib/agenda/agendaTimestamp";
+
+export { parseLocal };
 
 /** Ora corrente come wall clock Europe/Rome (allineato a timestamp without time zone in DB). */
 export function nowRomeLocalDate(): Date {

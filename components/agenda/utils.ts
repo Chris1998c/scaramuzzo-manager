@@ -1,3 +1,9 @@
+import {
+  agendaTimeFromTs,
+  parseAgendaLocalTs,
+  splitAgendaTimestamp,
+} from "@/lib/agenda/agendaTimestamp";
+
 /* =====================================================
    SCARAMUZZO MANAGER – AGENDA UTILS (DEFINITIVE)
    - Zero shift UTC
@@ -44,36 +50,21 @@ export const SLOT_PX = SLOT_PX_FALLBACK;
  */
 export function dayFromTs(ts: string): string {
   if (!ts) return "";
-  return String(ts).split("T")[0];
+  return splitAgendaTimestamp(ts).date;
 }
 
 /**
- * Restituisce HH:MM robusto anche con secondi/Z
+ * Restituisce HH:MM robusto (ISO con T o Postgres con spazio).
  */
 export function timeFromTs(ts: string): string {
-  if (!ts) return "";
-  const parts = String(ts).split("T");
-  if (parts.length < 2) return "";
-  return parts[1].slice(0, 5);
+  return agendaTimeFromTs(ts);
 }
 
 /**
  * Parsing locale sicuro (NO Z shift)
  */
 export function parseLocal(ts: string): Date {
-  const [date, time] = String(ts).split("T");
-  const [y, m, d] = String(date || "").split("-").map(Number);
-  const [hh, mm, ss] = String(time || "00:00:00").split(":").map(Number);
-
-  return new Date(
-    y || 0,
-    (m || 1) - 1,
-    d || 1,
-    hh || 0,
-    mm || 0,
-    ss || 0,
-    0
-  );
+  return parseAgendaLocalTs(ts);
 }
 
 /**
