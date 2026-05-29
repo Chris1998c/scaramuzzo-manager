@@ -1,24 +1,103 @@
 import { SLOT_MINUTES } from "@/components/agenda/utils";
+import type { AgendaAppointment, AgendaServiceLine } from "@/lib/agenda/agendaContract";
+import {
+  agendaMinutesFromStartTime,
+  resolveAgendaLineDurationMinutes,
+} from "@/lib/agenda/agendaBoxLayout";
 
-export type AgendaLanePair = { app: unknown; line: unknown };
+export type AgendaLanePair = {
+  app: Pick<AgendaAppointment, "appointment_services">;
+  line: Pick<AgendaServiceLine, "start_time" | "duration_minutes" | "services">;
+};
 
 export type AgendaLaidOutLine = {
-  app: unknown;
-  line: unknown;
+  app: AgendaLanePair["app"];
+  line: AgendaLanePair["line"];
   laneIndex: number;
   laneCount: number;
 };
 
-function minutesFromTimeStr(ts: string): number {
-  const raw = String(ts || "");
-  const timePart = raw.includes("T") ? raw.split("T")[1] : raw.split(" ")[1];
-  const time = timePart || "00:00:00";
-  const [hh, mm] = time.split(":").map(Number);
-  return (hh || 0) * 60 + (mm || 0);
+type LaneInterval = {
+  idx: number;
+  start: number;
+  end: number;
+};
+
+/** [start, end) si sovrappongono */
+export function agendaIntervalsOverlap(
+  a: { start: number; end: number },
+  b: { start: number; end: number },
+): boolean {
+  return a.start < b.end && b.start < a.end;
+}
+
+function resolvePairIntervalMinutes(
+  pair: AgendaLanePair,
+  slotPx: number,
+): LaneInterval {
+  const start = agendaMinutesFromStartTime(pair.line.start_time);
+  const duration = resolveAgendaLineDurationMinutes(pair.line, pair.app);
+  const minCardDur =
+    Math.ceil(Math.max(56, slotPx * 1.35) / slotPx) * SLOT_MINUTES;
+  const dur = Math.max(duration, minCardDur);
+  return { start, end: start + dur, idx: 0 };
+}
+
+/** Allinea laneCount nel cluster di overlap (greedy può lasciare count=1 su righe già affiancate). */
+export function finalizeAgendaLaneCounts(
+  laid: AgendaLaidOutLine[],
+  intervals: LaneInterval[],
+): void {
+  const n = intervals.length;
+  if (n <= 1) return;
+
+  const parent = intervals.map((_, i) => i);
+
+  function find(i: number): number {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]!]!;
+      i = parent[i]!;
+    }
+    return i;
+  }
+
+  function union(a: number, b: number): void {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent[rb] = ra;
+  }
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (agendaIntervalsOverlap(intervals[i]!, intervals[j]!)) {
+        union(i, j);
+      }
+    }
+  }
+
+  const groups = new Map<number, number[]>();
+  for (let i = 0; i < n; i++) {
+    const root = find(i);
+    const list = groups.get(root) ?? [];
+    list.push(i);
+    groups.set(root, list);
+  }
+
+  for (const members of groups.values()) {
+    if (members.length <= 1) continue;
+
+    const maxLanePlusOne =
+      Math.max(...members.map((i) => laid[intervals[i]!.idx]!.laneIndex)) + 1;
+
+    for (const i of members) {
+      laid[intervals[i]!.idx]!.laneCount = maxLanePlusOne;
+    }
+  }
 }
 
 /**
- * Collision / stacking engine (estratto da AgendaGrid, stesso comportamento visivo).
+ * Collision / stacking: lane orizzontali per box sovrapposti nella stessa colonna staff.
+ * Usa durata aggregata multi-servizio (resolveAgendaLineDurationMinutes).
  */
 export function buildAgendaLanes(
   pairs: AgendaLanePair[],
@@ -33,27 +112,12 @@ export function buildAgendaLanes(
     laneCount: 1,
   }));
 
-  const items = pairs
-    .map((p, idx) => {
-      const start = minutesFromTimeStr(String((p.line as { start_time?: string })?.start_time ?? ""));
+  const intervals: LaneInterval[] = pairs.map((p, idx) => {
+    const interval = resolvePairIntervalMinutes(p, slotPx);
+    return { ...interval, idx };
+  });
 
-      const raw =
-        Number(
-          (p.line as { duration_minutes?: number })?.duration_minutes ??
-            (p.line as { services?: { duration?: number } })?.services?.duration ??
-            SLOT_MINUTES,
-        ) || SLOT_MINUTES;
-
-      const MIN_HEIGHT_PX = Math.max(56, slotPx * 1.35);
-      const minSlots = Math.ceil(MIN_HEIGHT_PX / slotPx);
-      const minDur = minSlots * SLOT_MINUTES;
-
-      const duration = Math.max(raw, minDur);
-      const end = start + duration;
-
-      return { idx, start, end };
-    })
-    .sort((a, b) => a.start - b.start);
+  const items = [...intervals].sort((a, b) => a.start - b.start);
 
   type Active = { idx: number; end: number; lane: number };
   const active: Active[] = [];
@@ -61,7 +125,7 @@ export function buildAgendaLanes(
 
   for (const item of items) {
     for (let i = active.length - 1; i >= 0; i--) {
-      if (active[i].end <= item.start) active.splice(i, 1);
+      if (active[i]!.end <= item.start) active.splice(i, 1);
     }
 
     if (active.length === 0) {
@@ -76,16 +140,18 @@ export function buildAgendaLanes(
 
     currentMaxLanes = Math.max(
       currentMaxLanes,
-      Math.max(...active.map((a) => a.lane)) + 1,
+      Math.max(...active.map((a) => a.lane), 0) + 1,
     );
 
-    base[item.idx].laneIndex = lane;
-    base[item.idx].laneCount = currentMaxLanes;
+    base[item.idx]!.laneIndex = lane;
+    base[item.idx]!.laneCount = currentMaxLanes;
 
     for (const a of active) {
-      base[a.idx].laneCount = currentMaxLanes;
+      base[a.idx]!.laneCount = currentMaxLanes;
     }
   }
+
+  finalizeAgendaLaneCounts(base, intervals);
 
   return base;
 }
