@@ -15,6 +15,7 @@ import {
   type AgendaLifecycleTarget,
 } from "@/lib/agenda/appointmentLifecycle";
 import { agendaStatusMeta } from "@/lib/agenda/agendaStatusMeta";
+import { computeAgendaBoxLayout } from "@/lib/agenda/agendaBoxLayout";
 import {
   clampDurationMinutes,
   commitLinePatch,
@@ -145,16 +146,16 @@ function ServiceBox({
     y.set(0);
   }, [line.id, line.start_time, line.duration_minutes, line.staff_id, x, y]);
 
+  const { topPx: topBase, heightPx: height, durationMin } = computeAgendaBoxLayout({
+    line,
+    appointment,
+    hours,
+    slotPx,
+  });
+
   const startTime = timeFromTs(line.start_time);
   const startIndex = hours.indexOf(startTime);
   const safeStartIndex = startIndex >= 0 ? startIndex : 0;
-  const topBase = safeStartIndex * slotPx;
-
-  const durationMin = clampDurationMinutes(line.duration_minutes ?? line.services?.duration);
-
-  const rawHeight = (durationMin / SLOT_MINUTES) * slotPx;
-  const MIN_HEIGHT = Math.max(56, slotPx * CARD_MIN_HEIGHT_SLOTS);
-  const height = Math.max(MIN_HEIGHT, rawHeight);
   const compact = height < CARD_COMPACT_BREAK_PX;
 
   const gridH = Math.max(0, Number(gridHeightPx) || 0);
