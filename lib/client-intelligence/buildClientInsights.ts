@@ -45,6 +45,11 @@ const GLOSS_TYPE = "gloss";
 const TREATMENT_TYPES = new Set(["keratin", "treatment"]);
 const BOTANICALS_TYPE = "botanicals";
 
+// Soglie per le regole strutturate (Step 3A).
+const PROCESSING_MINUTES_HIGH = 45;
+const DEVELOPER_VOL_CAUTION = new Set([30, 40]);
+const STRUCTURED_NOTE_MAX = 120;
+
 function hasText(s: unknown): boolean {
   return typeof s === "string" && s.trim().length > 0;
 }
@@ -136,6 +141,130 @@ function getCardWarningText(card: { data?: Record<string, unknown>; service_type
   return `[${type}] ${slice}`;
 }
 
+function asObject(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+/** payload moderno della scheda: card.data.payload. {} se assente. */
+function cardPayloadOf(card: { data?: Record<string, unknown> }): Record<string, unknown> {
+  const data = asObject(card.data);
+  if (!data) return {};
+  return asObject(data.payload) ?? {};
+}
+
+function toNum(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function truncateNote(s: string): string {
+  const t = s.trim();
+  return t.length > STRUCTURED_NOTE_MAX ? `${t.slice(0, STRUCTURED_NOTE_MAX)}…` : t;
+}
+
+/**
+ * Step 3A: legge i campi strutturati additivi delle schede
+ * (payload.general_notes, payload.diagnosis, payload.color, payload.botanical_result).
+ * Se i campi non esistono, non aggiunge nulla (comportamento invariato).
+ * Nessuna formula inventata: usa solo i valori presenti.
+ */
+function applyStructuredCardRules(
+  cards: ClientIntelligencePayload["lastServiceCards"],
+  result: ClientInsightsResult,
+): void {
+  for (const card of cards) {
+    const payload = cardPayloadOf(card);
+    const typeLabel = String(card.service_type ?? "scheda").trim();
+
+    // 1) Note moderne (payload.general_notes): oggi possono non emergere altrove.
+    if (hasText(payload.general_notes)) {
+      result.warnings.push(`[${typeLabel}] ${truncateNote(String(payload.general_notes))}`);
+    }
+
+    // 2) Diagnosi
+    const diagnosis = asObject(payload.diagnosis);
+    if (diagnosis) {
+      const henna = String(diagnosis.prior_henna ?? "").trim();
+      if (henna === "yes" || henna === "unknown") {
+        result.warnings.push(
+          "Henné/vegetali pregressi o non noti: cautela prima di colore chimico/ossidazione (valutare prova ciocca).",
+        );
+      }
+      const box = String(diagnosis.prior_box_dye ?? "").trim();
+      if (box === "yes" || box === "unknown") {
+        result.warnings.push(
+          "Tinta supermercato/box dye pregressa o non nota: valutare prova ciocca prima del servizio.",
+        );
+      }
+      const patch = String(diagnosis.patch_test_result ?? "").trim();
+      if (patch === "positive") {
+        result.warnings.push("Patch test POSITIVO: non procedere senza valutazione.");
+      } else if (patch === "not_done") {
+        result.warnings.push("Patch test non eseguito: valutare prima del colore.");
+      }
+      const whitePct = String(diagnosis.white_pct_band ?? "").trim();
+      if (whitePct === "50_75" || whitePct === "gt_75") {
+        result.suggestedActions.push(
+          "Bianchi elevati: pianificare gestione copertura / pre-pigmentazione.",
+        );
+      }
+      const whiteRes = String(diagnosis.white_resistance ?? "").trim();
+      if (whiteRes === "high") {
+        result.suggestedActions.push(
+          "Bianchi resistenti: valutare tempi di posa / pre-trattamento.",
+        );
+      }
+    }
+
+    // 3) Colore chimico (payload.color)
+    const color = asObject(payload.color);
+    if (color) {
+      const tl = toNum(color.target_level);
+      const al = toNum(color.achieved_level);
+      const tt = String(color.target_tone ?? "").trim();
+      const at = String(color.achieved_tone ?? "").trim();
+      const levelDiff = tl != null && al != null && tl !== al;
+      const toneDiff = tt !== "" && at !== "" && norm(tt) !== norm(at);
+      if (levelDiff || toneDiff) {
+        result.warnings.push(
+          "Scostamento colore rispetto all'obiettivo: valutare correzione al prossimo servizio.",
+        );
+      }
+      const dev = toNum(color.developer_vol);
+      if (dev != null && DEVELOPER_VOL_CAUTION.has(dev)) {
+        result.warnings.push(`Ossigeno elevato (${dev} vol): cautela su cute e integrità.`);
+      }
+      const minutes = toNum(color.processing_minutes);
+      if (minutes != null && minutes > PROCESSING_MINUTES_HIGH) {
+        result.warnings.push(`Tempo posa elevato (${minutes} min): verificare controllo posa.`);
+      }
+    }
+
+    // 4) Botaniche / henné (payload.botanical_result) — separato dal colore chimico
+    const botanical = asObject(payload.botanical_result);
+    if (botanical) {
+      const warm = String(botanical.warm_reflection ?? "").trim();
+      if (warm === "medium" || warm === "strong") {
+        result.suggestedActions.push("Riflesso caldo botaniche: valutare raffreddamento.");
+      }
+      const cool = String(botanical.cool_correction_needed ?? "").trim();
+      if (cool === "yes") {
+        result.suggestedActions.push("Raffreddamento richiesto (correzione botaniche).");
+      }
+      const coverage = String(botanical.coverage_result ?? "").trim();
+      if (coverage === "low") {
+        result.suggestedActions.push(
+          "Copertura bianchi bassa (botaniche): rivedere protocollo copertura.",
+        );
+      }
+    }
+  }
+}
+
 export function buildClientInsights(payload: ClientIntelligencePayload | null): ClientInsightsResult {
   const result: ClientInsightsResult = {
     summary: [],
@@ -205,6 +334,8 @@ export function buildClientInsights(payload: ClientIntelligencePayload | null): 
     const w = getCardWarningText(card);
     if (w) result.warnings.push(w);
   }
+  // Step 3A: regole sui campi strutturati delle schede (note/diagnosi/colore/botaniche).
+  applyStructuredCardRules(cards, result);
   result.warnings = dedupeStrings(result.warnings);
 
   // ——— RECOMMENDED SERVICES ———

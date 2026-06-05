@@ -122,13 +122,72 @@ function cardNote(card: { data?: Record<string, unknown> }): string | null {
   return t.length > MAX_NOTE_CHARS ? `${t.slice(0, MAX_NOTE_CHARS)}…` : t;
 }
 
+function asObject(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+/** payload moderno della scheda: card.data.payload. {} se assente. */
+function cardPayloadOf(card: { data?: Record<string, unknown> }): Record<string, unknown> {
+  const data = asObject(card.data);
+  if (!data) return {};
+  return asObject(data.payload) ?? {};
+}
+
+// Whitelist dei campi strutturati inviabili all'LLM (no PII, no formule complete).
+const DIAGNOSIS_AI_KEYS = [
+  "white_pct_band",
+  "white_resistance",
+  "natural_level",
+  "prior_henna",
+  "prior_box_dye",
+  "patch_test_result",
+]; // patch_test_date OMESSA (data potenzialmente sensibile).
+const COLOR_AI_KEYS = [
+  "target_level",
+  "target_tone",
+  "achieved_level",
+  "achieved_tone",
+  "developer_vol",
+  "processing_minutes",
+];
+const BOTANICAL_AI_KEYS = [
+  "coverage_result",
+  "warm_reflection",
+  "cool_correction_needed",
+  "achieved_level",
+  "achieved_tone",
+  "processing_minutes",
+];
+
+/** Estrae solo le chiavi whitelisted da un blocco strutturato; numeri come numeri, stringhe troncate. */
+function pickAllowedFields(
+  src: unknown,
+  allowed: string[],
+): Record<string, unknown> | undefined {
+  const obj = asObject(src);
+  if (!obj) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (FORBIDDEN_KEY_RE.test(key)) continue;
+    const v = obj[key];
+    if (v == null) continue;
+    if (typeof v === "number") {
+      if (Number.isFinite(v)) out[key] = v;
+    } else {
+      const s = String(v).trim();
+      if (s) out[key] = s.length > MAX_NOTE_CHARS ? `${s.slice(0, MAX_NOTE_CHARS)}…` : s;
+    }
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
  * Costruisce un contesto minimizzato e privo di PII a partire dal payload.
  * Aggrega dove possibile per ridurre la superficie dati inviata.
  */
-function minimizeContext(payload: ClientIntelligencePayload): Record<string, unknown> {
+export function minimizeContext(payload: ClientIntelligencePayload): Record<string, unknown> {
   const cards = Array.isArray(payload.lastServiceCards) ? payload.lastServiceCards : [];
   const appointments = Array.isArray(payload.recentAppointments) ? payload.recentAppointments : [];
   const sales = Array.isArray(payload.recentPurchases?.sales) ? payload.recentPurchases.sales : [];
@@ -152,6 +211,19 @@ function minimizeContext(payload: ClientIntelligencePayload): Record<string, unk
     };
     const note = cardNote(c);
     if (note) entry.note = note;
+
+    const cardPayload = cardPayloadOf(c);
+    if (hasText(cardPayload.general_notes)) {
+      const gn = String(cardPayload.general_notes).trim();
+      entry.general_notes = gn.length > MAX_NOTE_CHARS ? `${gn.slice(0, MAX_NOTE_CHARS)}…` : gn;
+    }
+    const diagnosis = pickAllowedFields(cardPayload.diagnosis, DIAGNOSIS_AI_KEYS);
+    if (diagnosis) entry.diagnosis = diagnosis;
+    const color = pickAllowedFields(cardPayload.color, COLOR_AI_KEYS);
+    if (color) entry.color = color;
+    const botanical = pickAllowedFields(cardPayload.botanical_result, BOTANICAL_AI_KEYS);
+    if (botanical) entry.botanical_result = botanical;
+
     return entry;
   });
 
@@ -178,6 +250,9 @@ function buildSystemPrompt(): string {
     "Usa SOLO i dati forniti nel contesto: non inventare informazioni personali, anagrafiche, contatti o storici non presenti.",
     "Non aggiungere claim medici, diagnosi, claim legali o sanitari.",
     "Scrivi in italiano, frasi brevi e professionali.",
+    "I campi strutturati (diagnosis, color, botanical_result) sono solo un supporto: usali per ragionare, NON inventare formule, dosaggi o tempi non presenti.",
+    "Tratta sempre le botaniche/hennè (botanical_result) come mondo separato dal colore chimico (color): per le botaniche non suggerire mai ossigeno, developer o volumi di ossidante.",
+    "Sicurezza prioritaria in \"warnings\": patch test positivo o non eseguito, presenza/sospetto di hennè o tinta box dye precedenti, bianchi resistenti o percentuale alta vanno sempre segnalati prima di un servizio chimico.",
     "Rispondi ESCLUSIVAMENTE con un oggetto JSON valido con esattamente queste 5 chiavi, ognuna array di stringhe:",
     '"summary", "warnings", "recommendedServices", "recommendedProducts", "suggestedActions".',
     `Ogni array al massimo ${MAX_ITEMS_PER_FIELD} elementi; ogni stringa breve (max ${MAX_CHARS_PER_ITEM} caratteri).`,

@@ -146,12 +146,64 @@ const NATURAL_LEVEL_OPTIONS = [
   ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
 ];
 
+/** Risultato COLORE CHIMICO (oxidation_color, gloss, lightening). Usa ossigeno/developer. */
+type ColorResultData = {
+  target_level?: number | "";
+  target_tone?: string;
+  achieved_level?: number | "";
+  achieved_tone?: string;
+  developer_vol?: number | "";
+  processing_minutes?: number | "";
+};
+
+/** Risultato BOTANICHE / ERBE (botanicals). NESSUN ossigeno / developer / ammoniaca. */
+type BotanicalResultData = {
+  coverage_result?: "" | "low" | "medium" | "high";
+  warm_reflection?: "" | "none" | "light" | "medium" | "strong";
+  cool_correction_needed?: "" | "yes" | "no";
+  achieved_level?: number | "";
+  achieved_tone?: string;
+  processing_minutes?: number | "";
+};
+
+const DEVELOPER_VOL_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "5", label: "5 vol" },
+  { value: "10", label: "10 vol" },
+  { value: "20", label: "20 vol" },
+  { value: "30", label: "30 vol" },
+  { value: "40", label: "40 vol" },
+];
+const COVERAGE_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "low", label: "Bassa" },
+  { value: "medium", label: "Media" },
+  { value: "high", label: "Alta" },
+];
+const WARM_REFLECTION_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "none", label: "Nessuno" },
+  { value: "light", label: "Leggero" },
+  { value: "medium", label: "Medio" },
+  { value: "strong", label: "Forte" },
+];
+const YES_NO_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "yes", label: "Sì" },
+  { value: "no", label: "No" },
+];
+
+const COLOR_NUMERIC_KEYS = ["target_level", "achieved_level", "developer_vol", "processing_minutes"];
+const BOTANICAL_NUMERIC_KEYS = ["achieved_level", "processing_minutes"];
+
 type BaseFields = {
   rlp?: "radice" | "radice_lunghezze" | "tutto";
   goal?: string;
   outcome?: string;
   general_notes?: string;
   diagnosis?: DiagnosisData;
+  color?: ColorResultData;
+  botanical_result?: BotanicalResultData;
 };
 
 type OxidationColorData = BaseFields & {
@@ -312,15 +364,52 @@ export default function SchedeTecniche({
     });
   }
 
+  function patchColorResult(patch: Partial<ColorResultData>) {
+    setData((prev) => {
+      const prevPayload = (prev as any).payload ?? {};
+      const nextColor = { ...(prevPayload.color ?? {}), ...patch };
+      return {
+        ...(prev as any),
+        payload: { ...prevPayload, color: nextColor },
+      } as AnyCardData;
+    });
+  }
+
+  function patchBotanicalResult(patch: Partial<BotanicalResultData>) {
+    setData((prev) => {
+      const prevPayload = (prev as any).payload ?? {};
+      const nextBotanicalResult = { ...(prevPayload.botanical_result ?? {}), ...patch };
+      return {
+        ...(prev as any),
+        payload: { ...prevPayload, botanical_result: nextBotanicalResult },
+      } as AnyCardData;
+    });
+  }
+
   async function saveCard() {
     setErr("");
 
     const rawPayload = (data as any).payload ?? {};
-    const { diagnosis: rawDiagnosis, ...restPayload } = rawPayload as Record<string, any>;
+    const {
+      diagnosis: rawDiagnosis,
+      color: rawColor,
+      botanical_result: rawBotanicalResult,
+      ...restPayload
+    } = rawPayload as Record<string, any>;
     const cleanedDiagnosis = cleanDiagnosis(rawDiagnosis);
+    const cleanedColor =
+      type === "oxidation_color" || type === "gloss" || type === "lightening"
+        ? cleanStructuredBlock(rawColor, COLOR_NUMERIC_KEYS)
+        : undefined;
+    const cleanedBotanicalResult =
+      type === "botanicals"
+        ? cleanStructuredBlock(rawBotanicalResult, BOTANICAL_NUMERIC_KEYS)
+        : undefined;
     const payloadToSave: Record<string, any> = {
       ...restPayload,
       ...(cleanedDiagnosis ? { diagnosis: cleanedDiagnosis } : {}),
+      ...(cleanedColor ? { color: cleanedColor } : {}),
+      ...(cleanedBotanicalResult ? { botanical_result: cleanedBotanicalResult } : {}),
     };
 
     const hasSomething = Object.values(payloadToSave).some((v) => {
@@ -439,6 +528,20 @@ export default function SchedeTecniche({
           diagnosis={(data as any).payload?.diagnosis}
           onPatch={patchDiagnosis}
         />
+
+        {(type === "oxidation_color" || type === "gloss" || type === "lightening") && (
+          <ColorResultSection
+            color={(data as any).payload?.color}
+            onPatch={patchColorResult}
+          />
+        )}
+
+        {type === "botanicals" && (
+          <BotanicalResultSection
+            botanicalResult={(data as any).payload?.botanical_result}
+            onPatch={patchBotanicalResult}
+          />
+        )}
 
         {err && <div className="mt-4 text-sm text-red-400">{err}</div>}
 
@@ -640,6 +743,133 @@ function DiagnosisSection({
           value={d.patch_test_result ?? ""}
           onChange={(v) => onPatch({ patch_test_result: v as DiagnosisData["patch_test_result"] })}
           options={PATCH_RESULT_OPTIONS}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ColorResultSection({
+  color,
+  onPatch,
+}: {
+  color: ColorResultData | undefined;
+  onPatch: (patch: Partial<ColorResultData>) => void;
+}) {
+  const c = color ?? {};
+  return (
+    <div className="mt-4 rounded-3xl bg-black/20 border border-[#5c3a21]/60 p-5">
+      <div className="flex items-center gap-2 text-sm font-semibold text-[#f3d8b6]">
+        <Droplets size={16} className="opacity-90" />
+        Risultato colore chimico (opzionale)
+      </div>
+      <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <MiniSelect
+          label="Livello target"
+          value={c.target_level == null || c.target_level === "" ? "" : String(c.target_level)}
+          onChange={(v) => onPatch({ target_level: v === "" ? "" : Number(v) })}
+          options={NATURAL_LEVEL_OPTIONS}
+        />
+        <MiniInput
+          label="Riflesso target"
+          placeholder="Es: .1"
+          value={c.target_tone ?? ""}
+          onChange={(v) => onPatch({ target_tone: v })}
+        />
+        <MiniSelect
+          label="Livello ottenuto"
+          value={c.achieved_level == null || c.achieved_level === "" ? "" : String(c.achieved_level)}
+          onChange={(v) => onPatch({ achieved_level: v === "" ? "" : Number(v) })}
+          options={NATURAL_LEVEL_OPTIONS}
+        />
+        <MiniInput
+          label="Riflesso ottenuto"
+          placeholder="Es: .13"
+          value={c.achieved_tone ?? ""}
+          onChange={(v) => onPatch({ achieved_tone: v })}
+        />
+        <MiniSelect
+          label="Developer vol"
+          value={c.developer_vol == null || c.developer_vol === "" ? "" : String(c.developer_vol)}
+          onChange={(v) => onPatch({ developer_vol: v === "" ? "" : Number(v) })}
+          options={DEVELOPER_VOL_OPTIONS}
+        />
+        <MiniInput
+          label="Tempo posa minuti"
+          type="number"
+          value={
+            c.processing_minutes == null || c.processing_minutes === ""
+              ? ""
+              : String(c.processing_minutes)
+          }
+          onChange={(v) => onPatch({ processing_minutes: v === "" ? "" : Number(v) })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BotanicalResultSection({
+  botanicalResult,
+  onPatch,
+}: {
+  botanicalResult: BotanicalResultData | undefined;
+  onPatch: (patch: Partial<BotanicalResultData>) => void;
+}) {
+  const b = botanicalResult ?? {};
+  return (
+    <div className="mt-4 rounded-3xl bg-black/20 border border-[#5c3a21]/60 p-5">
+      <div className="flex items-center gap-2 text-sm font-semibold text-[#f3d8b6]">
+        <Leaf size={16} className="opacity-90" />
+        Risultato botaniche / henné (opzionale)
+      </div>
+      <p className="mt-1 text-[11px] text-[#c9b299]/75">
+        Per lawsonia, emolliente, mallo e indigo: copertura, riflesso caldo e raffreddamento.
+      </p>
+      <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <MiniSelect
+          label="Copertura ottenuta"
+          value={b.coverage_result ?? ""}
+          onChange={(v) => onPatch({ coverage_result: v as BotanicalResultData["coverage_result"] })}
+          options={COVERAGE_OPTIONS}
+        />
+        <MiniSelect
+          label="Riflesso caldo / arancio"
+          value={b.warm_reflection ?? ""}
+          onChange={(v) => onPatch({ warm_reflection: v as BotanicalResultData["warm_reflection"] })}
+          options={WARM_REFLECTION_OPTIONS}
+        />
+        <MiniSelect
+          label="Serve raffreddamento"
+          value={b.cool_correction_needed ?? ""}
+          onChange={(v) =>
+            onPatch({ cool_correction_needed: v as BotanicalResultData["cool_correction_needed"] })
+          }
+          options={YES_NO_OPTIONS}
+        />
+        <MiniSelect
+          label="Livello ottenuto"
+          value={
+            b.achieved_level == null || b.achieved_level === "" ? "" : String(b.achieved_level)
+          }
+          onChange={(v) => onPatch({ achieved_level: v === "" ? "" : Number(v) })}
+          options={NATURAL_LEVEL_OPTIONS}
+        />
+        <MiniInput
+          label="Riflesso ottenuto"
+          placeholder="Es: rame / freddo"
+          value={b.achieved_tone ?? ""}
+          onChange={(v) => onPatch({ achieved_tone: v })}
+        />
+        <MiniInput
+          label="Tempo posa minuti"
+          type="number"
+          value={
+            b.processing_minutes == null || b.processing_minutes === ""
+              ? ""
+              : String(b.processing_minutes)
+          }
+          onChange={(v) => onPatch({ processing_minutes: v === "" ? "" : Number(v) })}
         />
       </div>
     </div>
@@ -1143,6 +1373,8 @@ function HistoryCard({ row }: { row: CardRow }) {
 
   const orderedKeys = keysForService(row.service_type);
   const diagnosisRows = renderDiagnosisRows(payload.diagnosis);
+  const colorRows = renderColorRows(payload.color);
+  const botanicalRows = renderBotanicalRows(payload.botanical_result);
 
   return (
     <div className="rounded-3xl bg-black/20 border border-[#5c3a21]/60 p-6 shadow-[0_0_30px_rgba(0,0,0,0.14)]">
@@ -1213,6 +1445,49 @@ function HistoryCard({ row }: { row: CardRow }) {
           </div>
         </div>
       )}
+
+      {colorRows.length > 0 && (
+        <StructuredHistoryBlock
+          title="Risultato colore chimico"
+          icon={Droplets}
+          rows={colorRows}
+        />
+      )}
+
+      {botanicalRows.length > 0 && (
+        <StructuredHistoryBlock
+          title="Risultato botaniche / henné"
+          icon={Leaf}
+          rows={botanicalRows}
+        />
+      )}
+    </div>
+  );
+}
+
+function StructuredHistoryBlock({
+  title,
+  icon: Icon,
+  rows,
+}: {
+  title: string;
+  icon: typeof Droplets;
+  rows: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className="mt-5 rounded-2xl bg-black/15 border border-[#5c3a21]/40 p-4">
+      <div className="flex items-center gap-2 text-xs text-[#f3d8b6]/60 mb-2">
+        <Icon size={13} className="opacity-90" />
+        {title}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+        {rows.map((r) => (
+          <div key={r.label} className="text-sm">
+            <span className="text-[#c9b299]">{r.label}: </span>
+            <span className="text-white/90">{r.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1301,6 +1576,25 @@ function cleanDiagnosis(diag: any): Record<string, any> | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
+/** Rimuove campi strutturati vuoti e salva come numeri solo le chiavi numeriche ammesse. */
+function cleanStructuredBlock(
+  block: any,
+  numericKeys: readonly string[],
+): Record<string, any> | undefined {
+  if (!block || typeof block !== "object") return undefined;
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(block)) {
+    if (numericKeys.includes(k)) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) out[k] = n;
+      continue;
+    }
+    const s = String(v ?? "").trim();
+    if (s !== "") out[k] = s;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 const DIAGNOSIS_LABELS: Record<string, string> = {
   white_pct_band: "% bianchi",
   white_resistance: "Resistenza bianchi",
@@ -1350,6 +1644,78 @@ function renderDiagnosisRows(diagnosis: any): Array<{ label: string; value: stri
     const s = String(v).trim();
     if (s === "") continue;
     rows.push({ label: DIAGNOSIS_LABELS[key], value: prettyDiagnosisValue(key, v) });
+  }
+  return rows;
+}
+
+const COLOR_LABELS: Record<string, string> = {
+  target_level: "Livello target",
+  target_tone: "Riflesso target",
+  achieved_level: "Livello ottenuto",
+  achieved_tone: "Riflesso ottenuto",
+  developer_vol: "Developer vol",
+  processing_minutes: "Tempo posa minuti",
+};
+
+function prettyColorValue(key: string, value: any): string {
+  if (key === "developer_vol") return `${value} vol`;
+  if (key === "processing_minutes") return `${value} min`;
+  return String(value);
+}
+
+function renderColorRows(color: any): Array<{ label: string; value: string }> {
+  if (!color || typeof color !== "object") return [];
+  const rows: Array<{ label: string; value: string }> = [];
+  for (const key of Object.keys(COLOR_LABELS)) {
+    const v = color[key];
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s === "") continue;
+    rows.push({ label: COLOR_LABELS[key], value: prettyColorValue(key, v) });
+  }
+  return rows;
+}
+
+const BOTANICAL_LABELS: Record<string, string> = {
+  coverage_result: "Copertura ottenuta",
+  warm_reflection: "Riflesso caldo / arancio",
+  cool_correction_needed: "Serve raffreddamento",
+  achieved_level: "Livello ottenuto",
+  achieved_tone: "Riflesso ottenuto",
+  processing_minutes: "Tempo posa minuti",
+};
+
+function prettyBotanicalValue(key: string, value: any): string {
+  if (key === "coverage_result") {
+    const map: Record<string, string> = { low: "Bassa", medium: "Media", high: "Alta" };
+    return map[String(value)] ?? String(value);
+  }
+  if (key === "warm_reflection") {
+    const map: Record<string, string> = {
+      none: "Nessuno",
+      light: "Leggero",
+      medium: "Medio",
+      strong: "Forte",
+    };
+    return map[String(value)] ?? String(value);
+  }
+  if (key === "cool_correction_needed") {
+    const map: Record<string, string> = { yes: "Sì", no: "No" };
+    return map[String(value)] ?? String(value);
+  }
+  if (key === "processing_minutes") return `${value} min`;
+  return String(value);
+}
+
+function renderBotanicalRows(botanical: any): Array<{ label: string; value: string }> {
+  if (!botanical || typeof botanical !== "object") return [];
+  const rows: Array<{ label: string; value: string }> = [];
+  for (const key of Object.keys(BOTANICAL_LABELS)) {
+    const v = botanical[key];
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s === "") continue;
+    rows.push({ label: BOTANICAL_LABELS[key], value: prettyBotanicalValue(key, v) });
   }
   return rows;
 }
