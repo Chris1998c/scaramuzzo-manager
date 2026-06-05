@@ -14,6 +14,7 @@ import {
   Archive,
   ChevronDown,
   ChevronUp,
+  Stethoscope,
 } from "lucide-react";
 
 type ServiceType =
@@ -102,11 +103,55 @@ function nowLocalNice(iso: string) {
 }
 
 /** ====== DATA SCHEMA (json payload) ====== */
+
+/** Diagnosi strutturata (additiva, comune a tutti i service_type). Tutti i campi opzionali. */
+type DiagnosisData = {
+  white_pct_band?: "" | "0" | "lt_25" | "25_50" | "50_75" | "gt_75";
+  white_resistance?: "" | "low" | "medium" | "high";
+  natural_level?: number | "";
+  prior_henna?: "" | "yes" | "no" | "unknown";
+  prior_box_dye?: "" | "yes" | "no" | "unknown";
+  patch_test_date?: string;
+  patch_test_result?: "" | "negative" | "positive" | "not_done";
+};
+
+const WHITE_PCT_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "0", label: "0%" },
+  { value: "lt_25", label: "< 25%" },
+  { value: "25_50", label: "25–50%" },
+  { value: "50_75", label: "50–75%" },
+  { value: "gt_75", label: "> 75%" },
+];
+const WHITE_RESISTANCE_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "low", label: "Bassa" },
+  { value: "medium", label: "Media" },
+  { value: "high", label: "Alta" },
+];
+const YES_NO_UNKNOWN_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "yes", label: "Sì" },
+  { value: "no", label: "No" },
+  { value: "unknown", label: "Sconosciuto" },
+];
+const PATCH_RESULT_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "negative", label: "Negativo" },
+  { value: "positive", label: "Positivo" },
+  { value: "not_done", label: "Non eseguito" },
+];
+const NATURAL_LEVEL_OPTIONS = [
+  { value: "", label: "—" },
+  ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
+];
+
 type BaseFields = {
   rlp?: "radice" | "radice_lunghezze" | "tutto";
   goal?: string;
   outcome?: string;
   general_notes?: string;
+  diagnosis?: DiagnosisData;
 };
 
 type OxidationColorData = BaseFields & {
@@ -256,13 +301,32 @@ export default function SchedeTecniche({
     }) as AnyCardData);
   }
 
+  function patchDiagnosis(patch: Partial<DiagnosisData>) {
+    setData((prev) => {
+      const prevPayload = (prev as any).payload ?? {};
+      const nextDiagnosis = { ...(prevPayload.diagnosis ?? {}), ...patch };
+      return {
+        ...(prev as any),
+        payload: { ...prevPayload, diagnosis: nextDiagnosis },
+      } as AnyCardData;
+    });
+  }
+
   async function saveCard() {
     setErr("");
 
-    const payload = (data as any).payload ?? {};
-    const hasSomething = Object.values(payload).some(
-      (v) => String(v ?? "").trim() !== ""
-    );
+    const rawPayload = (data as any).payload ?? {};
+    const { diagnosis: rawDiagnosis, ...restPayload } = rawPayload as Record<string, any>;
+    const cleanedDiagnosis = cleanDiagnosis(rawDiagnosis);
+    const payloadToSave: Record<string, any> = {
+      ...restPayload,
+      ...(cleanedDiagnosis ? { diagnosis: cleanedDiagnosis } : {}),
+    };
+
+    const hasSomething = Object.values(payloadToSave).some((v) => {
+      if (v && typeof v === "object") return Object.keys(v).length > 0;
+      return String(v ?? "").trim() !== "";
+    });
     if (!hasSomething) {
       setErr("Scrivi almeno un dettaglio prima di salvare.");
       return;
@@ -274,7 +338,8 @@ export default function SchedeTecniche({
       customer_id: customerId,
       service_type: type,
       data: {
-        ...data,
+        ...(data as any),
+        payload: payloadToSave,
         created_local: new Date().toISOString(),
       },
     };
@@ -370,6 +435,11 @@ export default function SchedeTecniche({
           </div>
         </div>
 
+        <DiagnosisSection
+          diagnosis={(data as any).payload?.diagnosis}
+          onPatch={patchDiagnosis}
+        />
+
         {err && <div className="mt-4 text-sm text-red-400">{err}</div>}
 
         <div className="mt-6 flex flex-col sm:flex-row gap-3">
@@ -459,16 +529,19 @@ function MiniInput({
   placeholder,
   value,
   onChange,
+  type = "text",
 }: {
   label: string;
   placeholder?: string;
   value: string;
   onChange: (v: string) => void;
+  type?: string;
 }) {
   return (
     <div>
       <div className="text-xs text-[#f3d8b6]/70">{label}</div>
       <input
+        type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -476,6 +549,99 @@ function MiniInput({
           px-4 py-3 text-sm text-white placeholder:text-white/40
           focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
       />
+    </div>
+  );
+}
+
+function MiniSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <div>
+      <div className="text-xs text-[#f3d8b6]/70">{label}</div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60
+          px-3 py-2.5 text-sm text-white
+          focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function DiagnosisSection({
+  diagnosis,
+  onPatch,
+}: {
+  diagnosis: DiagnosisData | undefined;
+  onPatch: (patch: Partial<DiagnosisData>) => void;
+}) {
+  const d = diagnosis ?? {};
+  return (
+    <div className="mt-4 rounded-3xl bg-black/20 border border-[#5c3a21]/60 p-5">
+      <div className="flex items-center gap-2 text-sm font-semibold text-[#f3d8b6]">
+        <Stethoscope size={16} className="opacity-90" />
+        Diagnosi (opzionale)
+      </div>
+      <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <MiniSelect
+          label="% bianchi"
+          value={d.white_pct_band ?? ""}
+          onChange={(v) => onPatch({ white_pct_band: v as DiagnosisData["white_pct_band"] })}
+          options={WHITE_PCT_OPTIONS}
+        />
+        <MiniSelect
+          label="Resistenza bianchi"
+          value={d.white_resistance ?? ""}
+          onChange={(v) => onPatch({ white_resistance: v as DiagnosisData["white_resistance"] })}
+          options={WHITE_RESISTANCE_OPTIONS}
+        />
+        <MiniSelect
+          label="Livello naturale"
+          value={d.natural_level == null || d.natural_level === "" ? "" : String(d.natural_level)}
+          onChange={(v) => onPatch({ natural_level: v === "" ? "" : Number(v) })}
+          options={NATURAL_LEVEL_OPTIONS}
+        />
+        <MiniSelect
+          label="Henné / vegetali precedenti"
+          value={d.prior_henna ?? ""}
+          onChange={(v) => onPatch({ prior_henna: v as DiagnosisData["prior_henna"] })}
+          options={YES_NO_UNKNOWN_OPTIONS}
+        />
+        <MiniSelect
+          label="Tinta supermercato / box dye"
+          value={d.prior_box_dye ?? ""}
+          onChange={(v) => onPatch({ prior_box_dye: v as DiagnosisData["prior_box_dye"] })}
+          options={YES_NO_UNKNOWN_OPTIONS}
+        />
+        <MiniInput
+          label="Data patch test"
+          type="date"
+          value={d.patch_test_date ?? ""}
+          onChange={(v) => onPatch({ patch_test_date: v })}
+        />
+        <MiniSelect
+          label="Esito patch test"
+          value={d.patch_test_result ?? ""}
+          onChange={(v) => onPatch({ patch_test_result: v as DiagnosisData["patch_test_result"] })}
+          options={PATCH_RESULT_OPTIONS}
+        />
+      </div>
     </div>
   );
 }
@@ -976,6 +1142,7 @@ function HistoryCard({ row }: { row: CardRow }) {
   const payload: Record<string, any> = d.payload ?? {};
 
   const orderedKeys = keysForService(row.service_type);
+  const diagnosisRows = renderDiagnosisRows(payload.diagnosis);
 
   return (
     <div className="rounded-3xl bg-black/20 border border-[#5c3a21]/60 p-6 shadow-[0_0_30px_rgba(0,0,0,0.14)]">
@@ -1029,6 +1196,23 @@ function HistoryCard({ row }: { row: CardRow }) {
             </div>
           ))}
       </div>
+
+      {diagnosisRows.length > 0 && (
+        <div className="mt-5 rounded-2xl bg-black/15 border border-[#5c3a21]/40 p-4">
+          <div className="flex items-center gap-2 text-xs text-[#f3d8b6]/60 mb-2">
+            <Stethoscope size={13} className="opacity-90" />
+            Diagnosi
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+            {diagnosisRows.map((r) => (
+              <div key={r.label} className="text-sm">
+                <span className="text-[#c9b299]">{r.label}: </span>
+                <span className="text-white/90">{r.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1099,4 +1283,73 @@ function prettyKey(k: string) {
     general_notes: "Note generali",
   };
   return map[k] ?? k;
+}
+
+/** Rimuove i campi diagnosi vuoti; natural_level salvato come numero. undefined se tutto vuoto. */
+function cleanDiagnosis(diag: any): Record<string, any> | undefined {
+  if (!diag || typeof diag !== "object") return undefined;
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(diag)) {
+    if (k === "natural_level") {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 1 && n <= 10) out[k] = n;
+      continue;
+    }
+    const s = String(v ?? "").trim();
+    if (s !== "") out[k] = s;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+const DIAGNOSIS_LABELS: Record<string, string> = {
+  white_pct_band: "% bianchi",
+  white_resistance: "Resistenza bianchi",
+  natural_level: "Livello naturale",
+  prior_henna: "Henné / vegetali precedenti",
+  prior_box_dye: "Tinta supermercato / box dye",
+  patch_test_date: "Data patch test",
+  patch_test_result: "Esito patch test",
+};
+
+function prettyDiagnosisValue(key: string, value: any): string {
+  if (key === "white_pct_band") {
+    const map: Record<string, string> = {
+      "0": "0%",
+      lt_25: "< 25%",
+      "25_50": "25–50%",
+      "50_75": "50–75%",
+      gt_75: "> 75%",
+    };
+    return map[String(value)] ?? String(value);
+  }
+  if (key === "white_resistance") {
+    const map: Record<string, string> = { low: "Bassa", medium: "Media", high: "Alta" };
+    return map[String(value)] ?? String(value);
+  }
+  if (key === "prior_henna" || key === "prior_box_dye") {
+    const map: Record<string, string> = { yes: "Sì", no: "No", unknown: "Sconosciuto" };
+    return map[String(value)] ?? String(value);
+  }
+  if (key === "patch_test_result") {
+    const map: Record<string, string> = {
+      negative: "Negativo",
+      positive: "Positivo",
+      not_done: "Non eseguito",
+    };
+    return map[String(value)] ?? String(value);
+  }
+  return String(value);
+}
+
+function renderDiagnosisRows(diagnosis: any): Array<{ label: string; value: string }> {
+  if (!diagnosis || typeof diagnosis !== "object") return [];
+  const rows: Array<{ label: string; value: string }> = [];
+  for (const key of Object.keys(DIAGNOSIS_LABELS)) {
+    const v = diagnosis[key];
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s === "") continue;
+    rows.push({ label: DIAGNOSIS_LABELS[key], value: prettyDiagnosisValue(key, v) });
+  }
+  return rows;
 }

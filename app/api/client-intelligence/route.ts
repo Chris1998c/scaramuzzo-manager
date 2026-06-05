@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const customerId = searchParams.get("customerId") ?? "";
   const salonIdRaw = searchParams.get("salonId") ?? "";
+  // AI on-demand: l'analisi OpenAI parte solo con ?ai=1 (clic utente).
+  const aiRequested = searchParams.get("ai") === "1";
 
   const requestedSalonId = toInt(salonIdRaw, NaN);
   if (!customerId.trim() || !Number.isFinite(requestedSalonId) || requestedSalonId <= 0) {
@@ -69,7 +71,12 @@ export async function GET(request: NextRequest) {
   try {
     const data = await getClientIntelligenceData(customerId.trim(), requestedSalonId);
 
-    // Rate-limit per utente+cliente+salone: evita chiamate OpenAI ripetute/ravvicinate.
+    // Default (caricamento iniziale, senza ?ai=1): solo insight deterministici, nessuna chiamata OpenAI.
+    if (!aiRequested) {
+      return NextResponse.json({ insights: buildClientInsights(data) });
+    }
+
+    // ?ai=1: analisi AI on-demand, con rate-limit per utente+cliente+salone.
     // Se superato, degrada al fallback deterministico (nessun 429, pagina mai rotta).
     const rl = consumeClientIntelligenceAiRateLimit(
       clientIntelligenceAiRateLimitKey(authData.user.id, customerId.trim(), requestedSalonId),
