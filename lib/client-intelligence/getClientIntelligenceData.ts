@@ -32,7 +32,8 @@ export async function getClientIntelligenceData(customerId: string, salonId: num
       .from("customer_service_cards")
       .select("id, customer_id, service_type, data, salon_id, staff_id, appointment_id, created_at")
       .eq("customer_id", cid)
-      .eq("salon_id", sid)
+      // Schede tecniche globali/legacy hanno salon_id NULL: includile come fa getColorAbsentCustomers.
+      .or(`salon_id.eq.${sid},salon_id.is.null`)
       .order("created_at", { ascending: false })
       .limit(5),
     supabaseAdmin

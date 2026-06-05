@@ -3,6 +3,11 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { getClientIntelligenceData } from "@/lib/client-intelligence/getClientIntelligenceData";
 import { buildClientInsights } from "@/lib/client-intelligence/buildClientInsights";
+import { buildClientInsightsWithAi } from "@/lib/client-intelligence/buildClientInsightsWithAi";
+import {
+  clientIntelligenceAiRateLimitKey,
+  consumeClientIntelligenceAiRateLimit,
+} from "@/lib/client-intelligence/clientIntelligenceAiRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,7 +68,16 @@ export async function GET(request: NextRequest) {
 
   try {
     const data = await getClientIntelligenceData(customerId.trim(), requestedSalonId);
-    const insights = buildClientInsights(data);
+
+    // Rate-limit per utente+cliente+salone: evita chiamate OpenAI ripetute/ravvicinate.
+    // Se superato, degrada al fallback deterministico (nessun 429, pagina mai rotta).
+    const rl = consumeClientIntelligenceAiRateLimit(
+      clientIntelligenceAiRateLimitKey(authData.user.id, customerId.trim(), requestedSalonId),
+    );
+    // Output sempre compatibile con ClientInsightsResult; shape API invariato.
+    const insights = rl.allowed
+      ? await buildClientInsightsWithAi(data)
+      : buildClientInsights(data);
     return NextResponse.json({ insights });
   } catch (e) {
     console.error("client-intelligence:", e);

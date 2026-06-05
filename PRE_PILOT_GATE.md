@@ -62,7 +62,17 @@
 - [ ] callback fiscale verso app configurata
 - [ ] test stampa non ancora fatto oppure fatto e documentato
 
-## 8) GO / NO GO
+## 8) AI / OPENAI (OPZIONALE)
+- [ ] stato deciso chiaramente: AI ON/OFF per il pilota
+- [ ] OPENAI_API_KEY presente (solo se si vuole abilitare l'AI) oppure volutamente assente
+- [ ] OPENAI_MODEL opzionale (default consigliato `gpt-4o-mini`)
+- [ ] verificato che senza OPENAI_API_KEY il comportamento sia:
+  - [ ] Marketing Ai (`/api/marketing/ai-copy-assist`) disattivato — bottone "Migliora messaggio" disabilitato
+  - [ ] Client Intelligence AI usa il fallback deterministico (`buildClientInsights`)
+  - [ ] nessuna chiamata a OpenAI eseguita
+- [ ] nessun segreto OpenAI committato nel repo (solo `.env.example` con placeholder)
+
+## 9) GO / NO GO
 - [ ] tutti i punti bloccanti chiusi
 - [ ] nessun dubbio su env, bridge, ruoli, DB
 - [ ] pilota autorizzato
