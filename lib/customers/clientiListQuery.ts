@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { customerMatchesSearch } from "@/lib/customers/customerSearch";
+import {
+  customerMatchesSearch,
+  customerSearchIlikeContainsPattern,
+  normalizeCustomerSearchApostrophes,
+} from "@/lib/customers/customerSearch";
 
 export type ClientiListRow = {
   id: string;
@@ -33,13 +37,32 @@ function mapRow(row: Record<string, unknown>): ClientiListRow {
 }
 
 function sanitizeIlikeTerm(raw: string): string {
-  return raw.replace(/[%_,]/g, " ").trim();
+  // Prima togli wildcard LIKE dall'input utente, poi unifica gli apostrofi.
+  return normalizeCustomerSearchApostrophes(raw.replace(/[%_,]/g, " ")).trim();
 }
 
 function sortByLastName(rows: ClientiListRow[]): ClientiListRow[] {
   return [...rows].sort((a, b) =>
     (a.last_name || "").localeCompare(b.last_name || "", "it", { sensitivity: "base" }),
   );
+}
+
+/** True se la ricerca è stata interrotta (AbortSignal o errore di fetch abortito). */
+export function isCustomerSearchAborted(
+  signal?: AbortSignal | null,
+  error?: { message?: string } | null,
+): boolean {
+  if (signal?.aborted) return true;
+  const msg = String(error?.message ?? "");
+  if (!msg) return false;
+  return /AbortError|The user aborted|signal is aborted|aborted without reason/i.test(msg);
+}
+
+function withAbortSignal<T extends { abortSignal: (signal: AbortSignal) => T }>(
+  builder: T,
+  signal?: AbortSignal,
+): T {
+  return signal ? builder.abortSignal(signal) : builder;
 }
 
 /** Ultimi clienti creati/aggiornati (default lista, no salon filter). */
@@ -57,11 +80,24 @@ export async function fetchCustomersBrowse(
   return { data: (data ?? []).map((row) => mapRow(row as Record<string, unknown>)), error: null };
 }
 
+export type SearchCustomersOptions = {
+  signal?: AbortSignal;
+};
+
+/**
+ * Ricerca clienti sul server.
+ * Query indipendenti (OR broad, telefono, coppie nome/cognome) partono in parallelo.
+ * `signal` opzionale: se abortito, ritorna data vuota senza errore.
+ */
 export async function searchCustomersForClienti(
   supabase: SupabaseClient,
   rawQuery: string,
   limit = SEARCH_LIMIT,
-): Promise<{ data: ClientiListRow[]; error: string | null }> {
+  options?: SearchCustomersOptions,
+): Promise<{ data: ClientiListRow[]; error: string | null; aborted?: boolean }> {
+  const signal = options?.signal;
+  if (signal?.aborted) return { data: [], error: null, aborted: true };
+
   const q = sanitizeIlikeTerm(rawQuery);
   if (!q) return { data: [], error: null };
 
@@ -75,55 +111,75 @@ export async function searchCustomersForClienti(
     }
   };
 
-  const pattern = `%${q}%`;
-  const { data: broad, error: broadError } = await supabase
-    .from("customers")
-    .select(SELECT_COLUMNS)
-    .or(
-      `first_name.ilike.${pattern},last_name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern}`,
-    )
-    .order("last_name", { ascending: true })
-    .limit(limit);
-
-  if (broadError) return { data: [], error: broadError.message };
-  addRows(broad as Record<string, unknown>[] | null);
-
+  const pattern = customerSearchIlikeContainsPattern(q);
   const digits = q.replace(/\D/g, "");
-  if (digits.length >= 4 && digits !== q) {
-    const { data: phoneRows, error: phoneError } = await supabase
-      .from("customers")
-      .select(SELECT_COLUMNS)
-      .ilike("phone", `%${digits}%`)
-      .limit(limit);
 
-    if (phoneError) return { data: [], error: phoneError.message };
-    addRows(phoneRows as Record<string, unknown>[] | null);
+  const tasks: Array<
+    PromiseLike<{ data: unknown; error: { message: string } | null }>
+  > = [
+    withAbortSignal(
+      supabase
+        .from("customers")
+        .select(SELECT_COLUMNS)
+        .or(
+          `first_name.ilike.${pattern},last_name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern}`,
+        )
+        .order("last_name", { ascending: true })
+        .limit(limit),
+      signal,
+    ),
+  ];
+
+  if (digits.length >= 4 && digits !== q) {
+    tasks.push(
+      withAbortSignal(
+        supabase
+          .from("customers")
+          .select(SELECT_COLUMNS)
+          .ilike("phone", `%${digits}%`)
+          .limit(limit),
+        signal,
+      ),
+    );
   }
 
   if (tokens.length >= 2) {
     const [a, b] = tokens;
-    const pa = `%${a}%`;
-    const pb = `%${b}%`;
+    const pa = customerSearchIlikeContainsPattern(a);
+    const pb = customerSearchIlikeContainsPattern(b);
 
-    const [{ data: d1, error: e1 }, { data: d2, error: e2 }] = await Promise.all([
-      supabase
-        .from("customers")
-        .select(SELECT_COLUMNS)
-        .ilike("first_name", pa)
-        .ilike("last_name", pb)
-        .limit(limit),
-      supabase
-        .from("customers")
-        .select(SELECT_COLUMNS)
-        .ilike("first_name", pb)
-        .ilike("last_name", pa)
-        .limit(limit),
-    ]);
+    tasks.push(
+      withAbortSignal(
+        supabase
+          .from("customers")
+          .select(SELECT_COLUMNS)
+          .ilike("first_name", pa)
+          .ilike("last_name", pb)
+          .limit(limit),
+        signal,
+      ),
+      withAbortSignal(
+        supabase
+          .from("customers")
+          .select(SELECT_COLUMNS)
+          .ilike("first_name", pb)
+          .ilike("last_name", pa)
+          .limit(limit),
+        signal,
+      ),
+    );
+  }
 
-    if (e1) return { data: [], error: e1.message };
-    if (e2) return { data: [], error: e2.message };
-    addRows(d1 as Record<string, unknown>[] | null);
-    addRows(d2 as Record<string, unknown>[] | null);
+  const results = await Promise.all(tasks);
+
+  if (signal?.aborted) return { data: [], error: null, aborted: true };
+
+  for (const result of results) {
+    if (isCustomerSearchAborted(signal, result.error)) {
+      return { data: [], error: null, aborted: true };
+    }
+    if (result.error) return { data: [], error: result.error.message };
+    addRows(result.data as Record<string, unknown>[] | null);
   }
 
   const matched = [...merged.values()].filter((row) =>

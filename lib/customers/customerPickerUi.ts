@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { searchCustomersForClienti, type ClientiListRow } from "@/lib/customers/clientiListQuery";
+import {
+  searchCustomersForClienti,
+  type ClientiListRow,
+  type SearchCustomersOptions,
+} from "@/lib/customers/clientiListQuery";
 import { filterCustomersBySearch } from "@/lib/customers/customerSearch";
 import {
   CUSTOMER_VISIBLE_MAX,
@@ -24,11 +28,22 @@ export async function fetchServerCustomerSearch(
   supabase: SupabaseClient,
   rawQuery: string,
   searchLimit = CUSTOMER_VISIBLE_MAX + 4,
-): Promise<{ rows: CustomerPickerRow[]; error: string | null }> {
+  options?: SearchCustomersOptions,
+): Promise<{ rows: CustomerPickerRow[]; error: string | null; aborted?: boolean }> {
   const q = String(rawQuery ?? "").trim();
   if (q.length < 2) return { rows: [], error: null };
+  if (options?.signal?.aborted) return { rows: [], error: null, aborted: true };
 
-  const { data, error } = await searchCustomersForClienti(supabase, q, searchLimit);
+  const { data, error, aborted } = await searchCustomersForClienti(
+    supabase,
+    q,
+    searchLimit,
+    options,
+  );
+  if (aborted || options?.signal?.aborted) {
+    return { rows: [], error: null, aborted: true };
+  }
+
   const mapped = (data ?? []).map(mapToCustomerPickerRow);
   return {
     rows: filterCustomersBySearch(mapped, q).slice(0, CUSTOMER_VISIBLE_MAX),

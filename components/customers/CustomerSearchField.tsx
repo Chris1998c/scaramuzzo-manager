@@ -23,6 +23,7 @@ import {
   preloadCustomerSearchPool,
   setCachedQueryResults,
 } from "@/lib/customers/customerSearchCache";
+import { resolveCustomerFieldLabel } from "@/lib/customers/customerSearchFieldLabel";
 
 const MIN_QUERY_LEN = 2;
 const ROW_HEIGHT_PX = 36;
@@ -67,6 +68,7 @@ export default function CustomerSearchField({
   const anchorRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
   const sessionRef = useRef(0);
+  const pickedCustomerIdRef = useRef<string | null>(null);
   const [menuRect, setMenuRect] = useState<{
     top: number;
     left: number;
@@ -114,7 +116,7 @@ export default function CustomerSearchField({
     if (!enabled) return;
 
     const session = ++sessionRef.current;
-    setQ(initialDisplayLabel.trim() && selectedCustomerId ? initialDisplayLabel.trim() : "");
+    pickedCustomerIdRef.current = null;
     setServerPatch(null);
     setServerLoading(false);
     setDropdownOpen(false);
@@ -124,7 +126,21 @@ export default function CustomerSearchField({
     void preloadCustomerSearchPool(supabase, { salonId: salonIdForPreload }).then(() => {
       if (sessionRef.current === session) setPoolReady(true);
     });
-  }, [enabled, supabase, salonIdForPreload, initialDisplayLabel, selectedCustomerId]);
+  }, [enabled, supabase, salonIdForPreload]);
+
+  // Deve restare dopo l'effetto di sessione: quello azzera pickedCustomerIdRef prima di questo.
+  useEffect(() => {
+    if (!enabled) return;
+    const next = resolveCustomerFieldLabel({
+      selectedCustomerId,
+      initialDisplayLabel,
+      pickedCustomerId: pickedCustomerIdRef.current,
+    });
+    if (next === null) return;
+    setQ(next);
+    setDropdownOpen(false);
+    setHighlightIndex(-1);
+  }, [enabled, salonIdForPreload, initialDisplayLabel, selectedCustomerId]);
 
   useEffect(() => {
     if (!enabled || deferredQuery.length < MIN_QUERY_LEN) {
@@ -144,13 +160,16 @@ export default function CustomerSearchField({
     setServerLoading(instantAtDefer.length === 0);
 
     const reqId = ++requestIdRef.current;
+    const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
-        const { rows: serverRows, error } = await fetchServerCustomerSearch(
+        const { rows: serverRows, error, aborted } = await fetchServerCustomerSearch(
           supabase,
           deferredQuery,
+          undefined,
+          { signal: controller.signal },
         );
-        if (requestIdRef.current !== reqId) return;
+        if (controller.signal.aborted || aborted || requestIdRef.current !== reqId) return;
 
         const merged = mergeCustomerSearchResults(
           filterPreloadPool(salonIdForPreload, deferredQuery, CUSTOMER_VISIBLE_MAX),
@@ -167,6 +186,7 @@ export default function CustomerSearchField({
 
     return () => {
       window.clearTimeout(timer);
+      controller.abort();
     };
   }, [enabled, deferredQuery, supabase, salonIdForPreload]);
 
@@ -200,6 +220,7 @@ export default function CustomerSearchField({
 
   const selectRow = useCallback(
     (c: CustomerPickerRow) => {
+      pickedCustomerIdRef.current = String(c.id);
       onSelectCustomerId(String(c.id));
       setQ(c.full_name);
       setDropdownOpen(false);

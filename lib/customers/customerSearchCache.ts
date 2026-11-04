@@ -8,7 +8,7 @@ import {
 
 export const CUSTOMER_PRELOAD_MAX = 150;
 export const CUSTOMER_VISIBLE_MAX = 8;
-export const CUSTOMER_SERVER_DEBOUNCE_MS = 180;
+export const CUSTOMER_SERVER_DEBOUNCE_MS = 300;
 export const CUSTOMER_QUERY_TTL_MS = 5 * 60 * 1000;
 export const CUSTOMER_PRELOAD_TTL_MS = 5 * 60 * 1000;
 

@@ -7,9 +7,29 @@ export type CustomerSearchable = {
   email?: string | null;
 };
 
-/** Testo ricerca: minuscolo, senza accenti, spazi collassati. */
+/**
+ * Apostrofi tipografici / varianti → ASCII `'`.
+ * Copre input tastiera e valori già salvati in anagrafica (non si assume solo ASCII nel DB).
+ */
+export const CUSTOMER_SEARCH_APOSTROPHE_RE =
+  /[\u0027\u2018\u2019\u201A\u201B\u2032\u2035\u0060]/g;
+
+export function normalizeCustomerSearchApostrophes(value: string): string {
+  return String(value ?? "").replace(CUSTOMER_SEARCH_APOSTROPHE_RE, "'");
+}
+
+/**
+ * Pattern ILIKE che trova sia apostrofo ASCII sia tipografico nel DB:
+ * dopo la normalizzazione a `'`, ogni `'` diventa `_` (wildcard LIKE a 1 carattere).
+ */
+export function customerSearchIlikeContainsPattern(term: string): string {
+  const normalized = normalizeCustomerSearchApostrophes(String(term ?? "").trim());
+  return `%${normalized.replace(/'/g, "_")}%`;
+}
+
+/** Testo ricerca: minuscolo, senza accenti, apostrofi unificati, spazi collassati. */
 export function normalizeCustomerSearchValue(value: string): string {
-  return String(value ?? "")
+  return normalizeCustomerSearchApostrophes(String(value ?? ""))
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()

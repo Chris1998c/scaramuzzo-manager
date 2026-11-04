@@ -53,9 +53,16 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
     setSearching(true);
     setSearchError("");
 
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       void (async () => {
-        const { data, error: searchErr } = await searchCustomersForClienti(supabase, q);
+        const { data, error: searchErr, aborted } = await searchCustomersForClienti(
+          supabase,
+          q,
+          undefined,
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted || aborted) return;
         if (searchErr) {
           setSearchError(searchErr);
           setCustomers([]);
@@ -66,7 +73,10 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
       })();
     }, 280);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query, supabase, initial]);
 
   const filtered = customers;

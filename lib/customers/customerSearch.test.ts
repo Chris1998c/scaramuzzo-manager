@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   customerMatchesSearch,
+  customerSearchIlikeContainsPattern,
+  normalizeCustomerSearchApostrophes,
   normalizeCustomerSearchValue,
   normalizePhoneSearch,
 } from "./customerSearch";
@@ -18,6 +20,21 @@ describe("normalizeCustomerSearchValue", () => {
     expect(normalizeCustomerSearchValue("  MARIÈLLA   PETRÒNE  ")).toBe(
       "mariella petrone",
     );
+  });
+
+  it("unifica apostrofo tipografico e ASCII", () => {
+    expect(normalizeCustomerSearchValue("alda d\u2019eusanio")).toBe(
+      "alda d'eusanio",
+    );
+    expect(normalizeCustomerSearchValue("alda d'eusanio")).toBe("alda d'eusanio");
+    expect(normalizeCustomerSearchApostrophes("D\u2018Eusanio")).toBe("D'Eusanio");
+  });
+});
+
+describe("customerSearchIlikeContainsPattern", () => {
+  it("usa _ al posto dell'apostrofo per matchare ASCII o tipografico nel DB", () => {
+    expect(customerSearchIlikeContainsPattern("d'eusanio")).toBe("%d_eusanio%");
+    expect(customerSearchIlikeContainsPattern("d\u2019eusanio")).toBe("%d_eusanio%");
   });
 });
 
@@ -61,5 +78,27 @@ describe("customerMatchesSearch", () => {
 
   it("non match su stringa irrilevante", () => {
     expect(customerMatchesSearch(mariellaPetrone, "rossi")).toBe(false);
+  });
+
+  it("Alda D'Eusanio: query tipografica vs cognome ASCII in anagrafica", () => {
+    const row = {
+      first_name: "Alda",
+      last_name: "D'Eusanio",
+      phone: "",
+      customer_code: "x",
+    };
+    expect(customerMatchesSearch(row, "alda d'eusanio")).toBe(true);
+    expect(customerMatchesSearch(row, "alda d\u2019eusanio")).toBe(true);
+  });
+
+  it("Alda D'Eusanio: query ASCII vs cognome tipografico in anagrafica", () => {
+    const row = {
+      first_name: "Alda",
+      last_name: "D\u2019Eusanio",
+      phone: "",
+      customer_code: "x",
+    };
+    expect(customerMatchesSearch(row, "alda d'eusanio")).toBe(true);
+    expect(customerMatchesSearch(row, "alda d\u2019eusanio")).toBe(true);
   });
 });
