@@ -129,6 +129,9 @@ export async function POST(req: Request) {
       service_id: number;
       staff_id: number | null;
       duration_minutes: number;
+      duration_active: number;
+      duration_processing: number;
+      need_processing: boolean;
       price: number;
       vat_rate: number;
     }> = [];
@@ -150,6 +153,9 @@ export async function POST(req: Request) {
         service_id: serviceId,
         staff_id: staffId,
         duration_minutes: resolved.duration_minutes,
+        duration_active: resolved.duration_active,
+        duration_processing: resolved.duration_processing,
+        need_processing: resolved.need_processing,
         price: resolved.price,
         vat_rate: resolved.vat_rate,
       });
@@ -182,6 +188,9 @@ export async function POST(req: Request) {
       staffId: number | null;
       startTime: string;
       durationMinutes: number;
+      duration_active: number;
+      duration_processing: number;
+      need_processing: boolean;
     }> = [];
     for (const line of normalizedLines) {
       const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
@@ -189,6 +198,9 @@ export async function POST(req: Request) {
         staffId: line.staff_id,
         startTime: lineStart,
         durationMinutes: line.duration_minutes,
+        duration_active: line.duration_active,
+        duration_processing: line.duration_processing,
+        need_processing: line.need_processing,
       });
       cursorMs += line.duration_minutes * 60_000;
     }
@@ -223,6 +235,10 @@ export async function POST(req: Request) {
           staffId: line.staff_id,
           startTime: lineStart,
           endTime: lineEnd,
+          durationMinutes: line.duration_minutes,
+          duration_active: line.duration_active,
+          duration_processing: line.duration_processing,
+          need_processing: line.need_processing,
         });
       }
       cursorMs += line.duration_minutes * 60_000;
@@ -257,6 +273,9 @@ export async function POST(req: Request) {
         staff_id: line.staff_id,
         start_time: toNoZ(snapToAgendaSlot(new Date(cursorMs))),
         duration_minutes: line.duration_minutes,
+        duration_active: line.duration_active,
+        duration_processing: line.duration_processing,
+        need_processing: line.need_processing,
         price: line.price,
         vat_rate: line.vat_rate,
       };

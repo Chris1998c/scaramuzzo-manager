@@ -157,7 +157,9 @@ export async function PATCH(
 
     const { data: lineRows, error: linesErr } = await supabaseAdmin
       .from("appointment_services")
-      .select("id, start_time, duration_minutes, staff_id")
+      .select(
+        "id, start_time, duration_minutes, duration_active, duration_processing, need_processing, staff_id",
+      )
       .eq("appointment_id", appointmentId)
       .order("start_time", { ascending: true })
       .order("id", { ascending: true });
@@ -231,6 +233,19 @@ export async function PATCH(
           staffId: mergedStaff,
           startTime: mergedStart,
           endTime: lineEnd,
+          durationMinutes: duration,
+          duration_active: (l as { duration_active?: unknown }).duration_active as
+            | number
+            | null
+            | undefined,
+          duration_processing: (l as { duration_processing?: unknown }).duration_processing as
+            | number
+            | null
+            | undefined,
+          need_processing: (l as { need_processing?: unknown }).need_processing as
+            | boolean
+            | null
+            | undefined,
           excludeAppointmentId: appointmentId,
           excludeLineId: lineId,
         });

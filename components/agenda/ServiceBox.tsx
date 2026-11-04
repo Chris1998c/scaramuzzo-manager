@@ -15,9 +15,13 @@ import {
   type AgendaLifecycleTarget,
 } from "@/lib/agenda/appointmentLifecycle";
 import { agendaStatusMeta } from "@/lib/agenda/agendaStatusMeta";
-import { computeAgendaBoxLayout } from "@/lib/agenda/agendaBoxLayout";
 import {
-  clampDurationMinutes,
+  agendaMinutesFromStartTime,
+  computeAgendaBoxLayout,
+  resolveAgendaLineVisualSegments,
+} from "@/lib/agenda/agendaBoxLayout";
+import { isAgendaAppointmentActionsLine } from "@/lib/agenda/agendaGridDisplay";
+import {
   commitLinePatch,
   type AgendaServiceLine,
   parseLocal,
@@ -93,7 +97,16 @@ function serviceBoxPropsEqual(prev: Props, next: Props): boolean {
   if (prev.agendaContextDay !== next.agendaContextDay) return false;
   if (prev.line.start_time !== next.line.start_time) return false;
   if (prev.line.duration_minutes !== next.line.duration_minutes) return false;
+  if (prev.line.duration_active !== next.line.duration_active) return false;
+  if (prev.line.duration_processing !== next.line.duration_processing) return false;
+  if (prev.line.need_processing !== next.line.need_processing) return false;
   if (prev.appointment.status !== next.appointment.status) return false;
+  if (
+    (prev.appointment.appointment_services?.length ?? 0) !==
+    (next.appointment.appointment_services?.length ?? 0)
+  ) {
+    return false;
+  }
   if (prev.hours !== next.hours) return false;
   if (prev.staffOrder.length !== next.staffOrder.length) return false;
   for (let i = 0; i < prev.staffOrder.length; i++) {
@@ -153,6 +166,21 @@ function ServiceBox({
     slotPx,
   });
 
+  const visualSegments = useMemo(
+    () => resolveAgendaLineVisualSegments(line),
+    [
+      line.duration_minutes,
+      line.duration_active,
+      line.duration_processing,
+      line.need_processing,
+    ],
+  );
+  const hasFreeProcessingSegment = visualSegments.some((s) => s.kind === "free");
+  const stackZ = useMemo(() => {
+    if (dragging) return 85;
+    return 20 + Math.min(800, agendaMinutesFromStartTime(line.start_time));
+  }, [dragging, line.start_time]);
+
   const startTime = timeFromTs(line.start_time);
   const startIndex = hours.indexOf(startTime);
   const safeStartIndex = startIndex >= 0 ? startIndex : 0;
@@ -209,8 +237,8 @@ function ServiceBox({
   const accentTint = useMemo(() => accentToTintCss(accentColor), [accentColor]);
   const meta = agendaStatusMeta(appointment.status);
 
-  const totalServicesOnAppointment = appointment.appointment_services.length;
-  const extraSvcCount = Math.max(0, totalServicesOnAppointment - 1);
+  /** Azioni a livello appuntamento solo sul blocco primario (evita duplicati multi-servizio). */
+  const showAppointmentActions = isAgendaAppointmentActionsLine(appointment, line.id);
 
   const isInSala = appointment.status === "in_sala";
   const isDone = appointment.status === "done";
@@ -220,28 +248,17 @@ function ServiceBox({
   /** done / cancelled / no_show: niente drag, resize o azioni operative. */
   const isReadOnlyCard = isDone || isCancelled || isNoShow;
   const isTerminalVisual = isReadOnlyCard;
-  const showLifecycle = canShowLifecycleActions({
-    status: appointment.status,
-    sale_id: appointment.sale_id,
-  });
+  const showLifecycle =
+    showAppointmentActions &&
+    canShowLifecycleActions({
+      status: appointment.status,
+      sale_id: appointment.sale_id,
+    });
 
   const hasStaff = line.staff_id != null;
 
   const startLabel = timeFromTs(line.start_time);
   const durationLabel = `${Math.round(durationMin)} min`;
-
-  const extraServicesTooltip = useMemo(() => {
-    if (extraSvcCount <= 0) return "";
-    const rows = [...appointment.appointment_services]
-      .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
-      .slice(1)
-      .map((r, i) => {
-        const n = String(r.services?.name ?? "Servizio").trim() || "Servizio";
-        const dm = clampDurationMinutes(r.duration_minutes ?? r.services?.duration);
-        return `${i + 2}. ${n} (${Math.round(dm)} min)`;
-      });
-    return ["Altri servizi:", ...rows].join("\n");
-  }, [appointment.appointment_services, extraSvcCount]);
 
   function pulseDragSnap() {
     const el = cardSurfaceRef.current;
@@ -429,18 +446,19 @@ function ServiceBox({
         "absolute rounded-xl select-none",
         isReadOnlyCard ? "touch-auto" : "touch-none",
         saving
-          ? "pointer-events-none opacity-60 cursor-wait z-20"
+          ? "pointer-events-none opacity-60 cursor-wait"
           : isReadOnlyCard
-            ? "cursor-default z-20"
+            ? "cursor-default"
             : dragging
-              ? "cursor-grabbing z-[85]"
-              : "cursor-grab z-20",
+              ? "cursor-grabbing"
+              : "cursor-grab",
       ].join(" ")}
       style={{
         top: topBase,
         height,
         left: boxLeft,
         width: boxWidth,
+        zIndex: saving ? 20 : stackZ,
         x,
         y,
       }}
@@ -548,7 +566,8 @@ function ServiceBox({
         ref={cardSurfaceRef}
         className={[
           "relative z-[2] h-full w-full overflow-visible rounded-xl transition-[opacity,box-shadow] duration-200",
-          "bg-[#14100e] border border-white/[0.08] shadow-sm",
+          "border border-white/[0.08] shadow-sm",
+          hasFreeProcessingSegment ? "bg-transparent" : "bg-[#14100e]",
           dragging && !saving ? "ring-1 ring-white/25" : "",
           isHighlighted ? "ring-2 ring-[#f3d8b6]" : "ring-1 ring-white/10",
           isInSala && !isHighlighted ? "ring-1 ring-emerald-500/40" : "",
@@ -562,12 +581,27 @@ function ServiceBox({
         <div
           className="absolute inset-0 rounded-xl overflow-hidden flex relative"
           style={{
-            background: `linear-gradient(105deg, ${accentTint.soft} 0%, #14100e 42%, #14100e 100%)`,
             boxShadow: `inset 0 0 0 1px ${accentTint.edge}`,
           }}
         >
+          {visualSegments.map((seg, i) => (
+            <div
+              key={`seg-${i}-${seg.kind}-${seg.startOffsetMinutes}`}
+              className="absolute left-0 right-0"
+              style={{
+                top: `${seg.topFraction * 100}%`,
+                height: `${seg.heightFraction * 100}%`,
+                background:
+                  seg.kind === "free"
+                    ? `linear-gradient(105deg, rgba(255,255,255,0.04) 0%, rgba(20,16,14,0.18) 50%, rgba(20,16,14,0.12) 100%)`
+                    : `linear-gradient(105deg, ${accentTint.soft} 0%, #14100e 42%, #14100e 100%)`,
+                opacity: seg.kind === "free" ? 0.55 : 1,
+              }}
+              aria-hidden
+            />
+          ))}
           <div
-            className="w-[3px] flex-shrink-0 self-stretch"
+            className="relative z-[1] w-[3px] flex-shrink-0 self-stretch"
             style={{ backgroundColor: accentColor }}
             aria-hidden
           />
@@ -585,14 +619,6 @@ function ServiceBox({
                 <span className="font-medium line-clamp-2 break-words" title={svcName}>
                   {svcName}
                 </span>
-                {extraSvcCount > 0 ? (
-                  <span
-                    className="ml-0.5 font-mono text-[10px] font-semibold tabular-nums text-white/55"
-                    title={extraServicesTooltip || undefined}
-                  >
-                    {`+${extraSvcCount}`}
-                  </span>
-                ) : null}
               </div>
               <div className="mt-0.5 flex flex-nowrap items-center gap-1.5 min-w-0">
                 <span className="min-w-0 truncate text-[11px] font-mono tabular-nums text-white/[0.62]">
@@ -646,19 +672,21 @@ function ServiceBox({
           )}
         </div>
 
-        <button
-          type="button"
-          aria-label="Azioni appuntamento"
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpenActions((v) => !v);
-          }}
-          className="absolute top-1 right-1 z-40 h-6 w-6 flex items-center justify-center rounded-md bg-black/50 border border-white/10 text-white/75 hover:text-[#f3d8b6] transition-colors text-sm leading-none"
-        >
-          ⋮
-        </button>
+        {showAppointmentActions ? (
+          <button
+            type="button"
+            aria-label="Azioni appuntamento"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenActions((v) => !v);
+            }}
+            className="absolute top-1 right-1 z-40 h-6 w-6 flex items-center justify-center rounded-md bg-black/50 border border-white/10 text-white/75 hover:text-[#f3d8b6] transition-colors text-sm leading-none"
+          >
+            ⋮
+          </button>
+        ) : null}
 
-        {openActions && (
+        {showAppointmentActions && openActions && (
           <div
             className="absolute right-1 top-8 z-50 w-44 rounded-lg bg-[#1c1210] border border-white/12 shadow-xl py-0.5 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
@@ -730,24 +758,28 @@ function ServiceBox({
         )}
       </div>
 
-      <ConfirmDialog
-        isOpen={lifecycleConfirm === "cancelled"}
-        onClose={() => setLifecycleConfirm(null)}
-        onConfirm={() => void applyLifecycleStatus("cancelled")}
-        title="Segna come annullato"
-        description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
-        confirmLabel="Segna come annullato"
-        variant="danger"
-      />
-      <ConfirmDialog
-        isOpen={lifecycleConfirm === "no_show"}
-        onClose={() => setLifecycleConfirm(null)}
-        onConfirm={() => void applyLifecycleStatus("no_show")}
-        title="Segna come no-show"
-        description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
-        confirmLabel="Segna come no-show"
-        variant="danger"
-      />
+      {showAppointmentActions ? (
+        <>
+          <ConfirmDialog
+            isOpen={lifecycleConfirm === "cancelled"}
+            onClose={() => setLifecycleConfirm(null)}
+            onConfirm={() => void applyLifecycleStatus("cancelled")}
+            title="Segna come annullato"
+            description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
+            confirmLabel="Segna come annullato"
+            variant="danger"
+          />
+          <ConfirmDialog
+            isOpen={lifecycleConfirm === "no_show"}
+            onClose={() => setLifecycleConfirm(null)}
+            onConfirm={() => void applyLifecycleStatus("no_show")}
+            title="Segna come no-show"
+            description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
+            confirmLabel="Segna come no-show"
+            variant="danger"
+          />
+        </>
+      ) : null}
     </motion.div>
   );
 }

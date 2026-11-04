@@ -13,6 +13,9 @@ export type CustomerBookingLineInput = {
   service_id: number;
   staff_id: number;
   duration_minutes: number;
+  duration_active: number;
+  duration_processing: number;
+  need_processing: boolean;
   price: number;
   vat_rate: number;
 };
@@ -68,6 +71,9 @@ export function customerBookingLinesToBatchStaffSlots(
     staffId: line.staff_id,
     startTime: line.start_time,
     durationMinutes: line.duration_minutes,
+    duration_active: line.duration_active,
+    duration_processing: line.duration_processing,
+    need_processing: line.need_processing,
   }));
 }
 

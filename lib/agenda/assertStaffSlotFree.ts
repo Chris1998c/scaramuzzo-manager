@@ -1,7 +1,14 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseLocal, snapToAgendaSlot, toNoZ } from "@/lib/agenda/agendaContract";
+import {
+  absoluteIntervalsOverlapAny,
+  appointmentServiceBusyAbsoluteIntervals,
+  parseLocal,
+  snapToAgendaSlot,
+  toNoZ,
+  type AgendaAbsoluteMsInterval,
+} from "@/lib/agenda/agendaContract";
 
 export const STAFF_SLOT_CONFLICT_MESSAGE =
   "Collaboratore già impegnato in questa fascia oraria";
@@ -14,12 +21,23 @@ const TERMINAL_APPOINTMENT_STATUSES = new Set([
   "done",
 ]);
 
+export type StaffOccupancySnapshot = {
+  duration_active?: number | null;
+  duration_processing?: number | null;
+  need_processing?: boolean | null;
+};
+
 export type AssertStaffSlotFreeInput = {
   supabase: SupabaseClient;
   salonId: number;
   staffId: number;
   startTime: string;
   endTime: string;
+  /** Durata display della riga proposta; con snapshot → busy a segmenti. */
+  durationMinutes?: number;
+  duration_active?: number | null;
+  duration_processing?: number | null;
+  need_processing?: boolean | null;
   excludeAppointmentId?: number | null;
   excludeLineId?: number | null;
 };
@@ -27,10 +45,6 @@ export type AssertStaffSlotFreeInput = {
 export function computeLineEndTime(startTime: string, durationMinutes: number): string {
   const startMs = parseLocal(startTime).getTime();
   return toNoZ(snapToAgendaSlot(new Date(startMs + durationMinutes * 60_000)));
-}
-
-function lineEndMs(startTime: string, durationMinutes: number): number {
-  return parseLocal(startTime).getTime() + durationMinutes * 60_000;
 }
 
 /** [startA, endA) vs [startB, endB) */
@@ -76,35 +90,46 @@ export type BatchStaffSlotLine = {
   staffId: number | null;
   startTime: string;
   durationMinutes: number;
+  duration_active?: number | null;
+  duration_processing?: number | null;
+  need_processing?: boolean | null;
 };
+
+function busySegmentsForLine(line: {
+  startTime: string;
+  durationMinutes: number;
+  duration_active?: number | null;
+  duration_processing?: number | null;
+  need_processing?: boolean | null;
+}): AgendaAbsoluteMsInterval[] {
+  return appointmentServiceBusyAbsoluteIntervals({
+    startTime: line.startTime,
+    duration_minutes: line.durationMinutes,
+    duration_active: line.duration_active,
+    duration_processing: line.duration_processing,
+    need_processing: line.need_processing,
+  });
+}
 
 /**
  * Overlap tra righe dello stesso payload (stesso staff) prima dell'insert batch.
+ * Confronta segmenti busy (posa libera non confligge).
  * @throws Error con STAFF_SLOT_CONFLICT_MESSAGE
  */
 export function assertBatchInternalStaffSlotsFree(lines: BatchStaffSlotLine[]): void {
-  const intervals: Array<{ staffId: number; startMs: number; endMs: number }> = [];
+  const expanded: Array<{ staffId: number; busy: AgendaAbsoluteMsInterval[] }> = [];
 
   for (const line of lines) {
     if (line.staffId == null || line.durationMinutes <= 0) continue;
-    const startMs = parseLocal(line.startTime).getTime();
-    if (!Number.isFinite(startMs)) continue;
-    const endMs = startMs + line.durationMinutes * 60_000;
-    if (endMs <= startMs) continue;
-    intervals.push({ staffId: line.staffId, startMs, endMs });
+    const busy = busySegmentsForLine(line);
+    if (!busy.length) continue;
+    expanded.push({ staffId: line.staffId, busy });
   }
 
-  for (let i = 0; i < intervals.length; i++) {
-    for (let j = i + 1; j < intervals.length; j++) {
-      if (intervals[i].staffId !== intervals[j].staffId) continue;
-      if (
-        staffSlotIntervalsOverlap(
-          intervals[i].startMs,
-          intervals[i].endMs,
-          intervals[j].startMs,
-          intervals[j].endMs,
-        )
-      ) {
+  for (let i = 0; i < expanded.length; i++) {
+    for (let j = i + 1; j < expanded.length; j++) {
+      if (expanded[i]!.staffId !== expanded[j]!.staffId) continue;
+      if (absoluteIntervalsOverlapAny(expanded[i]!.busy, expanded[j]!.busy)) {
         throw new Error(STAFF_SLOT_CONFLICT_MESSAGE);
       }
     }
@@ -147,8 +172,33 @@ export function computeOverlapQueryWindow(
   };
 }
 
+function proposedBusySegments(input: AssertStaffSlotFreeInput): AgendaAbsoluteMsInterval[] {
+  const newStartMs = parseLocal(input.startTime).getTime();
+  const newEndMs = parseLocal(input.endTime).getTime();
+
+  if (
+    input.durationMinutes != null &&
+    Number.isFinite(input.durationMinutes) &&
+    input.durationMinutes > 0
+  ) {
+    return appointmentServiceBusyAbsoluteIntervals({
+      startTime: input.startTime,
+      duration_minutes: input.durationMinutes,
+      duration_active: input.duration_active,
+      duration_processing: input.duration_processing,
+      need_processing: input.need_processing,
+    });
+  }
+
+  if (!Number.isFinite(newStartMs) || !Number.isFinite(newEndMs) || newEndMs <= newStartMs) {
+    return [];
+  }
+  return [{ startMs: newStartMs, endMs: newEndMs }];
+}
+
 /**
- * Verifica su DB che lo staff non abbia righe agenda sovrapposte nello stesso salone.
+ * Verifica su DB che lo staff non abbia segmenti busy sovrapposti nello stesso salone.
+ * Righe senza snapshot → full duration_minutes; con posa valida → buco libero.
  * @throws Error con STAFF_SLOT_CONFLICT_MESSAGE se c'è overlap
  */
 export async function assertStaffSlotFree(input: AssertStaffSlotFreeInput): Promise<void> {
@@ -168,6 +218,11 @@ export async function assertStaffSlotFree(input: AssertStaffSlotFreeInput): Prom
     throw new Error("Intervallo orario non valido");
   }
 
+  const proposedBusy = proposedBusySegments(input);
+  if (!proposedBusy.length) {
+    throw new Error("Intervallo orario non valido");
+  }
+
   const { windowStart, windowEnd } = computeOverlapQueryWindow(startTime, endTime);
 
   const { data: rows, error } = await supabase
@@ -178,6 +233,9 @@ export async function assertStaffSlotFree(input: AssertStaffSlotFreeInput): Prom
       appointment_id,
       start_time,
       duration_minutes,
+      duration_active,
+      duration_processing,
+      need_processing,
       appointments!inner (
         id,
         salon_id,
@@ -213,10 +271,15 @@ export async function assertStaffSlotFree(input: AssertStaffSlotFreeInput): Prom
     const duration = Number((row as { duration_minutes?: unknown }).duration_minutes);
     if (!existingStart || !Number.isFinite(duration) || duration <= 0) continue;
 
-    const existingStartMs = parseLocal(existingStart).getTime();
-    const existingEndMs = lineEndMs(existingStart, duration);
+    const existingBusy = appointmentServiceBusyAbsoluteIntervals({
+      startTime: existingStart,
+      duration_minutes: duration,
+      duration_active: (row as { duration_active?: unknown }).duration_active,
+      duration_processing: (row as { duration_processing?: unknown }).duration_processing,
+      need_processing: (row as { need_processing?: unknown }).need_processing,
+    });
 
-    if (staffSlotIntervalsOverlap(newStartMs, newEndMs, existingStartMs, existingEndMs)) {
+    if (absoluteIntervalsOverlapAny(proposedBusy, existingBusy)) {
       throw new Error(STAFF_SLOT_CONFLICT_MESSAGE);
     }
   }

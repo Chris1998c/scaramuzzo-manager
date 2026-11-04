@@ -1,5 +1,6 @@
 import { SLOT_MINUTES } from "@/components/agenda/utils";
 import type { AgendaAppointment, AgendaServiceLine } from "@/lib/agenda/agendaContract";
+import { resolveAppointmentServiceOccupancyIntervals } from "@/lib/agenda/agendaContract";
 import {
   agendaMinutesFromStartTime,
   resolveAgendaLineDurationMinutes,
@@ -7,7 +8,15 @@ import {
 
 export type AgendaLanePair = {
   app: Pick<AgendaAppointment, "appointment_services">;
-  line: Pick<AgendaServiceLine, "start_time" | "duration_minutes" | "services">;
+  line: Pick<
+    AgendaServiceLine,
+    | "start_time"
+    | "duration_minutes"
+    | "duration_active"
+    | "duration_processing"
+    | "need_processing"
+    | "services"
+  >;
 };
 
 export type AgendaLaidOutLine = {
@@ -17,10 +26,16 @@ export type AgendaLaidOutLine = {
   laneCount: number;
 };
 
-type LaneInterval = {
+type BusyMinuteInterval = {
+  start: number;
+  end: number;
+};
+
+type LaneItem = {
   idx: number;
   start: number;
   end: number;
+  busy: BusyMinuteInterval[];
 };
 
 /** [start, end) si sovrappongono */
@@ -31,27 +46,64 @@ export function agendaIntervalsOverlap(
   return a.start < b.end && b.start < a.end;
 }
 
-function resolvePairIntervalMinutes(
+export function agendaBusySegmentsOverlap(
+  a: BusyMinuteInterval[],
+  b: BusyMinuteInterval[],
+): boolean {
+  for (const x of a) {
+    for (const y of b) {
+      if (agendaIntervalsOverlap(x, y)) return true;
+    }
+  }
+  return false;
+}
+
+/** Segmenti busy in minuti da mezzanotte (posa esclusa). */
+export function resolveAgendaLaneBusyMinutes(
   pair: AgendaLanePair,
-  slotPx: number,
-): LaneInterval {
+): BusyMinuteInterval[] {
+  const start = agendaMinutesFromStartTime(pair.line.start_time);
+  const occ = resolveAppointmentServiceOccupancyIntervals({
+    duration_minutes: pair.line.duration_minutes,
+    duration_active: pair.line.duration_active,
+    duration_processing: pair.line.duration_processing,
+    need_processing: pair.line.need_processing,
+  });
+  return occ.busy
+    .map((b) => ({
+      start: start + b.startOffsetMinutes,
+      end: start + b.endOffsetMinutes,
+    }))
+    .filter((b) => b.end > b.start);
+}
+
+function resolveLaneItem(pair: AgendaLanePair, slotPx: number, idx: number): LaneItem {
+  const busy = resolveAgendaLaneBusyMinutes(pair);
+  if (busy.length) {
+    return {
+      idx,
+      start: Math.min(...busy.map((b) => b.start)),
+      end: Math.max(...busy.map((b) => b.end)),
+      busy,
+    };
+  }
   const start = agendaMinutesFromStartTime(pair.line.start_time);
   const duration = resolveAgendaLineDurationMinutes(pair.line, pair.app);
   const minCardDur =
     Math.ceil(Math.max(56, slotPx * 1.35) / slotPx) * SLOT_MINUTES;
   const dur = Math.max(duration, minCardDur);
-  return { start, end: start + dur, idx: 0 };
+  return { idx, start, end: start + dur, busy: [{ start, end: start + dur }] };
 }
 
-/** Allinea laneCount nel cluster di overlap (greedy può lasciare count=1 su righe già affiancate). */
+/** Allinea laneCount nel cluster di overlap busy. */
 export function finalizeAgendaLaneCounts(
   laid: AgendaLaidOutLine[],
-  intervals: LaneInterval[],
+  items: LaneItem[],
 ): void {
-  const n = intervals.length;
+  const n = items.length;
   if (n <= 1) return;
 
-  const parent = intervals.map((_, i) => i);
+  const parent = items.map((_, i) => i);
 
   function find(i: number): number {
     while (parent[i] !== i) {
@@ -69,7 +121,7 @@ export function finalizeAgendaLaneCounts(
 
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      if (agendaIntervalsOverlap(intervals[i]!, intervals[j]!)) {
+      if (agendaBusySegmentsOverlap(items[i]!.busy, items[j]!.busy)) {
         union(i, j);
       }
     }
@@ -85,19 +137,17 @@ export function finalizeAgendaLaneCounts(
 
   for (const members of groups.values()) {
     if (members.length <= 1) continue;
-
     const maxLanePlusOne =
-      Math.max(...members.map((i) => laid[intervals[i]!.idx]!.laneIndex)) + 1;
-
+      Math.max(...members.map((i) => laid[items[i]!.idx]!.laneIndex)) + 1;
     for (const i of members) {
-      laid[intervals[i]!.idx]!.laneCount = maxLanePlusOne;
+      laid[items[i]!.idx]!.laneCount = maxLanePlusOne;
     }
   }
 }
 
 /**
- * Collision / stacking: lane orizzontali per box sovrapposti nella stessa colonna staff.
- * Usa durata aggregata multi-servizio (resolveAgendaLineDurationMinutes).
+ * Lane orizzontali solo se i segmenti busy si sovrappongono.
+ * Overlap solo in posa libera → stessa corsia (larghezza piena).
  */
 export function buildAgendaLanes(
   pairs: AgendaLanePair[],
@@ -112,46 +162,38 @@ export function buildAgendaLanes(
     laneCount: 1,
   }));
 
-  const intervals: LaneInterval[] = pairs.map((p, idx) => {
-    const interval = resolvePairIntervalMinutes(p, slotPx);
-    return { ...interval, idx };
-  });
+  const items: LaneItem[] = pairs.map((p, idx) => resolveLaneItem(p, slotPx, idx));
+  const sorted = [...items].sort((a, b) => a.start - b.start);
 
-  const items = [...intervals].sort((a, b) => a.start - b.start);
-
-  type Active = { idx: number; end: number; lane: number };
+  type Active = { idx: number; end: number; lane: number; busy: BusyMinuteInterval[] };
   const active: Active[] = [];
-  let currentMaxLanes = 1;
 
-  for (const item of items) {
+  for (const item of sorted) {
     for (let i = active.length - 1; i >= 0; i--) {
       if (active[i]!.end <= item.start) active.splice(i, 1);
     }
 
-    if (active.length === 0) {
-      currentMaxLanes = 1;
-    }
-
+    const used = new Set(
+      active
+        .filter((a) => agendaBusySegmentsOverlap(a.busy, item.busy))
+        .map((a) => a.lane),
+    );
     let lane = 0;
-    const used = new Set(active.map((a) => a.lane));
     while (used.has(lane)) lane++;
 
-    active.push({ idx: item.idx, end: item.end, lane });
-
-    currentMaxLanes = Math.max(
-      currentMaxLanes,
-      Math.max(...active.map((a) => a.lane), 0) + 1,
-    );
-
+    active.push({ idx: item.idx, end: item.end, lane, busy: item.busy });
     base[item.idx]!.laneIndex = lane;
-    base[item.idx]!.laneCount = currentMaxLanes;
 
     for (const a of active) {
-      base[a.idx]!.laneCount = currentMaxLanes;
+      const peers = active.filter(
+        (b) => a.idx === b.idx || agendaBusySegmentsOverlap(a.busy, b.busy),
+      );
+      const count = Math.max(...peers.map((p) => p.lane), 0) + 1;
+      base[a.idx]!.laneCount = Math.max(base[a.idx]!.laneCount, count);
     }
   }
 
-  finalizeAgendaLaneCounts(base, intervals);
+  finalizeAgendaLaneCounts(base, items);
 
   return base;
 }

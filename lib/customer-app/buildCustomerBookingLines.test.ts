@@ -20,6 +20,9 @@ function lineInput(
   service_id: number;
   staff_id: number;
   duration_minutes: number;
+  duration_active: number;
+  duration_processing: number;
+  need_processing: boolean;
   price: number;
   vat_rate: number;
 } {
@@ -27,6 +30,9 @@ function lineInput(
     service_id: serviceId,
     staff_id: STAFF_ID,
     duration_minutes: durationMinutes,
+    duration_active: 0,
+    duration_processing: 0,
+    need_processing: false,
     price: 50,
     vat_rate: 22,
   };
@@ -92,8 +98,22 @@ describe("buildCustomerBookingLines", () => {
       lineInput(2, 15),
     ]);
     expect(customerBookingLinesToBatchStaffSlots(built)).toEqual([
-      { staffId: STAFF_ID, startTime: "2026-06-15T10:00:00", durationMinutes: 15 },
-      { staffId: STAFF_ID, startTime: "2026-06-15T10:15:00", durationMinutes: 15 },
+      {
+        staffId: STAFF_ID,
+        startTime: "2026-06-15T10:00:00",
+        durationMinutes: 15,
+        duration_active: 0,
+        duration_processing: 0,
+        need_processing: false,
+      },
+      {
+        staffId: STAFF_ID,
+        startTime: "2026-06-15T10:15:00",
+        durationMinutes: 15,
+        duration_active: 0,
+        duration_processing: 0,
+        need_processing: false,
+      },
     ]);
   });
 });

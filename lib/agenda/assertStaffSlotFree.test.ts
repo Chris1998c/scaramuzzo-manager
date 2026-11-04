@@ -104,4 +104,93 @@ describe("assertBatchInternalStaffSlotsFree", () => {
       ]),
     ).not.toThrow();
   });
+
+  it("posa valida: secondo servizio nello stesso staff durante la posa → ok", () => {
+    expect(() =>
+      assertBatchInternalStaffSlotsFree([
+        {
+          staffId: 56,
+          startTime: "2026-05-29T15:00:00",
+          durationMinutes: 95,
+          duration_active: 35,
+          duration_processing: 30,
+          need_processing: true,
+        },
+        {
+          staffId: 56,
+          startTime: "2026-05-29T15:40:00",
+          durationMinutes: 20,
+          need_processing: false,
+        },
+      ]),
+    ).not.toThrow();
+  });
+
+  it("posa valida: overlap in attivo o in coda → rifiutato", () => {
+    expect(() =>
+      assertBatchInternalStaffSlotsFree([
+        {
+          staffId: 56,
+          startTime: "2026-05-29T15:00:00",
+          durationMinutes: 95,
+          duration_active: 35,
+          duration_processing: 30,
+          need_processing: true,
+        },
+        {
+          staffId: 56,
+          startTime: "2026-05-29T15:10:00",
+          durationMinutes: 15,
+        },
+      ]),
+    ).toThrow(STAFF_SLOT_CONFLICT_MESSAGE);
+
+    expect(() =>
+      assertBatchInternalStaffSlotsFree([
+        {
+          staffId: 56,
+          startTime: "2026-05-29T15:00:00",
+          durationMinutes: 95,
+          duration_active: 35,
+          duration_processing: 30,
+          need_processing: true,
+        },
+        {
+          staffId: 56,
+          startTime: "2026-05-29T16:10:00",
+          durationMinutes: 15,
+        },
+      ]),
+    ).toThrow(STAFF_SLOT_CONFLICT_MESSAGE);
+  });
+
+  it("storico senza snapshot: full-duration, overlap interno rifiutato", () => {
+    expect(() =>
+      assertBatchInternalStaffSlotsFree([
+        { staffId: 1, startTime: "2026-05-29T15:00:00", durationMinutes: 95 },
+        { staffId: 1, startTime: "2026-05-29T15:40:00", durationMinutes: 20 },
+      ]),
+    ).toThrow(STAFF_SLOT_CONFLICT_MESSAGE);
+  });
+
+  it("servizi sequenziali stesso appuntamento (fine-inizio) → ok", () => {
+    expect(() =>
+      assertBatchInternalStaffSlotsFree([
+        {
+          staffId: 56,
+          startTime: "2026-05-29T15:00:00",
+          durationMinutes: 65,
+          duration_active: 35,
+          duration_processing: 30,
+          need_processing: true,
+        },
+        {
+          staffId: 56,
+          startTime: "2026-05-29T16:05:00",
+          durationMinutes: 45,
+          need_processing: false,
+        },
+      ]),
+    ).not.toThrow();
+  });
 });

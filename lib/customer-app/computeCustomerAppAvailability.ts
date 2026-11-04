@@ -3,17 +3,20 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SLOT_MINUTES } from "@/components/agenda/utils";
 import {
+  absoluteIntervalsOverlapAny,
+  appointmentServiceBusyAbsoluteIntervals,
+  buildProposedBookingBusyIntervals,
   nowRomeLocalDate,
   parseLocal,
   snapToAgendaSlot,
   toNoZ,
+  type AgendaAbsoluteMsInterval,
 } from "@/lib/agenda/agendaContract";
 import { resolveAgendaServiceLines } from "@/lib/agenda/appointmentServerValidation";
 import {
   computeLineEndTime,
   computeOverlapQueryWindow,
   isTerminalAppointmentStatus,
-  staffSlotIntervalsOverlap,
 } from "@/lib/agenda/assertStaffSlotFree";
 import {
   fetchOperationalCalendarSnapshot,
@@ -31,25 +34,12 @@ export type CustomerAppAvailabilitySlot = {
 /** Limite risposta per evitare payload eccessivi (≈ 1 giorno × più staff). */
 export const MAX_CUSTOMER_AVAILABILITY_SLOTS = 80;
 
-type BusyInterval = { startMs: number; endMs: number };
+type BusyInterval = AgendaAbsoluteMsInterval;
 
 function minutesToAgendaStart(isoDate: string, totalMinutes: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return `${isoDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
-}
-
-function slotOverlapsBusy(
-  startMs: number,
-  endMs: number,
-  busy: BusyInterval[],
-): boolean {
-  for (const b of busy) {
-    if (staffSlotIntervalsOverlap(startMs, endMs, b.startMs, b.endMs)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 async function loadStaffBusyIntervals(
@@ -74,6 +64,9 @@ async function loadStaffBusyIntervals(
       staff_id,
       start_time,
       duration_minutes,
+      duration_active,
+      duration_processing,
+      need_processing,
       appointments!inner (
         salon_id,
         status
@@ -103,12 +96,16 @@ async function loadStaffBusyIntervals(
     const duration = Number((row as { duration_minutes?: unknown }).duration_minutes);
     if (!startStr || !Number.isFinite(duration) || duration <= 0) continue;
 
-    const startMs = parseLocal(startStr).getTime();
-    const endMs = startMs + duration * 60_000;
-    if (!Number.isFinite(startMs) || endMs <= startMs) continue;
+    const segs = appointmentServiceBusyAbsoluteIntervals({
+      startTime: startStr,
+      duration_minutes: duration,
+      duration_active: (row as { duration_active?: unknown }).duration_active,
+      duration_processing: (row as { duration_processing?: unknown }).duration_processing,
+      need_processing: (row as { need_processing?: unknown }).need_processing,
+    });
 
     const list = byStaff.get(staffId) ?? [];
-    list.push({ startMs, endMs });
+    list.push(...segs);
     byStaff.set(staffId, list);
   }
 
@@ -130,8 +127,8 @@ export type ComputeCustomerAppAvailabilityInput = {
 };
 
 /**
- * Slot disponibili (probe read-only): turni + calendario operativo + overlap agenda esistente.
- * Durata totale = somma duration_minutes da resolveAgendaServiceLines (server-side).
+ * Slot disponibili (probe read-only): turni + calendario operativo + overlap busy (snapshot/posa).
+ * Display totale = somma duration_minutes risolte; conflitto solo sui segmenti busy.
  */
 export async function computeCustomerAppAvailability(
   input: ComputeCustomerAppAvailabilityInput,
@@ -169,6 +166,12 @@ export async function computeCustomerAppAvailability(
     throw new CustomerAppAvailabilityResolveError(resolved.error, resolved.status);
   }
 
+  const resolvedLines: Array<{
+    duration_minutes: number;
+    duration_active: number;
+    duration_processing: number;
+    need_processing: boolean;
+  }> = [];
   let totalDuration = 0;
   for (const id of serviceIds) {
     const line = resolved.data.get(id);
@@ -178,6 +181,12 @@ export async function computeCustomerAppAvailability(
         400,
       );
     }
+    resolvedLines.push({
+      duration_minutes: line.duration_minutes,
+      duration_active: line.duration_active,
+      duration_processing: line.duration_processing,
+      need_processing: line.need_processing,
+    });
     totalDuration += line.duration_minutes;
   }
 
@@ -236,10 +245,12 @@ export async function computeCustomerAppAvailability(
 
       if (!resolution.ok) continue;
 
-      const startMs = parseLocal(startTime).getTime();
-      const endMs = parseLocal(endTime).getTime();
+      const proposedBusy = buildProposedBookingBusyIntervals({
+        startTime,
+        lines: resolvedLines,
+      });
       const busy = busyByStaff.get(sid) ?? [];
-      if (slotOverlapsBusy(startMs, endMs, busy)) continue;
+      if (absoluteIntervalsOverlapAny(proposedBusy, busy)) continue;
 
       slots.push({
         start_time: startTime,

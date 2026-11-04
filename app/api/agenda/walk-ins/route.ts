@@ -138,6 +138,9 @@ export async function POST(req: Request) {
       staffId: number | null;
       startTime: string;
       durationMinutes: number;
+      duration_active: number;
+      duration_processing: number;
+      need_processing: boolean;
     }> = [];
     for (const serviceId of serviceIds) {
       const resolved = resolvedServices.data.get(serviceId);
@@ -147,6 +150,9 @@ export async function POST(req: Request) {
         staffId,
         startTime: lineStart,
         durationMinutes: resolved.duration_minutes,
+        duration_active: resolved.duration_active,
+        duration_processing: resolved.duration_processing,
+        need_processing: resolved.need_processing,
       });
       cursorMs += resolved.duration_minutes * 60_000;
     }
@@ -182,6 +188,10 @@ export async function POST(req: Request) {
         staffId,
         startTime: lineStart,
         endTime: lineEnd,
+        durationMinutes: resolved.duration_minutes,
+        duration_active: resolved.duration_active,
+        duration_processing: resolved.duration_processing,
+        need_processing: resolved.need_processing,
       });
       cursorMs += resolved.duration_minutes * 60_000;
     }
@@ -224,6 +234,9 @@ export async function POST(req: Request) {
         staff_id: staffId,
         start_time: toNoZ(snapToAgendaSlot(new Date(cursorMs))),
         duration_minutes: resolved.duration_minutes,
+        duration_active: resolved.duration_active,
+        duration_processing: resolved.duration_processing,
+        need_processing: resolved.need_processing,
         price: resolved.price,
         vat_rate: resolved.vat_rate,
       };

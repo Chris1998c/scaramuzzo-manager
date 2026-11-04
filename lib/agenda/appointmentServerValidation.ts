@@ -1,12 +1,16 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { clampDurationMinutes } from "@/lib/agenda/agendaContract";
+import { resolveServiceDurationSnapshotForBooking } from "@/lib/agenda/agendaContract";
 import { fetchActiveStaffIdsForSalon } from "@/lib/staffForSalon";
 
 export type ResolvedAgendaServiceLine = {
   service_id: number;
   duration_minutes: number;
+  /** Snapshot catalogo al resolve (nuove righe appointment_services). */
+  duration_active: number;
+  duration_processing: number;
+  need_processing: boolean;
   price: number;
   vat_rate: number;
 };
@@ -64,7 +68,9 @@ export async function resolveAgendaServiceLines(
 
   const { data: svcRows, error: svcErr } = await admin
     .from("services")
-    .select("id, active, visible_in_agenda, duration, vat_rate")
+    .select(
+      "id, active, visible_in_agenda, duration, duration_active, duration_processing, need_processing, vat_rate",
+    )
     .in("id", unique);
 
   if (svcErr) {
@@ -119,9 +125,18 @@ export async function resolveAgendaServiceLines(
     if (salonPrice === undefined) {
       return { ok: false, error: MISSING_SALON_SERVICE_PRICE_ERROR, status: 400 };
     }
+    const snapshot = resolveServiceDurationSnapshotForBooking({
+      duration: row.duration,
+      duration_active: row.duration_active,
+      duration_processing: row.duration_processing,
+      need_processing: row.need_processing,
+    });
     resolved.set(id, {
       service_id: id,
-      duration_minutes: clampDurationMinutes(row.duration),
+      duration_minutes: snapshot.duration_minutes,
+      duration_active: snapshot.duration_active,
+      duration_processing: snapshot.duration_processing,
+      need_processing: snapshot.need_processing,
       price: salonPrice,
       vat_rate: toNum(row.vat_rate, 22),
     });

@@ -1,6 +1,9 @@
 import { SLOT_MINUTES, timeToMinutes } from "@/components/agenda/utils";
 import type { AgendaAppointment, AgendaServiceLine } from "@/lib/agenda/agendaContract";
-import { clampDurationMinutes } from "@/lib/agenda/agendaContract";
+import {
+  clampDurationMinutes,
+  resolveAppointmentServiceOccupancyIntervals,
+} from "@/lib/agenda/agendaContract";
 import { agendaTimeFromTs, splitAgendaTimestamp } from "@/lib/agenda/agendaTimestamp";
 
 /** Minuti da mezzanotte da start_time agenda (T o spazio). */
@@ -11,25 +14,14 @@ export function agendaMinutesFromStartTime(ts: string): number {
 }
 
 /**
- * Durata visiva del box: per multi-servizio usa sempre la somma delle righe,
- * non `services.duration` della prima riga (es. Colore 35 min).
+ * Durata visiva del box: solo la riga corrente (non somma i servizi fratelli).
+ * `appointment` resta in firma per i chiamanti esistenti; non altera la durata.
  */
 export function resolveAgendaLineDurationMinutes(
   line: Pick<AgendaServiceLine, "duration_minutes" | "services">,
-  appointment: Pick<AgendaAppointment, "appointment_services">,
+  _appointment?: Pick<AgendaAppointment, "appointment_services">,
 ): number {
-  const lines = appointment.appointment_services ?? [];
-
-  if (lines.length > 1) {
-    const total = lines.reduce(
-      (sum, ln) => sum + clampDurationMinutes(ln.duration_minutes ?? ln.services?.duration),
-      0,
-    );
-    if (total >= SLOT_MINUTES) {
-      return total;
-    }
-  }
-
+  void _appointment;
   const explicit = line.duration_minutes;
   if (Number.isFinite(Number(explicit)) && Number(explicit) > 0) {
     return clampDurationMinutes(explicit);
@@ -78,4 +70,60 @@ export function computeAgendaBoxLayout(input: {
     topPx: computeAgendaBoxTopPx(input.line.start_time, input.hours, input.slotPx),
     heightPx: computeAgendaBoxHeightPx(durationMin, input.slotPx),
   };
+}
+
+export type AgendaLineVisualSegment = {
+  kind: "busy" | "free";
+  startOffsetMinutes: number;
+  endOffsetMinutes: number;
+  /** Frazione 0–1 dell'altezza display. */
+  topFraction: number;
+  heightFraction: number;
+};
+
+/**
+ * Segmenti UI (pieno / posa trasparente) allineati al contratto occupancy.
+ * Senza posa valida → un solo segmento busy sull'intero display.
+ */
+export function resolveAgendaLineVisualSegments(
+  line: Pick<
+    AgendaServiceLine,
+    "duration_minutes" | "duration_active" | "duration_processing" | "need_processing"
+  >,
+): AgendaLineVisualSegment[] {
+  const occ = resolveAppointmentServiceOccupancyIntervals({
+    duration_minutes: line.duration_minutes,
+    duration_active: line.duration_active,
+    duration_processing: line.duration_processing,
+    need_processing: line.need_processing,
+  });
+  const D = occ.display.endOffsetMinutes;
+  if (D <= 0) return [];
+
+  const raw: Array<{ kind: "busy" | "free"; start: number; end: number }> = [];
+  for (const b of occ.busy) {
+    raw.push({
+      kind: "busy",
+      start: b.startOffsetMinutes,
+      end: b.endOffsetMinutes,
+    });
+  }
+  for (const f of occ.free) {
+    raw.push({
+      kind: "free",
+      start: f.startOffsetMinutes,
+      end: f.endOffsetMinutes,
+    });
+  }
+  raw.sort((a, b) => a.start - b.start);
+
+  return raw
+    .filter((s) => s.end > s.start)
+    .map((s) => ({
+      kind: s.kind,
+      startOffsetMinutes: s.start,
+      endOffsetMinutes: s.end,
+      topFraction: s.start / D,
+      heightFraction: (s.end - s.start) / D,
+    }));
 }

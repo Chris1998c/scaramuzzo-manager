@@ -1,14 +1,235 @@
 import { describe, expect, it } from "vitest";
 import {
+  absoluteIntervalsOverlapAny,
+  appointmentServiceBusyAbsoluteIntervals,
   clampDurationMinutes,
   computeHeaderFromLines,
   commitLinePatch,
   normalizeAgendaRows,
   parseLocal,
+  resolveAppointmentServiceOccupancyIntervals,
+  resolveServiceDurationSnapshotForBooking,
   snapToAgendaSlot,
   toNoZ,
 } from "@/lib/agenda/agendaContract";
 import { SLOT_MINUTES } from "@/components/agenda/utils";
+
+describe("appointmentServiceBusyAbsoluteIntervals", () => {
+  const start = "2026-05-29T15:00:00";
+  const t0 = parseLocal(start).getTime();
+
+  it("D=95 A=35 P=30: busy 0–35 e 65–95", () => {
+    const busy = appointmentServiceBusyAbsoluteIntervals({
+      startTime: start,
+      duration_minutes: 95,
+      duration_active: 35,
+      duration_processing: 30,
+      need_processing: true,
+    });
+    expect(busy).toEqual([
+      { startMs: t0, endMs: t0 + 35 * 60_000 },
+      { startMs: t0 + 65 * 60_000, endMs: t0 + 95 * 60_000 },
+    ]);
+  });
+
+  it("D=65 A=35 P=30: solo busy 0–35", () => {
+    expect(
+      appointmentServiceBusyAbsoluteIntervals({
+        startTime: start,
+        duration_minutes: 65,
+        duration_active: 35,
+        duration_processing: 30,
+        need_processing: true,
+      }),
+    ).toEqual([{ startMs: t0, endMs: t0 + 35 * 60_000 }]);
+  });
+
+  it("senza snapshot → full duration", () => {
+    expect(
+      appointmentServiceBusyAbsoluteIntervals({
+        startTime: start,
+        duration_minutes: 95,
+      }),
+    ).toEqual([{ startMs: t0, endMs: t0 + 95 * 60_000 }]);
+  });
+
+  it("overlap durante posa consentito; attivo e coda rifiutati", () => {
+    const colorBusy = appointmentServiceBusyAbsoluteIntervals({
+      startTime: start,
+      duration_minutes: 95,
+      duration_active: 35,
+      duration_processing: 30,
+      need_processing: true,
+    });
+    const inPosa = [{ startMs: t0 + 40 * 60_000, endMs: t0 + 55 * 60_000 }];
+    const inActive = [{ startMs: t0 + 10 * 60_000, endMs: t0 + 25 * 60_000 }];
+    const inTail = [{ startMs: t0 + 70 * 60_000, endMs: t0 + 85 * 60_000 }];
+    expect(absoluteIntervalsOverlapAny(colorBusy, inPosa)).toBe(false);
+    expect(absoluteIntervalsOverlapAny(colorBusy, inActive)).toBe(true);
+    expect(absoluteIntervalsOverlapAny(colorBusy, inTail)).toBe(true);
+  });
+});
+
+describe("resolveServiceDurationSnapshotForBooking", () => {
+  it("Colore Ossidazione: duration=35, active=35, processing=30 → duration_minutes=65 + snapshot", () => {
+    expect(
+      resolveServiceDurationSnapshotForBooking({
+        duration: 35,
+        duration_active: 35,
+        duration_processing: 30,
+        need_processing: true,
+      }),
+    ).toEqual({
+      duration_minutes: 65,
+      duration_active: 35,
+      duration_processing: 30,
+      need_processing: true,
+    });
+  });
+
+  it("duration già maggiore di active+processing → resta quella maggiore", () => {
+    expect(
+      resolveServiceDurationSnapshotForBooking({
+        duration: 95,
+        duration_active: 35,
+        duration_processing: 30,
+        need_processing: true,
+      }),
+    ).toEqual({
+      duration_minutes: 95,
+      duration_active: 35,
+      duration_processing: 30,
+      need_processing: true,
+    });
+  });
+
+  it("servizio senza posa → duration_minutes = duration, snapshot need_processing false", () => {
+    expect(
+      resolveServiceDurationSnapshotForBooking({
+        duration: 45,
+        duration_active: 45,
+        duration_processing: 0,
+        need_processing: false,
+      }),
+    ).toEqual({
+      duration_minutes: 45,
+      duration_active: 45,
+      duration_processing: 0,
+      need_processing: false,
+    });
+  });
+
+  it("righe storiche senza snapshot: occupancy resta full-duration", () => {
+    const r = resolveAppointmentServiceOccupancyIntervals({
+      duration_minutes: 95,
+      duration_active: null,
+      duration_processing: null,
+      need_processing: null,
+    });
+    expect(r.processingValid).toBe(false);
+    expect(r.busy).toEqual([{ startOffsetMinutes: 0, endOffsetMinutes: 95 }]);
+    expect(r.free).toEqual([]);
+  });
+});
+
+describe("resolveAppointmentServiceOccupancyIntervals", () => {
+  it("riga 135: posa valida → display 95, busy 0–35 e 65–95, libera 35–65", () => {
+    const r = resolveAppointmentServiceOccupancyIntervals({
+      duration_minutes: 95,
+      duration_active: 35,
+      duration_processing: 30,
+      need_processing: true,
+    });
+    expect(r.processingValid).toBe(true);
+    expect(r.display).toEqual({ startOffsetMinutes: 0, endOffsetMinutes: 95 });
+    expect(r.busy).toEqual([
+      { startOffsetMinutes: 0, endOffsetMinutes: 35 },
+      { startOffsetMinutes: 65, endOffsetMinutes: 95 },
+    ]);
+    expect(r.free).toEqual([{ startOffsetMinutes: 35, endOffsetMinutes: 65 }]);
+  });
+
+  it("senza posa → busy sull'intero intervallo", () => {
+    const r = resolveAppointmentServiceOccupancyIntervals({
+      duration_minutes: 45,
+      duration_active: 45,
+      duration_processing: 0,
+      need_processing: false,
+    });
+    expect(r.processingValid).toBe(false);
+    expect(r.display).toEqual({ startOffsetMinutes: 0, endOffsetMinutes: 45 });
+    expect(r.busy).toEqual([{ startOffsetMinutes: 0, endOffsetMinutes: 45 }]);
+    expect(r.free).toEqual([]);
+  });
+
+  it("D < A+P → nessun intervallo libero, busy su tutto D", () => {
+    const r = resolveAppointmentServiceOccupancyIntervals({
+      duration_minutes: 50,
+      duration_active: 35,
+      duration_processing: 30,
+      need_processing: true,
+    });
+    expect(r.processingValid).toBe(false);
+    expect(r.busy).toEqual([{ startOffsetMinutes: 0, endOffsetMinutes: 50 }]);
+    expect(r.free).toEqual([]);
+  });
+
+  it("durata zero/negativa o dati mancanti → busy sull'intero (vuoto se D non positivo), senza throw", () => {
+    expect(() =>
+      resolveAppointmentServiceOccupancyIntervals({ duration_minutes: 0 }),
+    ).not.toThrow();
+    expect(resolveAppointmentServiceOccupancyIntervals({ duration_minutes: 0 })).toEqual({
+      display: { startOffsetMinutes: 0, endOffsetMinutes: 0 },
+      busy: [],
+      free: [],
+      processingValid: false,
+    });
+    expect(resolveAppointmentServiceOccupancyIntervals({ duration_minutes: -10 })).toEqual({
+      display: { startOffsetMinutes: 0, endOffsetMinutes: 0 },
+      busy: [],
+      free: [],
+      processingValid: false,
+    });
+    expect(
+      resolveAppointmentServiceOccupancyIntervals({
+        duration_minutes: null,
+        need_processing: true,
+        duration_active: 35,
+        duration_processing: 30,
+      }),
+    ).toEqual({
+      display: { startOffsetMinutes: 0, endOffsetMinutes: 0 },
+      busy: [],
+      free: [],
+      processingValid: false,
+    });
+    expect(
+      resolveAppointmentServiceOccupancyIntervals({
+        duration_minutes: 60,
+        need_processing: true,
+        duration_active: undefined,
+        duration_processing: 30,
+      }),
+    ).toEqual({
+      display: { startOffsetMinutes: 0, endOffsetMinutes: 60 },
+      busy: [{ startOffsetMinutes: 0, endOffsetMinutes: 60 }],
+      free: [],
+      processingValid: false,
+    });
+  });
+
+  it("A+P = D → posa valida senza coda busy", () => {
+    const r = resolveAppointmentServiceOccupancyIntervals({
+      duration_minutes: 65,
+      duration_active: 35,
+      duration_processing: 30,
+      need_processing: true,
+    });
+    expect(r.processingValid).toBe(true);
+    expect(r.busy).toEqual([{ startOffsetMinutes: 0, endOffsetMinutes: 35 }]);
+    expect(r.free).toEqual([{ startOffsetMinutes: 35, endOffsetMinutes: 65 }]);
+  });
+});
 
 describe("clampDurationMinutes", () => {
   it("usa SLOT_MINUTES per null, undefined, NaN, sotto minimo", () => {

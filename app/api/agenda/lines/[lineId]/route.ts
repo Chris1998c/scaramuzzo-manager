@@ -86,7 +86,7 @@ export async function PATCH(
     const { data: lineRow, error: lineErr } = await supabaseAdmin
       .from("appointment_services")
       .select(
-        "id, appointment_id, start_time, duration_minutes, staff_id, appointments:appointment_id ( salon_id, status, sale_id )",
+        "id, appointment_id, start_time, duration_minutes, duration_active, duration_processing, need_processing, staff_id, appointments:appointment_id ( salon_id, status, sale_id )",
       )
       .eq("id", lineId)
       .maybeSingle();
@@ -169,6 +169,17 @@ export async function PATCH(
         staffId: mergedStaff,
         startTime: mergedStart,
         endTime: lineEnd,
+        durationMinutes: mergedDuration,
+        duration_active: (lineRow as { duration_active?: unknown }).duration_active as
+          | number
+          | null
+          | undefined,
+        duration_processing: (lineRow as { duration_processing?: unknown })
+          .duration_processing as number | null | undefined,
+        need_processing: (lineRow as { need_processing?: unknown }).need_processing as
+          | boolean
+          | null
+          | undefined,
         excludeAppointmentId: appointmentId,
         excludeLineId: lineId,
       });
