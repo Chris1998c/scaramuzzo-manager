@@ -32,7 +32,7 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
 
   const { data: customer, error: fetchError } = await supabase
     .from("customers")
-    .select("id, first_name, last_name, phone, email, address, notes")
+    .select("id, customer_code, first_name, last_name, phone, email, address, notes")
     .eq("id", id)
     .maybeSingle();
 
@@ -91,7 +91,7 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
       <ClienteAnagraficaForm
         initial={{
           id: c.id,
-          customer_code: "",
+          customer_code: String(c.customer_code),
           first_name: c.first_name,
           last_name: c.last_name,
           phone: c.phone,

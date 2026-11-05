@@ -437,7 +437,7 @@ export default function CanaliWhatsAppPanel({
                 </li>
                 <li>
                   <span className="text-[#f3d8b6]">Salone:</span>{" "}
-                  {displayName.trim() || salonLabel || "Nome salone"}
+                  {salonLabel || "Nome salone"}
                 </li>
               </ul>
             </div>

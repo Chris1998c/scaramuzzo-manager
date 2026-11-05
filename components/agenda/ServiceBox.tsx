@@ -748,7 +748,7 @@ function ServiceBox({
                   toast.error("Nessun cliente collegato.");
                   return;
                 }
-                router.push(`/dashboard/clienti/${cid}`);
+                router.push(`/dashboard/clienti/${cid}#schede-tecniche`);
               }}
               className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06]"
             >

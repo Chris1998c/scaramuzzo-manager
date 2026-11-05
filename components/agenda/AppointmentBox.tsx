@@ -441,7 +441,7 @@ export default function AppointmentBox({
                   toast.error("Nessun cliente collegato all’appuntamento.");
                   return;
                 }
-                router.push(`/dashboard/clienti/${cid}`);
+                router.push(`/dashboard/clienti/${cid}#schede-tecniche`);
               }}
               className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5"
             >

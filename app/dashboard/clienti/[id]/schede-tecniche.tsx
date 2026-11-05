@@ -288,6 +288,8 @@ export default function SchedeTecniche({
 
   const [type, setType] = useState<ServiceType>("oxidation_color");
   const [data, setData] = useState<AnyCardData>(emptyPayloadFor("oxidation_color"));
+  /** Solo UI: chiuso di default. I valori avanzati restano in `data` anche se la sezione non è montata. */
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -345,6 +347,35 @@ export default function SchedeTecniche({
   useEffect(() => {
     setData(emptyPayloadFor(type));
   }, [type]);
+
+  // Deep-link da agenda (`#schede-tecniche`): scroll anche su navigazione client / cold load.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== "#schede-tecniche") return;
+
+    const scrollToSection = () => {
+      const el = document.getElementById("schede-tecniche");
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    // Doppio rAF: aspetta layout dopo hydrate; timeout corto per cold load con CSS non ancora applicato.
+    let cancelled = false;
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) scrollToSection();
+      });
+    });
+    const t = window.setTimeout(() => {
+      if (!cancelled) scrollToSection();
+    }, 120);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
+  }, [customerId]);
 
   function patchPayload(patch: Record<string, any>) {
     setData((prev) => ({
@@ -458,7 +489,10 @@ export default function SchedeTecniche({
   const Icon = currentMeta.icon;
 
   return (
-    <div className="space-y-8">
+    <div
+      id="schede-tecniche"
+      className="space-y-8 scroll-mt-24"
+    >
       {/* NEW CARD */}
       <section className="rounded-3xl bg-[#24140e]/80 border border-[#5c3a21]/60 p-6 backdrop-blur-md shadow-[0_0_55px_rgba(0,0,0,0.20)]">
         <div className="flex items-start justify-between gap-4">
@@ -472,12 +506,12 @@ export default function SchedeTecniche({
 
           <div className="hidden md:flex items-center gap-2 rounded-2xl px-3 py-2 border border-[#5c3a21]/60 bg-black/20 text-xs text-[#f3d8b6]/70">
             <Icon size={14} />
-            Modulo rapido
+            Compilazione rapida
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-          {/* LEFT */}
+          {/* LEFT — contesto rapido */}
           <div className="lg:col-span-1">
             <label className="text-xs text-[#f3d8b6]/70">Tipo servizio</label>
             <select
@@ -514,34 +548,69 @@ export default function SchedeTecniche({
             </div>
           </div>
 
-          {/* RIGHT */}
+          {/* RIGHT — campi core del tipo (formula/mix/tempi/volumi o protocollo botanico) */}
           <div className="lg:col-span-2">
             <DynamicForm
               type={type}
               payload={(data as any).payload ?? {}}
               onPatch={patchPayload}
+              section="primary"
             />
           </div>
         </div>
 
-        <DiagnosisSection
-          diagnosis={(data as any).payload?.diagnosis}
-          onPatch={patchDiagnosis}
-        />
+        {/* Diagnosi / risultati strutturati / note secondarie: UI collassabile, stato invariato in `data` */}
+        <div className="mt-4 rounded-3xl border border-[#5c3a21]/60 bg-black/15 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left
+              hover:bg-white/5 transition"
+            aria-expanded={advancedOpen}
+          >
+            <div>
+              <div className="text-sm font-semibold text-[#f3d8b6]">Dettagli avanzati</div>
+              <div className="text-[11px] text-[#c9b299]/80 mt-0.5">
+                Diagnosi, risultato strutturato e note secondarie — opzionale
+              </div>
+            </div>
+            {advancedOpen ? (
+              <ChevronUp size={18} className="text-[#f3d8b6]/70 shrink-0" />
+            ) : (
+              <ChevronDown size={18} className="text-[#f3d8b6]/70 shrink-0" />
+            )}
+          </button>
 
-        {(type === "oxidation_color" || type === "gloss" || type === "lightening") && (
-          <ColorResultSection
-            color={(data as any).payload?.color}
-            onPatch={patchColorResult}
-          />
-        )}
+          {advancedOpen && (
+            <div className="px-5 pb-5 space-y-4 border-t border-[#5c3a21]/40 pt-4">
+              <DynamicForm
+                type={type}
+                payload={(data as any).payload ?? {}}
+                onPatch={patchPayload}
+                section="secondary"
+              />
 
-        {type === "botanicals" && (
-          <BotanicalResultSection
-            botanicalResult={(data as any).payload?.botanical_result}
-            onPatch={patchBotanicalResult}
-          />
-        )}
+              <DiagnosisSection
+                diagnosis={(data as any).payload?.diagnosis}
+                onPatch={patchDiagnosis}
+              />
+
+              {(type === "oxidation_color" || type === "gloss" || type === "lightening") && (
+                <ColorResultSection
+                  color={(data as any).payload?.color}
+                  onPatch={patchColorResult}
+                />
+              )}
+
+              {type === "botanicals" && (
+                <BotanicalResultSection
+                  botanicalResult={(data as any).payload?.botanical_result}
+                  onPatch={patchBotanicalResult}
+                />
+              )}
+            </div>
+          )}
+        </div>
 
         {err && <div className="mt-4 text-sm text-red-400">{err}</div>}
 
@@ -912,35 +981,44 @@ function DynamicForm({
   type,
   payload,
   onPatch,
+  section,
 }: {
   type: ServiceType;
   payload: Record<string, any>;
   onPatch: (patch: Record<string, any>) => void;
+  /** primary = compilazione rapida; secondary = campi già esistenti spostati in dettagli avanzati */
+  section: "primary" | "secondary";
 }) {
   if (type === "oxidation_color") {
+    if (section === "primary") {
+      return (
+        <div className="grid grid-cols-1 gap-4">
+          <BigTextarea
+            label="Formula colore"
+            icon={Droplets}
+            placeholder="Es: 5.1 + 0.11 (1:1) – oss 20 vol – additivo…"
+            value={payload.formula ?? ""}
+            onChange={(v) => onPatch({ formula: v })}
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MiniInput
+              label="Volumi ossigeno"
+              placeholder="10 / 20 / 30 vol…"
+              value={payload.volumes ?? ""}
+              onChange={(v) => onPatch({ volumes: v })}
+            />
+            <MiniInput
+              label="Tempo posa"
+              placeholder="Es: 35 min"
+              value={payload.processing_time ?? ""}
+              onChange={(v) => onPatch({ processing_time: v })}
+            />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="grid grid-cols-1 gap-4">
-        <BigTextarea
-          label="Formula colore"
-          icon={Droplets}
-          placeholder="Es: 5.1 + 0.11 (1:1) – oss 20 vol – additivo…"
-          value={payload.formula ?? ""}
-          onChange={(v) => onPatch({ formula: v })}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <MiniInput
-            label="Volumi ossigeno"
-            placeholder="10 / 20 / 30 vol…"
-            value={payload.volumes ?? ""}
-            onChange={(v) => onPatch({ volumes: v })}
-          />
-          <MiniInput
-            label="Tempo posa"
-            placeholder="Es: 35 min"
-            value={payload.processing_time ?? ""}
-            onChange={(v) => onPatch({ processing_time: v })}
-          />
-        </div>
         <BigTextarea
           label="Correzioni / Note tecniche"
           icon={FlaskConical}
@@ -960,29 +1038,35 @@ function DynamicForm({
   }
 
   if (type === "gloss") {
+    if (section === "primary") {
+      return (
+        <div className="grid grid-cols-1 gap-4">
+          <BigTextarea
+            label="Mix / Tonalizzazione"
+            icon={Wand2}
+            placeholder="Es: 7.1 + clear 1:2…"
+            value={payload.mix ?? ""}
+            onChange={(v) => onPatch({ mix: v })}
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MiniInput
+              label="Attivatore / Developer"
+              placeholder="Es: 6 vol / attivatore…"
+              value={payload.developer ?? ""}
+              onChange={(v) => onPatch({ developer: v })}
+            />
+            <MiniInput
+              label="Tempo posa"
+              placeholder="Es: 15 min"
+              value={payload.processing_time ?? ""}
+              onChange={(v) => onPatch({ processing_time: v })}
+            />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="grid grid-cols-1 gap-4">
-        <BigTextarea
-          label="Mix / Tonalizzazione"
-          icon={Wand2}
-          placeholder="Es: 7.1 + clear 1:2…"
-          value={payload.mix ?? ""}
-          onChange={(v) => onPatch({ mix: v })}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <MiniInput
-            label="Attivatore / Developer"
-            placeholder="Es: 6 vol / attivatore…"
-            value={payload.developer ?? ""}
-            onChange={(v) => onPatch({ developer: v })}
-          />
-          <MiniInput
-            label="Tempo posa"
-            placeholder="Es: 15 min"
-            value={payload.processing_time ?? ""}
-            onChange={(v) => onPatch({ processing_time: v })}
-          />
-        </div>
         <BigTextarea
           label="Note generali"
           icon={CalendarDays}
@@ -995,29 +1079,35 @@ function DynamicForm({
   }
 
   if (type === "lightening") {
+    if (section === "primary") {
+      return (
+        <div className="grid grid-cols-1 gap-4">
+          <BigTextarea
+            label="Prodotto / Tecnica"
+            icon={FlaskConical}
+            placeholder="Es: polvere blu + oss 20 vol – balayage…"
+            value={payload.product ?? ""}
+            onChange={(v) => onPatch({ product: v })}
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MiniInput
+              label="Volumi"
+              placeholder="10 / 20 / 30 vol…"
+              value={payload.volumes ?? ""}
+              onChange={(v) => onPatch({ volumes: v })}
+            />
+            <MiniInput
+              label="Tempo posa"
+              placeholder="Es: 40 min"
+              value={payload.processing_time ?? ""}
+              onChange={(v) => onPatch({ processing_time: v })}
+            />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="grid grid-cols-1 gap-4">
-        <BigTextarea
-          label="Prodotto / Tecnica"
-          icon={FlaskConical}
-          placeholder="Es: polvere blu + oss 20 vol – balayage…"
-          value={payload.product ?? ""}
-          onChange={(v) => onPatch({ product: v })}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <MiniInput
-            label="Volumi"
-            placeholder="10 / 20 / 30 vol…"
-            value={payload.volumes ?? ""}
-            onChange={(v) => onPatch({ volumes: v })}
-          />
-          <MiniInput
-            label="Tempo posa"
-            placeholder="Es: 40 min"
-            value={payload.processing_time ?? ""}
-            onChange={(v) => onPatch({ processing_time: v })}
-          />
-        </div>
         <BigTextarea
           label="Protezione (bond / additivi)"
           icon={Sparkles}
@@ -1037,22 +1127,28 @@ function DynamicForm({
   }
 
   if (type === "keratin") {
+    if (section === "primary") {
+      return (
+        <div className="grid grid-cols-1 gap-4">
+          <BigTextarea
+            label="Prodotto"
+            icon={Sparkles}
+            placeholder="Nome trattamento / lotto…"
+            value={payload.product ?? ""}
+            onChange={(v) => onPatch({ product: v })}
+          />
+          <BigTextarea
+            label="Passaggi"
+            icon={CalendarDays}
+            placeholder="Step-by-step: shampoo, posa, asciugatura, piastra…"
+            value={payload.steps ?? ""}
+            onChange={(v) => onPatch({ steps: v })}
+          />
+        </div>
+      );
+    }
     return (
       <div className="grid grid-cols-1 gap-4">
-        <BigTextarea
-          label="Prodotto"
-          icon={Sparkles}
-          placeholder="Nome trattamento / lotto…"
-          value={payload.product ?? ""}
-          onChange={(v) => onPatch({ product: v })}
-        />
-        <BigTextarea
-          label="Passaggi"
-          icon={CalendarDays}
-          placeholder="Step-by-step: shampoo, posa, asciugatura, piastra…"
-          value={payload.steps ?? ""}
-          onChange={(v) => onPatch({ steps: v })}
-        />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <MiniInput
             label="Temperatura piastra"
@@ -1078,44 +1174,51 @@ function DynamicForm({
     );
   }
 
-  // botanicals
-  return (
-    <div className="grid grid-cols-1 gap-4">
-      <BigTextarea
-        label="Diretta pre-erbe / pre-saturazione"
-        icon={Droplets}
-        placeholder="Es: Diretta 2 + 5.1 Plus…"
-        value={payload.pre_direct ?? ""}
-        onChange={(v) => onPatch({ pre_direct: v })}
-      />
-      <BigTextarea
-        label="Miscela erbe"
-        icon={Leaf}
-        placeholder="Es: lawsonia + mallo + emolliente mucillagini…"
-        value={payload.mix ?? ""}
-        onChange={(v) => onPatch({ mix: v })}
-      />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MiniInput
-          label="Fonte di calore"
-          placeholder="Cuffia / phon / termica…"
-          value={payload.heat ?? ""}
-          onChange={(v) => onPatch({ heat: v })}
+  // botanicals — protocollo completo in primary; note + risultato strutturato restano in avanzati
+  if (section === "primary") {
+    return (
+      <div className="grid grid-cols-1 gap-4">
+        <BigTextarea
+          label="Diretta pre-erbe / pre-saturazione"
+          icon={Droplets}
+          placeholder="Es: Diretta 2 + 5.1 Plus…"
+          value={payload.pre_direct ?? ""}
+          onChange={(v) => onPatch({ pre_direct: v })}
         />
-        <MiniInput
-          label="Tempo posa"
-          placeholder="Es: 60 min"
-          value={payload.processing_time ?? ""}
-          onChange={(v) => onPatch({ processing_time: v })}
+        <BigTextarea
+          label="Miscela erbe"
+          icon={Leaf}
+          placeholder="Es: lawsonia + mallo + emolliente mucillagini…"
+          value={payload.mix ?? ""}
+          onChange={(v) => onPatch({ mix: v })}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MiniInput
+            label="Fonte di calore"
+            placeholder="Cuffia / phon / termica…"
+            value={payload.heat ?? ""}
+            onChange={(v) => onPatch({ heat: v })}
+          />
+          <MiniInput
+            label="Tempo posa"
+            placeholder="Es: 60 min"
+            value={payload.processing_time ?? ""}
+            onChange={(v) => onPatch({ processing_time: v })}
+          />
+        </div>
+        <BigTextarea
+          label="Risciacquo / finitura"
+          icon={Wand2}
+          placeholder="Shampoo, maschera, pH, leave-in…"
+          value={payload.rinse ?? ""}
+          onChange={(v) => onPatch({ rinse: v })}
         />
       </div>
-      <BigTextarea
-        label="Risciacquo / finitura"
-        icon={Wand2}
-        placeholder="Shampoo, maschera, pH, leave-in…"
-        value={payload.rinse ?? ""}
-        onChange={(v) => onPatch({ rinse: v })}
-      />
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4">
       <BigTextarea
         label="Note generali"
         icon={CalendarDays}

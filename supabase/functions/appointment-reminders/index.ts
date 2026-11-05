@@ -316,10 +316,8 @@ Deno.serve(async (req) => {
     }
 
     const firstName = String(row.customer_first_name ?? "").trim() || "Cliente";
-    const venue =
-      String(row.wa_display_name ?? "").trim() ||
-      String(row.salon_name ?? "").trim() ||
-      "Salone";
+    // {{4}} = sede appuntamento (salons.name via RPC), non display_name mittente Meta.
+    const venue = String(row.salon_name ?? "").trim() || "Salone";
 
     const bodyParams = [
       firstName,

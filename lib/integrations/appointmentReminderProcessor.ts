@@ -34,6 +34,16 @@ export type AppointmentReminderEnv = {
   defaultTemplateLang: string;
 };
 
+/**
+ * {{4}} del template appointment_reminder = sede dell'appuntamento (salons.name),
+ * non il display_name Meta del mittente condiviso tra sedi.
+ */
+export function resolveAppointmentReminderVenue(row: {
+  salon_name?: string | null;
+}): string {
+  return String(row.salon_name ?? "").trim() || "Salone";
+}
+
 function isUniqueViolation(err: { code?: string; message?: string } | null): boolean {
   if (!err) return false;
   if (String(err.code) === "23505") return true;
@@ -161,10 +171,7 @@ export async function processAppointmentReminders(
     }
 
     const firstName = String(row.customer_first_name ?? "").trim() || "Cliente";
-    const venue =
-      String(row.wa_display_name ?? "").trim() ||
-      String(row.salon_name ?? "").trim() ||
-      "Salone";
+    const venue = resolveAppointmentReminderVenue(row);
 
     const bodyParams = [
       firstName,

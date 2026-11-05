@@ -450,7 +450,7 @@ export default function EditAppointmentModal({
       return;
     }
     close();
-    router.push(`/dashboard/clienti/${cid}`);
+    router.push(`/dashboard/clienti/${cid}#schede-tecniche`);
   }
 
   const headerCustomer = appointment?.customers ? safeName(appointment.customers) : "Appuntamento";
