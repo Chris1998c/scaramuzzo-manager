@@ -45,6 +45,11 @@ function mockSupabaseOk(): SupabaseClient {
       update: vi.fn(() => ({
         eq: vi.fn(async () => ({ error: null })),
       })),
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+        })),
+      })),
     })),
   } as unknown as SupabaseClient;
 }

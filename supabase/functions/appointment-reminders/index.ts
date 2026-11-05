@@ -92,7 +92,91 @@ function summarizeWhatsAppGraphError(payload: unknown): string {
 
 type SendWhatsAppTemplateResult =
   | { ok: true; providerMessageId: string | null }
-  | { ok: false; error: string };
+  | { ok: false; error: string; retryable: boolean };
+
+const MAX_RETRIES = 3;
+const BACKOFF_MS = [15 * 60 * 1000, 60 * 60 * 1000, 4 * 60 * 60 * 1000] as const;
+
+const DELIVERY_RANK: Record<string, number> = {
+  sent: 1,
+  delivered: 2,
+  read: 3,
+  failed: 4,
+};
+
+function shouldApplyDelivery(current: string | null | undefined, incoming: string): boolean {
+  const cur = String(current ?? "").trim().toLowerCase();
+  if (!cur) return true;
+  if (cur === incoming) return false;
+  if (cur === "read") return false;
+  if (cur === "failed") return incoming === "delivered" || incoming === "read";
+  const a = DELIVERY_RANK[cur] ?? 0;
+  const b = DELIVERY_RANK[incoming] ?? 0;
+  return b > a;
+}
+
+async function replayEarlyDeliveryEvents(
+  // deno-lint-ignore no-explicit-any
+  supabaseAdmin: any,
+  providerMessageId: string,
+): Promise<void> {
+  const mid = String(providerMessageId ?? "").trim();
+  if (!mid) return;
+  const { data: reminder } = await supabaseAdmin
+    .from("appointment_whatsapp_reminders")
+    .select("appointment_id, delivery_status")
+    .eq("provider_message_id", mid)
+    .maybeSingle();
+  if (!reminder) return;
+  const { data: events } = await supabaseAdmin
+    .from("whatsapp_webhook_events")
+    .select("delivery_status, provider_timestamp, error_message")
+    .eq("provider_message_id", mid);
+  if (!events?.length) return;
+  const sorted = [...events].sort((a: { provider_timestamp?: string; delivery_status: string }, b: { provider_timestamp?: string; delivery_status: string }) => {
+    const ta = Number(a.provider_timestamp);
+    const tb = Number(b.provider_timestamp);
+    if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return ta - tb;
+    return DELIVERY_RANK[a.delivery_status] - DELIVERY_RANK[b.delivery_status];
+  });
+  let current = reminder.delivery_status as string | null;
+  for (const ev of sorted) {
+    const st = String(ev.delivery_status);
+    if (!shouldApplyDelivery(current, st)) continue;
+    const patch: Record<string, unknown> = {
+      delivery_status: st,
+      delivery_updated_at: new Date().toISOString(),
+      delivery_error: st === "failed" ? ev.error_message ?? null : null,
+    };
+    const { error } = await supabaseAdmin
+      .from("appointment_whatsapp_reminders")
+      .update(patch)
+      .eq("appointment_id", reminder.appointment_id)
+      .eq("provider_message_id", mid);
+    if (!error) current = st;
+  }
+}
+
+function classifyRetryable(httpStatus?: number, code?: number, aborted?: boolean, network?: boolean): boolean {
+  if (aborted || network) return false;
+  if (httpStatus === 429 || httpStatus === 500 || httpStatus === 502 || httpStatus === 503) return true;
+  if (code === 130429 || code === 131048 || code === 133016) return true;
+  return false;
+}
+
+function nextRetryIso(retryCount: number): string | null {
+  if (retryCount >= MAX_RETRIES) return null;
+  const idx = Math.min(retryCount, BACKOFF_MS.length - 1);
+  return new Date(Date.now() + BACKOFF_MS[idx]!).toISOString();
+}
+
+function extractGraphCode(payload: unknown): number | undefined {
+  const err =
+    payload && typeof payload === "object"
+      ? (payload as { error?: { code?: number } }).error
+      : undefined;
+  return typeof err?.code === "number" ? err.code : undefined;
+}
 
 async function sendWhatsAppTemplateMessage(params: {
   accessToken: string;
@@ -142,12 +226,21 @@ async function sendWhatsAppTemplateMessage(params: {
     > | null;
 
     if (!res.ok) {
-      return { ok: false, error: summarizeWhatsAppGraphError(json) };
+      const code = extractGraphCode(json);
+      return {
+        ok: false,
+        error: summarizeWhatsAppGraphError(json),
+        retryable: classifyRetryable(res.status, code),
+      };
     }
 
     const messages = json?.messages;
     if (!Array.isArray(messages) || messages.length === 0) {
-      return { ok: false, error: summarizeWhatsAppGraphError(json) };
+      return {
+        ok: false,
+        error: summarizeWhatsAppGraphError(json),
+        retryable: false,
+      };
     }
 
     const mid = (messages[0] as { id?: string })?.id ?? null;
@@ -159,6 +252,7 @@ async function sendWhatsAppTemplateMessage(params: {
       error: aborted
         ? "Timeout durante l'invio WhatsApp."
         : "Errore di rete durante l'invio WhatsApp.",
+      retryable: classifyRetryable(undefined, undefined, aborted, !aborted),
     };
   } finally {
     clearTimeout(t);
@@ -282,7 +376,11 @@ Deno.serve(async (req) => {
       else skipped += 1;
     };
 
-    const markFailed = async (message: string): Promise<void> => {
+    const markFailed = async (
+      message: string,
+      retryable: boolean,
+    ): Promise<void> => {
+      const canRetry = retryable && 0 < MAX_RETRIES;
       const { error: upErr } = await supabaseAdmin
         .from("appointment_whatsapp_reminders")
         .update({
@@ -290,6 +388,9 @@ Deno.serve(async (req) => {
           error_message: message.slice(0, 2000),
           phone: to,
           template_name: templateName || null,
+          retryable: canRetry,
+          retry_count: 0,
+          next_retry_at: canRetry ? nextRetryIso(0) : null,
         })
         .eq("appointment_id", appointmentId);
       if (upErr) console.error("[appointment-reminders] finalize failed", upErr);
@@ -311,6 +412,7 @@ Deno.serve(async (req) => {
     if (!templateName) {
       await markFailed(
         "Nome template reminder non configurato (salone né ambiente).",
+        false,
       );
       continue;
     }
@@ -336,7 +438,7 @@ Deno.serve(async (req) => {
     });
 
     if (!send.ok) {
-      await markFailed(send.error);
+      await markFailed(send.error, send.retryable === true);
       continue;
     }
 
@@ -349,6 +451,8 @@ Deno.serve(async (req) => {
         error_message: null,
         phone: to,
         template_name: templateName,
+        retryable: false,
+        next_retry_at: null,
       })
       .eq("appointment_id", appointmentId);
 
@@ -359,6 +463,221 @@ Deno.serve(async (req) => {
     }
 
     sent += 1;
+    if (send.providerMessageId) {
+      await replayEarlyDeliveryEvents(supabaseAdmin, send.providerMessageId);
+    }
+  }
+
+  // Retry controllato (stessa policy Next): solo failed recuperabili senza wamid.
+  let retrySent = 0;
+  let retrySkipped = 0;
+  let retryFailed = 0;
+  const nowIso = new Date().toISOString();
+  const { data: dueRetries } = await supabaseAdmin
+    .from("appointment_whatsapp_reminders")
+    .select(
+      "appointment_id, salon_id, scheduled_for, phone, template_name, retry_count, provider_message_id",
+    )
+    .eq("status", "failed")
+    .eq("retryable", true)
+    .is("provider_message_id", null)
+    .lte("next_retry_at", nowIso)
+    .lt("retry_count", MAX_RETRIES)
+    .order("next_retry_at", { ascending: true })
+    .limit(50);
+
+  for (const candidate of dueRetries ?? []) {
+    const retryCount = Number(candidate.retry_count ?? 0);
+    const leaseUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    // Claim atomico: evita doppio invio se Next ed Edge girano insieme.
+    const { data: claimed, error: claimErr } = await supabaseAdmin
+      .from("appointment_whatsapp_reminders")
+      .update({ next_retry_at: leaseUntil })
+      .eq("appointment_id", candidate.appointment_id)
+      .eq("status", "failed")
+      .eq("retryable", true)
+      .eq("retry_count", retryCount)
+      .is("provider_message_id", null)
+      .lte("next_retry_at", nowIso)
+      .lt("retry_count", MAX_RETRIES)
+      .select(
+        "appointment_id, salon_id, scheduled_for, phone, template_name, retry_count, provider_message_id",
+      )
+      .maybeSingle();
+
+    if (claimErr || !claimed) continue;
+
+    const row = claimed;
+    const appointmentId = row.appointment_id as number;
+    if (row.provider_message_id) {
+      await supabaseAdmin
+        .from("appointment_whatsapp_reminders")
+        .update({ retryable: false, next_retry_at: null })
+        .eq("appointment_id", appointmentId);
+      retrySkipped += 1;
+      continue;
+    }
+
+    const { data: appt } = await supabaseAdmin
+      .from("appointments")
+      .select("status, start_time, salon_id, customer_id")
+      .eq("id", appointmentId)
+      .maybeSingle();
+
+    if (!appt || String(appt.status).toLowerCase() !== "scheduled") {
+      await supabaseAdmin
+        .from("appointment_whatsapp_reminders")
+        .update({
+          status: "skipped",
+          error_message: "Appuntamento non più scheduled (retry).",
+          retryable: false,
+          next_retry_at: null,
+        })
+        .eq("appointment_id", appointmentId);
+      retrySkipped += 1;
+      continue;
+    }
+
+    const startMs = Date.parse(String(appt.start_time));
+    const scheduledMs = Date.parse(String(row.scheduled_for));
+    if (
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(scheduledMs) ||
+      Math.abs(startMs - scheduledMs) > 60_000 ||
+      startMs <= Date.now()
+    ) {
+      await supabaseAdmin
+        .from("appointment_whatsapp_reminders")
+        .update({
+          status: "skipped",
+          error_message: "Appuntamento modificato o trascorso (retry).",
+          retryable: false,
+          next_retry_at: null,
+        })
+        .eq("appointment_id", appointmentId);
+      retrySkipped += 1;
+      continue;
+    }
+
+    const { data: salonWa } = await supabaseAdmin
+      .from("salon_whatsapp_settings")
+      .select(
+        "is_enabled, appointment_reminder_enabled, phone_number_id, appointment_reminder_template_name, appointment_reminder_template_lang",
+      )
+      .eq("salon_id", appt.salon_id)
+      .maybeSingle();
+
+    if (
+      !salonWa?.is_enabled ||
+      salonWa.appointment_reminder_enabled === false ||
+      !String(salonWa.phone_number_id ?? "").trim()
+    ) {
+      await supabaseAdmin
+        .from("appointment_whatsapp_reminders")
+        .update({
+          status: "skipped",
+          error_message: "WhatsApp/reminder disattivati (retry).",
+          retryable: false,
+          next_retry_at: null,
+        })
+        .eq("appointment_id", appointmentId);
+      retrySkipped += 1;
+      continue;
+    }
+
+    const { data: customer } = await supabaseAdmin
+      .from("customers")
+      .select("first_name, phone")
+      .eq("id", appt.customer_id)
+      .maybeSingle();
+    const { data: salon } = await supabaseAdmin
+      .from("salons")
+      .select("name")
+      .eq("id", appt.salon_id)
+      .maybeSingle();
+
+    const to = normalizePhoneForWhatsAppTo(
+      String(customer?.phone ?? row.phone ?? ""),
+    );
+    if (!to) {
+      await supabaseAdmin
+        .from("appointment_whatsapp_reminders")
+        .update({
+          status: "skipped",
+          error_message: "Telefono non valido (retry).",
+          retryable: false,
+          next_retry_at: null,
+        })
+        .eq("appointment_id", appointmentId);
+      retrySkipped += 1;
+      continue;
+    }
+
+    const templateName =
+      String(salonWa.appointment_reminder_template_name ?? "").trim() ||
+      String(row.template_name ?? "").trim() ||
+      envTemplateName;
+    const templateLang =
+      String(salonWa.appointment_reminder_template_lang ?? "").trim() ||
+      envTemplateLang;
+    const startIso = String(appt.start_time);
+    const firstName = String(customer?.first_name ?? "").trim() || "Cliente";
+    const venue = String(salon?.name ?? "").trim() || "Salone";
+
+    const send = await sendWhatsAppTemplateMessage({
+      accessToken: token!,
+      phoneNumberId: String(salonWa.phone_number_id).trim(),
+      toDigits: to,
+      templateName,
+      templateLanguageCode: templateLang,
+      bodyParameters: [
+        firstName,
+        formatItDate(startIso),
+        formatItTime(startIso),
+        venue,
+      ],
+    });
+
+    const newRetryCount = retryCount + 1;
+    if (!send.ok) {
+      const canRetry = send.retryable === true && newRetryCount < MAX_RETRIES;
+      await supabaseAdmin
+        .from("appointment_whatsapp_reminders")
+        .update({
+          status: "failed",
+          error_message: send.error.slice(0, 2000),
+          phone: to,
+          template_name: templateName,
+          retryable: canRetry,
+          retry_count: newRetryCount,
+          next_retry_at: canRetry ? nextRetryIso(newRetryCount) : null,
+        })
+        .eq("appointment_id", appointmentId);
+      retryFailed += 1;
+      continue;
+    }
+
+    const { error: upErr } = await supabaseAdmin
+      .from("appointment_whatsapp_reminders")
+      .update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        provider_message_id: send.providerMessageId,
+        error_message: null,
+        phone: to,
+        template_name: templateName,
+        retryable: false,
+        next_retry_at: null,
+        scheduled_for: startIso,
+      })
+      .eq("appointment_id", appointmentId);
+    if (upErr) retryFailed += 1;
+    else {
+      retrySent += 1;
+      if (send.providerMessageId) {
+        await replayEarlyDeliveryEvents(supabaseAdmin, send.providerMessageId);
+      }
+    }
   }
 
   return new Response(
@@ -368,6 +687,12 @@ Deno.serve(async (req) => {
       sent,
       skipped,
       failed,
+      retry: {
+        processed: (dueRetries ?? []).length,
+        sent: retrySent,
+        skipped: retrySkipped,
+        failed: retryFailed,
+      },
     }),
     { status: 200, headers: { "Content-Type": "application/json" } },
   );

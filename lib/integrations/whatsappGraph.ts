@@ -2,6 +2,8 @@
 // Core WhatsApp Cloud API (Meta Graph): normalizzazione telefono + invio template.
 import "server-only";
 
+import { classifyWhatsAppGraphFailure } from "@/lib/whatsapp/appointmentReminderRetryPolicy";
+
 const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION?.trim() || "v21.0";
 
 /**
@@ -139,7 +141,14 @@ export type SendWhatsAppTemplateParams = {
 
 export type SendWhatsAppTemplateResult =
   | { ok: true; providerMessageId: string | null }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /** Solo se abbiamo una risposta HTTP/Meta esplicita tipicamente transient. */
+      retryable: boolean;
+      httpStatus?: number;
+      code?: number;
+    };
 
 export type SendWhatsAppTextParams = {
   accessToken: string;
@@ -297,7 +306,17 @@ export async function sendWhatsAppTemplateMessage(
         templateName: params.templateName,
         details,
       });
-      return { ok: false, error: details.message };
+      const cls = classifyWhatsAppGraphFailure({
+        httpStatus: res.status,
+        code: details.code,
+      });
+      return {
+        ok: false,
+        error: details.message,
+        retryable: cls.retryable,
+        httpStatus: res.status,
+        code: details.code,
+      };
     }
 
     const messages = json?.messages;
@@ -309,7 +328,13 @@ export async function sendWhatsAppTemplateMessage(
         templateName: params.templateName,
         details,
       });
-      return { ok: false, error: details.message };
+      return {
+        ok: false,
+        error: details.message,
+        retryable: false,
+        httpStatus: res.status,
+        code: details.code,
+      };
     }
 
     const mid = (messages[0] as { id?: string })?.id ?? null;
@@ -327,11 +352,16 @@ export async function sendWhatsAppTemplateMessage(
       template: params.templateName,
       aborted,
     });
+    const cls = classifyWhatsAppGraphFailure({
+      aborted,
+      networkWithoutResponse: !aborted,
+    });
     return {
       ok: false,
       error: aborted
         ? "Timeout durante l'invio WhatsApp."
         : "Errore di rete durante l'invio WhatsApp.",
+      retryable: cls.retryable,
     };
   } finally {
     clearTimeout(t);

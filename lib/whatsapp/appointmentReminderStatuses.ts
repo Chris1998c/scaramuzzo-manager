@@ -22,3 +22,13 @@ export function normalizeReminderStatusForDisplay(status: string): string {
   if (v === "processing") return "pending";
   return v;
 }
+
+/** Etichetta UI per accettazione Graph (distinta dalla consegna webhook). */
+export function graphReminderStatusLabel(status: string): string {
+  const v = normalizeReminderStatusForDisplay(status);
+  if (v === "sent") return "Accettato Graph";
+  if (v === "failed") return "Errore Graph";
+  if (v === "skipped") return "Saltato";
+  if (v === "pending") return "In coda";
+  return status || "—";
+}

@@ -355,7 +355,18 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
   const waReminderLog =
     salonId && macro === "cassa_audit" && cassaAuditSubtab === "whatsapp"
       ? await getWhatsAppReminderLog({ salonId, dateFrom, dateTo })
-      : { rows: [], totals: { sent: 0, failed: 0, skipped: 0, pending: 0 } };
+      : {
+          rows: [],
+          totals: {
+            sent: 0,
+            failed: 0,
+            skipped: 0,
+            pending: 0,
+            delivered: 0,
+            read: 0,
+            delivery_failed: 0,
+          },
+        };
 
   const directionReport =
     salonId && macro === "riepilogo" ? await getDirectionReport(salonId) : null;

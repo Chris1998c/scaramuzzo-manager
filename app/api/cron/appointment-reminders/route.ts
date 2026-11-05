@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   processAppointmentReminders,
+  retryFailedAppointmentReminders,
   type ReminderCandidateRow,
 } from "@/lib/integrations/appointmentReminderProcessor";
 
@@ -60,12 +61,25 @@ export async function POST(req: Request) {
     );
   }
 
-  const rows = (candidates ?? []) as ReminderCandidateRow[];
-  const result = await processAppointmentReminders(supabaseAdmin, rows, {
+  const env = {
     accessToken: token,
     defaultTemplateName: envTemplateName,
     defaultTemplateLang: envTemplateLang,
-  });
+  };
 
-  return NextResponse.json({ ok: true, ...result });
+  const rows = (candidates ?? []) as ReminderCandidateRow[];
+  const result = await processAppointmentReminders(supabaseAdmin, rows, env);
+  const retry = await retryFailedAppointmentReminders(supabaseAdmin, env);
+
+  return NextResponse.json({
+    ok: true,
+    ...result,
+    retry: {
+      processed: retry.processed,
+      sent: retry.sent,
+      skipped: retry.skipped,
+      failed: retry.failed,
+      retried: retry.retried ?? 0,
+    },
+  });
 }
