@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { checkPrintBridgeReachable } from "@/lib/printBridgeHealth";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { mapCassaStockRpcError } from "@/lib/cassa/cassaStockError";
+import { allocateSaleGlobalDiscount } from "@/lib/reports/allocateSaleGlobalDiscount";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -252,38 +253,24 @@ function buildFiscalSaleReceiptLines(args: {
   serviceNameById: Map<number, string>;
   productNameById: Map<number, string>;
 }): FiscalSaleReceiptLine[] {
-  const { computedItems, subtotal, globalDiscountAmount, finalTotal } = args;
-  const n = computedItems.length;
-  if (!n) return [];
+  const { computedItems, globalDiscountAmount, finalTotal } = args;
+  if (!computedItems.length) return [];
 
-  let sumGlobalShares = 0;
-  const globalShares: number[] = [];
-  for (let i = 0; i < n; i++) {
-    const c = computedItems[i];
-    if (i === n - 1) {
-      globalShares.push(round2(globalDiscountAmount - sumGlobalShares));
-    } else {
-      const share =
-        subtotal > 0 ? round2((c.net / subtotal) * globalDiscountAmount) : 0;
-      globalShares.push(share);
-      sumGlobalShares = round2(sumGlobalShares + share);
-    }
-  }
+  const allocated = allocateSaleGlobalDiscount({
+    lines: computedItems.map((c, index) => ({
+      price: c.unitPrice,
+      quantity: c.qty,
+      lineDiscount: c.lineDisc,
+      lineId: index,
+    })),
+    saleTotal: finalTotal,
+    explicitGlobal: globalDiscountAmount,
+  });
 
-  const lineTotals = computedItems.map((c, i) =>
-    round2(c.net - (globalShares[i] ?? 0))
-  );
-
-  const sumLines = round2(lineTotals.reduce((a, b) => a + b, 0));
-  const drift = round2(finalTotal - sumLines);
-  if (lineTotals.length && drift !== 0) {
-    const last = lineTotals.length - 1;
-    lineTotals[last] = round2(lineTotals[last] + drift);
-  }
-
+  // Quota globale già esclusa da lineTotalGross: niente secondo sconto sul payload bridge.
   return computedItems.map((c, i) => {
     const qty = c.qty;
-    const total = lineTotals[i] ?? 0;
+    const total = allocated.lines[i]?.lineTotalGross ?? 0;
     const unit_price = qty > 0 ? round2(total / qty) : round2(total);
     const fallback = c.kind === "service" ? "SERVIZIO" : "PRODOTTO";
     const raw =
