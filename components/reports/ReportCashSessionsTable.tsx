@@ -9,8 +9,8 @@ type CashSessionRow = {
   gross_total: number;
   gross_cash: number;
   gross_card: number;
-  declared_cash: number;
-  cash_difference: number;
+  declared_cash: number | null;
+  cash_difference: number | null;
 };
 
 function money(n: any) {
@@ -110,10 +110,16 @@ export default function ReportCashSessionsTable({
                     {money(r.gross_card)}
                   </td>
                   <td className={`${tdBase} ${tdSecondary} text-right`}>
-                    {r.declared_cash != null ? money(r.declared_cash) : "—"}
+                    {r.declared_cash != null
+                      ? money(r.declared_cash)
+                      : r.status === "closed"
+                        ? "non rilevato"
+                        : "—"}
                   </td>
                   <td className={`${tdBase} text-right`}>
-                    {Number.isFinite(Number(r.cash_difference)) && r.cash_difference !== 0 ? (
+                    {r.cash_difference != null &&
+                    Number.isFinite(r.cash_difference) &&
+                    r.cash_difference !== 0 ? (
                       <span
                         className={`font-bold ${
                           r.cash_difference > 0 ? "text-emerald-300" : "text-red-300"
@@ -121,6 +127,8 @@ export default function ReportCashSessionsTable({
                       >
                         {money(r.cash_difference)}
                       </span>
+                    ) : r.cash_difference == null && r.status === "closed" ? (
+                      <span className={tdSecondary}>non rilevato</span>
                     ) : (
                       <span className={tdSecondary}>—</span>
                     )}

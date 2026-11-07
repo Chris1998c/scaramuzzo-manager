@@ -43,4 +43,34 @@ describe("mapCashReportPdf", () => {
     expect(anomalies.some((a) => a.title.includes("aperte"))).toBe(true);
     expect(anomalies.some((a) => a.title.includes("Differenza"))).toBe(true);
   });
+
+  it("non tratta closing_cash assente come differenza zero", () => {
+    const payload = mapCashReportToPdfPayload({
+      salonName: "Roma",
+      salonId: 1,
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-23",
+      totals: { sessions: 1, gross_total: 220.2, gross_cash: 220.2, gross_card: 0 },
+      sessions: [
+        {
+          id: 15,
+          status: "closed",
+          opened_at: "2026-05-22T12:37:00",
+          closed_at: "2026-11-07T15:00:00",
+          gross_total: 220.2,
+          gross_cash: 220.2,
+          gross_card: 0,
+          declared_cash: null,
+          cash_difference: null,
+        },
+      ],
+    });
+    expect(payload.sessions[0]?.declared_cash).toBeNull();
+    expect(payload.sessions[0]?.cash_difference).toBeNull();
+    expect(
+      buildCashReportAnomalies([
+        { id: 15, status: "closed", declared_cash: null, cash_difference: null },
+      ]).some((a) => a.title.includes("Differenza")),
+    ).toBe(false);
+  });
 });

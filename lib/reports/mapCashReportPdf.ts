@@ -52,8 +52,8 @@ export function buildCashReportAnomalies(
   sessions: Array<{
     id?: unknown;
     status?: string;
-    declared_cash?: number;
-    cash_difference?: number;
+    declared_cash?: number | null;
+    cash_difference?: number | null;
   }>,
 ): CashAnomalyPdfRow[] {
   const out: CashAnomalyPdfRow[] = [];
@@ -66,9 +66,10 @@ export function buildCashReportAnomalies(
   }
 
   for (const s of sessions) {
+    if (s.declared_cash == null || s.cash_difference == null) continue;
     const declared = n(s.declared_cash);
     const diff = n(s.cash_difference);
-    if (declared > 0 && Math.abs(diff) >= 0.01) {
+    if (Math.abs(diff) >= 0.01) {
       const id = s.id != null ? String(s.id) : "?";
       out.push({
         title: `Differenza contanti · sessione ${id}`,
@@ -94,8 +95,8 @@ export function mapCashReportToPdfPayload(input: {
     gross_total?: number;
     gross_cash?: number;
     gross_card?: number;
-    declared_cash?: number;
-    cash_difference?: number;
+    declared_cash?: number | null;
+    cash_difference?: number | null;
   }>;
   totals: {
     sessions?: number;
@@ -106,10 +107,13 @@ export function mapCashReportToPdfPayload(input: {
 }): CashReportPdfPayload {
   const sessions = input.sessions.map((s) => {
     const opened = String(s.opened_at ?? "");
-    const declared = n(s.declared_cash);
-    const diffRaw = s.cash_difference;
-    const hasDeclared = declared > 0;
-    const diff = hasDeclared ? n(diffRaw) : null;
+    const hasDeclared =
+      s.declared_cash != null && Number.isFinite(Number(s.declared_cash));
+    const declared = hasDeclared ? n(s.declared_cash) : null;
+    const diff =
+      hasDeclared && s.cash_difference != null && Number.isFinite(Number(s.cash_difference))
+        ? n(s.cash_difference)
+        : null;
 
     return {
       session_label: sessionLabel(s.session_date, opened),
@@ -119,7 +123,7 @@ export function mapCashReportToPdfPayload(input: {
       gross_total: n(s.gross_total),
       gross_cash: n(s.gross_cash),
       gross_card: n(s.gross_card),
-      declared_cash: hasDeclared ? declared : null,
+      declared_cash: declared,
       cash_difference: diff,
     };
   });

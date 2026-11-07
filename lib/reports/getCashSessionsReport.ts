@@ -4,6 +4,7 @@ import {
   SALES_LEDGER_OPERATION_TYPE,
   SALES_LEDGER_STATUS,
 } from "@/lib/reports/ledgerSalesFilter";
+import { resolveCashDeclaredAndDiff } from "@/lib/reports/cashSessionDeclaredDiff";
 
 export type CashSessionsFilters = {
   salonId: number;
@@ -93,9 +94,11 @@ export async function getCashSessionsReport(filters: CashSessionsFilters) {
       }
     }
 
-    // differenze (se esistono campi)
-    const declaredCash = n(s.declared_cash ?? s.cash_counted ?? s.counted_cash);
-    const diffCash = declaredCash ? declaredCash - cash : n(s.cash_difference);
+    const { declared_cash, cash_difference } = resolveCashDeclaredAndDiff({
+      closingCash: s.closing_cash ?? s.declared_cash ?? s.cash_counted ?? s.counted_cash,
+      openingCash: s.opening_cash,
+      grossCash: cash,
+    });
 
     out.push({
       id: s.id,
@@ -107,8 +110,8 @@ export async function getCashSessionsReport(filters: CashSessionsFilters) {
       gross_total: gross,
       gross_cash: cash,
       gross_card: card,
-      declared_cash: declaredCash,
-      cash_difference: diffCash,
+      declared_cash,
+      cash_difference,
       status: closedAt ? "closed" : "open",
     });
   }
