@@ -92,13 +92,31 @@ export async function fetchInventarioCatalogPage(
     p_page_size: pageSize,
   });
 
-  if (error) throw error;
+  if (error) {
+    // Messaggio tecnico (code/hint) per i log; l'UI usa inventarioUserFacingMessage.
+    const detail = [error.message, error.code, error.details, error.hint]
+      .filter(Boolean)
+      .join(" | ");
+    throw new Error(detail || "list_inventario_catalog failed");
+  }
 
   const parsed = parseInventarioCatalogRpc(data);
   if (!parsed) {
     throw new Error("Risposta inventario non valida");
   }
   return parsed;
+}
+
+/** Messaggio chiaro per l'utente; i dettagli tecnici restano in console/log. */
+export function inventarioUserFacingMessage(e: unknown): string {
+  const technical = e instanceof Error ? e.message : String(e ?? "");
+  if (/accesso salone negato/i.test(technical)) {
+    return "Non hai accesso all’inventario di questo salone.";
+  }
+  if (/salon_id richiesto/i.test(technical)) {
+    return "Nessun salone selezionato: usa lo switcher in alto.";
+  }
+  return "Errore nel caricamento inventario. Riprova tra poco.";
 }
 
 /** Range PostgREST coerente con paginazione inventario (test helper). */

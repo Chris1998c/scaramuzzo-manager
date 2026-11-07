@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { LayoutList, ChevronUp, ChevronDown } from "lucide-react";
-import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { useMagazzinoSalonContext } from "@/hooks/useMagazzinoSalonContext";
 import {
   fetchInventarioCatalogPage,
   fetchInventarioCategories,
+  inventarioUserFacingMessage,
   INVENTARIO_PAGE_SIZE,
   INVENTARIO_SOTTOSORTA_THRESHOLD,
   type InventarioProductRow,
@@ -16,19 +17,9 @@ import {
 
 type Product = InventarioProductRow;
 
-// SOLO saloni veri: 1..MAGAZZINO_CENTRALE_ID (5)
-function isValidSalonId(n: unknown): n is number {
-  return (
-    typeof n === "number" &&
-    Number.isFinite(n) &&
-    n >= 1 &&
-    n <= MAGAZZINO_CENTRALE_ID
-  );
-}
-
 export default function InventarioPage() {
   const supabase = useMemo(() => createClient(), []);
-  const { role, activeSalonId, allowedSalons, isReady, receptionSalonId } = useActiveSalon();
+  const { isReady, isWarehouse, ctxSalonId, salonName } = useMagazzinoSalonContext();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState("");
@@ -44,26 +35,7 @@ export default function InventarioPage() {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  const isWarehouse = role === "magazzino" || role === "coordinator";
-
-  // ctxSalonId: warehouse = switcher; reception = receptionSalonId (staff.salon_id)
-  const ctxSalonId: number | null = (() => {
-    if (!isReady) return null;
-
-    if (isWarehouse) {
-      const v = isValidSalonId(activeSalonId) ? activeSalonId : MAGAZZINO_CENTRALE_ID;
-      return v;
-    }
-
-    return isValidSalonId(receptionSalonId) ? receptionSalonId : null;
-  })();
-
   const canCarico = isWarehouse && ctxSalonId === MAGAZZINO_CENTRALE_ID;
-
-  const salonName =
-    ctxSalonId == null
-      ? "—"
-      : allowedSalons.find((s) => s.id === ctxSalonId)?.name ?? `Salone ${ctxSalonId}`;
 
   useEffect(() => {
     if (!isReady) return;
@@ -109,13 +81,13 @@ export default function InventarioPage() {
         setSottoscortaCount(result.sottoscortaCount);
         setPageCount(result.pageCount);
       } catch (e: unknown) {
-        console.error(e);
+        console.error("[inventario]", e);
         if (!cancelled) {
           setProducts([]);
           setTotalCount(0);
           setSottoscortaCount(0);
           setPageCount(1);
-          setErrMsg(e instanceof Error ? e.message : "Errore nel caricamento inventario.");
+          setErrMsg(inventarioUserFacingMessage(e));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -263,8 +235,8 @@ export default function InventarioPage() {
                   setSottoscortaCount(result.sottoscortaCount);
                   setPageCount(result.pageCount);
                 } catch (e: unknown) {
-                  console.error(e);
-                  setErrMsg(e instanceof Error ? e.message : "Errore aggiornamento inventario.");
+                  console.error("[inventario]", e);
+                  setErrMsg(inventarioUserFacingMessage(e));
                 } finally {
                   setLoading(false);
                 }

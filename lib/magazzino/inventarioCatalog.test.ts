@@ -4,6 +4,7 @@ import {
   INVENTARIO_PAGE_SIZE,
   fetchInventarioCatalogPage,
   inventarioCatalogRange,
+  inventarioUserFacingMessage,
   parseInventarioCatalogRpc,
 } from "./inventarioCatalog";
 
@@ -85,4 +86,39 @@ describe("fetchInventarioCatalogPage", () => {
     });
     expect(page.rows[0]?.barcode).toBe("8001234567890");
   });
+
+  it("throws technical PostgREST detail for logs", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: 'relation "base" does not exist', code: "42P01" },
+    });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    await expect(
+      fetchInventarioCatalogPage(supabase, 1, {
+        search: "",
+        category: "",
+        sottoscortaOnly: false,
+        page: 1,
+      }),
+    ).rejects.toThrow(/relation "base" does not exist.*42P01/);
+  });
 });
+
+describe("inventarioUserFacingMessage", () => {
+  it("maps access denial to a clear Italian message", () => {
+    expect(
+      inventarioUserFacingMessage(
+        new Error("list_inventario_catalog: accesso salone negato | P0001"),
+      ),
+    ).toBe("Non hai accesso all’inventario di questo salone.");
+  });
+
+  it("hides raw Postgres noise behind a generic clear message", () => {
+    expect(
+      inventarioUserFacingMessage(new Error('relation "base" does not exist | 42P01')),
+    ).toBe("Errore nel caricamento inventario. Riprova tra poco.");
+  });
+});
+
+
