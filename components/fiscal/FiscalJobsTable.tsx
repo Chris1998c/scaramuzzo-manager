@@ -1,11 +1,10 @@
 import type { FiscalPrintJobDashboardRow } from "@/lib/fiscal/fetchFiscalPrintJobsDashboard";
 import FiscalJobRowActions from "@/components/fiscal/FiscalJobRowActions";
+import { formatRomeDateTime } from "@/lib/datetime/formatRomeInstant";
 
+/** Orario job Manager (timestamptz) in Europe/Rome — distinto dall'ora Epson sul documento. */
 function formatDateTime(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString("it-IT");
+  return formatRomeDateTime(value);
 }
 
 function StatusBadge({ status }: { status: string }) {

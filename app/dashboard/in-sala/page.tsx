@@ -10,6 +10,8 @@ import WalkInModal from "@/components/in-sala/WalkInModal";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { LogOut } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/ui/ConfirmActionDialog";
+import { formatRomeTimeHHmm } from "@/lib/datetime/formatRomeInstant";
+
 type CashStatus = {
   ok: boolean;
   role?: "reception" | "coordinator" | "magazzino" | string;
@@ -74,6 +76,7 @@ export default function InSalaPage() {
     return v.toFixed(2);
   }
 
+  /** Orari agenda: wall clock già in Europe/Rome nel DB (no shift UTC). */
   function timeHHmm(iso: unknown) {
     const s = String(iso || "");
     return s.length >= 16 ? s.slice(11, 16) : "—";
@@ -398,7 +401,7 @@ export default function InSalaPage() {
               ) : (
                 <p className="text-sm text-white/60">
                   {cash?.session?.opened_at
-                    ? `Aperta alle ${timeHHmm(cash.session.opened_at)}`
+                    ? `Aperta alle ${formatRomeTimeHHmm(cash.session.opened_at)}`
                     : isCassaOpen
                       ? "Cassa operativa."
                       : "Apri la cassa per abilitare le vendite."}
