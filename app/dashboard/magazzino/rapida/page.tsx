@@ -117,32 +117,32 @@ export default function RapidaPage() {
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white space-y-6">
       {/* HERO */}
-      <div className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
+      <div className="rounded-3xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 md:p-7 bg-black/20 border-b border-white/10">
           <div className="flex items-start gap-4">
             <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
               <Zap className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+              <div className="text-xs font-medium text-white/50 mb-1">
                 Magazzino
               </div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
                 Scarico rapido
               </h1>
               <p className="text-white/60 mt-1">
-                Cerca e scarica −1 dalla giacenza di{" "}
+ Cerca e scarica −1 dalla giacenza di{" "}
                 <span className="font-semibold text-white/90">{salonName}</span>
               </p>
               <p className="text-white/50 text-sm mt-1">
-                {isWarehouse
-                  ? "Cambia salone dallo switcher in alto."
-                  : "Scarico dal tuo salone."}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/dashboard/magazzino"
+ {isWarehouse
+ ? null
+ : "Scarico dal tuo salone."}
+ </p>
+ </div>
+ </div>
+ <Link
+ href="/dashboard/magazzino"
             className="shrink-0 self-start sm:self-center inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
           >
             <ArrowLeft size={18} />
@@ -153,16 +153,16 @@ export default function RapidaPage() {
 
       {/* SEARCH */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
-        <div className="text-[10px] font-black uppercase tracking-wider text-white/50">
+        <div className="text-xs font-medium text-white/50">
           Cerca prodotto
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             className="flex-1 min-w-0 p-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder:text-white/40 focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
-            placeholder="Nome o barcode…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && search()}
+ placeholder="Nome o barcode…"
+ value={query}
+ onChange={(e) => setQuery(e.target.value)}
+ onKeyDown={(e) => e.key === "Enter" && search()}
           />
           <button
             onClick={search}
@@ -178,9 +178,9 @@ export default function RapidaPage() {
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex gap-3 items-start">
             <AlertCircle className="text-amber-400 shrink-0 mt-0.5" size={20} />
             <div className="text-sm text-amber-200/90">
-              {isReception
-                ? "Nessun salone associato al tuo account. Contatta l'amministratore."
-                : "Nessun salone selezionato. Usa lo switcher in alto."}
+ {isReception
+ ? "Nessun salone associato al tuo account. Contatta l'amministratore."
+ : "Nessun salone selezionato. Usa lo switcher in alto."}
             </div>
           </div>
         )}
@@ -189,7 +189,7 @@ export default function RapidaPage() {
       {/* RESULTS */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="p-4 md:p-5 border-b border-white/10">
-          <div className="text-[10px] font-black uppercase tracking-wider text-white/50">
+          <div className="text-xs font-medium text-white/50">
             Risultati
           </div>
         </div>
@@ -215,11 +215,11 @@ export default function RapidaPage() {
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-white truncate">{p.name}</p>
                       <p className="text-xs text-white/50 mt-0.5">
-                        {p.quantity} disponibili
-                      </p>
-                    </div>
-                    <button
-                      type="button"
+ {p.quantity} disponibili
+ </p>
+ </div>
+ <button
+ type="button"
                       disabled={!canScarica}
                       onClick={() => scarica(p.product_id)}
                       className="shrink-0 inline-flex items-center justify-center gap-1.5 min-w-[4.5rem] px-4 py-2.5 rounded-xl bg-red-600/90 hover:bg-red-600 text-white font-semibold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -248,14 +248,14 @@ export default function RapidaPage() {
                 <Search className="text-white/30" size={32} strokeWidth={1.5} />
               </div>
               <p className="text-white/60 font-medium">
-                {salonId && query.trim()
-                  ? "Nessun prodotto trovato per questa ricerca."
-                  : salonId
-                    ? "Inserisci un termine e clicca Cerca."
-                    : "Seleziona un salone per cercare."}
+ {salonId && query.trim()
+ ? "Nessun prodotto trovato per questa ricerca."
+ : salonId
+ ? "Inserisci un termine e clicca Cerca."
+ : "Seleziona un salone per cercare."}
               </p>
               <p className="text-white/40 text-sm mt-1">
-                {salonId && !query.trim() && "La ricerca filtra per nome prodotto."}
+ {salonId && !query.trim() && "La ricerca filtra per nome prodotto."}
               </p>
             </div>
           )}

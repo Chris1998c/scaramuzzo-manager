@@ -313,7 +313,7 @@ function ScaricoInner() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7 backdrop-blur-md shadow-[0_0_60px_rgba(0,0,0,0.25)]"
+        className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7 backdrop-blur-md"
       >
         <div className="flex items-start gap-4">
           <div className="shrink-0 rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
@@ -328,17 +328,17 @@ function ScaricoInner() {
                   Scarico — {titleSalon}
                 </h1>
                 <p className="text-[#c9b299] mt-2 max-w-2xl">
-                  {role === "magazzino" || role === "coordinator"
-                    ? "Scarica quantità dalla giacenza del salone attualmente in vista (header)."
-                    : "Scarica quantità dalla giacenza del tuo salone."}
+ {role === "magazzino" || role === "coordinator"
+ ? "Scarica quantità dalla giacenza del salone attualmente in vista (header)."
+ : "Scarica quantità dalla giacenza del tuo salone."}
                 </p>
               </div>
 
               <button
                 onClick={() => router.back()}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-                  bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
-                  hover:border-[var(--accent)] transition"
+ bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
+ hover:border-[var(--accent)] transition"
               >
                 <ArrowLeft size={18} />
                 Indietro
@@ -376,12 +376,12 @@ function ScaricoInner() {
               <div className="mt-4 relative">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60"
-                  size={18}
-                />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Cerca prodotto..."
+ size={18}
+ />
+ <input
+ value={search}
+ onChange={(e) => setSearch(e.target.value)}
+ placeholder="Cerca prodotto..."
                   className="w-full pl-10 pr-4 py-3 rounded-xl border bg-white"
                 />
               </div>
@@ -403,7 +403,7 @@ function ScaricoInner() {
                       <div className="min-w-0">
                         <div className="text-[#f3d8b6] font-extrabold truncate">{p.name}</div>
                         <div className="text-[#c9b299] text-sm opacity-90">
-                          {p.category ?? "—"} • {p.barcode ?? "—"}
+ {p.category ?? "—"} • {p.barcode ?? "—"}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
@@ -442,13 +442,13 @@ function ScaricoInner() {
                 <div className="flex items-center justify-between gap-3">
                   <span>Categoria</span>
                   <span className="text-[#f3d8b6] font-semibold">
-                    {product.category ?? "—"}
+ {product.category ?? "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span>Barcode</span>
                   <span className="text-[#f3d8b6] font-semibold">
-                    {product.barcode ?? "—"}
+ {product.barcode ?? "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
@@ -470,8 +470,8 @@ function ScaricoInner() {
             <div className="lg:col-span-2 rounded-2xl bg-[#FFF9F4] border border-black/5 p-6 text-[#341A09]">
               <div>
                 <label className="font-extrabold block mb-2">Quantità da scaricare</label>
-                <input
-                  type="number"
+ <input
+ type="number"
                   min={1}
                   max={Math.max(1, product.quantity)}
                   value={qty}
@@ -489,7 +489,7 @@ function ScaricoInner() {
                 <button
                   onClick={() => router.back()}
                   className="px-6 py-3 rounded-xl bg-black/10 border border-black/10 text-[#341A09]
-                    hover:bg-black/15 transition"
+ hover:bg-black/15 transition"
                 >
                   Annulla
                 </button>
@@ -498,10 +498,10 @@ function ScaricoInner() {
                   onClick={handleScarico}
                   disabled={disabled}
                   className="px-6 py-3 rounded-xl bg-red-600 text-white font-extrabold
-                    shadow-[0_10px_35px_rgba(220,38,38,0.25)]
-                    disabled:opacity-40 disabled:shadow-none"
-                >
-                  {submitting ? "Scaricamento…" : "Conferma Scarico"}
+ shadow-[0_10px_35px_rgba(220,38,38,0.25)]
+ disabled:opacity-40 disabled:shadow-none"
+ >
+ {submitting ? "Scaricamento…" : "Conferma Scarico"}
                 </button>
               </div>
             </div>

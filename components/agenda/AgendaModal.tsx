@@ -328,7 +328,7 @@ useEffect(() => {
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-2xl rounded-[2.5rem] border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-2xl rounded-[2.5rem] border border-white/10 bg-scz-dark overflow-hidden flex flex-col max-h-[92vh]"
       >
         {/* HEADER */}
         <div className="px-8 py-6 border-b border-white/10 flex justify-between items-center bg-black/20">
@@ -375,17 +375,17 @@ useEffect(() => {
           {/* Cliente */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-[#f3d8b6] font-extrabold text-sm uppercase tracking-wider">
-              <User size={18} /> Cliente
-            </div>
+ <User size={18} /> Cliente
+ </div>
 
-            <CustomerSearchField
-              supabase={supabase}
-              enabled={isOpen && !!activeSalonId}
-              preloadSalonId={activeSalonId}
-              selectedCustomerId={customerId}
-              onSelectCustomerId={setCustomerId}
-              disabled={saving}
-              dropdownZIndexClass="z-[140]"
+ <CustomerSearchField
+ supabase={supabase}
+ enabled={isOpen && !!activeSalonId}
+ preloadSalonId={activeSalonId}
+ selectedCustomerId={customerId}
+ onSelectCustomerId={setCustomerId}
+ disabled={saving}
+ dropdownZIndexClass="z-[140]"
             />
           </div>
 
@@ -407,12 +407,12 @@ useEffect(() => {
             <div className="relative">
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"
-                size={16}
-              />
-              <input
-                value={qService}
-                onChange={(e) => setQService(e.target.value)}
-                placeholder="Cerca servizio per nome..."
+ size={16}
+ />
+ <input
+ value={qService}
+ onChange={(e) => setQService(e.target.value)}
+ placeholder="Cerca servizio per nome..."
                 className="w-full rounded-2xl bg-black/40 border border-white/10 pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
               />
             </div>
@@ -424,10 +424,10 @@ useEffect(() => {
                   Servizi selezionati
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {serviceTimeline.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
+ {serviceTimeline.map((item) => (
+ <button
+ key={item.id}
+ type="button"
                       onClick={() => toggleService(item.id)}
                       className="group inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] text-white/80 hover:bg-white/10 transition-colors"
                     >
@@ -468,9 +468,9 @@ useEffect(() => {
                     >
                       <div
                         className="w-1.5 h-10 rounded-full shrink-0 opacity-90"
-                        style={{
-                          backgroundColor:
-                            String(s.color_code ?? "#a8754f").trim() || "#a8754f",
+ style={{
+ backgroundColor:
+ String(s.color_code ?? "#a8754f").trim() || "#a8754f",
                         }}
                       />
                       <div className="min-w-0">
@@ -478,12 +478,12 @@ useEffect(() => {
                           {s.name}
                         </p>
                         <p className="text-[11px] text-white/50">{s.duration} min</p>
-                      </div>
-                    </button>
+ </div>
+ </button>
 
-                    {active && (
-                      <select
-                        value={serviceAssignments[s.id] || ""}
+ {active && (
+ <select
+ value={serviceAssignments[s.id] || ""}
                         onChange={(e) =>
                           setServiceAssignments((p) => ({
                             ...p,
@@ -491,24 +491,24 @@ useEffect(() => {
                           }))
                         }
                         className="bg-black/40 border border-white/15 rounded-xl px-2 py-1 text-[11px] text-[#f3d8b6] max-w-[130px] outline-none focus:border-[#f3d8b6]/50"
-                      >
-                        <option value="">Auto</option>
-                        {staffListForDay.map((st) => (
-                          <option key={st.id} value={st.id}>
-                            {staffSelectLabelForOperationalDate(
-                              st.name,
-                              st.id,
-                              staffScheduleMap,
-                              currentDate,
-                              operationalSnapshot,
-                            )}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+ >
+ <option value="">Auto</option>
+ {staffListForDay.map((st) => (
+ <option key={st.id} value={st.id}>
+ {staffSelectLabelForOperationalDate(
+ st.name,
+ st.id,
+ staffScheduleMap,
+ currentDate,
+ operationalSnapshot,
+ )}
+ </option>
+ ))}
+ </select>
+ )}
 
-                    <button
-                      type="button"
+ <button
+ type="button"
                       onClick={() => toggleService(s.id)}
                       className={`ml-1 rounded-xl border px-2.5 py-2 text-xs flex items-center justify-center ${
                         active
@@ -545,7 +545,7 @@ useEffect(() => {
           <div>
             <textarea
               className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/30"
-              placeholder="Note..."
+ placeholder="Note..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -558,8 +558,8 @@ useEffect(() => {
             disabled={saving || salonClosed}
             onClick={createAppointment}
             className="flex-1 bg-[#f3d8b6] text-black font-black py-4 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? "Salvataggio..." : salonClosed ? "Giorno chiuso" : "Conferma"}
+ >
+ {saving ? "Salvataggio..." : salonClosed ? "Giorno chiuso" : "Conferma"}
           </button>
 
           <button

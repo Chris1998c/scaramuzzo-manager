@@ -820,102 +820,102 @@ export default function MarketingWhatsAppClient({
     return (
       <div className="flex items-center gap-2 text-[#c9b299]">
         <Loader2 className="animate-spin" size={18} />
-        Caricamento contesto salone…
-      </div>
-    );
-  }
+ Caricamento contesto salone…
+ </div>
+ );
+ }
 
-  if (!canAccessMarketingWeb(role)) return null;
+ if (!canAccessMarketingWeb(role)) return null;
 
-  const isCentrale = salonId === MAGAZZINO_CENTRALE_ID;
+ const isCentrale = salonId === MAGAZZINO_CENTRALE_ID;
 
-  const emptyBecauseFilter =
-    loadState === "ready" &&
-    customers.length > 0 &&
-    afterFilter.length === 0 &&
-    !search.trim();
+ const emptyBecauseFilter =
+ loadState === "ready" &&
+ customers.length > 0 &&
+ afterFilter.length === 0 &&
+ !search.trim();
 
-  const emptyBecauseSearch =
-    loadState === "ready" && afterFilter.length > 0 && filtered.length === 0;
+ const emptyBecauseSearch =
+ loadState === "ready" && afterFilter.length > 0 && filtered.length === 0;
 
-  function applyPreparedSelection(preset: ClientFilterPreset, nextMessage: string) {
-    setFilterPreset(preset);
-    const ids = applyPreset(customers, preset)
-      .filter((c) => c.marketingWhatsappOptIn)
-      .map((c) => c.id);
-    setSelected(new Set(ids));
-    setMessageBeforeAi(null);
-    setAiCopyError(null);
-    setMessageQualityIssues(null);
-    setMessage(nextMessage);
-    requestAnimationFrame(() => {
-      const el = messageTextareaRef.current;
-      if (!el) return;
-      el.focus({ preventScroll: false });
-      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
-  }
+ function applyPreparedSelection(preset: ClientFilterPreset, nextMessage: string) {
+ setFilterPreset(preset);
+ const ids = applyPreset(customers, preset)
+ .filter((c) => c.marketingWhatsappOptIn)
+ .map((c) => c.id);
+ setSelected(new Set(ids));
+ setMessageBeforeAi(null);
+ setAiCopyError(null);
+ setMessageQualityIssues(null);
+ setMessage(nextMessage);
+ requestAnimationFrame(() => {
+ const el = messageTextareaRef.current;
+ if (!el) return;
+ el.focus({ preventScroll: false });
+ el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+ });
+ }
 
-  function applySegmentSuggestion(hint: (typeof SEGMENT_HINTS)[number]) {
-    applyPreparedSelection(hint.key, hint.message);
-  }
+ function applySegmentSuggestion(hint: (typeof SEGMENT_HINTS)[number]) {
+ applyPreparedSelection(hint.key, hint.message);
+ }
 
-  async function handleImproveMessage() {
-    if (!aiCopyAssistAvailable) {
-      setAiCopyError(
-        "Assistente testo non disponibile su questo ambiente. Serve la configurazione lato server.",
-      );
-      return;
-    }
-    const draft = message.trim();
-    if (!draft || isCentrale) return;
-    setAiCopyError(null);
-    setAiCopyLoading(true);
-    try {
-      const hint = SEGMENT_HINTS.find((h) => h.key === filterPreset);
-      const label =
-        FILTER_OPTIONS.find((f) => f.key === filterPreset)?.label ?? filterPreset;
-      const segmentTitle = hint?.title ?? label;
-      const goal = hint?.goal ?? "";
-      const salonName =
-        (salonId != null &&
-          allowedSalons.find((s) => s.id === salonId)?.name?.trim()) ||
-        "";
+ async function handleImproveMessage() {
+ if (!aiCopyAssistAvailable) {
+ setAiCopyError(
+ "Assistente testo non disponibile su questo ambiente. Serve la configurazione lato server.",
+ );
+ return;
+ }
+ const draft = message.trim();
+ if (!draft || isCentrale) return;
+ setAiCopyError(null);
+ setAiCopyLoading(true);
+ try {
+ const hint = SEGMENT_HINTS.find((h) => h.key === filterPreset);
+ const label =
+ FILTER_OPTIONS.find((f) => f.key === filterPreset)?.label ?? filterPreset;
+ const segmentTitle = hint?.title ?? label;
+ const goal = hint?.goal ?? "";
+ const salonName =
+ (salonId != null &&
+ allowedSalons.find((s) => s.id === salonId)?.name?.trim()) ||
+ "";
 
-      const res = await fetch("/api/marketing/ai-copy-assist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: draft,
-          filterPreset,
-          segmentTitle,
-          goal,
-          salonName,
-        }),
-      });
-      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-      if (!res.ok) {
-        const err =
-          typeof json?.error === "string" && json.error.trim()
-            ? json.error
-            : `Errore ${res.status}`;
-        setAiCopyError(err);
-        return;
-      }
-      const improved =
-        typeof json?.improvedMessage === "string" ? json.improvedMessage.trim() : "";
-      if (!improved) {
-        setAiCopyError("Testo migliorato vuoto. Riprova.");
-        return;
-      }
-      const capped = improved.slice(0, 4096);
-      setMessageBeforeAi(message);
-      setMessage(capped);
-      setMessageQualityIssues(null);
-      requestAnimationFrame(() => messageTextareaRef.current?.focus());
-    } catch (e) {
-      console.error(e);
-      setAiCopyError("Errore di rete.");
+ const res = await fetch("/api/marketing/ai-copy-assist", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ message: draft,
+ filterPreset,
+ segmentTitle,
+ goal,
+ salonName,
+ }),
+ });
+ const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+ if (!res.ok) {
+ const err =
+ typeof json?.error === "string" && json.error.trim()
+ ? json.error
+ : `Errore ${res.status}`;
+ setAiCopyError(err);
+ return;
+ }
+ const improved =
+ typeof json?.improvedMessage === "string" ? json.improvedMessage.trim() : "";
+ if (!improved) {
+ setAiCopyError("Testo migliorato vuoto. Riprova.");
+ return;
+ }
+ const capped = improved.slice(0, 4096);
+ setMessageBeforeAi(message);
+ setMessage(capped);
+ setMessageQualityIssues(null);
+ requestAnimationFrame(() => messageTextareaRef.current?.focus());
+ } catch (e) {
+ console.error(e);
+ setAiCopyError("Errore di rete.");
     } finally {
       setAiCopyLoading(false);
     }
@@ -957,8 +957,8 @@ export default function MarketingWhatsAppClient({
                     <span className="text-xs text-[#c9b299]">{count} clienti</span>
                   </div>
                   <p className="text-xs text-[#c9b299] leading-relaxed">{action.description}</p>
-                  <button
-                    type="button"
+ <button
+ type="button"
                     onClick={() => applyPreparedSelection(action.key, action.message)}
                     disabled={count === 0 || showSendReview}
                     className="mt-3 inline-flex items-center rounded-xl border border-[#f3d8b6]/35 bg-[#f3d8b6]/10 px-3 py-1.5 text-xs font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/20 transition disabled:opacity-45 disabled:pointer-events-none"
@@ -973,21 +973,21 @@ export default function MarketingWhatsAppClient({
           <h2 className="text-lg font-bold text-[#f3d8b6] mb-3">Suggerimenti operativi</h2>
 
           <div className="grid sm:grid-cols-2 gap-3">
-            {SEGMENT_HINTS.map((hint) => {
-              const count = segmentEligibleCounts[hint.key] ?? 0;
-              if (count === 0) return null;
+ {SEGMENT_HINTS.map((hint) => {
+ const count = segmentEligibleCounts[hint.key] ?? 0;
+ if (count === 0) return null;
 
-              return (
-                <div
-                  key={hint.key}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    if (showSendReview) return;
-                    applySegmentSuggestion(hint);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
+ return (
+ <div
+ key={hint.key}
+ role="button"
+ tabIndex={0}
+ onClick={() => {
+ if (showSendReview) return;
+ applySegmentSuggestion(hint);
+ }}
+ onKeyDown={(e) => {
+ if (e.key === "Enter" || e.key === "") {
                       e.preventDefault();
                       if (showSendReview) return;
                       applySegmentSuggestion(hint);
@@ -1027,20 +1027,20 @@ export default function MarketingWhatsAppClient({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-bold text-[#f3d8b6]">Clienti</h2>
             <span className="text-xs text-white/45">
-              {selected.size} selezionati (solo con consenso) · {sortedRows.length} visibili ·{" "}
+ {selected.size} selezionati (solo con consenso) · {sortedRows.length} visibili ·{" "}
               {customers.length} nel salone
             </span>
           </div>
 
           <div className="flex flex-wrap gap-2 items-center">
-            {FILTER_OPTIONS.map(({ key, label }) => {
-              const active = filterPreset === key;
-              const n = segmentCounts[key];
-              const ne = segmentEligibleCounts[key];
-              return (
-                <button
-                  key={key}
-                  type="button"
+ {FILTER_OPTIONS.map(({ key, label }) => {
+ const active = filterPreset === key;
+ const n = segmentCounts[key];
+ const ne = segmentEligibleCounts[key];
+ return (
+ <button
+ key={key}
+ type="button"
                   onClick={() => setFilterPreset(key)}
                   disabled={showSendReview}
                   className={[
@@ -1062,19 +1062,19 @@ export default function MarketingWhatsAppClient({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="marketing-sort" className="text-[10px] font-bold uppercase text-white/45 shrink-0">
-              Ordina
-            </label>
-            <select
-              id="marketing-sort"
+ <label htmlFor="marketing-sort" className="text-[10px] font-bold uppercase text-white/45 shrink-0">
+ Ordina
+ </label>
+ <select
+ id="marketing-sort"
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as MarketingSortMode)}
               className="rounded-xl border border-white/10 bg-black/30 py-2 px-3 text-xs text-[#e8dcc8] outline-none focus:border-[#f3d8b6]/40 max-w-full"
-            >
-              <option value="default">Predefinito (rubrica)</option>
-              <option value="last_visit_asc">Ultima visita più vecchia</option>
-              <option value="spend_desc">Spesa più alta</option>
-              <option value="appointments_desc">Più appuntamenti</option>
+ >
+ <option value="default">Predefinito (rubrica)</option>
+ <option value="last_visit_asc">Ultima visita più vecchia</option>
+ <option value="spend_desc">Spesa più alta</option>
+ <option value="appointments_desc">Più appuntamenti</option>
             </select>
           </div>
 
@@ -1082,29 +1082,29 @@ export default function MarketingWhatsAppClient({
             <Search
               size={16}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35"
-            />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cerca nome o telefono…"
+ />
+ <input
+ type="search"
+ value={search}
+ onChange={(e) => setSearch(e.target.value)}
+ placeholder="Cerca nome o telefono…"
               className="w-full rounded-xl border border-white/10 bg-black/30 py-2.5 pl-9 pr-3 text-sm text-[#e8dcc8] placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40"
             />
           </div>
 
           <div className="flex items-center justify-between gap-2 text-xs">
-            <button
-              type="button"
+ <button
+ type="button"
               onClick={toggleAllVisible}
               disabled={showSendReview}
               className="text-[#f3d8b6]/90 underline-offset-2 hover:underline disabled:opacity-45 disabled:pointer-events-none"
-            >
-              {filtered.length &&
-              filtered.every((c) => selected.has(c.id))
-                ? "Deseleziona visibili"
-                : "Seleziona visibili"}
-            </button>
-            {loadState === "loading" ? (
+ >
+ {filtered.length &&
+ filtered.every((c) => selected.has(c.id))
+ ? "Deseleziona visibili"
+ : "Seleziona visibili"}
+ </button>
+ {loadState === "loading" ? (
               <span className="inline-flex items-center gap-1 text-white/45">
                 <Loader2 size={14} className="animate-spin" /> Caricamento…
               </span>
@@ -1117,7 +1117,7 @@ export default function MarketingWhatsAppClient({
 
           <div className="max-h-[min(420px,50vh)] overflow-auto rounded-xl border border-white/10">
             <table className="w-full text-left text-sm">
-              <thead className="sticky top-0 z-[1] bg-[#1a1510] text-[10px] font-black uppercase tracking-wider text-white/45">
+              <thead className="sticky top-0 z-[1] bg-[#1a1510] text-xs font-medium text-white/45">
                 <tr>
                   <th className="w-10 px-2 py-2" aria-label="Seleziona" />
                   <th className="px-2 py-2">Cliente</th>
@@ -1132,13 +1132,13 @@ export default function MarketingWhatsAppClient({
                 {sortedRows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-3 py-8 text-center text-[#c9b299]">
-                      {loadState === "ready" && customers.length === 0
-                        ? "Nessun cliente con storico in questo salone."
-                        : emptyBecauseFilter
-                          ? "Nessun cliente corrisponde al filtro selezionato."
-                          : emptyBecauseSearch
-                            ? "Nessun risultato per la ricerca."
-                            : "Nessun risultato."}
+ {loadState === "ready" && customers.length === 0
+ ? "Nessun cliente con storico in questo salone."
+ : emptyBecauseFilter
+ ? "Nessun cliente corrisponde al filtro selezionato."
+ : emptyBecauseSearch
+ ? "Nessun risultato per la ricerca."
+ : "Nessun risultato."}
                     </td>
                   </tr>
                 ) : (
@@ -1148,14 +1148,14 @@ export default function MarketingWhatsAppClient({
                       className="border-t border-white/5 hover:bg-white/[0.03]"
                     >
                       <td className="px-2 py-2 align-middle">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(c.id)}
-                          disabled={showSendReview || !c.marketingWhatsappOptIn}
-                          title={
-                            c.marketingWhatsappOptIn
-                              ? undefined
-                              : "Attiva il consenso marketing in Clienti → scheda anagrafica."
+ <input
+ type="checkbox"
+ checked={selected.has(c.id)}
+ disabled={showSendReview || !c.marketingWhatsappOptIn}
+ title={
+ c.marketingWhatsappOptIn
+ ? undefined
+ : "Attiva il consenso marketing in Clienti → scheda anagrafica."
                           }
                           onChange={() => toggle(c.id)}
                           className="rounded border-white/25 bg-black/40"
@@ -1163,19 +1163,19 @@ export default function MarketingWhatsAppClient({
                       </td>
                       <td className="px-2 py-2 align-middle font-medium">
                         <span className="inline-flex items-center gap-1.5 flex-wrap">
-                          <span>
-                            {c.first_name} {c.last_name}
-                          </span>
-                          {(() => {
-                            const rec = marketingContactRecency(lastContactMap.get(c.id));
-                            if (rec === "today") {
+ <span>
+ {c.first_name} {c.last_name}
+ </span>
+ {(() => {
+ const rec = marketingContactRecency(lastContactMap.get(c.id));
+ if (rec === "today") {
                               return (
                                 <span className="shrink-0 rounded border border-rose-500/35 bg-rose-500/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-rose-100/95">
-                                  Oggi
-                                </span>
-                              );
-                            }
-                            if (rec === "recent") {
+ Oggi
+ </span>
+ );
+ }
+ if (rec === "recent") {
                               return (
                                 <span className="shrink-0 rounded border border-amber-500/35 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-100/90">
                                   Recente
@@ -1222,7 +1222,7 @@ export default function MarketingWhatsAppClient({
           {!aiCopyAssistAvailable ? (
             <div
               className="rounded-xl border border-violet-500/25 bg-violet-500/[0.07] px-3 py-2.5 text-[11px] text-violet-100/90 leading-relaxed"
-              role="status"
+ role="status"
             >
               <span className="font-bold text-violet-200/95">Assistente testo (opzionale)</span>
               <span className="block mt-1 text-violet-100/85">
@@ -1234,37 +1234,37 @@ export default function MarketingWhatsAppClient({
             </div>
           ) : (
             <p className="text-[10px] text-white/40 leading-relaxed">
-              Opzionale: &quot;Migliora messaggio&quot; usa un servizio AI sul server per rifinire il
-              tono (non sostituisce il tuo giudizio né le policy Meta).
-            </p>
-          )}
-          <textarea
-            ref={messageTextareaRef}
-            value={message}
-            disabled={showSendReview}
-            onChange={(e) => {
-              setMessage(e.target.value);
-              setMessageQualityIssues(null);
-            }}
-            rows={12}
-            maxLength={4096}
-            placeholder="Testo del messaggio…"
+ Opzionale: &quot;Migliora messaggio&quot; usa un servizio AI sul server per rifinire il
+ tono (non sostituisce il tuo giudizio né le policy Meta).
+ </p>
+ )}
+ <textarea
+ ref={messageTextareaRef}
+ value={message}
+ disabled={showSendReview}
+ onChange={(e) => {
+ setMessage(e.target.value);
+ setMessageQualityIssues(null);
+ }}
+ rows={12}
+ maxLength={4096}
+ placeholder="Testo del messaggio…"
             className="flex-1 min-h-[200px] rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-[#e8dcc8] placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 resize-y disabled:opacity-70 disabled:cursor-not-allowed"
           />
           <div className="flex flex-wrap items-center gap-2 gap-y-1">
-            <button
-              type="button"
-              disabled={
-                !aiCopyAssistAvailable ||
-                aiCopyLoading ||
-                !message.trim() ||
-                salonId == null ||
-                isCentrale ||
-                showSendReview
-              }
-              title={
-                !aiCopyAssistAvailable
-                  ? "Assistente AI non configurato in questo ambiente."
+ <button
+ type="button"
+ disabled={
+ !aiCopyAssistAvailable ||
+ aiCopyLoading ||
+ !message.trim() ||
+ salonId == null ||
+ isCentrale ||
+ showSendReview
+ }
+ title={
+ !aiCopyAssistAvailable
+ ? "Assistente AI non configurato in questo ambiente."
                   : undefined
               }
               onClick={() => void handleImproveMessage()}
@@ -1274,12 +1274,12 @@ export default function MarketingWhatsAppClient({
                 <Loader2 size={14} className="animate-spin shrink-0" />
               ) : (
                 <Sparkles size={14} className="shrink-0" />
-              )}
-              Migliora messaggio
-            </button>
-            {messageBeforeAi != null ? (
-              <button
-                type="button"
+ )}
+ Migliora messaggio
+ </button>
+ {messageBeforeAi != null ? (
+ <button
+ type="button"
                 disabled={showSendReview}
                 onClick={() => {
                   setMessage(messageBeforeAi);
@@ -1300,9 +1300,9 @@ export default function MarketingWhatsAppClient({
           ) : null}
           <div className="text-[10px] text-white/40">{message.length} / 4096</div>
 
-          {messageQualityIssues?.length ? (
-            <div
-              role="alert"
+ {messageQualityIssues?.length ? (
+ <div
+ role="alert"
               className={[
                 "rounded-xl border px-3 py-2 text-xs leading-relaxed space-y-1.5",
                 messageQualityIssues.some((i) => i.kind === "block" || i.kind === "strong")
@@ -1324,7 +1324,7 @@ export default function MarketingWhatsAppClient({
           {selectedContactWarnings.today > 0 || selectedContactWarnings.recent > 0 ? (
             <div
               className="rounded-xl border border-amber-500/40 bg-amber-950/25 px-3 py-2 text-xs leading-relaxed text-amber-100/90 space-y-1"
-              role="status"
+ role="status"
             >
               {selectedContactWarnings.today > 0 ? (
                 <div className="space-y-0.5">
@@ -1357,8 +1357,8 @@ export default function MarketingWhatsAppClient({
               </div>
 
               <div className="space-y-1">
-                <div>
-                  <strong>Salone:</strong>{" "}
+ <div>
+ <strong>Salone:</strong>{" "}
                   {allowedSalons.find((s) => s.id === pendingSend.salonId)?.name?.trim() ??
                     `#${pendingSend.salonId}`}
                 </div>
@@ -1380,8 +1380,8 @@ export default function MarketingWhatsAppClient({
               </div>
 
               <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  type="button"
+ <button
+ type="button"
                   disabled={sending}
                   onClick={() => {
                     setShowSendReview(false);
@@ -1389,27 +1389,27 @@ export default function MarketingWhatsAppClient({
                     setSendSummary(null);
                   }}
                   className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-xs font-bold text-[#c9b299] hover:bg-black/40 disabled:opacity-45 disabled:pointer-events-none transition"
-                >
-                  Torna a modificare
-                </button>
-                <button
-                  type="button"
+ >
+ Torna a modificare
+ </button>
+ <button
+ type="button"
                   disabled={sending}
                   onClick={() => void handleConfirmSend()}
                   className="inline-flex items-center justify-center rounded-xl border border-[#f3d8b6]/35 bg-[#f3d8b6]/15 px-3 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/25 disabled:opacity-45 disabled:pointer-events-none transition"
                 >
                   {sending ? (
                     <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    "Conferma invio"
-                  )}
-                </button>
-              </div>
-            </div>
-          ) : null}
+ ) : (
+ "Conferma invio"
+ )}
+ </button>
+ </div>
+ </div>
+ ) : null}
 
-          <button
-            type="button"
+ <button
+ type="button"
             disabled={sending || salonId == null || isCentrale || showSendReview}
             onClick={() => handleRequestReview()}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#f3d8b6]/15 border border-[#f3d8b6]/35 px-4 py-3 text-sm font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/25 disabled:opacity-45 disabled:pointer-events-none transition"
@@ -1443,7 +1443,7 @@ export default function MarketingWhatsAppClient({
           </p>
           <div className="overflow-auto rounded-xl border border-white/10 max-h-[280px]">
             <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 z-[1] bg-[#1a1510] text-[10px] font-black uppercase tracking-wider text-white/45">
+              <thead className="sticky top-0 z-[1] bg-[#1a1510] text-xs font-medium text-white/45">
                 <tr>
                   <th className="px-2 py-2">Cliente</th>
                   <th className="px-2 py-2 hidden sm:table-cell">Salone</th>
@@ -1456,19 +1456,19 @@ export default function MarketingWhatsAppClient({
                 {historyRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-[#c9b299]">
-                      {historyLoading ? "Caricamento…" : "Nessun invio registrato."}
-                    </td>
-                  </tr>
-                ) : (
-                  historyRows.map((h) => {
-                    const cust = singleRel(
-                      h.customers as { first_name?: string; last_name?: string } | null,
-                    );
-                    const sal = singleRel(h.salons as { name?: string } | null);
-                    const nome = cust
-                      ? `${cust.first_name ?? ""} ${cust.last_name ?? ""}`.trim()
-                      : "—";
-                    const ok = h.status === "sent";
+ {historyLoading ? "Caricamento…" : "Nessun invio registrato."}
+ </td>
+ </tr>
+ ) : (
+ historyRows.map((h) => {
+ const cust = singleRel(
+ h.customers as { first_name?: string; last_name?: string } | null,
+ );
+ const sal = singleRel(h.salons as { name?: string } | null);
+ const nome = cust
+ ? `${cust.first_name ?? ""} ${cust.last_name ?? ""}`.trim()
+ : "—";
+ const ok = h.status === "sent";
                     return (
                       <tr key={h.id} className="border-t border-white/5">
                         <td className="px-2 py-2 align-top font-medium">{nome}</td>

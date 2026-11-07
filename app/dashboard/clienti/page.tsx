@@ -54,18 +54,18 @@ export default async function ClientiPage() {
             Clienti
           </h1>
           <p className="text-[#c9b299] mt-2">
-            Anagrafiche globali condivise tra tutti i saloni
-          </p>
-        </div>
+ Anagrafiche globali condivise tra tutti i saloni
+ </p>
+ </div>
 
-        <ClientiView initial={initial} />
-      </div>
-    );
-  } catch (e) {
-    if (isNextRedirect(e)) throw e;
-    const err = e instanceof Error ? e : new Error(String(e));
-    const cause = err.cause;
-    console.error("[CLIENTI_PAGE_ERROR]", {
+ <ClientiView initial={initial} />
+ </div>
+ );
+ } catch (e) {
+ if (isNextRedirect(e)) throw e;
+ const err = e instanceof Error ? e : new Error(String(e));
+ const cause = err.cause;
+ console.error("[CLIENTI_PAGE_ERROR]", {
       message: err.message,
       stack: err.stack,
       cause:

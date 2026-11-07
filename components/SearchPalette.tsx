@@ -232,15 +232,15 @@ export default function SearchPalette({
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-2xl bg-[#1c0f0a] 
-        border border-[#9b6b43]/40 rounded-2xl shadow-xl overflow-hidden"
+ border border-[#9b6b43]/40 rounded-2xl shadow-xl overflow-hidden"
       >
         <div className="p-4 border-b border-[#3a251a]">
-          <input
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Cerca clienti, appuntamenti, servizi..."
+ <input
+ autoFocus
+ value={query}
+ onChange={(e) => setQuery(e.target.value)}
+ onKeyDown={handleKeyDown}
+ placeholder="Cerca clienti, appuntamenti, servizi..."
             disabled={salonUnavailable}
             className="w-full bg-[#3a251a] p-4 text-white text-lg rounded-xl outline-none disabled:opacity-50"
           />
@@ -259,23 +259,23 @@ export default function SearchPalette({
 
           {!salonUnavailable && !loadError && results.length === 0 && (
             <div className="text-center text-white/50 py-6">
-              Nessun risultato
-            </div>
-          )}
+ Nessun risultato
+ </div>
+ )}
 
-          {!salonUnavailable &&
-            results.map((item, i) => {
-              const apptCustomer =
-                item.type === "appointment"
-                  ? customerLabel(item.customer ?? item.customers)
-                  : "";
-              const apptService =
-                item.type === "appointment"
-                  ? (
-                      (item.appointment_services as Array<{ services?: { name?: string } }>)?.[0]
-                        ?.services?.name ?? "Servizio"
-                    )
-                  : "";
+ {!salonUnavailable &&
+ results.map((item, i) => {
+ const apptCustomer =
+ item.type === "appointment"
+ ? customerLabel(item.customer ?? item.customers)
+ : "";
+ const apptService =
+ item.type === "appointment"
+ ? (
+ (item.appointment_services as Array<{ services?: { name?: string } }>)?.[0]
+ ?.services?.name ?? "Servizio"
+ )
+ : "";
 
               return (
                 <div
@@ -286,16 +286,16 @@ export default function SearchPalette({
                   }`}
                 >
                   <div className="font-semibold">
-                    {item.type === "customer" && `👤 Cliente: ${customerLabel(item)}`}
-                    {item.type === "appointment" &&
-                      `📅 Appuntamento: ${apptCustomer} — ${apptService}`}
-                    {item.type === "service" && `✂️ Servizio: ${item.name}`}
-                    {item.type === "staff" && `🧑‍💼 Collaboratore: ${item.name}`}
-                  </div>
+ {item.type === "customer" && `👤 Cliente: ${customerLabel(item)}`}
+ {item.type === "appointment" &&
+ `📅 Appuntamento: ${apptCustomer} — ${apptService}`}
+ {item.type === "service" && `✂️ Servizio: ${item.name}`}
+ {item.type === "staff" && `🧑‍💼 Collaboratore: ${item.name}`}
+ </div>
 
-                  {item.type === "appointment" && item.start_time && (
+ {item.type === "appointment" && item.start_time && (
                     <div className="text-sm opacity-70">
-                      {String(item.start_time).replace("T", " ").slice(0, 16)}
+ {String(item.start_time).replace("T", "").slice(0, 16)}
                     </div>
                   )}
                 </div>

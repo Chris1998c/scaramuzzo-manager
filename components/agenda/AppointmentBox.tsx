@@ -346,11 +346,11 @@ export default function AppointmentBox({
           {/* Resize Handle (Bottom) */}
           <motion.div
             className="absolute bottom-0 left-0 right-0 h-4 cursor-ns-resize z-20 hover:bg-white/5 transition"
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              setResizing(true);
-            }}
-            drag="y"
+ onMouseDown={(e) => {
+ e.stopPropagation();
+ setResizing(true);
+ }}
+ drag="y"
             dragConstraints={{ top: 0, bottom: 500 }}
             dragElastic={0}
             dragMomentum={false}
@@ -383,41 +383,41 @@ export default function AppointmentBox({
               onClick={handlePortaInSala}
               disabled={checkingIn || isInSala || isDone}
               className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
-            >
-              {isDone
-                ? "✅ Già chiuso"
-                : isInSala
-                  ? "👤 Già in sala"
-                  : checkingIn
-                    ? "..."
-                    : "👤 Porta in sala"}
-            </button>
-            <button
-              onClick={async () => {
-                setOpenActions(false);
+ >
+ {isDone
+ ? "✅ Già chiuso"
+ : isInSala
+ ? "👤 Già in sala"
+ : checkingIn
+ ? "..."
+ : "👤 Porta in sala"}
+ </button>
+ <button
+ onClick={async () => {
+ setOpenActions(false);
 
-                // Se non è in_sala e non è done, prima porta in sala
-                if (!isInSala && !isDone) {
-                  try {
-                    setCheckingIn(true);
+ // Se non è in_sala e non è done, prima porta in sala
+ if (!isInSala && !isDone) {
+ try {
+ setCheckingIn(true);
 
-                    const res = await fetch("/api/agenda/porta-in-sala", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        appointment_id: Number(appointment.id),
-                      }),
-                    });
+ const res = await fetch("/api/agenda/porta-in-sala", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ appointment_id: Number(appointment.id),
+ }),
+ });
 
-                    const json = await res.json().catch(() => ({}) as any);
-                    if (!res.ok)
-                      throw new Error(
-                        json?.error || "Errore durante Porta in sala",
-                      );
+ const json = await res.json().catch(() => ({}) as any);
+ if (!res.ok)
+ throw new Error(
+ json?.error || "Errore durante Porta in sala",
+ );
 
-                    onUpdated?.();
-                  } catch (e: any) {
-                    toast.error(e?.message || "Errore durante Porta in sala");
+ onUpdated?.();
+ } catch (e: any) {
+ toast.error(e?.message || "Errore durante Porta in sala");
                     setCheckingIn(false);
                     return;
                   } finally {
@@ -429,16 +429,16 @@ export default function AppointmentBox({
               }}
               disabled={checkingIn}
               className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
-            >
-              💰 {checkingIn ? "..." : "Vai in cassa"}
-            </button>
+ >
+ 💰 {checkingIn ? "..." : "Vai in cassa"}
+ </button>
 
-            <button
-              onClick={() => {
-                setOpenActions(false);
-                const cid = appointment?.customer_id ?? appointment?.customers?.id;
-                if (cid == null || cid === "") {
-                  toast.error("Nessun cliente collegato all’appuntamento.");
+ <button
+ onClick={() => {
+ setOpenActions(false);
+ const cid = appointment?.customer_id ?? appointment?.customers?.id;
+ if (cid == null || cid === "") {
+ toast.error("Nessun cliente collegato all’appuntamento.");
                   return;
                 }
                 router.push(`/dashboard/clienti/${cid}#schede-tecniche`);

@@ -120,34 +120,34 @@ export default function NuovoProdottoPage() {
     return (
       <MagazzinoPageShell compact>
         <p className="text-red-400">Non hai i permessi per creare prodotti.</p>
-      </MagazzinoPageShell>
-    );
-  }
+ </MagazzinoPageShell>
+ );
+ }
 
-  return (
-    <MagazzinoPageShell>
-      <MagazzinoHero
-        title="Nuovo prodotto"
-        icon={PackagePlus}
-        compact
-        actions={<MagazzinoBackLink href="/dashboard/magazzino" />}
-        subtitle="Crea un articolo nel catalogo. La giacenza iniziale è opzionale."
-      />
+ return (
+ <MagazzinoPageShell>
+ <MagazzinoHero
+ title="Nuovo prodotto"
+ icon={PackagePlus}
+ compact
+ actions={<MagazzinoBackLink href="/dashboard/magazzino" />}
+ subtitle="Crea un articolo nel catalogo. La giacenza iniziale è opzionale."
+ />
 
-      <MagazzinoSalonContextBar
-        contextLabel={stockTargetLabel ?? ctx.contextLabel}
-        contextKind={ctx.contextKind}
-        hint={
-          stockTargetLabel
-            ? "Giacenza iniziale accreditata su questa sede"
-            : "Seleziona salone dall'header per la giacenza iniziale"
+ <MagazzinoSalonContextBar
+ contextLabel={stockTargetLabel ?? ctx.contextLabel}
+ contextKind={ctx.contextKind}
+ hint={
+ stockTargetLabel
+ ? "Giacenza iniziale accreditata su questa sede"
+ : "Seleziona salone dall'header per la giacenza iniziale"
         }
       />
 
       <div className="rounded-2xl border border-[#5c3a21]/50 bg-[#24140e]/50 p-4 md:p-6 max-w-2xl">
         <div className="rounded-xl bg-[#FFF9F4] text-[#341A09] p-5 md:p-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#5c3a21]/80 mb-1.5">
+            <label className="block text-xs font-medium text-[#5c3a21]/80 mb-1.5">
               Nome *
             </label>
             <input
@@ -160,7 +160,7 @@ export default function NuovoProdottoPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#5c3a21]/80 mb-1.5">
+              <label className="block text-xs font-medium text-[#5c3a21]/80 mb-1.5">
                 Categoria *
               </label>
               <input
@@ -171,7 +171,7 @@ export default function NuovoProdottoPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#5c3a21]/80 mb-1.5">
+              <label className="block text-xs font-medium text-[#5c3a21]/80 mb-1.5">
                 Barcode / EAN
               </label>
               <input
@@ -185,20 +185,20 @@ export default function NuovoProdottoPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#5c3a21]/80 mb-1.5">
-                Costo (€)
-              </label>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
+              <label className="block text-xs font-medium text-[#5c3a21]/80 mb-1.5">
+ Costo (€)
+ </label>
+ <input
+ type="number"
+ min={0}
+ step="0.01"
                 className={magazzinoLightInputClass}
                 value={cost}
                 onChange={(e) => setCost(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#5c3a21]/80 mb-1.5">
+              <label className="block text-xs font-medium text-[#5c3a21]/80 mb-1.5">
                 Tipo
               </label>
               <select
@@ -214,11 +214,11 @@ export default function NuovoProdottoPage() {
           </div>
 
           <div className="rounded-xl border border-[#B88A54]/30 bg-[#FFF9F4] p-4">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#5c3a21]/80 mb-1.5">
-              Giacenza iniziale
-            </label>
-            <input
-              type="number"
+            <label className="block text-xs font-medium text-[#5c3a21]/80 mb-1.5">
+ Giacenza iniziale
+ </label>
+ <input
+ type="number"
               min={0}
               className={magazzinoLightInputClass}
               placeholder="0 = solo anagrafica"
@@ -226,14 +226,14 @@ export default function NuovoProdottoPage() {
               onChange={(e) => setInitialQty(e.target.value)}
             />
             <p className="mt-2 text-xs text-[#5c3a21]/80 leading-relaxed">
-              {stockTargetLabel
-                ? `Accreditata su ${stockTargetLabel} tramite movimento di carico.`
-                : "Associa un salone per registrare la giacenza iniziale."}
+ {stockTargetLabel
+ ? `Accreditata su ${stockTargetLabel} tramite movimento di carico.`
+ : "Associa un salone per registrare la giacenza iniziale."}
             </p>
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#5c3a21]/80 mb-1.5">
+            <label className="block text-xs font-medium text-[#5c3a21]/80 mb-1.5">
               Descrizione
             </label>
             <textarea
@@ -249,8 +249,8 @@ export default function NuovoProdottoPage() {
             disabled={submitting}
             onClick={creaProdotto}
             className="w-full rounded-xl bg-[#0FA958] text-white py-3.5 font-bold text-base hover:opacity-95 transition disabled:opacity-50"
-          >
-            {submitting ? "Creazione…" : "Crea prodotto"}
+ >
+ {submitting ? "Creazione…" : "Crea prodotto"}
           </button>
         </div>
       </div>

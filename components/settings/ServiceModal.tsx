@@ -150,36 +150,36 @@ export default function ServiceModal({
       {open ? (
         <motion.div
           className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <button
-            type="button"
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ >
+ <button
+ type="button"
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            aria-label="Chiudi"
-            onClick={onClose}
-          />
+ aria-label="Chiudi"
+ onClick={onClose}
+ />
 
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="service-modal-title"
-            initial={{ y: 24, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 24, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 320, damping: 28 }}
+ <motion.div
+ role="dialog"
+ aria-modal="true"
+ aria-labelledby="service-modal-title"
+ initial={{ y: 24, opacity: 0 }}
+ animate={{ y: 0, opacity: 1 }}
+ exit={{ y: 24, opacity: 0 }}
+ transition={{ type: "spring", stiffness: 320, damping: 28 }}
             className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[1.75rem] border border-[#5c3a21]/60 bg-[#1a100c] shadow-2xl"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#5c3a21]/40 bg-[#1a100c]/95 px-5 py-4 backdrop-blur">
-              <h2 id="service-modal-title" className="text-lg font-black text-[#f3d8b6]">
-                {mode === "create" ? "Nuovo servizio" : "Modifica servizio"}
-              </h2>
-              <button
-                type="button"
+ <h2 id="service-modal-title" className="text-lg font-black text-[#f3d8b6]">
+ {mode === "create" ? "Nuovo servizio" : "Modifica servizio"}
+ </h2>
+ <button
+ type="button"
                 onClick={onClose}
                 className="rounded-xl p-2 text-[#c9b299] hover:bg-white/10 hover:text-white"
-                aria-label="Chiudi finestra"
+ aria-label="Chiudi finestra"
               >
                 <X size={20} />
               </button>
@@ -187,7 +187,7 @@ export default function ServiceModal({
 
             <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
               <p className="text-xs text-[#c9b299] leading-relaxed">
-                Catalogo globale: il prezzo modifica il listino del salone attivo in{" "}
+ Catalogo globale: il prezzo modifica il listino del salone attivo in{" "}
                 <code className="text-[#f3d8b6]/90">service_prices</code>. In creazione, lo stesso
                 importo viene copiato anche in <code className="text-white/50">services.price</code>{" "}
                 (vincolo DB); cassa e agenda usano i listini per salone.
@@ -227,10 +227,10 @@ export default function ServiceModal({
               <div className="grid grid-cols-2 gap-3">
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">
-                    Durata totale (min)
-                  </span>
-                  <input
-                    type="number"
+ Durata totale (min)
+ </span>
+ <input
+ type="number"
                     min={0}
                     className={fieldClass}
                     value={form.duration}
@@ -240,11 +240,11 @@ export default function ServiceModal({
                 </label>
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">
-                    Prezzo salone (€)
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
+ Prezzo salone (€)
+ </span>
+ <input
+ type="text"
+ inputMode="decimal"
                     className={fieldClass}
                     value={form.price}
                     onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
@@ -256,10 +256,10 @@ export default function ServiceModal({
               <div className="grid grid-cols-2 gap-3">
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">
-                    Durata attiva (min)
-                  </span>
-                  <input
-                    type="number"
+ Durata attiva (min)
+ </span>
+ <input
+ type="number"
                     min={0}
                     className={fieldClass}
                     value={form.duration_active}
@@ -268,10 +268,10 @@ export default function ServiceModal({
                 </label>
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">
-                    Durata processing (min)
-                  </span>
-                  <input
-                    type="number"
+ Durata processing (min)
+ </span>
+ <input
+ type="number"
                     min={0}
                     className={fieldClass}
                     value={form.duration_processing}
@@ -294,8 +294,8 @@ export default function ServiceModal({
 
               <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
+ <input
+ type="checkbox"
                     className="h-4 w-4 rounded border-[#5c3a21] bg-black/40 text-emerald-600"
                     checked={form.need_processing}
                     onChange={(e) => setForm((f) => ({ ...f, need_processing: e.target.checked }))}
@@ -303,8 +303,8 @@ export default function ServiceModal({
                   <span className="text-sm text-[#e8dcc8]">Richiede tempo di posa / processing</span>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
+ <input
+ type="checkbox"
                     className="h-4 w-4 rounded border-[#5c3a21] bg-black/40 text-emerald-600"
                     checked={form.visible_in_agenda}
                     onChange={(e) => setForm((f) => ({ ...f, visible_in_agenda: e.target.checked }))}
@@ -312,8 +312,8 @@ export default function ServiceModal({
                   <span className="text-sm text-[#e8dcc8]">Visibile in agenda</span>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
+ <input
+ type="checkbox"
                     className="h-4 w-4 rounded border-[#5c3a21] bg-black/40 text-emerald-600"
                     checked={form.visible_in_cash}
                     onChange={(e) => setForm((f) => ({ ...f, visible_in_cash: e.target.checked }))}
@@ -321,8 +321,8 @@ export default function ServiceModal({
                   <span className="text-sm text-[#e8dcc8]">Visibile in cassa</span>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
+ <input
+ type="checkbox"
                     className="h-4 w-4 rounded border-[#5c3a21] bg-black/40 text-emerald-600"
                     checked={form.active}
                     onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
@@ -338,19 +338,19 @@ export default function ServiceModal({
               ) : null}
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
-                <button
-                  type="button"
+ <button
+ type="button"
                   onClick={onClose}
                   className="rounded-xl px-4 py-2.5 text-sm font-bold text-[#c9b299] hover:bg-white/5"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="submit"
+ >
+ Annulla
+ </button>
+ <button
+ type="submit"
                   disabled={saving}
                   className="rounded-xl bg-[#0FA958] px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/30 hover:bg-[#0da052] disabled:opacity-50"
-                >
-                  {saving ? "Salvataggio…" : "Salva"}
+ >
+ {saving ? "Salvataggio…" : "Salva"}
                 </button>
               </div>
             </form>

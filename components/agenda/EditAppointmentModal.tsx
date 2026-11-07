@@ -492,7 +492,7 @@ export default function EditAppointmentModal({
         {/* header */}
         <div className="flex items-start justify-between gap-2 px-3 py-2.5 border-b border-white/10 bg-black/25 shrink-0">
           <div className="min-w-0 space-y-0.5">
-            <div className="text-[8px] font-bold uppercase tracking-[0.16em] text-white/45">
+            <div className="text-[11px] font-medium text-white/45">
               Appuntamento
             </div>
             <h2 className="text-base sm:text-lg font-bold text-[#f3d8b6] tracking-tight line-clamp-2">
@@ -503,8 +503,8 @@ export default function EditAppointmentModal({
                 {selectedDay} · {headerTime}
               </span>
               <span className="w-px h-2.5 bg-white/20" />
-              <span>
-                #{appointment?.id ?? "-"}
+ <span>
+ #{appointment?.id ?? "-"}
               </span>
               <span className="w-px h-2.5 bg-white/20" />
               <span
@@ -519,8 +519,8 @@ export default function EditAppointmentModal({
             onClick={close}
             disabled={saving}
             className="rounded-lg p-1 bg-black/40 border border-white/12 text-white/65 hover:bg-black/55 transition shrink-0 disabled:opacity-50"
-            aria-label="Chiudi"
-            title="Chiudi"
+ aria-label="Chiudi"
+ title="Chiudi"
           >
             <X size={15} />
           </button>
@@ -533,22 +533,22 @@ export default function EditAppointmentModal({
               onClick={portaInSala}
               disabled={saving || disablePortaInSalaAndCassa}
               className="inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 rounded-lg px-2 py-1.5 text-[10px] sm:text-[11px] leading-tight
-                         bg-[#0FA958] text-white font-bold
-                         shadow-[0_6px_20px_rgba(15,169,88,0.18)]
-                         hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
+ bg-[#0FA958] text-white font-bold
+ shadow-[0_6px_20px_rgba(15,169,88,0.18)]
+ hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <User size={14} className="shrink-0" />
               <span className="text-center">In sala</span>
-            </button>
+ </button>
 
-            <button
-              type="button"
-              onClick={goToSchedeTecniche}
-              disabled={saving || !canOpenClienteSchede}
-              title={
-                canOpenClienteSchede
-                  ? "Apri scheda cliente e schede tecniche"
-                  : "Collega un cliente all’appuntamento per aprire le schede"
+ <button
+ type="button"
+ onClick={goToSchedeTecniche}
+ disabled={saving || !canOpenClienteSchede}
+ title={
+ canOpenClienteSchede
+ ? "Apri scheda cliente e schede tecniche"
+ : "Collega un cliente all’appuntamento per aprire le schede"
               }
               className="inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 rounded-lg px-2 py-1.5 text-[10px] sm:text-[11px] font-bold bg-black/35 border border-white/12 text-[#f3d8b6] hover:bg-black/45 transition disabled:opacity-50 disabled:cursor-not-allowed leading-tight"
             >
@@ -568,10 +568,10 @@ export default function EditAppointmentModal({
 
           {err && (
             <div className="mt-2 rounded-lg border border-red-400/20 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-200 space-y-1.5">
-              <p>{err}</p>
-              {needsServerReload && (
-                <button
-                  type="button"
+ <p>{err}</p>
+ {needsServerReload && (
+ <button
+ type="button"
                   disabled={saving}
                   onClick={() => {
                     onUpdated?.();
@@ -587,18 +587,18 @@ export default function EditAppointmentModal({
 
           {showLifecycle && (
             <div className="mt-2 grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => setLifecycleConfirm("cancelled")}
+ <button
+ type="button"
+ disabled={saving}
+ onClick={() => setLifecycleConfirm("cancelled")}
                 className="rounded-lg px-2 py-1.5 text-[10px] font-bold text-red-200/95 bg-red-500/10 border border-red-400/20 hover:bg-red-500/15 transition disabled:opacity-50"
-              >
-                Segna come annullato
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => setLifecycleConfirm("no_show")}
+ >
+ Segna come annullato
+ </button>
+ <button
+ type="button"
+ disabled={saving}
+ onClick={() => setLifecycleConfirm("no_show")}
                 className="rounded-lg px-2 py-1.5 text-[10px] font-bold text-amber-100/95 bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/15 transition disabled:opacity-50"
               >
                 Segna come no-show
@@ -614,7 +614,7 @@ export default function EditAppointmentModal({
           {/* Servizi: nome/durata read-only; collaboratore editabile per riga */}
           <div className="rounded-lg bg-black/25 border border-white/10 p-2 space-y-1.5">
             <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/45">
+              <div className="text-[11px] font-medium text-white/45">
                 Servizi
               </div>
               <div className="text-[10px] text-white/55 tabular-nums">
@@ -654,16 +654,16 @@ export default function EditAppointmentModal({
                       </div>
                       <select
                         className="w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-[11px] text-white outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25"
-                        value={draftStaff ?? ""}
-                        disabled={saving || formLocked || needsServerReload}
-                        aria-label={`Collaboratore per ${l.name}`}
-                        onChange={(e) => {
-                          const v = e.target.value === "" ? null : e.target.value;
-                          setLineStaffDraft((prev) => ({ ...prev, [lineKey]: v }));
-                        }}
-                      >
-                        {staffForDay.map((s) => (
-                          <option key={String(s.id ?? "free")} value={s.id ?? ""}>
+ value={draftStaff ?? ""}
+ disabled={saving || formLocked || needsServerReload}
+ aria-label={`Collaboratore per ${l.name}`}
+ onChange={(e) => {
+ const v = e.target.value === "" ? null : e.target.value;
+ setLineStaffDraft((prev) => ({ ...prev, [lineKey]: v }));
+ }}
+ >
+ {staffForDay.map((s) => (
+ <option key={String(s.id ?? "free")} value={s.id ?? ""}>
                             {s.id == null
                               ? s.name
                               : staffSelectLabelForOperationalDate(
@@ -697,25 +697,25 @@ export default function EditAppointmentModal({
           <div className="rounded-lg bg-black/25 border border-white/10 p-2">
             <div className="grid grid-cols-1 gap-2">
               <div className="space-y-1">
-                <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/45">
-                  Cliente
-                </div>
-                <CustomerSearchField
-                  supabase={supabase}
-                  enabled={isOpen}
-                  preloadSalonId={activeSalonId}
-                  selectedCustomerId={customerId}
-                  onSelectCustomerId={handleCustomerSelect}
-                  initialDisplayLabel={headerCustomer}
-                  disabled={saving || formLocked || needsServerReload}
-                  variant="compact"
-                  placeholder="Cerca nome o telefono"
-                  dropdownZIndexClass="z-[170]"
+                <div className="text-[11px] font-medium text-white/45">
+ Cliente
+ </div>
+ <CustomerSearchField
+ supabase={supabase}
+ enabled={isOpen}
+ preloadSalonId={activeSalonId}
+ selectedCustomerId={customerId}
+ onSelectCustomerId={handleCustomerSelect}
+ initialDisplayLabel={headerCustomer}
+ disabled={saving || formLocked || needsServerReload}
+ variant="compact"
+ placeholder="Cerca nome o telefono"
+ dropdownZIndexClass="z-[170]"
                 />
               </div>
 
               <div className="space-y-1">
-                <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/45">
+                <div className="text-[11px] font-medium text-white/45">
                   Orario
                 </div>
                 <select
@@ -736,11 +736,11 @@ export default function EditAppointmentModal({
               </div>
 
               <div className="space-y-1">
-                <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/45">
-                  Note
-                </div>
-                <textarea
-                  placeholder="Note…"
+                <div className="text-[11px] font-medium text-white/45">
+ Note
+ </div>
+ <textarea
+ placeholder="Note…"
                   className="w-full rounded-lg bg-black/40 border border-white/10 px-2.5 py-2 text-xs text-white placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 focus:ring-1 focus:ring-[#f3d8b6]/25 resize-none"
                   rows={2}
                   value={notes}
@@ -765,50 +765,50 @@ export default function EditAppointmentModal({
               onClick={openDeleteConfirm}
               disabled={saving}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs bg-red-500/12 text-red-200 border border-red-400/18 font-bold hover:bg-red-500/18 transition disabled:opacity-50"
-            >
-              <Trash2 size={14} />
-              Elimina
-            </button>
-          </div>
-        </div>
-      </motion.div>
+ >
+ <Trash2 size={14} />
+ Elimina
+ </button>
+ </div>
+ </div>
+ </motion.div>
 
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        onClose={() => {
-          if (!saving) setShowDeleteConfirm(false);
-        }}
-        onConfirm={performDeleteAppointment}
-        title="Elimina appuntamento"
-        description="Vuoi eliminare questo appuntamento? L'operazione non può essere annullata."
-        confirmLabel="Elimina"
-        variant="danger"
-        loading={saving}
-      />
+ <ConfirmDialog
+ isOpen={showDeleteConfirm}
+ onClose={() => {
+ if (!saving) setShowDeleteConfirm(false);
+ }}
+ onConfirm={performDeleteAppointment}
+ title="Elimina appuntamento"
+ description="Vuoi eliminare questo appuntamento? L'operazione non può essere annullata."
+ confirmLabel="Elimina"
+ variant="danger"
+ loading={saving}
+ />
 
-      <ConfirmDialog
-        isOpen={lifecycleConfirm === "cancelled"}
-        onClose={() => {
-          if (!saving) setLifecycleConfirm(null);
-        }}
-        onConfirm={() => applyLifecycleStatus("cancelled")}
-        loading={saving}
-        title="Segna come annullato"
-        description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
-        confirmLabel="Segna come annullato"
-        variant="danger"
-      />
-      <ConfirmDialog
-        isOpen={lifecycleConfirm === "no_show"}
-        onClose={() => {
-          if (!saving) setLifecycleConfirm(null);
-        }}
-        onConfirm={() => applyLifecycleStatus("no_show")}
-        loading={saving}
-        title="Segna come no-show"
-        description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
-        confirmLabel="Segna come no-show"
-        variant="danger"
+ <ConfirmDialog
+ isOpen={lifecycleConfirm === "cancelled"}
+ onClose={() => {
+ if (!saving) setLifecycleConfirm(null);
+ }}
+ onConfirm={() => applyLifecycleStatus("cancelled")}
+ loading={saving}
+ title="Segna come annullato"
+ description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
+ confirmLabel="Segna come annullato"
+ variant="danger"
+ />
+ <ConfirmDialog
+ isOpen={lifecycleConfirm === "no_show"}
+ onClose={() => {
+ if (!saving) setLifecycleConfirm(null);
+ }}
+ onConfirm={() => applyLifecycleStatus("no_show")}
+ loading={saving}
+ title="Segna come no-show"
+ description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
+ confirmLabel="Segna come no-show"
+ variant="danger"
       />
     </div>
   );

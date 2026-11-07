@@ -86,7 +86,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
 
   if (!isReady || activeSalonId == null) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-scz-dark p-6 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+      <div className="rounded-2xl border border-white/10 bg-scz-dark p-6">
         <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-4">
           <Lightbulb className="text-[#f3d8b6]" size={20} />
           <h2 className="text-lg font-bold text-[#f3d8b6]">Insights Cliente</h2>
@@ -98,7 +98,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-scz-dark p-6 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+      <div className="rounded-2xl border border-white/10 bg-scz-dark p-6">
         <div className="border-b border-white/10 pb-3 mb-4">
           <div className="flex items-center gap-2">
             <Lightbulb className="text-[#f3d8b6]" size={20} />
@@ -113,7 +113,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-scz-dark p-6 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+      <div className="rounded-2xl border border-white/10 bg-scz-dark p-6">
         <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-4">
           <Lightbulb className="text-[#f3d8b6]" size={20} />
           <h2 className="text-lg font-bold text-[#f3d8b6]">Insights Cliente</h2>
@@ -124,15 +124,15 @@ export default function ClientInsightsPanel({ customerId }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] overflow-hidden">
+    <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
       <div className="border-b border-white/10 bg-black/20 px-6 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Lightbulb className="text-[#f3d8b6]" size={20} />
             <h2 className="text-lg font-bold text-[#f3d8b6]">Insights Cliente</h2>
-          </div>
-          <button
-            type="button"
+ </div>
+ <button
+ type="button"
             onClick={() => void analyzeWithAi()}
             disabled={aiLoading}
             className="inline-flex items-center gap-1.5 rounded-xl border border-violet-400/35 bg-violet-500/10 px-3 py-1.5 text-xs font-bold text-violet-200/95 hover:bg-violet-500/20 disabled:opacity-45 disabled:pointer-events-none transition"
@@ -142,9 +142,9 @@ export default function ClientInsightsPanel({ customerId }: Props) {
           </button>
         </div>
         <p className="text-[10px] font-medium uppercase tracking-wider text-white/45 mt-1">
-          {aiApplied
-            ? "Analisi AI applicata · basata sui dati del salone attivo"
-            : "Suggerimenti basati sui dati del salone attivo"}
+ {aiApplied
+ ? "Analisi AI applicata · basata sui dati del salone attivo"
+ : "Suggerimenti basati sui dati del salone attivo"}
         </p>
         {aiError && <p className="text-[11px] text-amber-300/90 mt-1">{aiError}</p>}
       </div>
@@ -160,7 +160,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
           <section>
             <div className="flex items-center gap-2 mb-2">
               <Sparkles size={16} className="text-[#f3d8b6]/80" />
-              <h3 className="text-[10px] font-black uppercase tracking-wider text-white/50">Profilo sintetico</h3>
+              <h3 className="text-xs font-medium text-white/50">Profilo sintetico</h3>
             </div>
             <ul className="space-y-1.5">
               {insights!.summary.map((s, i) => (
@@ -176,7 +176,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
           <section>
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle size={16} className="text-amber-400/90" />
-              <h3 className="text-[10px] font-black uppercase tracking-wider text-white/50">Avvertenze</h3>
+              <h3 className="text-xs font-medium text-white/50">Avvertenze</h3>
             </div>
             <ul className="space-y-1.5">
               {insights!.warnings.map((w, i) => (
@@ -192,7 +192,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
           <section>
             <div className="flex items-center gap-2 mb-2">
               <Scissors size={16} className="text-[#f3d8b6]/80" />
-              <h3 className="text-[10px] font-black uppercase tracking-wider text-white/50">Servizi consigliati</h3>
+              <h3 className="text-xs font-medium text-white/50">Servizi consigliati</h3>
             </div>
             <ul className="space-y-1.5">
               {insights!.recommendedServices.map((s, i) => (
@@ -208,7 +208,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
           <section>
             <div className="flex items-center gap-2 mb-2">
               <Package size={16} className="text-[#f3d8b6]/80" />
-              <h3 className="text-[10px] font-black uppercase tracking-wider text-white/50">Prodotti consigliati</h3>
+              <h3 className="text-xs font-medium text-white/50">Prodotti consigliati</h3>
             </div>
             <ul className="space-y-1.5">
               {insights!.recommendedProducts.map((p, i) => (
@@ -224,7 +224,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
           <section>
             <div className="flex items-center gap-2 mb-2">
               <ListTodo size={16} className="text-[#f3d8b6]/80" />
-              <h3 className="text-[10px] font-black uppercase tracking-wider text-white/50">Azioni suggerite</h3>
+              <h3 className="text-xs font-medium text-white/50">Azioni suggerite</h3>
             </div>
             <ul className="space-y-1.5">
               {insights!.suggestedActions.map((a, i) => (

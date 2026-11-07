@@ -125,36 +125,36 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
       {open ? (
         <motion.div
           className="fixed inset-0 z-[101] flex items-end justify-center sm:items-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <button
-            type="button"
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ >
+ <button
+ type="button"
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            aria-label="Chiudi"
-            onClick={onClose}
-          />
+ aria-label="Chiudi"
+ onClick={onClose}
+ />
 
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="product-modal-title"
-            initial={{ y: 24, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 24, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 320, damping: 28 }}
+ <motion.div
+ role="dialog"
+ aria-modal="true"
+ aria-labelledby="product-modal-title"
+ initial={{ y: 24, opacity: 0 }}
+ animate={{ y: 0, opacity: 1 }}
+ exit={{ y: 24, opacity: 0 }}
+ transition={{ type: "spring", stiffness: 320, damping: 28 }}
             className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[1.75rem] border border-[#5c3a21]/60 bg-[#1a100c] shadow-2xl"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#5c3a21]/40 bg-[#1a100c]/95 px-5 py-4 backdrop-blur">
-              <h2 id="product-modal-title" className="text-lg font-black text-[#f3d8b6]">
-                {mode === "create" ? "Nuovo prodotto" : "Modifica prodotto"}
-              </h2>
-              <button
-                type="button"
+ <h2 id="product-modal-title" className="text-lg font-black text-[#f3d8b6]">
+ {mode === "create" ? "Nuovo prodotto" : "Modifica prodotto"}
+ </h2>
+ <button
+ type="button"
                 onClick={onClose}
                 className="rounded-xl p-2 text-[#c9b299] hover:bg-white/10 hover:text-white"
-                aria-label="Chiudi finestra"
+ aria-label="Chiudi finestra"
               >
                 <X size={20} />
               </button>
@@ -208,11 +208,11 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
               <div className="grid grid-cols-2 gap-3">
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">
-                    Prezzo vendita (€) *
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
+ Prezzo vendita (€) *
+ </span>
+ <input
+ type="text"
+ inputMode="decimal"
                     className={fieldClass}
                     value={form.price}
                     onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
@@ -221,11 +221,11 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
                 </label>
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">
-                    Costo (€)
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
+ Costo (€)
+ </span>
+ <input
+ type="text"
+ inputMode="decimal"
                     className={fieldClass}
                     value={form.cost}
                     onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))}
@@ -235,8 +235,8 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
               </div>
 
               <label className="flex items-center gap-3 cursor-pointer rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                <input
-                  type="checkbox"
+ <input
+ type="checkbox"
                   className="h-4 w-4 rounded border-[#5c3a21] bg-black/40 text-emerald-600"
                   checked={form.active}
                   onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
@@ -251,19 +251,19 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
               ) : null}
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
-                <button
-                  type="button"
+ <button
+ type="button"
                   onClick={onClose}
                   className="rounded-xl px-4 py-2.5 text-sm font-bold text-[#c9b299] hover:bg-white/5"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="submit"
+ >
+ Annulla
+ </button>
+ <button
+ type="submit"
                   disabled={saving}
                   className="rounded-xl bg-[#0FA958] px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/30 hover:bg-[#0da052] disabled:opacity-50"
-                >
-                  {saving ? "Salvataggio…" : "Salva"}
+ >
+ {saving ? "Salvataggio…" : "Salva"}
                 </button>
               </div>
             </form>

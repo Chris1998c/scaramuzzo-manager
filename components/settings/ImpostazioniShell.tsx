@@ -293,13 +293,13 @@ export default function ImpostazioniShell({
   return (
     <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
       <nav className="w-full shrink-0 lg:w-72 space-y-1">
-        {SECTIONS.map((s) => {
-          const Icon = s.icon;
-          const active = section === s.key;
-          return (
-            <button
-              key={s.key}
-              type="button"
+ {SECTIONS.map((s) => {
+ const Icon = s.icon;
+ const active = section === s.key;
+ return (
+ <button
+ key={s.key}
+ type="button"
               onClick={() => setSection(s.key)}
               className={[
                 "w-full text-left rounded-2xl px-4 py-3 transition border flex gap-3",
@@ -322,56 +322,56 @@ export default function ImpostazioniShell({
       </nav>
 
       <div className="min-w-0 flex-1 rounded-[2rem] border border-[#5c3a21]/50 bg-[#24140e]/70 backdrop-blur-md p-6 md:p-8 shadow-2xl">
-        {section === "servizi" ? (
-          <ServiziPrezziPanel
-            rows={serviceRows}
-            salonLabel={salonLabel}
-            canChooseSalonFromHeader={canChooseSalon}
-            canManageServices={canManageServices}
-            onCreate={openServiceCreate}
-            onEdit={openServiceEdit}
-          />
-        ) : section === "prodotti" ? (
-          <ProdottiPanel
-            rows={productRows}
-            canManageProducts={canManageProducts}
-            onCreate={openProductCreate}
-            onEdit={openProductEdit}
-          />
-        ) : section === "collaboratori" ? (
-          <CollaboratoriPanel
-            rows={staffRows}
-            allowedSalons={allowedSalons}
-            canManageStaff={canManageStaff}
-            onCreate={openStaffCreate}
-            onEdit={openStaffEdit}
-          />
-        ) : section === "calendario" ? (
-          <CalendarioOperativoPanel
-            salonId={effectiveSalonId}
-            salonLabel={salonLabel}
-            allowedSalons={allowedSalons}
-            canChooseSalon={canChooseSalon}
-            canManage={canManageOperationalCalendar}
-          />
-        ) : section === "clienti" ? (
-          <ClientiImpostazioniPanel snapshot={initialCustomersDomainSnapshot} />
-        ) : section === "canali" ? (
-          <CanaliWhatsAppPanel
-            salonId={effectiveSalonId}
-            salonLabel={salonLabel}
-            canManage={canManageStaff}
-            canPickSalonFromHeader={canChooseSalon}
-          />
-        ) : section === "fiscale" ? (
-          <FiscaleStampantePanel
-            initialSalonId={initialSalonId}
-            initialSnapshot={initialFiscalSnapshot}
-            canUseSessionPrinter={canUseSessionPrinter}
-          />
-        ) : section === "aspetto" ? (
-          <AspettoPanel />
-        ) : section === "saloni" ? (
+ {section === "servizi" ? (
+ <ServiziPrezziPanel
+ rows={serviceRows}
+ salonLabel={salonLabel}
+ canChooseSalonFromHeader={canChooseSalon}
+ canManageServices={canManageServices}
+ onCreate={openServiceCreate}
+ onEdit={openServiceEdit}
+ />
+ ) : section === "prodotti" ? (
+ <ProdottiPanel
+ rows={productRows}
+ canManageProducts={canManageProducts}
+ onCreate={openProductCreate}
+ onEdit={openProductEdit}
+ />
+ ) : section === "collaboratori" ? (
+ <CollaboratoriPanel
+ rows={staffRows}
+ allowedSalons={allowedSalons}
+ canManageStaff={canManageStaff}
+ onCreate={openStaffCreate}
+ onEdit={openStaffEdit}
+ />
+ ) : section === "calendario" ? (
+ <CalendarioOperativoPanel
+ salonId={effectiveSalonId}
+ salonLabel={salonLabel}
+ allowedSalons={allowedSalons}
+ canChooseSalon={canChooseSalon}
+ canManage={canManageOperationalCalendar}
+ />
+ ) : section === "clienti" ? (
+ <ClientiImpostazioniPanel snapshot={initialCustomersDomainSnapshot} />
+ ) : section === "canali" ? (
+ <CanaliWhatsAppPanel
+ salonId={effectiveSalonId}
+ salonLabel={salonLabel}
+ canManage={canManageStaff}
+ canPickSalonFromHeader={canChooseSalon}
+ />
+ ) : section === "fiscale" ? (
+ <FiscaleStampantePanel
+ initialSalonId={initialSalonId}
+ initialSnapshot={initialFiscalSnapshot}
+ canUseSessionPrinter={canUseSessionPrinter}
+ />
+ ) : section === "aspetto" ? (
+ <AspettoPanel />
+ ) : section === "saloni" ? (
           <SaloniPanel rows={initialSalons} />
         ) : (
           <div className="rounded-2xl border border-dashed border-white/15 bg-black/20 px-6 py-12 text-center">
@@ -436,13 +436,13 @@ function ServiziPrezziPanel({
         <span className="font-bold text-emerald-300/95">Listino salone</span>
         <span className="mx-2 text-white/25">·</span>
         Prezzi da <code className="text-[#f3d8b6]/90">service_prices</code> per il salone operativo
-        {salonLabel ? (
-          <>
-            {" "}
+ {salonLabel ? (
+ <>
+ {" "}
             (<span className="text-[#f3d8b6] font-semibold">{salonLabel}</span>)
-          </>
-        ) : null}
-        .{" "}
+ </>
+ ) : null}
+ .{" "}
         {canChooseSalonFromHeader ? (
           <>
             Cambiando salone dall&apos;header, listino e URL si allineano automaticamente
@@ -458,15 +458,15 @@ function ServiziPrezziPanel({
 
       {!canManageServices ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-100/90">
-          Modalità sola lettura: la modifica del catalogo servizi è riservata al ruolo{" "}
+ Modalità sola lettura: la modifica del catalogo servizi è riservata al ruolo{" "}
           <strong>coordinator</strong>.
         </div>
       ) : null}
 
       {canManageServices ? (
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="button"
+ <button
+ type="button"
             onClick={onCreate}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#0FA958] px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/25 hover:bg-[#0da052]"
           >
@@ -481,7 +481,7 @@ function ServiziPrezziPanel({
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-[#5c3a21]/40">
           <table className="w-full min-w-[880px] text-left text-sm">
-            <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
+            <thead className="bg-black/30 text-xs font-medium text-[#c9b299]/80">
               <tr>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Categoria</th>
@@ -499,7 +499,7 @@ function ServiziPrezziPanel({
                   <td className="px-4 py-3 font-semibold text-[#f3d8b6]">{r.name}</td>
                   <td className="px-4 py-3 text-[#c9b299]">{r.category_name ?? "—"}</td>
                   <td className="px-4 py-3 tabular-nums">
-                    {r.duration != null ? `${r.duration} min` : "—"}
+ {r.duration != null ? `${r.duration} min` : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -520,16 +520,16 @@ function ServiziPrezziPanel({
                     <VisPill ok={!!r.visible_in_cash} />
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums text-[#f3d8b6]">
-                    €{" "}
-                    {r.price.toLocaleString("it-IT", {
+ €{" "}
+ {r.price.toLocaleString("it-IT", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
                   </td>
                   {canManageServices ? (
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
+ <button
+ type="button"
                         onClick={() => onEdit(r)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-[#5c3a21]/50 bg-black/20 px-3 py-1.5 text-xs font-bold text-[#f3d8b6] hover:bg-white/10"
                       >
@@ -571,15 +571,15 @@ function ProdottiPanel({
 
       {!canManageProducts ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-100/90">
-          Modalità sola lettura: creazione e modifica prodotti sono riservate al ruolo{" "}
+ Modalità sola lettura: creazione e modifica prodotti sono riservate al ruolo{" "}
           <strong>coordinator</strong>.
         </div>
       ) : null}
 
       {canManageProducts ? (
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="button"
+ <button
+ type="button"
             onClick={onCreate}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#0FA958] px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/25 hover:bg-[#0da052]"
           >
@@ -594,7 +594,7 @@ function ProdottiPanel({
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-[#5c3a21]/40">
           <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
+            <thead className="bg-black/30 text-xs font-medium text-[#c9b299]/80">
               <tr>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Barcode</th>
@@ -608,11 +608,11 @@ function ProdottiPanel({
                 <tr key={r.id} className="text-[#e8dcc8] hover:bg-white/[0.03]">
                   <td className="px-4 py-3 font-semibold text-[#f3d8b6]">{r.name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-[#c9b299]">
-                    {r.barcode ?? "—"}
+ {r.barcode ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums text-[#f3d8b6]">
-                    €{" "}
-                    {r.price.toLocaleString("it-IT", {
+ €{" "}
+ {r.price.toLocaleString("it-IT", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -631,8 +631,8 @@ function ProdottiPanel({
                   </td>
                   {canManageProducts ? (
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
+ <button
+ type="button"
                         onClick={() => onEdit(r)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-[#5c3a21]/50 bg-black/20 px-3 py-1.5 text-xs font-bold text-[#f3d8b6] hover:bg-white/10"
                       >
@@ -678,7 +678,7 @@ function CollaboratoriPanel({
       <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm text-[#c9b299] leading-relaxed">
         <span className="font-bold text-sky-200/95">Personale operativo</span>
         <span className="mx-2 text-white/25">·</span>
-        Anagrafica per agenda, cassa, report e app Team. Salone primario in{" "}
+ Anagrafica per agenda, cassa, report e app Team. Salone primario in{" "}
         <code className="text-white/50">staff.salon_id</code>; saloni aggiuntivi in{" "}
         <code className="text-white/50">staff_salons</code>. Distinto dagli account gestionale (
         <code className="text-white/50">users</code>).
@@ -686,15 +686,15 @@ function CollaboratoriPanel({
 
       {!canManageStaff ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-100/90">
-          Modalità sola lettura: creazione e modifica collaboratori sono riservate al ruolo{" "}
+ Modalità sola lettura: creazione e modifica collaboratori sono riservate al ruolo{" "}
           <strong>coordinator</strong>.
         </div>
       ) : null}
 
       {canManageStaff ? (
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="button"
+ <button
+ type="button"
             onClick={onCreate}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#0FA958] px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/25 hover:bg-[#0da052]"
           >
@@ -709,7 +709,7 @@ function CollaboratoriPanel({
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-[#5c3a21]/40">
           <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
+            <thead className="bg-black/30 text-xs font-medium text-[#c9b299]/80">
               <tr>
                 <th className="px-4 py-3">Codice</th>
                 <th className="px-4 py-3">Nome</th>
@@ -766,7 +766,7 @@ function CollaboratoriPanel({
                   <td className="px-4 py-3">
                     {r.mobile_enabled ? (
                       <span className="inline-flex rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-0.5 text-[11px] font-bold text-violet-200">
-                        {r.has_mobile_pin ? "Attivo" : "No PIN"}
+ {r.has_mobile_pin ? "Attivo" : "No PIN"}
                       </span>
                     ) : (
                       <span className="text-[11px] text-white/30">Off</span>
@@ -786,8 +786,8 @@ function CollaboratoriPanel({
                   </td>
                   {canManageStaff ? (
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
+ <button
+ type="button"
                         onClick={() => onEdit(r)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-[#5c3a21]/50 bg-black/20 px-3 py-1.5 text-xs font-bold text-[#f3d8b6] hover:bg-white/10"
                       >
@@ -824,7 +824,7 @@ function SaloniPanel({ rows }: { rows: SalonSettingsRow[] }) {
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-[#5c3a21]/40">
           <table className="w-full min-w-[480px] text-left text-sm">
-            <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
+            <thead className="bg-black/30 text-xs font-medium text-[#c9b299]/80">
               <tr>
                 <th className="px-4 py-3">ID</th>
                 <th className="px-4 py-3">Nome</th>
@@ -837,12 +837,12 @@ function SaloniPanel({ rows }: { rows: SalonSettingsRow[] }) {
                   <td className="px-4 py-3 font-mono text-xs tabular-nums text-[#c9b299]">{r.id}</td>
                   <td className="px-4 py-3 font-semibold text-[#f3d8b6]">{r.name}</td>
                   <td className="px-4 py-3 text-[#c9b299] text-xs">
-                    {r.created_at
-                      ? new Date(r.created_at).toLocaleString("it-IT", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })
-                      : "—"}
+ {r.created_at
+ ? new Date(r.created_at).toLocaleString("it-IT", {
+ dateStyle: "short",
+ timeStyle: "short",
+ })
+ : "—"}
                   </td>
                 </tr>
               ))}

@@ -391,7 +391,7 @@ function CaricoInner() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7 backdrop-blur-md shadow-[0_0_60px_rgba(0,0,0,0.25)]"
+        className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7 backdrop-blur-md"
       >
         <div className="flex items-start gap-4">
           <div className="shrink-0 rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
@@ -403,12 +403,12 @@ function CaricoInner() {
               <div className="min-w-0">
                 <div className="text-sm text-[#c9b299]">Magazzino</div>
                 <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                  {isReception ? "Carico in ingresso" : "Carico dal Magazzino Centrale"}
+ {isReception ? "Carico in ingresso" : "Carico dal Magazzino Centrale"}
                 </h1>
                 <p className="text-[#c9b299] mt-2 max-w-2xl">
-                  {isReception
-                    ? "Registra merce arrivata al tuo salone. La destinazione è il tuo salone."
-                    : "Prelievo dalla giacenza del Magazzino Centrale (ID 5). Il salone che riceve la merce è sempre quello che scegli nel campo «Destinazione del carico»."}
+ {isReception
+ ? "Registra merce arrivata al tuo salone. La destinazione è il tuo salone."
+ : "Prelievo dalla giacenza del Magazzino Centrale (ID 5). Il salone che riceve la merce è sempre quello che scegli nel campo «Destinazione del carico»."}
                 </p>
                 {!isReception && isWarehouseUi && (
                   <div
@@ -421,7 +421,7 @@ function CaricoInner() {
                     {vistaIsHub ? (
                       <>
                         <span className="font-extrabold text-[#f3d8b6]">Vista: {vistaLabel} (hub).</span>{" "}
-                        Qui stai lavorando sull’origine della merce.{" "}
+ Qui stai lavorando sull’origine della merce.{" "}
                         <strong className="text-white/90">Non</strong> coincide con il salone di arrivo: quello è
                         sempre il valore nel menu &quot;Destinazione del carico&quot; sotto.
                       </>
@@ -443,8 +443,8 @@ function CaricoInner() {
               <button
                 onClick={() => router.back()}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-                  bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
-                  hover:border-[var(--accent)] transition"
+ bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
+ hover:border-[var(--accent)] transition"
               >
                 <ArrowLeft size={18} />
                 Indietro
@@ -469,10 +469,10 @@ function CaricoInner() {
               <div className="min-w-0">
                 <div className="text-[#f3d8b6] font-extrabold">Errore</div>
                 <div className="text-[#c9b299] mt-1 text-sm">{errorMsg}</div>
-              </div>
-            </div>
-          </div>
-        ) : !isReception && role !== "magazzino" && role !== "coordinator" ? (
+ </div>
+ </div>
+ </div>
+ ) : !isReception && role !== "magazzino" && role !== "coordinator" ? (
           <div className="rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">
             <div className="flex items-start gap-3">
               <div className="rounded-xl p-2 bg-black/20 border border-[#5c3a21]/60">
@@ -504,18 +504,18 @@ function CaricoInner() {
             <div className="rounded-2xl bg-[#FFF9F4] border border-black/5 p-5 text-[#341A09]">
               <div className="font-extrabold text-lg">Seleziona un prodotto</div>
               <div className="text-sm opacity-70 mt-1">
-                {isReception
-                  ? "Cerca e clicca un prodotto per registrare il carico in ingresso al tuo salone."
-                  : "Lista dal magazzino centrale (ID 5). Cerca e clicca un prodotto per procedere."}
+ {isReception
+ ? "Cerca e clicca un prodotto per registrare il carico in ingresso al tuo salone."
+ : "Lista dal magazzino centrale (ID 5). Cerca e clicca un prodotto per procedere."}
               </div>
 
               <div className="mt-4 flex items-center gap-3">
                 <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60" size={18} />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Nome o barcode…"
+ <input
+ value={search}
+ onChange={(e) => setSearch(e.target.value)}
+ placeholder="Nome o barcode…"
                     className="w-full pl-10 pr-4 py-3 rounded-xl border bg-white"
                   />
                 </div>
@@ -568,7 +568,7 @@ function CaricoInner() {
                           {p.name}
                         </div>
                         <div className="text-[#c9b299] text-sm opacity-90">
-                          {p.category ?? "—"} • {p.barcode ?? "—"}
+ {p.category ?? "—"} • {p.barcode ?? "—"}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
@@ -599,27 +599,27 @@ function CaricoInner() {
                 <div className="flex items-center justify-between gap-3">
                   <span>Categoria</span>
                   <span className="text-[#f3d8b6] font-semibold">
-                    {product.category ?? "—"}
+ {product.category ?? "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span>Barcode</span>
                   <span className="text-[#f3d8b6] font-semibold">
-                    {product.barcode ?? "—"}
+ {product.barcode ?? "—"}
                   </span>
                 </div>
                 {!isReception && (
                   <div className="flex items-center justify-between gap-3">
                     <span>Disponibili (centrale)</span>
                     <span className="text-[#f3d8b6] font-extrabold">{product.quantity}</span>
-                  </div>
-                )}
-              </div>
+ </div>
+ )}
+ </div>
 
-              <button
-                onClick={() => {
-                  setProduct(null);
-                  router.replace("/dashboard/magazzino/carico");
+ <button
+ onClick={() => {
+ setProduct(null);
+ router.replace("/dashboard/magazzino/carico");
                 }}
                 className="mt-5 w-full rounded-xl px-4 py-3 bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6] hover:bg-black/30 transition"
               >
@@ -669,8 +669,8 @@ function CaricoInner() {
 
                 <div>
                   <label className="font-extrabold block mb-2">Quantità da caricare</label>
-                  <input
-                    type="number"
+ <input
+ type="number"
                     min={1}
                     max={isReception ? 99999 : Math.max(1, product.quantity ?? 0)}
                     value={qty}
@@ -693,7 +693,7 @@ function CaricoInner() {
                 <button
                   onClick={() => router.back()}
                   className="px-6 py-3 rounded-xl bg-black/10 border border-black/10 text-[#341A09]
-                    hover:bg-black/15 transition"
+ hover:bg-black/15 transition"
                 >
                   Annulla
                 </button>
@@ -702,10 +702,10 @@ function CaricoInner() {
                   onClick={handleCarico}
                   disabled={disabled}
                   className="px-6 py-3 rounded-xl bg-[#0FA958] text-white font-extrabold
-                    shadow-[0_10px_35px_rgba(15,169,88,0.25)]
-                    disabled:opacity-40 disabled:shadow-none"
-                >
-                  {submitting ? "Caricamento…" : "Conferma Carico"}
+ shadow-[0_10px_35px_rgba(15,169,88,0.25)]
+ disabled:opacity-40 disabled:shadow-none"
+ >
+ {submitting ? "Caricamento…" : "Conferma Carico"}
                 </button>
               </div>
             </div>

@@ -98,126 +98,126 @@ export default function ClienteProfile({ customerId }: { customerId: string }) {
       </div>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Select
-          label="Forma"
-          value={profile.texture ?? ""}
-          onChange={(v) => setProfile((p) => ({ ...p, texture: (v || null) as any }))}
-          options={[
-            ["", "—"],
-            ["straight", "Lisci"],
-            ["wavy", "Mossi"],
-            ["curly", "Ricci"],
-            ["coily", "Crespi / Afro"],
-          ]}
-        />
-        <Select
-          label="Spessore fusto"
-          value={profile.thickness ?? ""}
-          onChange={(v) => setProfile((p) => ({ ...p, thickness: (v || null) as any }))}
-          options={[
-            ["", "—"],
-            ["fine", "Sottile"],
-            ["normal", "Normale"],
-            ["thick", "Grosso"],
-          ]}
-        />
-        <Select
-          label="Densità"
-          value={profile.density ?? ""}
-          onChange={(v) => setProfile((p) => ({ ...p, density: (v || null) as any }))}
-          options={[
-            ["", "—"],
-            ["low", "Bassa"],
-            ["medium", "Media"],
-            ["high", "Alta"],
-          ]}
-        />
-        <Select
-          label="Porosità"
-          value={profile.porosity ?? ""}
-          onChange={(v) => setProfile((p) => ({ ...p, porosity: (v || null) as any }))}
-          options={[
-            ["", "—"],
-            ["low", "Bassa"],
-            ["medium", "Media"],
-            ["high", "Alta"],
-          ]}
-        />
+ <Select
+ label="Forma"
+ value={profile.texture ?? ""}
+ onChange={(v) => setProfile((p) => ({ ...p, texture: (v || null) as any }))}
+ options={[
+ ["", "—"],
+ ["straight", "Lisci"],
+ ["wavy", "Mossi"],
+ ["curly", "Ricci"],
+ ["coily", "Crespi / Afro"],
+ ]}
+ />
+ <Select
+ label="Spessore fusto"
+ value={profile.thickness ?? ""}
+ onChange={(v) => setProfile((p) => ({ ...p, thickness: (v || null) as any }))}
+ options={[
+ ["", "—"],
+ ["fine", "Sottile"],
+ ["normal", "Normale"],
+ ["thick", "Grosso"],
+ ]}
+ />
+ <Select
+ label="Densità"
+ value={profile.density ?? ""}
+ onChange={(v) => setProfile((p) => ({ ...p, density: (v || null) as any }))}
+ options={[
+ ["", "—"],
+ ["low", "Bassa"],
+ ["medium", "Media"],
+ ["high", "Alta"],
+ ]}
+ />
+ <Select
+ label="Porosità"
+ value={profile.porosity ?? ""}
+ onChange={(v) => setProfile((p) => ({ ...p, porosity: (v || null) as any }))}
+ options={[
+ ["", "—"],
+ ["low", "Bassa"],
+ ["medium", "Media"],
+ ["high", "Alta"],
+ ]}
+ />
 
-        <Select
-          label="Elasticità"
-          value={profile.elasticity ?? ""}
-          onChange={(v) => setProfile((p) => ({ ...p, elasticity: (v || null) as any }))}
-          options={[
-            ["", "—"],
-            ["low", "Bassa"],
-            ["normal", "Normale"],
-            ["high", "Alta"],
-          ]}
-        />
-        <Select
-          label="Cute"
-          value={profile.scalp ?? ""}
-          onChange={(v) => setProfile((p) => ({ ...p, scalp: (v || null) as any }))}
-          options={[
-            ["", "—"],
-            ["dry", "Secca"],
-            ["normal", "Normale"],
-            ["oily", "Grassa"],
-            ["sensitive", "Sensibile"],
-          ]}
-        />
+ <Select
+ label="Elasticità"
+ value={profile.elasticity ?? ""}
+ onChange={(v) => setProfile((p) => ({ ...p, elasticity: (v || null) as any }))}
+ options={[
+ ["", "—"],
+ ["low", "Bassa"],
+ ["normal", "Normale"],
+ ["high", "Alta"],
+ ]}
+ />
+ <Select
+ label="Cute"
+ value={profile.scalp ?? ""}
+ onChange={(v) => setProfile((p) => ({ ...p, scalp: (v || null) as any }))}
+ options={[
+ ["", "—"],
+ ["dry", "Secca"],
+ ["normal", "Normale"],
+ ["oily", "Grassa"],
+ ["sensitive", "Sensibile"],
+ ]}
+ />
 
-        <Select
-          label="Crespo"
-          value={profile.frizz_level ?? ""}
-          onChange={(v) => setProfile((p) => ({ ...p, frizz_level: (v || null) as any }))}
-          options={[
-            ["", "—"],
-            ["low", "Basso"],
-            ["medium", "Medio"],
-            ["high", "Alto"],
+ <Select
+ label="Crespo"
+ value={profile.frizz_level ?? ""}
+ onChange={(v) => setProfile((p) => ({ ...p, frizz_level: (v || null) as any }))}
+ options={[
+ ["", "—"],
+ ["low", "Basso"],
+ ["medium", "Medio"],
+ ["high", "Alto"],
           ]}
         />
 
         <div>
           <label className="text-xs text-[#f3d8b6]/70">Base naturale (1–10)</label>
-          <input
-            type="number"
-            min={1}
-            max={10}
-            value={profile.baseline_level ?? ""}
+ <input
+ type="number"
+ min={1}
+ max={10}
+ value={profile.baseline_level ?? ""}
             onChange={(e) =>
               setProfile((p) => ({ ...p, baseline_level: e.target.value ? Number(e.target.value) : null }))
             }
             className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60
-              px-4 py-3 text-sm text-white placeholder:text-white/35
-              focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ px-4 py-3 text-sm text-white placeholder:text-white/35
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
           />
         </div>
 
         <div className="sm:col-span-2">
           <label className="text-xs text-[#f3d8b6]/70">Allergie / sensibilità</label>
-          <input
-            value={profile.allergies ?? ""}
+ <input
+ value={profile.allergies ?? ""}
             onChange={(e) => setProfile((p) => ({ ...p, allergies: e.target.value || null }))}
             className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60
-              px-4 py-3 text-sm text-white placeholder:text-white/35
-              focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
-            placeholder="es. Nichel, PPD, profumi..."
+ px-4 py-3 text-sm text-white placeholder:text-white/35
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ placeholder="es. Nichel, PPD, profumi..."
           />
         </div>
 
         <div className="sm:col-span-2">
           <label className="text-xs text-[#f3d8b6]/70">Note generali</label>
-          <textarea
-            rows={3}
-            value={profile.notes ?? ""}
+ <textarea
+ rows={3}
+ value={profile.notes ?? ""}
             onChange={(e) => setProfile((p) => ({ ...p, notes: e.target.value || null }))}
             className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60
-              px-4 py-3 text-sm text-white placeholder:text-white/35
-              focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
-            placeholder="abitudini, routine, obiettivi..."
+ px-4 py-3 text-sm text-white placeholder:text-white/35
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ placeholder="abitudini, routine, obiettivi..."
           />
         </div>
       </div>
@@ -226,10 +226,10 @@ export default function ClienteProfile({ customerId }: { customerId: string }) {
         onClick={save}
         disabled={saving}
         className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3
-          bg-[#f3d8b6] text-black font-semibold hover:brightness-110 disabled:opacity-50 transition"
-      >
-        <Save size={18} />
-        {saving ? "Salvataggio…" : "Salva profilo"}
+ bg-[#f3d8b6] text-black font-semibold hover:brightness-110 disabled:opacity-50 transition"
+ >
+ <Save size={18} />
+ {saving ? "Salvataggio…" : "Salva profilo"}
       </button>
 
       {msg && <div className="mt-3 text-sm text-[#c9b299]">{msg}</div>}
@@ -255,8 +255,8 @@ function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60
-          px-4 py-3 text-sm text-white
-          focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ px-4 py-3 text-sm text-white
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
       >
         {options.map(([v, t]) => (
           <option key={v} value={v}>

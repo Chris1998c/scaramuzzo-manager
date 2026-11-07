@@ -83,24 +83,24 @@ export default function FiscalJobActionCenter({
                         <Link
                           href={`/dashboard/cassa/${job.sale_id}`}
                           className="text-[#c9b299] hover:underline"
-                        >
-                          Apri vendita
-                        </Link>
-                      ) : null}
-                      {job.document?.id != null ? (
-                        <Link
-                          href={`/api/cassa/fiscal-document?sale_id=${job.sale_id ?? ""}`}
+ >
+ Apri vendita
+ </Link>
+ ) : null}
+ {job.document?.id != null ? (
+ <Link
+ href={`/api/cassa/fiscal-document?sale_id=${job.sale_id ?? ""}`}
                           className="text-[#c9b299] hover:underline"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Documento fiscale
-                        </Link>
-                      ) : null}
-                      {job.category === "reconcile_required" ? (
+ target="_blank"
+ rel="noreferrer"
+ >
+ Documento fiscale
+ </Link>
+ ) : null}
+ {job.category === "reconcile_required" ? (
                         <span
                           className="text-red-200/90"
-                          title="Verificare stampante prima di retry"
+ title="Verificare stampante prima di retry"
                         >
                           Segna da riconciliare
                         </span>

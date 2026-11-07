@@ -45,8 +45,8 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
     });
     return (
       <div className="space-y-6 p-4 min-h-screen bg-[#1A0F0A] text-white">
-        <Link
-          href="/dashboard/clienti"
+ <Link
+ href="/dashboard/clienti"
           className="inline-flex items-center gap-2 text-sm text-[#c9b299] hover:text-[#f3d8b6] transition"
         >
           <ArrowLeft size={16} />
@@ -54,7 +54,7 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
         </Link>
         <div
           className="rounded-2xl border-4 border-red-500 bg-red-950/80 p-6 font-mono text-sm space-y-3
-            text-red-100"
+ text-red-100"
         >
           <div className="text-lg font-black uppercase tracking-wide text-red-300">
             CLIENTE NON TROVATO O FETCH FALLITO
@@ -64,7 +64,7 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
           </div>
           <div>
             <span className="text-red-400/90">fetchError.message:</span>{" "}
-            {fetchError?.message ?? "(nessun errore PostgREST — riga assente)"}
+ {fetchError?.message ?? "(nessun errore PostgREST — riga assente)"}
           </div>
         </div>
       </div>
@@ -76,8 +76,8 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <Link
-          href="/dashboard/clienti"
+ <Link
+ href="/dashboard/clienti"
           className="inline-flex items-center gap-2 text-sm text-[#c9b299] hover:text-[#f3d8b6] transition"
         >
           <ArrowLeft size={16} />

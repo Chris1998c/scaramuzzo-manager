@@ -38,9 +38,9 @@ export default function QRProdotto() {
 
       {qr ? (
         <div className="flex flex-col items-center">
-          <img
-            src={qr}
-            alt="QR Code"
+ <img
+ src={qr}
+ alt="QR Code"
             className="w-56 h-56 bg-white rounded-xl shadow-xl p-4"
           />
 

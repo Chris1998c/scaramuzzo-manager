@@ -18,7 +18,7 @@ export default function ModificaProdottoPage() {
 
         {!isReady ? (
           <div className="text-white/70">Caricamento…</div>
-        ) : role !== "magazzino" && role !== "coordinator" ? (
+ ) : role !== "magazzino" && role !== "coordinator" ? (
           <div className="text-red-300">Non hai i permessi.</div>
         ) : (
           <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-200/90">
@@ -31,11 +31,11 @@ export default function ModificaProdottoPage() {
           <Link
             href={`/dashboard/magazzino/prodotto/${productId}`}
             className="rounded-xl bg-black/30 border border-white/10 px-4 py-2 font-bold hover:bg-black/40 transition"
-          >
-            Torna al prodotto
-          </Link>
-          <Link
-            href="/dashboard/magazzino/inventario"
+ >
+ Torna al prodotto
+ </Link>
+ <Link
+ href="/dashboard/magazzino/inventario"
             className="rounded-xl bg-black/30 border border-white/10 px-4 py-2 font-bold hover:bg-black/40 transition"
           >
             Vai a inventario

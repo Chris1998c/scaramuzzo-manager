@@ -69,15 +69,15 @@ export default function ClientTimelinePanel({ customerId }: Props) {
 
   return (
     <div className="rounded-2xl border border-white/10 bg-scz-dark p-6 space-y-4">
-      <button
-        type="button"
+ <button
+ type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className="w-full flex items-end justify-between gap-3 text-left rounded-xl
-          hover:bg-white/[0.03] transition -m-1 p-1"
+ hover:bg-white/[0.03] transition -m-1 p-1"
       >
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+          <p className="text-xs font-medium text-white/40">
             Storico salone
           </p>
           <h3 className="mt-1 text-lg font-extrabold text-white">Timeline cliente</h3>

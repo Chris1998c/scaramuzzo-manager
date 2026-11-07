@@ -137,17 +137,17 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
             Anagrafica
           </h1>
           <p className="text-sm text-[#c9b299] mt-1">
-            Codice gestionale fisso; contatti e note modificabili dallo staff.
-          </p>
-        </div>
-        <button
-          type="button"
+ Codice gestionale fisso; contatti e note modificabili dallo staff.
+ </p>
+ </div>
+ <button
+ type="button"
           onClick={() => void save()}
           disabled={saving}
           className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 bg-[#f3d8b6] text-[#1A0F0A] font-bold text-sm hover:brightness-110 disabled:opacity-50"
-        >
-          <Save size={18} />
-          {saving ? "Salvataggio…" : "Salva anagrafica"}
+ >
+ <Save size={18} />
+ {saving ? "Salvataggio…" : "Salva anagrafica"}
         </button>
       </div>
 
@@ -183,30 +183,30 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
             value={form.phone}
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white"
-            inputMode="tel"
+ inputMode="tel"
           />
         </div>
         <div>
           <label className="text-xs text-[#c9b299]">Email</label>
-          <input
-            value={form.email ?? ""}
+ <input
+ value={form.email ?? ""}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value || null }))}
             className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white"
-            inputMode="email"
+ inputMode="email"
           />
         </div>
         <div className="md:col-span-2">
           <label className="text-xs text-[#c9b299]">Indirizzo</label>
-          <input
-            value={form.address ?? ""}
+ <input
+ value={form.address ?? ""}
             onChange={(e) => setForm((f) => ({ ...f, address: e.target.value || null }))}
             className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white"
           />
         </div>
         <div className="md:col-span-2">
           <label className="text-xs text-[#c9b299]">Note</label>
-          <textarea
-            value={form.notes ?? ""}
+ <textarea
+ value={form.notes ?? ""}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value || null }))}
             rows={3}
             className="mt-1 w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white resize-y min-h-[80px]"
@@ -221,8 +221,8 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
             automatici di appuntamento).
           </p>
           <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
+ <input
+ type="checkbox"
               checked={form.marketing_whatsapp_opt_in}
               onChange={(e) =>
                 setForm((f) => ({ ...f, marketing_whatsapp_opt_in: e.target.checked }))
@@ -235,7 +235,7 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
           </label>
           {form.marketing_consent_at ? (
             <p className="text-[11px] text-[#c9b299]/80">
-              Ultimo riferimento temporale registrato:{" "}
+ Ultimo riferimento temporale registrato:{" "}
               <span className="font-mono text-[#f3d8b6]/90">
                 {formatConsentAt(form.marketing_consent_at)}
               </span>

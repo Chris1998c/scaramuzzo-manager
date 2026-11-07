@@ -72,7 +72,7 @@ export default function ReportRowsTable({ rows }: { rows: Row[] }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark">
       <div className="border-b border-white/10 bg-black/20 px-6 py-5">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+        <div className="text-xs font-medium text-white/40">
           Dettaglio righe
         </div>
         <div className="mt-1 text-sm text-white/50">
@@ -123,22 +123,22 @@ export default function ReportRowsTable({ rows }: { rows: Row[] }) {
                 <td
                   colSpan={10}
                   className="px-4 py-12 text-center text-white/40"
-                >
-                  Nessun dato per il periodo selezionato.
-                </td>
-              </tr>
-            ) : (
-              rows.map((r, idx) => {
-                const key =
-                  r.sale_item_id ??
-                  r.id ??
-                  `${r.sale_id}-${r.item_type}-${idx}`;
-                const desc =
-                  r.item_type === "product"
-                    ? r.product_name ?? "Prodotto"
-                    : r.service_name ?? "Servizio";
-                const pm = paymentLabel(r.payment_method);
-                const isProduct = r.item_type === "product";
+ >
+ Nessun dato per il periodo selezionato.
+ </td>
+ </tr>
+ ) : (
+ rows.map((r, idx) => {
+ const key =
+ r.sale_item_id ??
+ r.id ??
+ `${r.sale_id}-${r.item_type}-${idx}`;
+ const desc =
+ r.item_type === "product"
+ ? r.product_name ?? "Prodotto"
+ : r.service_name ?? "Servizio";
+ const pm = paymentLabel(r.payment_method);
+ const isProduct = r.item_type === "product";
                 const sc = scontrinoDisplay(r.sale_id, r.fiscal_status);
 
                 return (

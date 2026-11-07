@@ -588,14 +588,14 @@ function ServiceBox({
             <div
               key={`seg-${i}-${seg.kind}-${seg.startOffsetMinutes}`}
               className="absolute left-0 right-0"
-              style={{
-                top: `${seg.topFraction * 100}%`,
-                height: `${seg.heightFraction * 100}%`,
-                background:
-                  seg.kind === "free"
-                    ? `linear-gradient(105deg, rgba(255,255,255,0.04) 0%, rgba(20,16,14,0.18) 50%, rgba(20,16,14,0.12) 100%)`
-                    : `linear-gradient(105deg, ${accentTint.soft} 0%, #14100e 42%, #14100e 100%)`,
-                opacity: seg.kind === "free" ? 0.55 : 1,
+ style={{
+ top: `${seg.topFraction * 100}%`,
+ height: `${seg.heightFraction * 100}%`,
+ background:
+ seg.kind === "free"
+ ? `linear-gradient(105deg, rgba(255,255,255,0.04) 0%, rgba(20,16,14,0.18) 50%, rgba(20,16,14,0.12) 100%)`
+ : `linear-gradient(105deg, ${accentTint.soft} 0%, #14100e 42%, #14100e 100%)`,
+ opacity: seg.kind === "free" ? 0.55 : 1,
               }}
               aria-hidden
             />
@@ -631,51 +631,51 @@ function ServiceBox({
                 </span>
                 {!hasStaff ? (
                   <span className="text-[9px] text-white/40 truncate">Non assegnato</span>
-                ) : null}
-              </div>
-            </div>
-          </div>
+ ) : null}
+ </div>
+ </div>
+ </div>
 
-          {canResize && (
-          <div
-            role="slider"
-            aria-label="Ridimensiona durata"
+ {canResize && (
+ <div
+ role="slider"
+ aria-label="Ridimensiona durata"
             tabIndex={0}
             className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize z-20 hover:bg-white/[0.06] touch-none"
-            onPointerDown={(e) => {
-              if (!canResize) return;
-              e.preventDefault();
-              e.stopPropagation();
-              setOpenActions(false);
-              setResizing(true);
-              const startY = e.clientY;
-              const el = e.currentTarget;
-              el.setPointerCapture(e.pointerId);
-              const onUp = (ev: PointerEvent) => {
-                el.releasePointerCapture(ev.pointerId);
-                el.removeEventListener("pointermove", onMove);
-                el.removeEventListener("pointerup", onUp);
-                el.removeEventListener("pointercancel", onUp);
-                setResizing(false);
-                const dy = ev.clientY - startY;
-                const slotsChanged = Math.round(dy / slotPx);
-                if (slotsChanged !== 0) void resizeServiceBySlots(slotsChanged);
-              };
-              const onMove = (ev: PointerEvent) => {
-                ev.preventDefault();
-              };
-              el.addEventListener("pointermove", onMove);
-              el.addEventListener("pointerup", onUp);
-              el.addEventListener("pointercancel", onUp);
-            }}
-          />
-          )}
-        </div>
+ onPointerDown={(e) => {
+ if (!canResize) return;
+ e.preventDefault();
+ e.stopPropagation();
+ setOpenActions(false);
+ setResizing(true);
+ const startY = e.clientY;
+ const el = e.currentTarget;
+ el.setPointerCapture(e.pointerId);
+ const onUp = (ev: PointerEvent) => {
+ el.releasePointerCapture(ev.pointerId);
+ el.removeEventListener("pointermove", onMove);
+ el.removeEventListener("pointerup", onUp);
+ el.removeEventListener("pointercancel", onUp);
+ setResizing(false);
+ const dy = ev.clientY - startY;
+ const slotsChanged = Math.round(dy / slotPx);
+ if (slotsChanged !== 0) void resizeServiceBySlots(slotsChanged);
+ };
+ const onMove = (ev: PointerEvent) => {
+ ev.preventDefault();
+ };
+ el.addEventListener("pointermove", onMove);
+ el.addEventListener("pointerup", onUp);
+ el.addEventListener("pointercancel", onUp);
+ }}
+ />
+ )}
+ </div>
 
-        {showAppointmentActions ? (
-          <button
-            type="button"
-            aria-label="Azioni appuntamento"
+ {showAppointmentActions ? (
+ <button
+ type="button"
+ aria-label="Azioni appuntamento"
             onClick={(e) => {
               e.stopPropagation();
               setOpenActions((v) => !v);
@@ -689,94 +689,94 @@ function ServiceBox({
         {showAppointmentActions && openActions && (
           <div
             className="absolute right-1 top-8 z-50 w-44 rounded-lg bg-[#1c1210] border border-white/12 shadow-xl py-0.5 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {showLifecycle && (
-              <>
-                <button
-                  type="button"
-                  disabled={lifecycleSaving || checkingIn}
-                  onClick={() => {
-                    setOpenActions(false);
-                    setLifecycleConfirm("cancelled");
+ onClick={(e) => e.stopPropagation()}
+ >
+ {showLifecycle && (
+ <>
+ <button
+ type="button"
+ disabled={lifecycleSaving || checkingIn}
+ onClick={() => {
+ setOpenActions(false);
+ setLifecycleConfirm("cancelled");
                   }}
                   className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-red-200/90 hover:bg-white/[0.06] disabled:opacity-50"
-                >
-                  Segna come annullato
-                </button>
-                <button
-                  type="button"
-                  disabled={lifecycleSaving || checkingIn}
-                  onClick={() => {
-                    setOpenActions(false);
-                    setLifecycleConfirm("no_show");
+ >
+ Segna come annullato
+ </button>
+ <button
+ type="button"
+ disabled={lifecycleSaving || checkingIn}
+ onClick={() => {
+ setOpenActions(false);
+ setLifecycleConfirm("no_show");
                   }}
                   className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-amber-100/90 hover:bg-white/[0.06] border-t border-white/[0.06] disabled:opacity-50"
-                >
-                  Segna come no-show
-                </button>
-              </>
-            )}
-            {!isReadOnlyCard && (
-              <>
-                <button
-                  type="button"
+ >
+ Segna come no-show
+ </button>
+ </>
+ )}
+ {!isReadOnlyCard && (
+ <>
+ <button
+ type="button"
                   onClick={handlePortaInSala}
                   disabled={checkingIn}
                   className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06] disabled:opacity-50"
-                >
-                  {checkingIn ? "Porta in sala…" : "Porta in sala"}
-                </button>
-                <button
-                  type="button"
+ >
+ {checkingIn ? "Porta in sala…" : "Porta in sala"}
+ </button>
+ <button
+ type="button"
                   onClick={() => {
                     setOpenActions(false);
                     router.push(`/dashboard/cassa/${appointment.id}`);
                   }}
                   className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06]"
-                >
-                  Vai in cassa
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setOpenActions(false);
-                const cid = appointment.customer_id;
-                if (cid == null || cid === "") {
-                  toast.error("Nessun cliente collegato.");
+ >
+ Vai in cassa
+ </button>
+ </>
+ )}
+ <button
+ type="button"
+ onClick={() => {
+ setOpenActions(false);
+ const cid = appointment.customer_id;
+ if (cid == null || cid === "") {
+ toast.error("Nessun cliente collegato.");
                   return;
                 }
                 router.push(`/dashboard/clienti/${cid}#schede-tecniche`);
               }}
               className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06]"
-            >
-              Scheda cliente
-            </button>
-          </div>
-        )}
-      </div>
+ >
+ Scheda cliente
+ </button>
+ </div>
+ )}
+ </div>
 
-      {showAppointmentActions ? (
-        <>
-          <ConfirmDialog
-            isOpen={lifecycleConfirm === "cancelled"}
-            onClose={() => setLifecycleConfirm(null)}
-            onConfirm={() => void applyLifecycleStatus("cancelled")}
-            title="Segna come annullato"
-            description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
-            confirmLabel="Segna come annullato"
-            variant="danger"
-          />
-          <ConfirmDialog
-            isOpen={lifecycleConfirm === "no_show"}
-            onClose={() => setLifecycleConfirm(null)}
-            onConfirm={() => void applyLifecycleStatus("no_show")}
-            title="Segna come no-show"
-            description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
-            confirmLabel="Segna come no-show"
-            variant="danger"
+ {showAppointmentActions ? (
+ <>
+ <ConfirmDialog
+ isOpen={lifecycleConfirm === "cancelled"}
+ onClose={() => setLifecycleConfirm(null)}
+ onConfirm={() => void applyLifecycleStatus("cancelled")}
+ title="Segna come annullato"
+ description="L'appuntamento resterà in agenda come annullato e non occuperà più la disponibilità del collaboratore."
+ confirmLabel="Segna come annullato"
+ variant="danger"
+ />
+ <ConfirmDialog
+ isOpen={lifecycleConfirm === "no_show"}
+ onClose={() => setLifecycleConfirm(null)}
+ onConfirm={() => void applyLifecycleStatus("no_show")}
+ title="Segna come no-show"
+ description="Il cliente non si è presentato. L'appuntamento resterà tracciato come no-show."
+ confirmLabel="Segna come no-show"
+ variant="danger"
           />
         </>
       ) : null}

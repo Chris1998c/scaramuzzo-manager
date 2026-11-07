@@ -196,446 +196,446 @@ function PlaceholderAppointmentBox({
         </div>
         <h4 className="font-extrabold text-[#f3d8b6] truncate text-sm">{customerName}</h4>
         <p className="text-xs text-white/65">Nessun servizio registrato</p>
-      </div>
-    </div>
-  );
+ </div>
+ </div>
+ );
 }
 
 type AgendaGridProps = {
-  currentDate: string;
-  highlightAppointmentId?: string | null;
-  onHighlightHandled?: () => void;
+ currentDate: string;
+ highlightAppointmentId?: string | null;
+ onHighlightHandled?: () => void;
 };
 
 export default function AgendaGrid(props: AgendaGridProps) {
-  return (
-    <AgendaSlotPxProvider>
-      <AgendaGridInner {...props} />
-    </AgendaSlotPxProvider>
-  );
+ return (
+ <AgendaSlotPxProvider>
+ <AgendaGridInner {...props} />
+ </AgendaSlotPxProvider>
+ );
 }
 
 function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandled }: AgendaGridProps) {
-  const slotPx = useAgendaSlotPx();
-  const supabase = useMemo(() => createClient(), []);
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { activeSalonId, isReady } = useActiveSalon();
+ const slotPx = useAgendaSlotPx();
+ const supabase = useMemo(() => createClient(), []);
+ const router = useRouter();
+ const searchParams = useSearchParams();
+ const { activeSalonId, isReady } = useActiveSalon();
 
-  const navigateAgendaDate = useCallback(
-    (nextDate: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("date", nextDate);
-      router.replace(`/dashboard/agenda?${params.toString()}`, { scroll: false });
-    },
-    [router, searchParams]
-  );
+ const navigateAgendaDate = useCallback(
+ (nextDate: string) => {
+ const params = new URLSearchParams(searchParams.toString());
+ params.set("date", nextDate);
+ router.replace(`/dashboard/agenda?${params.toString()}`, { scroll: false });
+ },
+ [router, searchParams]
+ );
 
-  // Refs (scroll sync + misura)
-  const timeColumnRef = useRef<HTMLDivElement>(null);
-  const gridContainerRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const masterRef = useRef<HTMLDivElement>(null);
+ // Refs (scroll sync + misura)
+ const timeColumnRef = useRef<HTMLDivElement>(null);
+ const gridContainerRef = useRef<HTMLDivElement>(null);
+ const headerRef = useRef<HTMLDivElement>(null);
+ const masterRef = useRef<HTMLDivElement>(null);
 
-  // ✅ misura reale colonna (quando NON c’è scrollX e le colonne sono flex)
-  const dayProbeRef = useRef<HTMLDivElement>(null);
-  const [colWidthRealDay, setColWidthRealDay] = useState<number | null>(null);
+ // ✅ misura reale colonna (quando NON c’è scrollX e le colonne sono flex)
+ const dayProbeRef = useRef<HTMLDivElement>(null);
+ const [colWidthRealDay, setColWidthRealDay] = useState<number | null>(null);
 
-  // Stati
-  const [view, setView] = useState<ViewMode>("day");
-  const [calendarOpen, setCalendarOpen] = useState(false);
+ // Stati
+ const [view, setView] = useState<ViewMode>("day");
+ const [calendarOpen, setCalendarOpen] = useState(false);
 
-  const {
-    staff,
-    appointments,
-    loading,
-    staffScheduleByStaffId,
-    opSalonDay,
-    opStaffOverrides,
-    opSalonDaysByDate,
-    opStaffOverridesByDate,
-    weekDays,
-    loadAppointments,
-    loadOperationalCalendar,
-  } = useAgendaData({
-    supabase,
-    activeSalonId,
-    isReady,
-    currentDate,
-    view,
-  });
+ const {
+ staff,
+ appointments,
+ loading,
+ staffScheduleByStaffId,
+ opSalonDay,
+ opStaffOverrides,
+ opSalonDaysByDate,
+ opStaffOverridesByDate,
+ weekDays,
+ loadAppointments,
+ loadOperationalCalendar,
+ } = useAgendaData({
+ supabase,
+ activeSalonId,
+ isReady,
+ currentDate,
+ view,
+ });
 
-  // Modali
-  const [selectedSlot, setSelectedSlot] = useState<{
-    time: string;
-    staffId: string | null;
-  } | null>(null);
-  const [editingAppointment, setEditingAppointment] = useState<AgendaAppointment | null>(null);
+ // Modali
+ const [selectedSlot, setSelectedSlot] = useState<{
+ time: string;
+ staffId: string | null;
+ } | null>(null);
+ const [editingAppointment, setEditingAppointment] = useState<AgendaAppointment | null>(null);
 
-  /** Evidenza colonna / fascia oraria durante drag appuntamento (solo vista giorno). */
-  const [agendaDragCol, setAgendaDragCol] = useState<number | null>(null);
-  const [agendaDragSlot, setAgendaDragSlot] = useState<number | null>(null);
-  const [nowTick, setNowTick] = useState(0);
+ /** Evidenza colonna / fascia oraria durante drag appuntamento (solo vista giorno). */
+ const [agendaDragCol, setAgendaDragCol] = useState<number | null>(null);
+ const [agendaDragSlot, setAgendaDragSlot] = useState<number | null>(null);
+ const [nowTick, setNowTick] = useState(0);
 
-  useEffect(() => {
-    setAgendaDragCol(null);
-    setAgendaDragSlot(null);
-  }, [view]);
+ useEffect(() => {
+ setAgendaDragCol(null);
+ setAgendaDragSlot(null);
+ }, [view]);
 
-  // Scroll e highlight per ?highlight=<appointmentId>
-  useEffect(() => {
-    if (!highlightAppointmentId || loading) return;
-    const id = String(highlightAppointmentId).trim();
-    if (!id) return;
-    const timer = setTimeout(() => {
-      const el = document.querySelector(`[data-appointment-id="${id}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-      }
-      onHighlightHandled?.();
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [highlightAppointmentId, loading, onHighlightHandled]);
+ // Scroll e highlight per ?highlight=<appointmentId>
+ useEffect(() => {
+ if (!highlightAppointmentId || loading) return;
+ const id = String(highlightAppointmentId).trim();
+ if (!id) return;
+ const timer = setTimeout(() => {
+ const el = document.querySelector(`[data-appointment-id="${id}"]`);
+ if (el) {
+ el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+ }
+ onHighlightHandled?.();
+ }, 400);
+ return () => clearTimeout(timer);
+ }, [highlightAppointmentId, loading, onHighlightHandled]);
 
-  // resize tick per ricalcolo (solo per ricalcoli memo)
-  const [layoutTick, setLayoutTick] = useState(0);
-  useEffect(() => {
-    const onResize = () => setLayoutTick((x) => x + 1);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+ // resize tick per ricalcolo (solo per ricalcoli memo)
+ const [layoutTick, setLayoutTick] = useState(0);
+ useEffect(() => {
+ const onResize = () => setLayoutTick((x) => x + 1);
+ window.addEventListener("resize", onResize);
+ return () => window.removeEventListener("resize", onResize);
+ }, []);
 
-  const hours = useMemo(() => {
-    const start = agendaGridDayStartLabel(activeSalonId ?? 0);
-    return generateHours(start, "20:30", SLOT_MINUTES);
-  }, [activeSalonId]);
+ const hours = useMemo(() => {
+ const start = agendaGridDayStartLabel(activeSalonId ?? 0);
+ return generateHours(start, "20:30", SLOT_MINUTES);
+ }, [activeSalonId]);
 
-  const refreshAppointmentsSilent = useCallback(() => {
-    if (activeSalonId == null) return;
-    void loadAppointments(activeSalonId, { silent: true });
-  }, [activeSalonId, loadAppointments]);
+ const refreshAppointmentsSilent = useCallback(() => {
+ if (activeSalonId == null) return;
+ void loadAppointments(activeSalonId, { silent: true });
+ }, [activeSalonId, loadAppointments]);
 
-  const openEditAppointment = useCallback((app: AgendaAppointment) => {
-    setEditingAppointment(app);
-  }, []);
+ const openEditAppointment = useCallback((app: AgendaAppointment) => {
+ setEditingAppointment(app);
+ }, []);
 
-  const handleAgendaDragColumnChange = useCallback((col: number | null) => {
-    setAgendaDragCol(col);
-  }, []);
+ const handleAgendaDragColumnChange = useCallback((col: number | null) => {
+ setAgendaDragCol(col);
+ }, []);
 
-  const handleAgendaDragSlotChange = useCallback((slot: number | null) => {
-    setAgendaDragSlot(slot);
-  }, []);
+ const handleAgendaDragSlotChange = useCallback((slot: number | null) => {
+ setAgendaDragSlot(slot);
+ }, []);
 
-  useEffect(() => {
-    if (view !== "day" || currentDate !== isoDate(new Date())) return;
-    const id = window.setInterval(() => setNowTick((t) => t + 1), 60_000);
-    return () => window.clearInterval(id);
-  }, [view, currentDate]);
+ useEffect(() => {
+ if (view !== "day" || currentDate !== isoDate(new Date())) return;
+ const id = window.setInterval(() => setNowTick((t) => t + 1), 60_000);
+ return () => window.clearInterval(id);
+ }, [view, currentDate]);
 
-  const isAgendaToday = view === "day" && currentDate === isoDate(new Date());
+ const isAgendaToday = view === "day" && currentDate === isoDate(new Date());
 
-  const currentTimeLineTopPx = useMemo(() => {
-    if (!isAgendaToday || !hours.length) return null;
-    const now = new Date();
-    const nowDec = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-    const startM = timeToMinutes(hours[0]);
-    const minutesFromStart = nowDec - startM;
-    const gridMaxPx = hours.length * slotPx;
-    const topPx = (minutesFromStart / SLOT_MINUTES) * slotPx;
-    if (topPx < -1 || topPx > gridMaxPx + 1) return null;
-    return topPx;
-  }, [isAgendaToday, hours, slotPx, nowTick]);
+ const currentTimeLineTopPx = useMemo(() => {
+ if (!isAgendaToday || !hours.length) return null;
+ const now = new Date();
+ const nowDec = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+ const startM = timeToMinutes(hours[0]);
+ const minutesFromStart = nowDec - startM;
+ const gridMaxPx = hours.length * slotPx;
+ const topPx = (minutesFromStart / SLOT_MINUTES) * slotPx;
+ if (topPx < -1 || topPx > gridMaxPx + 1) return null;
+ return topPx;
+ }, [isAgendaToday, hours, slotPx, nowTick]);
 
-  const staffIdsWithApptsOnDay = useMemo(() => {
-    const set = new Set<string>();
-    for (const app of appointments || []) {
-      const dk = String(app?.start_time ?? "").slice(0, 10);
-      if (dk !== currentDate) continue;
-      const lines = app.appointment_services ?? [];
-      if (lines.length > 0) {
-        for (const ln of lines) {
-          const sid = toIdStr(ln?.staff_id);
-          if (sid) set.add(sid);
-        }
-      } else {
-        const sid = toIdStr(app?.staff_id);
-        if (sid) set.add(sid);
-      }
-    }
-    return set;
-  }, [appointments, currentDate]);
+ const staffIdsWithApptsOnDay = useMemo(() => {
+ const set = new Set<string>();
+ for (const app of appointments || []) {
+ const dk = String(app?.start_time ?? "").slice(0, 10);
+ if (dk !== currentDate) continue;
+ const lines = app.appointment_services ?? [];
+ if (lines.length > 0) {
+ for (const ln of lines) {
+ const sid = toIdStr(ln?.staff_id);
+ if (sid) set.add(sid);
+ }
+ } else {
+ const sid = toIdStr(app?.staff_id);
+ if (sid) set.add(sid);
+ }
+ }
+ return set;
+ }, [appointments, currentDate]);
 
-  const salonClosedToday = view === "day" && isSalonClosedOnDate(opSalonDay);
-  const salonExtraOpenToday = view === "day" && isSalonExtraOpenOnDate(opSalonDay);
-  const staffOverrideCountToday = view === "day" ? opStaffOverrides.size : 0;
+ const salonClosedToday = view === "day" && isSalonClosedOnDate(opSalonDay);
+ const salonExtraOpenToday = view === "day" && isSalonExtraOpenOnDate(opSalonDay);
+ const staffOverrideCountToday = view === "day" ? opStaffOverrides.size : 0;
 
-  const dayGridStaff = useMemo(() => {
-    if (view !== "day") return staff;
+ const dayGridStaff = useMemo(() => {
+ if (view !== "day") return staff;
 
-    const assignable =
-      staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
-    const dow = isoDayOfWeekFromISODateLocal(currentDate);
-    const poolAssignable =
-      dow >= 1 && dow <= 7
-        ? assignable.filter((s) => {
-            const id = toIdStr(s?.id);
-            if (!id) return false;
-            const ov = opStaffOverrides.get(id);
-            if (ov?.kind === "available") return true;
-            if (ov?.kind === "unavailable") {
-              return (
-                staffIdsWithApptsOnDay.has(id) ||
-                isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow)
-              );
-            }
-            return isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow);
-          })
-        : assignable;
+ const assignable =
+ staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
+ const dow = isoDayOfWeekFromISODateLocal(currentDate);
+ const poolAssignable =
+ dow >= 1 && dow <= 7
+ ? assignable.filter((s) => {
+ const id = toIdStr(s?.id);
+ if (!id) return false;
+ const ov = opStaffOverrides.get(id);
+ if (ov?.kind === "available") return true;
+ if (ov?.kind === "unavailable") {
+ return (
+ staffIdsWithApptsOnDay.has(id) ||
+ isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow)
+ );
+ }
+ return isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow);
+ })
+ : assignable;
 
-    const unassignedCol = [{ id: null, name: "Non assegnato", is_virtual: true }];
+ const unassignedCol = [{ id: null, name: "Non assegnato", is_virtual: true }];
 
-    const collaborators = [...poolAssignable].sort((a, b) =>
-      String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "it", { sensitivity: "base" })
-    );
+ const collaborators = [...poolAssignable].sort((a, b) =>
+ String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "it", { sensitivity: "base" })
+ );
 
-    return [...unassignedCol, ...collaborators];
-  }, [
-    view,
-    staff,
-    staffScheduleByStaffId,
-    currentDate,
-    opStaffOverrides,
-    staffIdsWithApptsOnDay,
-  ]);
+ return [...unassignedCol, ...collaborators];
+ }, [
+ view,
+ staff,
+ staffScheduleByStaffId,
+ currentDate,
+ opStaffOverrides,
+ staffIdsWithApptsOnDay,
+ ]);
 
-  // ordine colonne staff per drag orizzontale / posizionamento (giorno = colonne visibili; settimana = lista completa)
-  const staffOrderFull = useMemo(
-    () => staff.map((s: any) => toIdStr(s?.id)),
-    [staff]
-  );
+ // ordine colonne staff per drag orizzontale / posizionamento (giorno = colonne visibili; settimana = lista completa)
+ const staffOrderFull = useMemo(
+ () => staff.map((s: any) => toIdStr(s?.id)),
+ [staff]
+ );
 
-  const dayStaffOrder = useMemo(
-    () => dayGridStaff.map((s: any) => toIdStr(s?.id)),
-    [dayGridStaff]
-  );
+ const dayStaffOrder = useMemo(
+ () => dayGridStaff.map((s: any) => toIdStr(s?.id)),
+ [dayGridStaff]
+ );
 
-  /** Ordine id staff (vista settimana / drag orizzontale disattivato ma API coerente). */
-  const weekStaffOrderByDayDate = useMemo(() => {
-    if (view !== "week") return null;
-    const assignable =
-      staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
-    const out = new Map<string, (string | null)[]>();
-    for (const day of weekDays) {
-      const dow = isoDayOfWeekFromISODateLocal(day.date);
-      const pool =
-        dow >= 1 && dow <= 7
-          ? assignable.filter((s) => {
-              const id = toIdStr(s?.id);
-              return id ? isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow) : false;
-            })
-          : assignable;
-      const sorted = [...pool].sort((a, b) =>
-        String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "it", { sensitivity: "base" })
-      );
-      const ids = sorted.map((s) => toIdStr(s?.id));
-      const hasUn = (appointments || []).some((app) => {
-        const dk = String(app.start_time || "").slice(0, 10);
-        if (dk !== day.date) return false;
-        const lines = app.appointment_services ?? [];
-        if (lines.length === 0) return app.staff_id == null;
-        return lines.some((ln: AgendaServiceLine) => ln.staff_id == null);
-      });
-      out.set(day.date, hasUn ? [null, ...ids] : ids);
-    }
-    return out;
-  }, [view, weekDays, staff, staffScheduleByStaffId, appointments]);
+ /** Ordine id staff (vista settimana / drag orizzontale disattivato ma API coerente). */
+ const weekStaffOrderByDayDate = useMemo(() => {
+ if (view !== "week") return null;
+ const assignable =
+ staff.length > 0 && staff[0]?.is_virtual === true ? staff.slice(1) : [...staff];
+ const out = new Map<string, (string | null)[]>();
+ for (const day of weekDays) {
+ const dow = isoDayOfWeekFromISODateLocal(day.date);
+ const pool =
+ dow >= 1 && dow <= 7
+ ? assignable.filter((s) => {
+ const id = toIdStr(s?.id);
+ return id ? isStaffVisibleOnAgendaDayForSalon(staffScheduleByStaffId, id, dow) : false;
+ })
+ : assignable;
+ const sorted = [...pool].sort((a, b) =>
+ String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "it", { sensitivity: "base" })
+ );
+ const ids = sorted.map((s) => toIdStr(s?.id));
+ const hasUn = (appointments || []).some((app) => {
+ const dk = String(app.start_time || "").slice(0, 10);
+ if (dk !== day.date) return false;
+ const lines = app.appointment_services ?? [];
+ if (lines.length === 0) return app.staff_id == null;
+ return lines.some((ln: AgendaServiceLine) => ln.staff_id == null);
+ });
+ out.set(day.date, hasUn ? [null, ...ids] : ids);
+ }
+ return out;
+ }, [view, weekDays, staff, staffScheduleByStaffId, appointments]);
 
-  /**
-   * BASE colWidth "ideale" (usata quando scrollX è attivo)
-   */
-  const colWidth = useMemo(() => {
-    const count = view === "day" ? dayGridStaff.length : weekDays.length;
-    if (!count) return 280;
+ /**
+ * BASE colWidth "ideale" (usata quando scrollX è attivo)
+ */
+ const colWidth = useMemo(() => {
+ const count = view === "day" ? dayGridStaff.length : weekDays.length;
+ if (!count) return 280;
 
-    const master = masterRef.current;
-    const available = (master?.clientWidth ?? 0) - 80; // 80 = colonna ore
-    if (!available) return 280;
+ const master = masterRef.current;
+ const available = (master?.clientWidth ?? 0) - 80; // 80 = colonna ore
+ if (!available) return 280;
 
-    const ideal = Math.floor(available / count);
-    return Math.max(140, Math.min(280, ideal));
-  }, [view, dayGridStaff.length, weekDays.length, layoutTick]);
+ const ideal = Math.floor(available / count);
+ return Math.max(140, Math.min(280, ideal));
+ }, [view, dayGridStaff.length, weekDays.length, layoutTick]);
 
-  // colonne visibili (day = tutti i collaboratori del giorno + non assegnato; week = 7 giorni)
-  const columnsCount = view === "day" ? dayGridStaff.length : weekDays.length;
+ // colonne visibili (day = tutti i collaboratori del giorno + non assegnato; week = 7 giorni)
+ const columnsCount = view === "day" ? dayGridStaff.length : weekDays.length;
 
-  // larghezza contenuto teorica (usando colWidth base)
-  const contentWidth = 80 + columnsCount * colWidth;
-  const masterWidth = masterRef.current?.clientWidth ?? 0;
-  const shouldScrollX = contentWidth > masterWidth;
+ // larghezza contenuto teorica (usando colWidth base)
+ const contentWidth = 80 + columnsCount * colWidth;
+ const masterWidth = masterRef.current?.clientWidth ?? 0;
+ const shouldScrollX = contentWidth > masterWidth;
 
-  /**
-   * ✅ LARGHEZZA COLONNA REALE in DAY:
-   * - se scrollX: colWidth è reale
-   * - se NO scrollX: usiamo una MISURA reale dal DOM (ResizeObserver su dayProbeRef)
-   */
-  const dayColWidth = useMemo(() => {
-    if (view !== "day") return colWidth;
-    if (shouldScrollX) return colWidth;
+ /**
+ * ✅ LARGHEZZA COLONNA REALE in DAY:
+ * - se scrollX: colWidth è reale
+ * - se NO scrollX: usiamo una MISURA reale dal DOM (ResizeObserver su dayProbeRef)
+ */
+ const dayColWidth = useMemo(() => {
+ if (view !== "day") return colWidth;
+ if (shouldScrollX) return colWidth;
 
-    const m = colWidthRealDay;
-    if (m && Number.isFinite(m) && m > 0) return Math.floor(m);
+ const m = colWidthRealDay;
+ if (m && Number.isFinite(m) && m > 0) return Math.floor(m);
 
-    // fallback (solo finché non abbiamo misurato)
-    const master = masterRef.current;
-    const available = (master?.clientWidth ?? 0) - 80;
-    if (!available || !dayGridStaff.length) return colWidth;
-    return Math.floor(available / dayGridStaff.length);
-  }, [view, shouldScrollX, colWidth, dayGridStaff.length, colWidthRealDay, layoutTick]);
+ // fallback (solo finché non abbiamo misurato)
+ const master = masterRef.current;
+ const available = (master?.clientWidth ?? 0) - 80;
+ if (!available || !dayGridStaff.length) return colWidth;
+ return Math.floor(available / dayGridStaff.length);
+ }, [view, shouldScrollX, colWidth, dayGridStaff.length, colWidthRealDay, layoutTick]);
 
-  // ✅ misura colonna reale con ResizeObserver (solo day + no scrollX)
-  useEffect(() => {
-    if (view !== "day") {
-      setColWidthRealDay(null);
-      return;
-    }
+ // ✅ misura colonna reale con ResizeObserver (solo day + no scrollX)
+ useEffect(() => {
+ if (view !== "day") {
+ setColWidthRealDay(null);
+ return;
+ }
 
-    if (shouldScrollX) {
-      // quando scrollX, la width è già “fissa” (colWidth) e coerente
-      setColWidthRealDay(null);
-      return;
-    }
+ if (shouldScrollX) {
+ // quando scrollX, la width è già “fissa” (colWidth) e coerente
+ setColWidthRealDay(null);
+ return;
+ }
 
-    const probe = dayProbeRef.current;
-    if (!probe) return;
+ const probe = dayProbeRef.current;
+ if (!probe) return;
 
-    let raf = 0;
+ let raf = 0;
 
-    const measure = () => {
-      // rAF per evitare “layout thrash” su resize/observer burst
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const w = probe.getBoundingClientRect().width;
-        if (Number.isFinite(w) && w > 0) setColWidthRealDay(w);
-      });
-    };
+ const measure = () => {
+ // rAF per evitare “layout thrash” su resize/observer burst
+ cancelAnimationFrame(raf);
+ raf = requestAnimationFrame(() => {
+ const w = probe.getBoundingClientRect().width;
+ if (Number.isFinite(w) && w > 0) setColWidthRealDay(w);
+ });
+ };
 
-    measure();
+ measure();
 
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(probe);
+ const ro = new ResizeObserver(() => measure());
+ ro.observe(probe);
 
-    // osserva anche il master perché padding/border/layout possono cambiare
-    if (masterRef.current) ro.observe(masterRef.current);
+ // osserva anche il master perché padding/border/layout possono cambiare
+ if (masterRef.current) ro.observe(masterRef.current);
 
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-    };
-  }, [view, shouldScrollX, dayGridStaff.length, layoutTick]);
+ return () => {
+ cancelAnimationFrame(raf);
+ ro.disconnect();
+ };
+ }, [view, shouldScrollX, dayGridStaff.length, layoutTick]);
 
-  useVisibilityPolling({
-    enabled: isReady && activeSalonId != null,
-    canPoll: () =>
-      selectedSlot == null &&
-      editingAppointment == null &&
-      !calendarOpen &&
-      agendaDragCol == null &&
-      agendaDragSlot == null,
-    onPoll: () => {
-      if (activeSalonId == null) return;
-      void loadAppointments(activeSalonId, { silent: true });
-    },
-  });
+ useVisibilityPolling({
+ enabled: isReady && activeSalonId != null,
+ canPoll: () =>
+ selectedSlot == null &&
+ editingAppointment == null &&
+ !calendarOpen &&
+ agendaDragCol == null &&
+ agendaDragSlot == null,
+ onPoll: () => {
+ if (activeSalonId == null) return;
+ void loadAppointments(activeSalonId, { silent: true });
+ },
+ });
 
-  // ===== PERF: pre-flatten linee una volta sola (include placeholder per app senza servizi) =====
-  const dayLinesByStaff = useMemo(() => {
-    if (view !== "day")
-      return new Map<string | null, Array<{ app: any; line: any }>>();
+ // ===== PERF: pre-flatten linee una volta sola (include placeholder per app senza servizi) =====
+ const dayLinesByStaff = useMemo(() => {
+ if (view !== "day")
+ return new Map<string | null, Array<{ app: any; line: any }>>();
 
-    const map = new Map<string | null, Array<{ app: any; line: any }>>();
-    for (const app of appointments || []) {
-      const lines = Array.isArray(app?.appointment_services)
-        ? app.appointment_services
-        : [];
-      if (lines.length > 0) {
-        for (const line of getAgendaDisplayServiceLines(app)) {
-          const sid = toIdStr(line?.staff_id);
-          const key = sid ?? null;
-          const arr = map.get(key) ?? [];
-          arr.push({ app, line });
-          map.set(key, arr);
-        }
-      } else {
-        const placeholder = createPlaceholderLine(app);
-        const key = toIdStr(app?.staff_id) ?? null;
-        const arr = map.get(key) ?? [];
-        arr.push({ app, line: placeholder });
-        map.set(key, arr);
-      }
-    }
-    return map;
-  }, [appointments, view]);
+ const map = new Map<string | null, Array<{ app: any; line: any }>>();
+ for (const app of appointments || []) {
+ const lines = Array.isArray(app?.appointment_services)
+ ? app.appointment_services
+ : [];
+ if (lines.length > 0) {
+ for (const line of getAgendaDisplayServiceLines(app)) {
+ const sid = toIdStr(line?.staff_id);
+ const key = sid ?? null;
+ const arr = map.get(key) ?? [];
+ arr.push({ app, line });
+ map.set(key, arr);
+ }
+ } else {
+ const placeholder = createPlaceholderLine(app);
+ const key = toIdStr(app?.staff_id) ?? null;
+ const arr = map.get(key) ?? [];
+ arr.push({ app, line: placeholder });
+ map.set(key, arr);
+ }
+ }
+ return map;
+ }, [appointments, view]);
 
-  const weekLinesByDay = useMemo(() => {
-    if (view !== "week")
-      return new Map<string, Array<{ app: any; line: any }>>();
+ const weekLinesByDay = useMemo(() => {
+ if (view !== "week")
+ return new Map<string, Array<{ app: any; line: any }>>();
 
-    const map = new Map<string, Array<{ app: any; line: any }>>();
-    for (const day of weekDays) map.set(day.date, []);
+ const map = new Map<string, Array<{ app: any; line: any }>>();
+ for (const day of weekDays) map.set(day.date, []);
 
-    for (const app of appointments || []) {
-      const lines = Array.isArray(app?.appointment_services)
-        ? app.appointment_services
-        : [];
-      if (lines.length > 0) {
-        for (const line of getAgendaDisplayServiceLines(app)) {
-          const dayKey = String(line?.start_time || "").slice(0, 10);
-          if (!dayKey || !map.has(dayKey)) continue;
-          map.get(dayKey)!.push({ app, line });
-        }
-      } else {
-        const dayKey = String(app?.start_time || "").slice(0, 10);
-        if (!dayKey || !map.has(dayKey)) continue;
-        map.get(dayKey)!.push({ app, line: createPlaceholderLine(app) });
-      }
-    }
-    return map;
-  }, [appointments, view, weekDays]);
+ for (const app of appointments || []) {
+ const lines = Array.isArray(app?.appointment_services)
+ ? app.appointment_services
+ : [];
+ if (lines.length > 0) {
+ for (const line of getAgendaDisplayServiceLines(app)) {
+ const dayKey = String(line?.start_time || "").slice(0, 10);
+ if (!dayKey || !map.has(dayKey)) continue;
+ map.get(dayKey)!.push({ app, line });
+ }
+ } else {
+ const dayKey = String(app?.start_time || "").slice(0, 10);
+ if (!dayKey || !map.has(dayKey)) continue;
+ map.get(dayKey)!.push({ app, line: createPlaceholderLine(app) });
+ }
+ }
+ return map;
+ }, [appointments, view, weekDays]);
 
-  // Scroll sync
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    if (timeColumnRef.current) timeColumnRef.current.scrollTop = target.scrollTop;
-    if (headerRef.current) headerRef.current.scrollLeft = target.scrollLeft;
-  };
+ // Scroll sync
+ const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+ const target = e.currentTarget;
+ if (timeColumnRef.current) timeColumnRef.current.scrollTop = target.scrollTop;
+ if (headerRef.current) headerRef.current.scrollLeft = target.scrollLeft;
+ };
 
-  // Nav (replace + preserva altri query come l’header: niente stack history “a giorni”)
-  const gotoPrev = () => {
-    const next =
-      view === "day" ? addDaysISO(currentDate, -1) : addWeeksISO(currentDate, -1);
-    navigateAgendaDate(next);
-  };
+ // Nav (replace + preserva altri query come l’header: niente stack history “a giorni”)
+ const gotoPrev = () => {
+ const next =
+ view === "day" ? addDaysISO(currentDate, -1) : addWeeksISO(currentDate, -1);
+ navigateAgendaDate(next);
+ };
 
-  const gotoNext = () => {
-    const next =
-      view === "day" ? addDaysISO(currentDate, 1) : addWeeksISO(currentDate, 1);
-    navigateAgendaDate(next);
-  };
+ const gotoNext = () => {
+ const next =
+ view === "day" ? addDaysISO(currentDate, 1) : addWeeksISO(currentDate, 1);
+ navigateAgendaDate(next);
+ };
 
-  const gotoToday = () => {
-    navigateAgendaDate(isoDate(new Date()));
-  };
+ const gotoToday = () => {
+ navigateAgendaDate(isoDate(new Date()));
+ };
 
-  const displayDateLabel = useMemo(
-    () =>
-      currentDate
-        ? new Date(currentDate + "T00:00:00").toLocaleDateString("it-IT", {
-            weekday: "short",
-            day: "numeric",
-            month: "short",
-          })
-        : "",
+ const displayDateLabel = useMemo(
+ () =>
+ currentDate
+ ? new Date(currentDate + "T00:00:00").toLocaleDateString("it-IT", {
+ weekday: "short",
+ day: "numeric",
+ month: "short",
+ })
+ : "",
     [currentDate]
   );
 
@@ -666,11 +666,11 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
       {/* TOOLBAR */}
       <div className="flex flex-shrink-0 flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-3 mb-2.5 md:mb-4">
         <div className="min-w-0">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
+          <div className="text-xs font-medium text-white/50">
             Vista
           </div>
           <p className="text-sm md:text-base font-black text-white/90 mt-0.5">
-            {displayDateLabel || currentDate} · {view === "day" ? "Giorno" : "Settimana"}
+ {displayDateLabel || currentDate} · {view === "day" ? "Giorno" : "Settimana"}
           </p>
         </div>
 
@@ -678,27 +678,27 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
           <button
             onClick={gotoPrev}
             className="p-2.5 rounded-xl text-white/60 hover:text-[#f3d8b6] hover:bg-white/10 transition-premium"
-            title="Precedente"
+ title="Precedente"
           >
             <ChevronLeft size={16} />
           </button>
           <button
             onClick={gotoToday}
-            className="h-11 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider bg-white/10 hover:bg-white/15 text-white/90 transition-premium"
-            title="Oggi"
+            className="h-11 px-4 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/15 text-white/90 transition-premium"
+ title="Oggi"
           >
             Oggi
           </button>
           <button
             onClick={gotoNext}
             className="p-2.5 rounded-xl text-white/60 hover:text-[#f3d8b6] hover:bg-white/10 transition-premium"
-            title="Successivo"
+ title="Successivo"
           >
             <ChevronRight size={16} />
           </button>
           <div className="w-px h-6 bg-white/10 mx-0.5" />
-          <button
-            onClick={() => setView("day")}
+ <button
+ onClick={() => setView("day")}
             className={`flex items-center gap-2 h-11 px-4 md:px-5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-premium ${view === "day"
               ? "bg-[#f3d8b6] text-black"
               : "text-white/50 hover:text-white/80 hover:bg-white/10"
@@ -716,11 +716,11 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
             <CalendarIcon size={14} /> Settimana
           </button>
           <div className="w-px h-6 bg-white/10 mx-0.5" />
-          <button
-            type="button"
+ <button
+ type="button"
             onClick={() => setCalendarOpen(true)}
             className="p-2.5 rounded-xl text-white/50 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
-            title="Scegli data"
+ title="Scegli data"
           >
             <CalendarDays size={16} />
           </button>
@@ -730,7 +730,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
               void loadOperationalCalendar();
             }}
             className="p-2.5 rounded-xl text-white/50 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
-            title="Refresh"
+ title="Refresh"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
@@ -741,7 +741,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
       (salonClosedToday || salonExtraOpenToday || staffOverrideCountToday > 0) ? (
         <div
           className="shrink-0 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 mb-1 text-xs"
-          role="status"
+ role="status"
         >
           {salonClosedToday ? (
             <span className="inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-2.5 py-0.5 font-bold text-red-200">
@@ -750,23 +750,23 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
           ) : null}
           {salonExtraOpenToday ? (
             <span className="inline-flex items-center rounded-full border border-emerald-500/35 bg-emerald-500/12 px-2.5 py-0.5 font-bold text-emerald-200">
-              Apertura straordinaria
-              {formatTimeRange(opSalonDay?.openStartTime ?? null, opSalonDay?.openEndTime ?? null)
-                ? ` · ${formatTimeRange(opSalonDay?.openStartTime ?? null, opSalonDay?.openEndTime ?? null)}`
-                : ""}
+ Apertura straordinaria
+ {formatTimeRange(opSalonDay?.openStartTime ?? null, opSalonDay?.openEndTime ?? null)
+ ? ` · ${formatTimeRange(opSalonDay?.openStartTime ?? null, opSalonDay?.openEndTime ?? null)}`
+ : ""}
             </span>
           ) : null}
           {staffOverrideCountToday > 0 ? (
             <span className="text-white/55">
-              {staffOverrideCountToday === 1
-                ? "1 eccezione collaboratore oggi"
-                : `${staffOverrideCountToday} eccezioni collaboratori oggi`}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+ {staffOverrideCountToday === 1
+ ? "1 eccezione collaboratore oggi"
+ : `${staffOverrideCountToday} eccezioni collaboratori oggi`}
+ </span>
+ ) : null}
+ </div>
+ ) : null}
 
-      {view === "day" && salonClosedToday ? (
+ {view === "day" && salonClosedToday ? (
         <p className="shrink-0 text-[11px] text-red-200/85 mb-1 px-0.5">
           Nuove prenotazioni non consentite in questa data (eccezione calendario operativo).
         </p>
@@ -810,20 +810,20 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
                     <span className="w-8 h-px rounded-full bg-gradient-to-r from-transparent via-[#f3d8b6]/35 to-transparent" aria-hidden />
                     {s.is_virtual ? (
                       <span className="text-[10px] text-white/45 mt-0.5">Senza collaboratore</span>
-                    ) : (() => {
-                      const sid = toIdStr(s?.id);
-                      if (!sid) return null;
-                      const ov = opStaffOverrides.get(sid);
-                      if (ov?.kind === "unavailable") {
+ ) : (() => {
+ const sid = toIdStr(s?.id);
+ if (!sid) return null;
+ const ov = opStaffOverrides.get(sid);
+ if (ov?.kind === "unavailable") {
                         return (
-                          <span className="text-[9px] font-bold uppercase tracking-wide text-amber-300/90 mt-0.5">
-                            Non disp.
-                          </span>
-                        );
-                      }
-                      if (ov?.kind === "available") {
+                          <span className="text-[11px] font-medium text-amber-300/90 mt-0.5">
+ Non disp.
+ </span>
+ );
+ }
+ if (ov?.kind === "available") {
                         return (
-                          <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-300/90 mt-0.5">
+                          <span className="text-[11px] font-medium text-emerald-300/90 mt-0.5">
                             Extra
                           </span>
                         );
@@ -841,17 +841,17 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
                   <div
                     key={d.date}
                     className="flex-shrink-0 px-3 md:px-4 py-3.5 flex flex-col items-center justify-center border-r border-white/[0.1]"
-                    style={{
-                      width: colWidth,
-                      flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
+ style={{
+ width: colWidth,
+ flex: shouldScrollX ? "0 0 auto" : "1 1 0%",
                       minWidth: shouldScrollX ? colWidth : undefined,
                     }}
                   >
                     <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                      {d.label.split(" ")[0]}
+ {d.label.split("")[0]}
                     </span>
                     <span className="text-sm font-black text-[#f3d8b6] mt-0.5">
-                      {d.label.split(" ")[1]}
+ {d.label.split("")[1]}
                     </span>
                     {dayClosed ? (
                       <span className="text-[8px] font-bold uppercase text-red-300/80 mt-0.5">
@@ -1109,9 +1109,9 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
       {/* LOADING OVERLAY */}
       {loading && (
         <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-[2px] pointer-events-none flex items-center justify-center">
-          <div className="rounded-2xl border border-white/10 bg-scz-dark px-5 py-4 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] flex items-center gap-3">
+          <div className="rounded-2xl border border-white/10 bg-scz-dark px-5 py-4 flex items-center gap-3">
             <Loader2 className="animate-spin text-[#f3d8b6]" size={20} />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">
+            <span className="text-xs font-medium text-white/70">
               Aggiornamento dati...
             </span>
           </div>

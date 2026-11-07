@@ -260,13 +260,13 @@ export default function MovimentiPage() {
       <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
         <h1 className="text-3xl font-bold mb-3">Movimenti</h1>
         <p className="text-white/70">{errMsg}</p>
-      </div>
-    );
-  }
+ </div>
+ );
+ }
 
-  if (
-    !isWarehouse &&
-    (role === "reception"
+ if (
+ !isWarehouse &&
+ (role === "reception"
       ? !isValidReceptionSalonForMovements(receptionSalonId ?? null)
       : userSalonId === null)
   ) {
@@ -275,7 +275,7 @@ export default function MovimentiPage() {
         <div className="max-w-xl rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100/95">
           <h1 className="text-2xl font-bold text-[#f3d8b6] mb-2">Movimenti</h1>
           <p className="text-white/85 leading-relaxed">
-            {role === "reception" ? (
+ {role === "reception" ? (
               <>
                 Il tuo account <b>reception</b> non ha un salone operativo valido (manca o non è
                 compatibile con la sede). Non è possibile mostrare lo storico movimenti. Contatta
@@ -306,14 +306,14 @@ export default function MovimentiPage() {
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white space-y-6">
       {/* HERO */}
-      <div className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
+      <div className="rounded-3xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 md:p-7 bg-black/20 border-b border-white/10">
           <div className="flex items-start gap-4">
             <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
               <History className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+              <div className="text-xs font-medium text-white/50 mb-1">
                 Magazzino
               </div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
@@ -323,14 +323,14 @@ export default function MovimentiPage() {
                 Storico per <span className="font-semibold text-white/90">{salonName}</span>
               </p>
               <p className="text-white/50 text-sm mt-1">
-                {isWarehouse
-                  ? "Cambia salone dallo switcher in alto."
-                  : "Storico del tuo salone."}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
+ {isWarehouse
+ ? null
+ : "Storico del tuo salone."}
+ </p>
+ </div>
+ </div>
+ <button
+ type="button"
             className="shrink-0 self-start sm:self-center inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
             onClick={() =>
               ctxSalonId != null &&
@@ -345,7 +345,7 @@ export default function MovimentiPage() {
 
       {/* FILTRI */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
-        <div className="text-[10px] font-black uppercase tracking-wider text-white/50">
+        <div className="text-xs font-medium text-white/50">
           Filtri
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -353,7 +353,7 @@ export default function MovimentiPage() {
             <label className="block text-xs font-semibold text-white/70 mb-1.5">Cerca prodotto</label>
             <input
               className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder:text-white/40 focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
-              placeholder="Nome prodotto..."
+ placeholder="Nome prodotto..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -365,24 +365,24 @@ export default function MovimentiPage() {
             <label className="block text-xs font-semibold text-white/70 mb-1.5">Tipo movimento</label>
             <select
               className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
-              value={typeFilter}
-              onChange={(e) => {
-                setTypeFilter(e.target.value as typeof typeFilter);
-                setPage(1);
-              }}
-            >
-              <option value="">Tutti i movimenti</option>
-              <option value="carico">Solo carichi</option>
-              <option value="scarico">Solo scarichi</option>
-              <option value="trasferimento">Solo trasferimenti</option>
-              <option value="vendita">Solo vendite</option>
-              <option value="storno">Solo storni</option>
+ value={typeFilter}
+ onChange={(e) => {
+ setTypeFilter(e.target.value as typeof typeFilter);
+ setPage(1);
+ }}
+ >
+ <option value="">Tutti i movimenti</option>
+ <option value="carico">Solo carichi</option>
+ <option value="scarico">Solo scarichi</option>
+ <option value="trasferimento">Solo trasferimenti</option>
+ <option value="vendita">Solo vendite</option>
+ <option value="storno">Solo storni</option>
             </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-white/70 mb-1.5">Dal</label>
-            <input
-              type="date"
+ <input
+ type="date"
               className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none"
               value={dateFrom}
               onChange={(e) => {
@@ -393,8 +393,8 @@ export default function MovimentiPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-white/70 mb-1.5">Al</label>
-            <input
-              type="date"
+ <input
+ type="date"
               className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none"
               value={dateTo}
               onChange={(e) => {
@@ -404,8 +404,8 @@ export default function MovimentiPage() {
             />
           </div>
           <div className="flex items-end">
-            <button
-              type="button"
+ <button
+ type="button"
               className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
               onClick={() => {
                 setPage(1);
@@ -459,25 +459,25 @@ export default function MovimentiPage() {
             <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b border-white/10 bg-black/20">
-                  <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
+                  <th className="p-3 text-left text-xs font-medium text-white/50">
                     Data
                   </th>
-                  <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
+                  <th className="p-3 text-left text-xs font-medium text-white/50">
                     Prodotto
                   </th>
-                  <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
+                  <th className="p-3 text-left text-xs font-medium text-white/50">
                     Categoria
                   </th>
-                  <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
+                  <th className="p-3 text-left text-xs font-medium text-white/50">
                     Tipo
                   </th>
-                  <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
+                  <th className="p-3 text-left text-xs font-medium text-white/50">
                     Qty
                   </th>
-                  <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
+                  <th className="p-3 text-left text-xs font-medium text-white/50">
                     Direzione
                   </th>
-                  <th className="p-3 text-left text-[10px] font-black uppercase tracking-wider text-white/50">
+                  <th className="p-3 text-left text-xs font-medium text-white/50">
                     Collegamenti
                   </th>
                 </tr>
@@ -522,8 +522,8 @@ export default function MovimentiPage() {
         ) : null}
         {pageCount > 1 && !loadingMovements && (
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-white/10 bg-black/20">
-            <button
-              type="button"
+ <button
+ type="button"
               disabled={page <= 1}
               className="px-4 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40 hover:bg-white/5"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -531,10 +531,10 @@ export default function MovimentiPage() {
               Precedente
             </button>
             <span className="text-xs text-white/50 tabular-nums">
-              {page} / {pageCount}
-            </span>
-            <button
-              type="button"
+ {page} / {pageCount}
+ </span>
+ <button
+ type="button"
               disabled={page >= pageCount}
               className="px-4 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40 hover:bg-white/5"
               onClick={() => setPage((p) => Math.min(pageCount, p + 1))}

@@ -135,8 +135,8 @@ export default function BridgeEnterpriseMonitor({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <button
-          type="button"
+ <button
+ type="button"
           onClick={() => refresh()}
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-xl border border-[#f3d8b6]/25 bg-[#f3d8b6]/10 px-4 py-2 text-sm font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/15 disabled:opacity-50"
@@ -148,67 +148,67 @@ export default function BridgeEnterpriseMonitor({
 
       {error ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-100">
-          {error}
-        </div>
-      ) : null}
+ {error}
+ </div>
+ ) : null}
 
-      <BridgeTokenMintModal
-        open={mintedToken != null}
-        token={mintedToken?.token ?? ""}
-        bridgeId={mintedToken?.bridge_id ?? ""}
+ <BridgeTokenMintModal
+ open={mintedToken != null}
+ token={mintedToken?.token ?? ""}
+ bridgeId={mintedToken?.bridge_id ?? ""}
         onClose={() => setMintedToken(null)}
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-        <KpiCard label="Totale casse" value={kpis.total} />
-        <KpiCard label="Online" value={kpis.online} tone="ok" />
-        <KpiCard label="Attenzione" value={kpis.attenzione} tone="warn" />
-        <KpiCard label="Offline" value={kpis.offline} tone="muted" />
-        <KpiCard
-          label="Job critici"
-          value={kpis.criticalJobs}
-          tone={kpis.criticalJobs > 0 ? "warn" : "neutral"}
+ <KpiCard label="Totale casse" value={kpis.total} />
+ <KpiCard label="Online" value={kpis.online} tone="ok" />
+ <KpiCard label="Attenzione" value={kpis.attenzione} tone="warn" />
+ <KpiCard label="Offline" value={kpis.offline} tone="muted" />
+ <KpiCard
+ label="Job critici"
+ value={kpis.criticalJobs}
+ tone={kpis.criticalJobs > 0 ? "warn" : "neutral"}
           className="col-span-2 sm:col-span-1"
         />
       </div>
 
       {productionRows.length === 0 ? (
         <p className="text-center text-sm text-[#c9b299] py-8 rounded-2xl border border-white/10 bg-black/20">
-          Nessuna cassa reale registrata.
-          {canManage ? " Usa Amministrazione bridge per registrarne una." : ""}
+ Nessuna cassa reale registrata.
+ {canManage ? " Usa Amministrazione bridge per registrarne una." : ""}
         </p>
       ) : (
         <section className="space-y-2">
-          {productionRows.map((row) => (
-            <CompactCassaRow
-              key={row.id}
-              row={row}
-              bundle={bundles[row.id]}
-              expanded={expandedId === row.id}
-              onToggle={() =>
-                setExpandedId((id) => (id === row.id ? null : row.id))
-              }
-              canActFiscal={canActFiscal}
-              canManage={canManage}
-              onMintToken={() => mintToken(row.id, row.bridge_id)}
-            />
-          ))}
-        </section>
-      )}
+ {productionRows.map((row) => (
+ <CompactCassaRow
+ key={row.id}
+ row={row}
+ bundle={bundles[row.id]}
+ expanded={expandedId === row.id}
+ onToggle={() =>
+ setExpandedId((id) => (id === row.id ? null : row.id))
+ }
+ canActFiscal={canActFiscal}
+ canManage={canManage}
+ onMintToken={() => mintToken(row.id, row.bridge_id)}
+ />
+ ))}
+ </section>
+ )}
 
-      <CollapsibleBlock
-        title="Guida problemi"
+ <CollapsibleBlock
+ title="Guida problemi"
         icon={<BookOpen size={17} className="text-[#f3d8b6]/80" />}
-        open={runbookOpen}
-        onToggle={() => setRunbookOpen((v) => !v)}
-      >
-        <BridgeRunbookPanel warningCodes={allWarningCodes} />
-      </CollapsibleBlock>
+ open={runbookOpen}
+ onToggle={() => setRunbookOpen((v) => !v)}
+ >
+ <BridgeRunbookPanel warningCodes={allWarningCodes} />
+ </CollapsibleBlock>
 
-      {canManage ? (
-        <CollapsibleBlock
-          title="Amministrazione bridge"
-          subtitle="Coordinator — registra cassa, token, ambienti dev"
+ {canManage ? (
+ <CollapsibleBlock
+ title="Amministrazione bridge"
+ subtitle="Coordinator — registra cassa, token, ambienti dev"
           icon={<Settings2 size={17} className="text-[#f3d8b6]/80" />}
           open={adminOpen}
           onToggle={() => setAdminOpen((v) => !v)}
@@ -221,7 +221,7 @@ export default function BridgeEnterpriseMonitor({
                   value={newBridgeId}
                   onChange={(e) => setNewBridgeId(e.target.value)}
                   className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
-                  placeholder="es. roma_cassa_1"
+ placeholder="es. roma_cassa_1"
                 />
               </label>
               <label className="text-xs text-[#c9b299] flex flex-col gap-1">
@@ -230,74 +230,74 @@ export default function BridgeEnterpriseMonitor({
                   value={newSalonId}
                   onChange={(e) => setNewSalonId(e.target.value)}
                   className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
-                >
-                  <option value="1">Roma</option>
-                  <option value="2">Corigliano</option>
-                  <option value="3">Castrovillari</option>
-                  <option value="4">Cosenza</option>
-                </select>
-              </label>
-              <button
-                type="button"
+ >
+ <option value="1">Roma</option>
+ <option value="2">Corigliano</option>
+ <option value="3">Castrovillari</option>
+ <option value="4">Cosenza</option>
+ </select>
+ </label>
+ <button
+ type="button"
                 onClick={createInstallation}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#f3d8b6] px-4 py-2 text-sm font-extrabold text-black"
-              >
-                <Plus size={15} />
-                Registra cassa
-              </button>
-            </div>
+ >
+ <Plus size={15} />
+ Registra cassa
+ </button>
+ </div>
 
-            {devRows.length > 0 ? (
-              <CollapsibleBlock
-                title={`Ambienti di sviluppo (${devRows.length})`}
-                subtitle="Test locale — non casse reali"
+ {devRows.length > 0 ? (
+ <CollapsibleBlock
+ title={`Ambienti di sviluppo (${devRows.length})`}
+ subtitle="Test locale — non casse reali"
                 icon={<FlaskConical size={16} className="text-violet-300/80" />}
-                open={devOpen}
-                onToggle={() => setDevOpen((v) => !v)}
-                variant="dev"
+ open={devOpen}
+ onToggle={() => setDevOpen((v) => !v)}
+ variant="dev"
               >
                 <div className="space-y-2">
-                  {devRows.map((row) => (
-                    <DevCassaRow
-                      key={row.id}
-                      row={row}
-                      onMintToken={() => mintToken(row.id, row.bridge_id)}
-                    />
-                  ))}
-                </div>
-              </CollapsibleBlock>
-            ) : null}
-          </div>
-        </CollapsibleBlock>
-      ) : null}
-    </div>
-  );
+ {devRows.map((row) => (
+ <DevCassaRow
+ key={row.id}
+ row={row}
+ onMintToken={() => mintToken(row.id, row.bridge_id)}
+ />
+ ))}
+ </div>
+ </CollapsibleBlock>
+ ) : null}
+ </div>
+ </CollapsibleBlock>
+ ) : null}
+ </div>
+ );
 }
 
 function KpiCard({
-  label,
-  value,
-  tone = "neutral",
-  className = "",
+ label,
+ value,
+ tone = "neutral",
+ className = "",
 }: {
-  label: string;
-  value: number;
-  tone?: "ok" | "warn" | "muted" | "neutral";
-  className?: string;
+ label: string;
+ value: number;
+ tone?: "ok" | "warn" | "muted" | "neutral";
+ className?: string;
 }) {
-  const valueCls =
-    tone === "ok"
-      ? "text-emerald-200"
-      : tone === "warn"
-        ? "text-amber-200"
-        : tone === "muted"
-          ? "text-white/50"
-          : "text-[#f3d8b6]";
+ const valueCls =
+ tone === "ok"
+ ? "text-emerald-200"
+ : tone === "warn"
+ ? "text-amber-200"
+ : tone === "muted"
+ ? "text-white/50"
+ : "text-[#f3d8b6]";
   return (
     <div
       className={`rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 ${className}`}
     >
-      <p className="text-[10px] font-black uppercase tracking-wider text-white/40">{label}</p>
+      <p className="text-xs font-medium text-white/40">{label}</p>
       <p className={`text-2xl font-extrabold tabular-nums mt-0.5 ${valueCls}`}>{value}</p>
     </div>
   );
@@ -343,17 +343,17 @@ function CollapsibleBlock({
         {open ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
       </button>
       {open ? <div className="border-t border-white/10 px-4 pb-4">{children}</div> : null}
-    </section>
-  );
+ </section>
+ );
 }
 
 function StatusBadge({ status }: { status: FiscalCassaStatus }) {
-  const cls =
-    status === "operativo"
-      ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/30"
-      : status === "attenzione"
-        ? "bg-amber-500/15 text-amber-200 border-amber-500/30"
-        : "bg-white/10 text-white/55 border-white/15";
+ const cls =
+ status === "operativo"
+ ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/30"
+ : status === "attenzione"
+ ? "bg-amber-500/15 text-amber-200 border-amber-500/30"
+ : "bg-white/10 text-white/55 border-white/15";
   return (
     <span
       className={`shrink-0 inline-flex rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${cls}`}
@@ -426,14 +426,14 @@ function CompactCassaRow({
             <StatusBadge status={status} />
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[#c9b299]">
-            <span>
-              Contatto:{" "}
+ <span>
+ Contatto:{" "}
               <strong className="text-white/70">
-                {row.last_seen_at ? formatRelativeTimeIt(row.last_seen_at) : "mai"}
-              </strong>
-            </span>
-            <span>
-              Stampante:{" "}
+ {row.last_seen_at ? formatRelativeTimeIt(row.last_seen_at) : "mai"}
+ </strong>
+ </span>
+ <span>
+ Stampante:{" "}
               <strong
                 className={
                   printer.ok === true
@@ -451,9 +451,9 @@ function CompactCassaRow({
             </span>
             <span>
               Z: <strong className="text-white/70">{zLabel}</strong>
-            </span>
-            <span>
-              Job critici:{" "}
+ </span>
+ <span>
+ Job critici:{" "}
               <strong className={criticalCount > 0 ? "text-amber-300" : "text-white/70"}>
                 {criticalCount}
               </strong>
@@ -461,46 +461,46 @@ function CompactCassaRow({
           </div>
         </div>
         <div className="flex sm:flex-col items-stretch justify-center gap-1.5 border-t sm:border-t-0 sm:border-l border-white/10 px-3 py-2 sm:py-3 shrink-0">
-          {canManage ? <MintTokenButton onClick={onMintToken} /> : null}
-          <button
-            type="button"
+ {canManage ? <MintTokenButton onClick={onMintToken} /> : null}
+ <button
+ type="button"
             onClick={onToggle}
             className="rounded-lg border border-[#f3d8b6]/30 bg-[#f3d8b6]/10 px-4 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/20 whitespace-nowrap"
-          >
-            {expanded ? "Chiudi" : "Dettagli"}
-          </button>
-        </div>
-      </div>
-      {expanded && bundle ? (
-        <ExpandedCassaDetails
-          row={row}
-          bundle={bundle}
-          canActFiscal={canActFiscal}
-        />
-      ) : null}
-    </article>
-  );
+ >
+ {expanded ? "Chiudi" : "Dettagli"}
+ </button>
+ </div>
+ </div>
+ {expanded && bundle ? (
+ <ExpandedCassaDetails
+ row={row}
+ bundle={bundle}
+ canActFiscal={canActFiscal}
+ />
+ ) : null}
+ </article>
+ );
 }
 
 function ExpandedCassaDetails({
-  row,
-  bundle,
-  canActFiscal,
+ row,
+ bundle,
+ canActFiscal,
 }: {
-  row: BridgeDashboardEnrichedRow;
-  bundle: BridgeInstallationBundle;
-  canActFiscal: boolean;
+ row: BridgeDashboardEnrichedRow;
+ bundle: BridgeInstallationBundle;
+ canActFiscal: boolean;
 }) {
-  const problems = humanProblemsFromRow(row);
-  const snap = bundle.fiscal_snapshot ?? row.fiscal_snapshot;
-  const tech = extractTechnicalHealth(row.last_health ?? {});
-  const healthJson = JSON.stringify(row.last_health ?? {}, null, 2);
+ const problems = humanProblemsFromRow(row);
+ const snap = bundle.fiscal_snapshot ?? row.fiscal_snapshot;
+ const tech = extractTechnicalHealth(row.last_health ?? {});
+ const healthJson = JSON.stringify(row.last_health ?? {}, null, 2);
 
-  const docItems = snap
-    ? [
-        { label: "Ultimo scontrino", job: snap.last_by_kind.sale_receipt },
-        { label: "Ultimo annullo", job: snap.last_by_kind.void_receipt },
-        { label: "Ultima Z", job: snap.last_by_kind.z_report },
+ const docItems = snap
+ ? [
+ { label: "Ultimo scontrino", job: snap.last_by_kind.sale_receipt },
+ { label: "Ultimo annullo", job: snap.last_by_kind.void_receipt },
+ { label: "Ultima Z", job: snap.last_by_kind.z_report },
       ]
     : [];
 
@@ -533,8 +533,8 @@ function ExpandedCassaDetails({
             Documenti fiscali
           </h4>
           <ul className="grid sm:grid-cols-3 gap-2 text-xs">
-            {docItems.map(({ label, job }) => {
-              const act = formatJobActivity(job, "Nessuno");
+ {docItems.map(({ label, job }) => {
+ const act = formatJobActivity(job, "Nessuno");
               return (
                 <li key={label} className="rounded-lg border border-white/10 bg-black/30 px-3 py-2">
                   <p className="text-[#c9b299]">{label}</p>
@@ -591,9 +591,9 @@ function ExpandedCassaDetails({
                     <td className="px-2 py-1">{formatRelativeTimeIt(hb.created_at)}</td>
                     <td className="px-2 py-1">{hb.status ?? "—"}</td>
                     <td className="px-2 py-1 tabular-nums">
-                      {String(hb.health.queue_pending ?? "—")}/
-                      {String(hb.health.queue_processing ?? "—")}/
-                      {String(hb.health.queue_failed ?? "—")}
+ {String(hb.health.queue_pending ?? "—")}/
+ {String(hb.health.queue_processing ?? "—")}/
+ {String(hb.health.queue_failed ?? "—")}
                     </td>
                   </tr>
                 ))}
@@ -645,13 +645,13 @@ function DevCassaRow({
       <div className="min-w-0">
         <p className="text-sm font-mono font-bold text-violet-100 truncate">{row.bridge_id}</p>
         <p className="text-[10px] text-violet-200/50">
-          {row.salon_name ?? `Salone ${row.salon_id}`} ·{" "}
-          {row.last_seen_at ? formatRelativeTimeIt(row.last_seen_at) : "mai"}
+ {row.salon_name ?? `Salone ${row.salon_id}`} ·{" "}
+ {row.last_seen_at ? formatRelativeTimeIt(row.last_seen_at) : "mai"}
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <StatusBadge status={status} />
-        <MintTokenButton onClick={onMintToken} variant="dev" />
+ <StatusBadge status={status} />
+ <MintTokenButton onClick={onMintToken} variant="dev" />
       </div>
     </div>
   );

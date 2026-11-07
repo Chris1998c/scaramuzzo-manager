@@ -144,93 +144,93 @@ export default function ReportFilters({
   }
 
   return (
-    <div className="bg-scz-dark border border-white/10 rounded-2xl p-6 space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <div className="text-xs uppercase tracking-[0.25em] text-white/40 font-black">
-            REPORT ENTERPRISE
-          </div>
-          <div className="text-xl font-extrabold text-scz-gold">Centro decisionale</div>
-          {salonId > 0 && (
-            <p className="mt-2 text-xs text-white/50">
-              Dati per salone:{" "}
-              <span className="font-bold text-white/75">
+    <div className="rounded-xl border border-white/[0.08] bg-scz-dark p-3.5 md:p-4 space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="min-w-0">
+          <div className="text-lg font-semibold text-[#f3d8b6]">Report</div>
+          {salonId > 0 ? (
+            <p className="mt-0.5 text-xs text-white/50 truncate">
+              Sede:{" "}
+              <span className="font-medium text-white/75">
                 {salonLabel?.trim() || `ID ${salonId}`}
-              </span>{" "}
-              · allineamento con <span className="text-white/60">Vista</span> e URL (
-              <code className="text-white/45">salon_id</code>)
+              </span>
             </p>
-          )}
-          {salonId <= 0 && (
-            <p className="mt-2 text-xs font-semibold text-amber-200/90">
-              Nessun salone valido: impossibile caricare i report finché non è disponibile almeno una
-              sede.
+          ) : (
+            <p className="mt-0.5 text-xs font-medium text-amber-200/90">
+              Nessun salone valido: seleziona una sede per caricare i report.
             </p>
           )}
         </div>
 
         <div className="flex gap-2">
-          <button onClick={exportPdf} className="px-4 py-2 rounded-xl bg-black/30 border border-white/10 font-bold">
+          <button
+            type="button"
+            onClick={exportPdf}
+            className="px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-sm font-semibold text-[#f3d8b6]"
+          >
             PDF
           </button>
-          <button onClick={exportCsv} className="px-4 py-2 rounded-xl bg-black/30 border border-white/10 font-bold">
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-sm font-semibold text-[#f3d8b6]"
+          >
             CSV
           </button>
         </div>
       </div>
 
       {macroTab === "riepilogo" ? (
-        <p className="text-xs text-white/40 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-          Il <span className="font-bold text-white/60">Riepilogo</span> mostra oggi e mese corrente.
-          I filtri data sotto si applicano a Vendite, Team e Clienti.
+        <p className="text-xs text-white/45">
+          Il riepilogo usa oggi e mese corrente. Le date sotto valgono per Vendite, Team e Clienti.
         </p>
       ) : (
         <div className="grid md:grid-cols-5 gap-4">
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => updateParam("date_from", e.target.value)}
+ <input
+ type="date"
+ value={dateFrom}
+ onChange={(e) => updateParam("date_from", e.target.value)}
           className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
-        />
+ />
 
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => updateParam("date_to", e.target.value)}
+ <input
+ type="date"
+ value={dateTo}
+ onChange={(e) => updateParam("date_to", e.target.value)}
           className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
-        />
+ />
 
-        <select
-          value={staffId ?? ""}
-          onChange={(e) => updateParam("staff_id", e.target.value || null)}
+ <select
+ value={staffId ?? ""}
+ onChange={(e) => updateParam("staff_id", e.target.value || null)}
           className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
-        >
-          <option value="">Tutti Staff</option>
-          {staffOptions.map((s) => (
-            <option key={s.id} value={String(s.id)}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+ >
+ <option value="">Tutti Staff</option>
+ {staffOptions.map((s) => (
+ <option key={s.id} value={String(s.id)}>
+ {s.name}
+ </option>
+ ))}
+ </select>
 
-        <select
-          value={paymentMethod ?? ""}
-          onChange={(e) => updateParam("payment_method", e.target.value || null)}
+ <select
+ value={paymentMethod ?? ""}
+ onChange={(e) => updateParam("payment_method", e.target.value || null)}
           className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
-        >
-          <option value="">Pagamento</option>
-          <option value="cash">Contanti</option>
-          <option value="card">Carta</option>
-        </select>
+ >
+ <option value="">Pagamento</option>
+ <option value="cash">Contanti</option>
+ <option value="card">Carta</option>
+ </select>
 
-        <select
-          value={itemType ?? ""}
-          onChange={(e) => updateParam("item_type", e.target.value || null)}
+ <select
+ value={itemType ?? ""}
+ onChange={(e) => updateParam("item_type", e.target.value || null)}
           className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
-        >
-          <option value="">Tipo</option>
-          <option value="service">Servizi</option>
-          <option value="product">Prodotti</option>
+ >
+ <option value="">Tipo</option>
+ <option value="service">Servizi</option>
+ <option value="product">Prodotti</option>
         </select>
         </div>
       )}

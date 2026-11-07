@@ -188,9 +188,9 @@ export default function FiscaleStampantePanel({
       <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-[#c9b299] leading-relaxed">
         <span className="font-bold text-amber-200/95">Comportamento sistema</span>
         <span className="mx-2 text-white/25">·</span>
-        Con stampante abilitata per la sessione cassa, la chiusura vendita richiede Print Bridge
-        raggiungibile: se il bridge non risponde, la vendita non viene registrata. Con stampante
-        disattivata la vendita si registra e{" "}
+ Con stampante abilitata per la sessione cassa, la chiusura vendita richiede Print Bridge
+ raggiungibile: se il bridge non risponde, la vendita non viene registrata. Con stampante
+ disattivata la vendita si registra e{" "}
         <code className="text-[#f3d8b6]/90">sales.fiscal_status</code> resta{" "}
         <code className="text-white/60">pending</code> fino a integrazioni successive. Il
         callback fiscale aggiorna gli stati <code className="text-white/60">queued</code> →{" "}
@@ -203,11 +203,11 @@ export default function FiscaleStampantePanel({
             Contesto
           </p>
           <p className="text-lg font-bold text-[#f3d8b6]">
-            {salonLabel ?? `Salone #${effectiveSalonId}`}
-          </p>
-        </div>
-        <button
-          type="button"
+ {salonLabel ?? `Salone #${effectiveSalonId}`}
+ </p>
+ </div>
+ <button
+ type="button"
           onClick={() => void handleRefresh()}
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-3 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-white/5 disabled:opacity-50"
@@ -236,7 +236,7 @@ export default function FiscaleStampantePanel({
               </span>
             ) : (
               <span className="text-sm text-rose-300/95">
-                {snap?.bridge.ok === false ? snap.bridge.error : "—"}
+ {snap?.bridge.ok === false ? snap.bridge.error : "—"}
               </span>
             )}
           </div>
@@ -256,13 +256,13 @@ export default function FiscaleStampantePanel({
                 <span className="font-semibold text-emerald-300/95">Aperta</span>
               </p>
               <p className="text-xs text-[#c9b299]">
-                Sessione {snap.session.session_date}
-                {snap.session.opened_at
-                  ? ` · aperta ${new Date(snap.session.opened_at).toLocaleString("it-IT", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}`
-                  : ""}
+ Sessione {snap.session.session_date}
+ {snap.session.opened_at
+ ? ` · aperta ${new Date(snap.session.opened_at).toLocaleString("it-IT", {
+ dateStyle: "short",
+ timeStyle: "short",
+ })}`
+ : ""}
               </p>
               {snap.session.status ? (
                 <p className="text-xs text-[#c9b299]/80">
@@ -272,7 +272,7 @@ export default function FiscaleStampantePanel({
             </div>
           ) : (
             <p className="mt-2 text-sm text-[#c9b299]">
-              Nessuna cassa aperta per questo salone. Apri turno dalla cassa per collegare{" "}
+ Nessuna cassa aperta per questo salone. Apri turno dalla cassa per collegare{" "}
               <code className="text-white/50">printer_enabled</code> alla sessione.
             </p>
           )}
@@ -284,11 +284,11 @@ export default function FiscaleStampantePanel({
           <div className="flex items-center gap-2 text-[#f3d8b6]">
             <ShieldCheck size={18} />
             <span className="text-sm font-bold">Stampante fiscale (sessione)</span>
-          </div>
-          {typeof pe === "boolean" ? (
-            <button
-              type="button"
-              role="switch"
+ </div>
+ {typeof pe === "boolean" ? (
+ <button
+ type="button"
+ role="switch"
               aria-checked={pe}
               disabled={!canUseSessionPrinter || !snap?.session || loading}
               onClick={() => void setPrinterEnabledPersist(!pe)}
@@ -324,7 +324,7 @@ export default function FiscaleStampantePanel({
       </div>
 
       <div className="rounded-2xl border border-[#5c3a21]/40 overflow-hidden">
-        <div className="bg-black/30 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
+        <div className="bg-black/30 px-4 py-2 text-xs font-medium text-[#c9b299]/80">
           Vendite oggi per stato fiscale · {snap?.fiscalToday.total ?? 0} righe
         </div>
         <div className="p-4">
@@ -350,11 +350,11 @@ export default function FiscaleStampantePanel({
                 (k) => !FISCAL_ORDER.includes(k as (typeof FISCAL_ORDER)[number]),
               ).length > 0 ? (
                 <div className="w-full mt-2 text-xs text-[#c9b299]/80">
-                  Altri stati:{" "}
-                  {Object.entries(snap?.fiscalToday.by_status ?? {})
-                    .filter(([k]) => !FISCAL_ORDER.includes(k as (typeof FISCAL_ORDER)[number]))
-                    .map(([k, v]) => `${k} (${v})`)
-                    .join(", ")}
+ Altri stati:{" "}
+ {Object.entries(snap?.fiscalToday.by_status ?? {})
+ .filter(([k]) => !FISCAL_ORDER.includes(k as (typeof FISCAL_ORDER)[number]))
+ .map(([k, v]) => `${k} (${v})`)
+ .join(",")}
                 </div>
               ) : null}
             </div>

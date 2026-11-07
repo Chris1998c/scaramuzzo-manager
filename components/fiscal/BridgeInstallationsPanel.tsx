@@ -87,10 +87,10 @@ export default function BridgeInstallationsPanel({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 justify-between">
         <p className="text-xs text-[#c9b299]">
-          Stato da heartbeat bridge · offline se last_seen &gt; 2 min
-        </p>
-        <button
-          type="button"
+ Stato da heartbeat bridge · offline se last_seen &gt; 2 min
+ </p>
+ <button
+ type="button"
           onClick={() => refresh()}
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-white/5 disabled:opacity-50"
@@ -120,7 +120,7 @@ export default function BridgeInstallationsPanel({
               value={newBridgeId}
               onChange={(e) => setNewBridgeId(e.target.value)}
               className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
-              placeholder="roma_cassa_1"
+ placeholder="roma_cassa_1"
             />
           </label>
           <label className="text-xs text-[#c9b299] flex flex-col gap-1">
@@ -129,15 +129,15 @@ export default function BridgeInstallationsPanel({
               value={newSalonId}
               onChange={(e) => setNewSalonId(e.target.value)}
               className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
-            >
-              <option value="1">1 Roma</option>
-              <option value="2">2 Corigliano</option>
-              <option value="3">3 Castrovillari</option>
-              <option value="4">4 Cosenza</option>
-            </select>
-          </label>
-          <button
-            type="button"
+ >
+ <option value="1">1 Roma</option>
+ <option value="2">2 Corigliano</option>
+ <option value="3">3 Castrovillari</option>
+ <option value="4">4 Cosenza</option>
+ </select>
+ </label>
+ <button
+ type="button"
             onClick={createInstallation}
             className="inline-flex items-center gap-2 rounded-xl bg-[#f3d8b6]/15 border border-[#f3d8b6]/30 px-4 py-2 text-sm font-bold text-[#f3d8b6]"
           >
@@ -178,21 +178,21 @@ export default function BridgeInstallationsPanel({
                     <StatusBadge online={row.online} status={row.status} />
                   </td>
                   <td className="px-4 py-3 text-xs text-[#c9b299]">
-                    {row.last_seen_at
-                      ? new Date(row.last_seen_at).toLocaleString("it-IT")
-                      : "—"}
+ {row.last_seen_at
+ ? new Date(row.last_seen_at).toLocaleString("it-IT")
+ : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <HealthCompact h={row.compact_health} warnings={row.warnings} />
                   </td>
                   <td className="px-4 py-3 text-xs tabular-nums">
-                    P:{row.compact_health.queue_pending ?? "—"} / Pr:
-                    {row.compact_health.queue_processing ?? "—"}
+ P:{row.compact_health.queue_pending ?? "—"} / Pr:
+ {row.compact_health.queue_processing ?? "—"}
                   </td>
                   {canManage ? (
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
+ <button
+ type="button"
                         onClick={() => mintToken(row.id)}
                         className="inline-flex items-center gap-1 text-xs font-bold text-[#f3d8b6] hover:underline"
                       >
@@ -221,22 +221,22 @@ export default function BridgeInstallationsPanel({
                 }`}
               >
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                <span>
-                  <strong>{r.bridge_id}</strong>: {w.message}
-                </span>
-              </div>
-            )),
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
+ <span>
+ <strong>{r.bridge_id}</strong>: {w.message}
+ </span>
+ </div>
+ )),
+ )}
+ </div>
+ ) : null}
+ </div>
+ );
 }
 
 function StatusBadge({ online, status }: { online: boolean; status: string }) {
-  const cls = online
-    ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/30"
-    : "bg-red-500/15 text-red-200 border-red-500/30";
+ const cls = online
+ ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/30"
+ : "bg-red-500/15 text-red-200 border-red-500/30";
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase ${cls}`}
@@ -256,10 +256,10 @@ function HealthCompact({
 }) {
   return (
     <div className="text-[10px] space-y-0.5 text-[#c9b299]">
-      <div>v:{h.version ?? "—"}</div>
-      <div>
-        FPMate:{h.fpmate_reachable === true ? "✓" : h.fpmate_reachable === false ? "✗" : "?"}{" "}
-        Supa:{h.supabase_reachable === true ? "✓" : h.supabase_reachable === false ? "✗" : "?"}
+ <div>v:{h.version ?? "—"}</div>
+ <div>
+ FPMate:{h.fpmate_reachable === true ? "✓" : h.fpmate_reachable === false ? "✗" : "?"}{" "}
+ Supa:{h.supabase_reachable === true ? "✓" : h.supabase_reachable === false ? "✗" : "?"}
       </div>
       {h.last_job_status ? <div>job:{h.last_job_status}</div> : null}
       {warnings.length > 0 ? (

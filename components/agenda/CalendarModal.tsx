@@ -178,7 +178,7 @@ export default function CalendarModal({
         onMouseDown={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: 10, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-2xl rounded-3xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] overflow-hidden text-white"
+        className="w-full max-w-2xl rounded-3xl border border-white/10 bg-scz-dark overflow-hidden text-white"
       >
         {/* HEADER */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-black/20">
@@ -192,8 +192,8 @@ export default function CalendarModal({
           <button
             onClick={close}
             className="rounded-2xl p-2 bg-black/25 border border-white/10 text-white/70 hover:bg-black/35 transition"
-            aria-label="Chiudi"
-            title="Chiudi"
+ aria-label="Chiudi"
+ title="Chiudi"
           >
             <X size={18} />
           </button>
@@ -242,9 +242,9 @@ export default function CalendarModal({
             {days.map((date, idx) => {
               if (!date) return <div key={`empty-${idx}`} className="h-[76px]" />;
 
-              const count = appointmentsByDay[date] || 0;
-              const hasAppointments = count > 0;
-              const dayNum = Number(date.split("-")[2]);
+ const count = appointmentsByDay[date] || 0;
+ const hasAppointments = count > 0;
+ const dayNum = Number(date.split("-")[2]);
 
               const isToday = date === today;
               const isSelected = !!selectedDate && date === selectedDate;
@@ -302,7 +302,7 @@ export default function CalendarModal({
           </div>
 
           <div className="mt-5 text-center text-xs text-white/45">
-            Mostra conteggi solo per il{" "}
+ Mostra conteggi solo per il{" "}
             <span className="text-[#f3d8b6] font-extrabold">salone attivo</span>.
           </div>
         </div>

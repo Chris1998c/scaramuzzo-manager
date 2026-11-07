@@ -518,8 +518,8 @@ export default function SchedeTecniche({
               value={type}
               onChange={(e) => setType(e.target.value as ServiceType)}
               className="mt-1 w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60
-                px-4 py-3 text-sm text-white
-                focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ px-4 py-3 text-sm text-white
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
             >
               {SERVICE_TYPES.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -529,20 +529,20 @@ export default function SchedeTecniche({
             </select>
 
             <div className="mt-4 grid grid-cols-1 gap-3">
-              <RlpSelect
-                value={(data as any).payload?.rlp ?? ""}
-                onChange={(v) => patchPayload({ rlp: v })}
-              />
-              <MiniInput
-                label="Obiettivo"
-                placeholder="Es: castano freddo, copertura bianchi…"
-                value={(data as any).payload?.goal ?? ""}
-                onChange={(v) => patchPayload({ goal: v })}
-              />
-              <MiniInput
-                label="Risultato"
-                placeholder="Es: perfetto, leggermente caldo…"
-                value={(data as any).payload?.outcome ?? ""}
+ <RlpSelect
+ value={(data as any).payload?.rlp ?? ""}
+ onChange={(v) => patchPayload({ rlp: v })}
+ />
+ <MiniInput
+ label="Obiettivo"
+ placeholder="Es: castano freddo, copertura bianchi…"
+ value={(data as any).payload?.goal ?? ""}
+ onChange={(v) => patchPayload({ goal: v })}
+ />
+ <MiniInput
+ label="Risultato"
+ placeholder="Es: perfetto, leggermente caldo…"
+ value={(data as any).payload?.outcome ?? ""}
                 onChange={(v) => patchPayload({ outcome: v })}
               />
             </div>
@@ -550,22 +550,22 @@ export default function SchedeTecniche({
 
           {/* RIGHT — campi core del tipo (formula/mix/tempi/volumi o protocollo botanico) */}
           <div className="lg:col-span-2">
-            <DynamicForm
-              type={type}
-              payload={(data as any).payload ?? {}}
-              onPatch={patchPayload}
-              section="primary"
+ <DynamicForm
+ type={type}
+ payload={(data as any).payload ?? {}}
+ onPatch={patchPayload}
+ section="primary"
             />
           </div>
         </div>
 
         {/* Diagnosi / risultati strutturati / note secondarie: UI collassabile, stato invariato in `data` */}
         <div className="mt-4 rounded-3xl border border-[#5c3a21]/60 bg-black/15 overflow-hidden">
-          <button
-            type="button"
+ <button
+ type="button"
             onClick={() => setAdvancedOpen((v) => !v)}
             className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left
-              hover:bg-white/5 transition"
+ hover:bg-white/5 transition"
             aria-expanded={advancedOpen}
           >
             <div>
@@ -583,26 +583,26 @@ export default function SchedeTecniche({
 
           {advancedOpen && (
             <div className="px-5 pb-5 space-y-4 border-t border-[#5c3a21]/40 pt-4">
-              <DynamicForm
-                type={type}
-                payload={(data as any).payload ?? {}}
-                onPatch={patchPayload}
-                section="secondary"
-              />
+ <DynamicForm
+ type={type}
+ payload={(data as any).payload ?? {}}
+ onPatch={patchPayload}
+ section="secondary"
+ />
 
-              <DiagnosisSection
-                diagnosis={(data as any).payload?.diagnosis}
-                onPatch={patchDiagnosis}
-              />
+ <DiagnosisSection
+ diagnosis={(data as any).payload?.diagnosis}
+ onPatch={patchDiagnosis}
+ />
 
-              {(type === "oxidation_color" || type === "gloss" || type === "lightening") && (
-                <ColorResultSection
-                  color={(data as any).payload?.color}
-                  onPatch={patchColorResult}
-                />
-              )}
+ {(type === "oxidation_color" || type === "gloss" || type === "lightening") && (
+ <ColorResultSection
+ color={(data as any).payload?.color}
+ onPatch={patchColorResult}
+ />
+ )}
 
-              {type === "botanicals" && (
+ {type === "botanicals" && (
                 <BotanicalResultSection
                   botanicalResult={(data as any).payload?.botanical_result}
                   onPatch={patchBotanicalResult}
@@ -619,20 +619,20 @@ export default function SchedeTecniche({
             onClick={saveCard}
             disabled={saving}
             className="inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3
-              bg-[#f3d8b6] text-black font-semibold
-              shadow-[0_10px_35px_rgba(243,216,182,0.22)]
-              hover:brightness-110 disabled:opacity-50 transition"
-          >
-            <Plus size={18} />
-            {saving ? "Salvataggio…" : "Salva scheda tecnica"}
-          </button>
+ bg-[#f3d8b6] text-black font-semibold
+ shadow-[0_10px_35px_rgba(243,216,182,0.22)]
+ hover:brightness-110 disabled:opacity-50 transition"
+ >
+ <Plus size={18} />
+ {saving ? "Salvataggio…" : "Salva scheda tecnica"}
+ </button>
 
-          <button
-            onClick={() => setData(emptyPayloadFor(type))}
-            type="button"
+ <button
+ onClick={() => setData(emptyPayloadFor(type))}
+ type="button"
             className="inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3
-              border border-[#5c3a21]/60 text-[#f3d8b6]
-              hover:bg-white/5 transition"
+ border border-[#5c3a21]/60 text-[#f3d8b6]
+ hover:bg-white/5 transition"
           >
             <Eraser size={18} />
             Reset modulo
@@ -656,26 +656,26 @@ export default function SchedeTecniche({
         )}
 
         <div className="space-y-4">
-          {cards.map((c) => (
-            <HistoryCard key={c.id} row={c} />
-          ))}
-        </div>
-      </section>
+ {cards.map((c) => (
+ <HistoryCard key={c.id} row={c} />
+ ))}
+ </div>
+ </section>
 
-      {/* BOSS LEGACY (read-only) */}
-      <BossLegacyHistorySection loading={legacyLoading} cards={legacyCards} />
-    </div>
-  );
+ {/* BOSS LEGACY (read-only) */}
+ <BossLegacyHistorySection loading={legacyLoading} cards={legacyCards} />
+ </div>
+ );
 }
 
 /* ================= UI ================= */
 
 function RlpSelect({
-  value,
-  onChange,
+ value,
+ onChange,
 }: {
-  value: "" | "radice" | "radice_lunghezze" | "tutto";
-  onChange: (v: "radice" | "radice_lunghezze" | "tutto" | "") => void;
+ value: "" | "radice" | "radice_lunghezze" | "tutto";
+ onChange: (v: "radice" | "radice_lunghezze" | "tutto" | "") => void;
 }) {
   return (
     <div>
@@ -684,24 +684,24 @@ function RlpSelect({
         value={value}
         onChange={(e) => onChange(e.target.value as any)}
         className="mt-1 w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60
-          px-4 py-3 text-sm text-white
-          focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
-      >
-        <option value="">—</option>
-        <option value="radice">Radice</option>
-        <option value="radice_lunghezze">Radice + Lunghezze</option>
-        <option value="tutto">Tutto</option>
-      </select>
-    </div>
-  );
+ px-4 py-3 text-sm text-white
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ >
+ <option value="">—</option>
+ <option value="radice">Radice</option>
+ <option value="radice_lunghezze">Radice + Lunghezze</option>
+ <option value="tutto">Tutto</option>
+ </select>
+ </div>
+ );
 }
 
 function MiniInput({
-  label,
-  placeholder,
-  value,
-  onChange,
-  type = "text",
+ label,
+ placeholder,
+ value,
+ onChange,
+ type = "text",
 }: {
   label: string;
   placeholder?: string;
@@ -718,8 +718,8 @@ function MiniInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="mt-1 w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60
-          px-4 py-3 text-sm text-white placeholder:text-white/40
-          focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ px-4 py-3 text-sm text-white placeholder:text-white/40
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
       />
     </div>
   );
@@ -743,8 +743,8 @@ function MiniSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60
-          px-3 py-2.5 text-sm text-white
-          focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ px-3 py-2.5 text-sm text-white
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -771,46 +771,46 @@ function DiagnosisSection({
         Diagnosi (opzionale)
       </div>
       <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        <MiniSelect
-          label="% bianchi"
-          value={d.white_pct_band ?? ""}
-          onChange={(v) => onPatch({ white_pct_band: v as DiagnosisData["white_pct_band"] })}
-          options={WHITE_PCT_OPTIONS}
-        />
-        <MiniSelect
-          label="Resistenza bianchi"
-          value={d.white_resistance ?? ""}
-          onChange={(v) => onPatch({ white_resistance: v as DiagnosisData["white_resistance"] })}
-          options={WHITE_RESISTANCE_OPTIONS}
-        />
-        <MiniSelect
-          label="Livello naturale"
-          value={d.natural_level == null || d.natural_level === "" ? "" : String(d.natural_level)}
-          onChange={(v) => onPatch({ natural_level: v === "" ? "" : Number(v) })}
-          options={NATURAL_LEVEL_OPTIONS}
-        />
-        <MiniSelect
-          label="Henné / vegetali precedenti"
-          value={d.prior_henna ?? ""}
-          onChange={(v) => onPatch({ prior_henna: v as DiagnosisData["prior_henna"] })}
-          options={YES_NO_UNKNOWN_OPTIONS}
-        />
-        <MiniSelect
-          label="Tinta supermercato / box dye"
-          value={d.prior_box_dye ?? ""}
-          onChange={(v) => onPatch({ prior_box_dye: v as DiagnosisData["prior_box_dye"] })}
-          options={YES_NO_UNKNOWN_OPTIONS}
-        />
-        <MiniInput
-          label="Data patch test"
-          type="date"
-          value={d.patch_test_date ?? ""}
-          onChange={(v) => onPatch({ patch_test_date: v })}
-        />
-        <MiniSelect
-          label="Esito patch test"
-          value={d.patch_test_result ?? ""}
-          onChange={(v) => onPatch({ patch_test_result: v as DiagnosisData["patch_test_result"] })}
+ <MiniSelect
+ label="% bianchi"
+ value={d.white_pct_band ?? ""}
+ onChange={(v) => onPatch({ white_pct_band: v as DiagnosisData["white_pct_band"] })}
+ options={WHITE_PCT_OPTIONS}
+ />
+ <MiniSelect
+ label="Resistenza bianchi"
+ value={d.white_resistance ?? ""}
+ onChange={(v) => onPatch({ white_resistance: v as DiagnosisData["white_resistance"] })}
+ options={WHITE_RESISTANCE_OPTIONS}
+ />
+ <MiniSelect
+ label="Livello naturale"
+ value={d.natural_level == null || d.natural_level === "" ? "" : String(d.natural_level)}
+ onChange={(v) => onPatch({ natural_level: v === "" ? "" : Number(v) })}
+ options={NATURAL_LEVEL_OPTIONS}
+ />
+ <MiniSelect
+ label="Henné / vegetali precedenti"
+ value={d.prior_henna ?? ""}
+ onChange={(v) => onPatch({ prior_henna: v as DiagnosisData["prior_henna"] })}
+ options={YES_NO_UNKNOWN_OPTIONS}
+ />
+ <MiniSelect
+ label="Tinta supermercato / box dye"
+ value={d.prior_box_dye ?? ""}
+ onChange={(v) => onPatch({ prior_box_dye: v as DiagnosisData["prior_box_dye"] })}
+ options={YES_NO_UNKNOWN_OPTIONS}
+ />
+ <MiniInput
+ label="Data patch test"
+ type="date"
+ value={d.patch_test_date ?? ""}
+ onChange={(v) => onPatch({ patch_test_date: v })}
+ />
+ <MiniSelect
+ label="Esito patch test"
+ value={d.patch_test_result ?? ""}
+ onChange={(v) => onPatch({ patch_test_result: v as DiagnosisData["patch_test_result"] })}
           options={PATCH_RESULT_OPTIONS}
         />
       </div>
@@ -833,45 +833,45 @@ function ColorResultSection({
         Risultato colore chimico (opzionale)
       </div>
       <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <MiniSelect
-          label="Livello target"
-          value={c.target_level == null || c.target_level === "" ? "" : String(c.target_level)}
-          onChange={(v) => onPatch({ target_level: v === "" ? "" : Number(v) })}
-          options={NATURAL_LEVEL_OPTIONS}
-        />
-        <MiniInput
-          label="Riflesso target"
-          placeholder="Es: .1"
-          value={c.target_tone ?? ""}
-          onChange={(v) => onPatch({ target_tone: v })}
-        />
-        <MiniSelect
-          label="Livello ottenuto"
-          value={c.achieved_level == null || c.achieved_level === "" ? "" : String(c.achieved_level)}
-          onChange={(v) => onPatch({ achieved_level: v === "" ? "" : Number(v) })}
-          options={NATURAL_LEVEL_OPTIONS}
-        />
-        <MiniInput
-          label="Riflesso ottenuto"
-          placeholder="Es: .13"
-          value={c.achieved_tone ?? ""}
-          onChange={(v) => onPatch({ achieved_tone: v })}
-        />
-        <MiniSelect
-          label="Developer vol"
-          value={c.developer_vol == null || c.developer_vol === "" ? "" : String(c.developer_vol)}
-          onChange={(v) => onPatch({ developer_vol: v === "" ? "" : Number(v) })}
-          options={DEVELOPER_VOL_OPTIONS}
-        />
-        <MiniInput
-          label="Tempo posa minuti"
-          type="number"
-          value={
-            c.processing_minutes == null || c.processing_minutes === ""
-              ? ""
-              : String(c.processing_minutes)
-          }
-          onChange={(v) => onPatch({ processing_minutes: v === "" ? "" : Number(v) })}
+ <MiniSelect
+ label="Livello target"
+ value={c.target_level == null || c.target_level === "" ? "" : String(c.target_level)}
+ onChange={(v) => onPatch({ target_level: v === "" ? "" : Number(v) })}
+ options={NATURAL_LEVEL_OPTIONS}
+ />
+ <MiniInput
+ label="Riflesso target"
+ placeholder="Es: .1"
+ value={c.target_tone ?? ""}
+ onChange={(v) => onPatch({ target_tone: v })}
+ />
+ <MiniSelect
+ label="Livello ottenuto"
+ value={c.achieved_level == null || c.achieved_level === "" ? "" : String(c.achieved_level)}
+ onChange={(v) => onPatch({ achieved_level: v === "" ? "" : Number(v) })}
+ options={NATURAL_LEVEL_OPTIONS}
+ />
+ <MiniInput
+ label="Riflesso ottenuto"
+ placeholder="Es: .13"
+ value={c.achieved_tone ?? ""}
+ onChange={(v) => onPatch({ achieved_tone: v })}
+ />
+ <MiniSelect
+ label="Developer vol"
+ value={c.developer_vol == null || c.developer_vol === "" ? "" : String(c.developer_vol)}
+ onChange={(v) => onPatch({ developer_vol: v === "" ? "" : Number(v) })}
+ options={DEVELOPER_VOL_OPTIONS}
+ />
+ <MiniInput
+ label="Tempo posa minuti"
+ type="number"
+ value={
+ c.processing_minutes == null || c.processing_minutes === ""
+ ? ""
+ : String(c.processing_minutes)
+ }
+ onChange={(v) => onPatch({ processing_minutes: v === "" ? "" : Number(v) })}
         />
       </div>
     </div>
@@ -896,49 +896,49 @@ function BotanicalResultSection({
         Per lawsonia, emolliente, mallo e indigo: copertura, riflesso caldo e raffreddamento.
       </p>
       <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <MiniSelect
-          label="Copertura ottenuta"
-          value={b.coverage_result ?? ""}
-          onChange={(v) => onPatch({ coverage_result: v as BotanicalResultData["coverage_result"] })}
-          options={COVERAGE_OPTIONS}
-        />
-        <MiniSelect
-          label="Riflesso caldo / arancio"
-          value={b.warm_reflection ?? ""}
-          onChange={(v) => onPatch({ warm_reflection: v as BotanicalResultData["warm_reflection"] })}
-          options={WARM_REFLECTION_OPTIONS}
-        />
-        <MiniSelect
-          label="Serve raffreddamento"
-          value={b.cool_correction_needed ?? ""}
-          onChange={(v) =>
-            onPatch({ cool_correction_needed: v as BotanicalResultData["cool_correction_needed"] })
-          }
-          options={YES_NO_OPTIONS}
-        />
-        <MiniSelect
-          label="Livello ottenuto"
-          value={
-            b.achieved_level == null || b.achieved_level === "" ? "" : String(b.achieved_level)
-          }
-          onChange={(v) => onPatch({ achieved_level: v === "" ? "" : Number(v) })}
-          options={NATURAL_LEVEL_OPTIONS}
-        />
-        <MiniInput
-          label="Riflesso ottenuto"
-          placeholder="Es: rame / freddo"
-          value={b.achieved_tone ?? ""}
-          onChange={(v) => onPatch({ achieved_tone: v })}
-        />
-        <MiniInput
-          label="Tempo posa minuti"
-          type="number"
-          value={
-            b.processing_minutes == null || b.processing_minutes === ""
-              ? ""
-              : String(b.processing_minutes)
-          }
-          onChange={(v) => onPatch({ processing_minutes: v === "" ? "" : Number(v) })}
+ <MiniSelect
+ label="Copertura ottenuta"
+ value={b.coverage_result ?? ""}
+ onChange={(v) => onPatch({ coverage_result: v as BotanicalResultData["coverage_result"] })}
+ options={COVERAGE_OPTIONS}
+ />
+ <MiniSelect
+ label="Riflesso caldo / arancio"
+ value={b.warm_reflection ?? ""}
+ onChange={(v) => onPatch({ warm_reflection: v as BotanicalResultData["warm_reflection"] })}
+ options={WARM_REFLECTION_OPTIONS}
+ />
+ <MiniSelect
+ label="Serve raffreddamento"
+ value={b.cool_correction_needed ?? ""}
+ onChange={(v) =>
+ onPatch({ cool_correction_needed: v as BotanicalResultData["cool_correction_needed"] })
+ }
+ options={YES_NO_OPTIONS}
+ />
+ <MiniSelect
+ label="Livello ottenuto"
+ value={
+ b.achieved_level == null || b.achieved_level === "" ? "" : String(b.achieved_level)
+ }
+ onChange={(v) => onPatch({ achieved_level: v === "" ? "" : Number(v) })}
+ options={NATURAL_LEVEL_OPTIONS}
+ />
+ <MiniInput
+ label="Riflesso ottenuto"
+ placeholder="Es: rame / freddo"
+ value={b.achieved_tone ?? ""}
+ onChange={(v) => onPatch({ achieved_tone: v })}
+ />
+ <MiniInput
+ label="Tempo posa minuti"
+ type="number"
+ value={
+ b.processing_minutes == null || b.processing_minutes === ""
+ ? ""
+ : String(b.processing_minutes)
+ }
+ onChange={(v) => onPatch({ processing_minutes: v === "" ? "" : Number(v) })}
         />
       </div>
     </div>
@@ -970,47 +970,47 @@ function BigTextarea({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="mt-3 w-full rounded-2xl bg-[#1c0f0a] border border-[#5c3a21]/60
-          p-4 text-sm text-white placeholder:text-white/40
-          focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
-      />
-    </div>
-  );
+ p-4 text-sm text-white placeholder:text-white/40
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ />
+ </div>
+ );
 }
 
 function DynamicForm({
-  type,
-  payload,
-  onPatch,
-  section,
+ type,
+ payload,
+ onPatch,
+ section,
 }: {
-  type: ServiceType;
-  payload: Record<string, any>;
-  onPatch: (patch: Record<string, any>) => void;
-  /** primary = compilazione rapida; secondary = campi già esistenti spostati in dettagli avanzati */
-  section: "primary" | "secondary";
+ type: ServiceType;
+ payload: Record<string, any>;
+ onPatch: (patch: Record<string, any>) => void;
+ /** primary = compilazione rapida; secondary = campi già esistenti spostati in dettagli avanzati */
+ section: "primary" | "secondary";
 }) {
-  if (type === "oxidation_color") {
-    if (section === "primary") {
+ if (type === "oxidation_color") {
+ if (section === "primary") {
       return (
         <div className="grid grid-cols-1 gap-4">
-          <BigTextarea
-            label="Formula colore"
-            icon={Droplets}
-            placeholder="Es: 5.1 + 0.11 (1:1) – oss 20 vol – additivo…"
-            value={payload.formula ?? ""}
+ <BigTextarea
+ label="Formula colore"
+ icon={Droplets}
+ placeholder="Es: 5.1 + 0.11 (1:1) – oss 20 vol – additivo…"
+ value={payload.formula ?? ""}
             onChange={(v) => onPatch({ formula: v })}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MiniInput
-              label="Volumi ossigeno"
-              placeholder="10 / 20 / 30 vol…"
-              value={payload.volumes ?? ""}
-              onChange={(v) => onPatch({ volumes: v })}
-            />
-            <MiniInput
-              label="Tempo posa"
-              placeholder="Es: 35 min"
-              value={payload.processing_time ?? ""}
+ <MiniInput
+ label="Volumi ossigeno"
+ placeholder="10 / 20 / 30 vol…"
+ value={payload.volumes ?? ""}
+ onChange={(v) => onPatch({ volumes: v })}
+ />
+ <MiniInput
+ label="Tempo posa"
+ placeholder="Es: 35 min"
+ value={payload.processing_time ?? ""}
               onChange={(v) => onPatch({ processing_time: v })}
             />
           </div>
@@ -1019,46 +1019,46 @@ function DynamicForm({
     }
     return (
       <div className="grid grid-cols-1 gap-4">
-        <BigTextarea
-          label="Correzioni / Note tecniche"
-          icon={FlaskConical}
-          placeholder="Es: neutralizzare arancio, pre-pigmentazione, ecc…"
-          value={payload.correction ?? ""}
-          onChange={(v) => onPatch({ correction: v })}
-        />
-        <BigTextarea
-          label="Note generali"
-          icon={CalendarDays}
-          placeholder="Cosa ricordare per la prossima volta…"
-          value={payload.general_notes ?? ""}
-          onChange={(v) => onPatch({ general_notes: v })}
-        />
-      </div>
-    );
-  }
+ <BigTextarea
+ label="Correzioni / Note tecniche"
+ icon={FlaskConical}
+ placeholder="Es: neutralizzare arancio, pre-pigmentazione, ecc…"
+ value={payload.correction ?? ""}
+ onChange={(v) => onPatch({ correction: v })}
+ />
+ <BigTextarea
+ label="Note generali"
+ icon={CalendarDays}
+ placeholder="Cosa ricordare per la prossima volta…"
+ value={payload.general_notes ?? ""}
+ onChange={(v) => onPatch({ general_notes: v })}
+ />
+ </div>
+ );
+ }
 
-  if (type === "gloss") {
-    if (section === "primary") {
+ if (type === "gloss") {
+ if (section === "primary") {
       return (
         <div className="grid grid-cols-1 gap-4">
-          <BigTextarea
-            label="Mix / Tonalizzazione"
-            icon={Wand2}
-            placeholder="Es: 7.1 + clear 1:2…"
-            value={payload.mix ?? ""}
+ <BigTextarea
+ label="Mix / Tonalizzazione"
+ icon={Wand2}
+ placeholder="Es: 7.1 + clear 1:2…"
+ value={payload.mix ?? ""}
             onChange={(v) => onPatch({ mix: v })}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MiniInput
-              label="Attivatore / Developer"
-              placeholder="Es: 6 vol / attivatore…"
-              value={payload.developer ?? ""}
-              onChange={(v) => onPatch({ developer: v })}
-            />
-            <MiniInput
-              label="Tempo posa"
-              placeholder="Es: 15 min"
-              value={payload.processing_time ?? ""}
+ <MiniInput
+ label="Attivatore / Developer"
+ placeholder="Es: 6 vol / attivatore…"
+ value={payload.developer ?? ""}
+ onChange={(v) => onPatch({ developer: v })}
+ />
+ <MiniInput
+ label="Tempo posa"
+ placeholder="Es: 15 min"
+ value={payload.processing_time ?? ""}
               onChange={(v) => onPatch({ processing_time: v })}
             />
           </div>
@@ -1067,39 +1067,39 @@ function DynamicForm({
     }
     return (
       <div className="grid grid-cols-1 gap-4">
-        <BigTextarea
-          label="Note generali"
-          icon={CalendarDays}
-          placeholder="Cosa ricordare…"
-          value={payload.general_notes ?? ""}
-          onChange={(v) => onPatch({ general_notes: v })}
-        />
-      </div>
-    );
-  }
+ <BigTextarea
+ label="Note generali"
+ icon={CalendarDays}
+ placeholder="Cosa ricordare…"
+ value={payload.general_notes ?? ""}
+ onChange={(v) => onPatch({ general_notes: v })}
+ />
+ </div>
+ );
+ }
 
-  if (type === "lightening") {
-    if (section === "primary") {
+ if (type === "lightening") {
+ if (section === "primary") {
       return (
         <div className="grid grid-cols-1 gap-4">
-          <BigTextarea
-            label="Prodotto / Tecnica"
-            icon={FlaskConical}
-            placeholder="Es: polvere blu + oss 20 vol – balayage…"
-            value={payload.product ?? ""}
+ <BigTextarea
+ label="Prodotto / Tecnica"
+ icon={FlaskConical}
+ placeholder="Es: polvere blu + oss 20 vol – balayage…"
+ value={payload.product ?? ""}
             onChange={(v) => onPatch({ product: v })}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MiniInput
-              label="Volumi"
-              placeholder="10 / 20 / 30 vol…"
-              value={payload.volumes ?? ""}
-              onChange={(v) => onPatch({ volumes: v })}
-            />
-            <MiniInput
-              label="Tempo posa"
-              placeholder="Es: 40 min"
-              value={payload.processing_time ?? ""}
+ <MiniInput
+ label="Volumi"
+ placeholder="10 / 20 / 30 vol…"
+ value={payload.volumes ?? ""}
+ onChange={(v) => onPatch({ volumes: v })}
+ />
+ <MiniInput
+ label="Tempo posa"
+ placeholder="Es: 40 min"
+ value={payload.processing_time ?? ""}
               onChange={(v) => onPatch({ processing_time: v })}
             />
           </div>
@@ -1108,40 +1108,40 @@ function DynamicForm({
     }
     return (
       <div className="grid grid-cols-1 gap-4">
-        <BigTextarea
-          label="Protezione (bond / additivi)"
-          icon={Sparkles}
-          placeholder="Es: bond repair, plex…"
-          value={payload.protection ?? ""}
-          onChange={(v) => onPatch({ protection: v })}
-        />
-        <BigTextarea
-          label="Tonalizzazione finale"
-          icon={Wand2}
-          placeholder="Es: 9.1 + 10.2…"
-          value={payload.toning ?? ""}
-          onChange={(v) => onPatch({ toning: v })}
-        />
-      </div>
-    );
-  }
+ <BigTextarea
+ label="Protezione (bond / additivi)"
+ icon={Sparkles}
+ placeholder="Es: bond repair, plex…"
+ value={payload.protection ?? ""}
+ onChange={(v) => onPatch({ protection: v })}
+ />
+ <BigTextarea
+ label="Tonalizzazione finale"
+ icon={Wand2}
+ placeholder="Es: 9.1 + 10.2…"
+ value={payload.toning ?? ""}
+ onChange={(v) => onPatch({ toning: v })}
+ />
+ </div>
+ );
+ }
 
-  if (type === "keratin") {
-    if (section === "primary") {
+ if (type === "keratin") {
+ if (section === "primary") {
       return (
         <div className="grid grid-cols-1 gap-4">
-          <BigTextarea
-            label="Prodotto"
-            icon={Sparkles}
-            placeholder="Nome trattamento / lotto…"
-            value={payload.product ?? ""}
-            onChange={(v) => onPatch({ product: v })}
-          />
-          <BigTextarea
-            label="Passaggi"
-            icon={CalendarDays}
-            placeholder="Step-by-step: shampoo, posa, asciugatura, piastra…"
-            value={payload.steps ?? ""}
+ <BigTextarea
+ label="Prodotto"
+ icon={Sparkles}
+ placeholder="Nome trattamento / lotto…"
+ value={payload.product ?? ""}
+ onChange={(v) => onPatch({ product: v })}
+ />
+ <BigTextarea
+ label="Passaggi"
+ icon={CalendarDays}
+ placeholder="Step-by-step: shampoo, posa, asciugatura, piastra…"
+ value={payload.steps ?? ""}
             onChange={(v) => onPatch({ steps: v })}
           />
         </div>
@@ -1150,67 +1150,67 @@ function DynamicForm({
     return (
       <div className="grid grid-cols-1 gap-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <MiniInput
-            label="Temperatura piastra"
-            placeholder="Es: 210°C"
-            value={payload.iron_temp ?? ""}
-            onChange={(v) => onPatch({ iron_temp: v })}
-          />
-          <MiniInput
-            label="Passate"
-            placeholder="Es: 8-10"
-            value={payload.passes ?? ""}
-            onChange={(v) => onPatch({ passes: v })}
-          />
-        </div>
-        <BigTextarea
-          label="Aftercare"
-          icon={Sparkles}
-          placeholder="Prodotti e regole post-trattamento…"
-          value={payload.aftercare ?? ""}
-          onChange={(v) => onPatch({ aftercare: v })}
-        />
-      </div>
-    );
-  }
+ <MiniInput
+ label="Temperatura piastra"
+ placeholder="Es: 210°C"
+ value={payload.iron_temp ?? ""}
+ onChange={(v) => onPatch({ iron_temp: v })}
+ />
+ <MiniInput
+ label="Passate"
+ placeholder="Es: 8-10"
+ value={payload.passes ?? ""}
+ onChange={(v) => onPatch({ passes: v })}
+ />
+ </div>
+ <BigTextarea
+ label="Aftercare"
+ icon={Sparkles}
+ placeholder="Prodotti e regole post-trattamento…"
+ value={payload.aftercare ?? ""}
+ onChange={(v) => onPatch({ aftercare: v })}
+ />
+ </div>
+ );
+ }
 
-  // botanicals — protocollo completo in primary; note + risultato strutturato restano in avanzati
-  if (section === "primary") {
+ // botanicals — protocollo completo in primary; note + risultato strutturato restano in avanzati
+ if (section === "primary") {
     return (
       <div className="grid grid-cols-1 gap-4">
-        <BigTextarea
-          label="Diretta pre-erbe / pre-saturazione"
-          icon={Droplets}
-          placeholder="Es: Diretta 2 + 5.1 Plus…"
-          value={payload.pre_direct ?? ""}
-          onChange={(v) => onPatch({ pre_direct: v })}
-        />
-        <BigTextarea
-          label="Miscela erbe"
-          icon={Leaf}
-          placeholder="Es: lawsonia + mallo + emolliente mucillagini…"
-          value={payload.mix ?? ""}
+ <BigTextarea
+ label="Diretta pre-erbe / pre-saturazione"
+ icon={Droplets}
+ placeholder="Es: Diretta 2 + 5.1 Plus…"
+ value={payload.pre_direct ?? ""}
+ onChange={(v) => onPatch({ pre_direct: v })}
+ />
+ <BigTextarea
+ label="Miscela erbe"
+ icon={Leaf}
+ placeholder="Es: lawsonia + mallo + emolliente mucillagini…"
+ value={payload.mix ?? ""}
           onChange={(v) => onPatch({ mix: v })}
         />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <MiniInput
-            label="Fonte di calore"
-            placeholder="Cuffia / phon / termica…"
-            value={payload.heat ?? ""}
-            onChange={(v) => onPatch({ heat: v })}
-          />
-          <MiniInput
-            label="Tempo posa"
-            placeholder="Es: 60 min"
-            value={payload.processing_time ?? ""}
-            onChange={(v) => onPatch({ processing_time: v })}
-          />
-        </div>
-        <BigTextarea
-          label="Risciacquo / finitura"
-          icon={Wand2}
-          placeholder="Shampoo, maschera, pH, leave-in…"
-          value={payload.rinse ?? ""}
+ <MiniInput
+ label="Fonte di calore"
+ placeholder="Cuffia / phon / termica…"
+ value={payload.heat ?? ""}
+ onChange={(v) => onPatch({ heat: v })}
+ />
+ <MiniInput
+ label="Tempo posa"
+ placeholder="Es: 60 min"
+ value={payload.processing_time ?? ""}
+ onChange={(v) => onPatch({ processing_time: v })}
+ />
+ </div>
+ <BigTextarea
+ label="Risciacquo / finitura"
+ icon={Wand2}
+ placeholder="Shampoo, maschera, pH, leave-in…"
+ value={payload.rinse ?? ""}
           onChange={(v) => onPatch({ rinse: v })}
         />
       </div>
@@ -1219,38 +1219,38 @@ function DynamicForm({
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <BigTextarea
-        label="Note generali"
-        icon={CalendarDays}
-        placeholder="Cosa ricordare…"
-        value={payload.general_notes ?? ""}
-        onChange={(v) => onPatch({ general_notes: v })}
-      />
-    </div>
-  );
+ <BigTextarea
+ label="Note generali"
+ icon={CalendarDays}
+ placeholder="Cosa ricordare…"
+ value={payload.general_notes ?? ""}
+ onChange={(v) => onPatch({ general_notes: v })}
+ />
+ </div>
+ );
 }
 
 function sortLegacyBossCards(rows: LegacyCardRow[]): LegacyCardRow[] {
-  return [...rows].sort((a, b) => {
-    const da = String(a.data?.legacy_date ?? "").trim();
-    const db = String(b.data?.legacy_date ?? "").trim();
-    if (da && db && da !== db) return db.localeCompare(da);
-    if (da && !db) return -1;
-    if (!da && db) return 1;
-    return b.created_at.localeCompare(a.created_at);
-  });
+ return [...rows].sort((a, b) => {
+ const da = String(a.data?.legacy_date ?? "").trim();
+ const db = String(b.data?.legacy_date ?? "").trim();
+ if (da && db && da !== db) return db.localeCompare(da);
+ if (da && !db) return -1;
+ if (!da && db) return 1;
+ return b.created_at.localeCompare(a.created_at);
+ });
 }
 
 function BossLegacyHistorySection({
-  loading,
-  cards,
+ loading,
+ cards,
 }: {
-  loading: boolean;
-  cards: LegacyCardRow[];
+ loading: boolean;
+ cards: LegacyCardRow[];
 }) {
-  const [showOlder, setShowOlder] = useState(false);
-  const bossCards = cards.filter(
-    (c) => c.data?.source === "boss" || c.data?.source == null,
+ const [showOlder, setShowOlder] = useState(false);
+ const bossCards = cards.filter(
+ (c) => c.data?.source === "boss" || c.data?.source == null,
   );
   const latestCard = bossCards[0];
   const olderCards = bossCards.slice(1);
@@ -1283,16 +1283,16 @@ function BossLegacyHistorySection({
 
       {!loading && latestCard && (
         <div className="space-y-4">
-          <BossLegacyCard row={latestCard} />
+ <BossLegacyCard row={latestCard} />
 
-          {olderCount > 0 && (
-            <>
-              <button
-                type="button"
+ {olderCount > 0 && (
+ <>
+ <button
+ type="button"
                 onClick={() => setShowOlder((v) => !v)}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-                  border border-[#5c3a21]/60 bg-[#24140e]/50 text-sm font-medium text-[#f3d8b6]
-                  hover:bg-[#2a1810]/80 hover:border-[#8b5a2b]/50 transition"
+ border border-[#5c3a21]/60 bg-[#24140e]/50 text-sm font-medium text-[#f3d8b6]
+ hover:bg-[#2a1810]/80 hover:border-[#8b5a2b]/50 transition"
                 aria-expanded={showOlder}
               >
                 {showOlder ? (
@@ -1310,29 +1310,29 @@ function BossLegacyHistorySection({
 
               {showOlder && (
                 <div className="space-y-4 pt-1">
-                  {olderCards.map((c) => (
-                    <BossLegacyCard key={c.id} row={c} />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </section>
-  );
+ {olderCards.map((c) => (
+ <BossLegacyCard key={c.id} row={c} />
+ ))}
+ </div>
+ )}
+ </>
+ )}
+ </div>
+ )}
+ </section>
+ );
 }
 
 function BossLegacyCard({ row }: { row: LegacyCardRow }) {
-  const d = row.data ?? {};
-  const warnings = Array.isArray(d.warnings) ? d.warnings.filter(Boolean) : [];
-  const legacyDate = String(d.legacy_date ?? "").trim();
-  const originalText = String(d.original_text ?? "").trim();
+ const d = row.data ?? {};
+ const warnings = Array.isArray(d.warnings) ? d.warnings.filter(Boolean) : [];
+ const legacyDate = String(d.legacy_date ?? "").trim();
+ const originalText = String(d.original_text ?? "").trim();
 
   return (
     <article
       className="rounded-3xl bg-[#1a100c]/70 border border-[#5c3a21]/55 p-6 shadow-[0_0_28px_rgba(0,0,0,0.12)]"
-      aria-readonly="true"
+ aria-readonly="true"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
@@ -1352,9 +1352,9 @@ function BossLegacyCard({ row }: { row: LegacyCardRow }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <LegacyBadge tone="boss">Boss</LegacyBadge>
-          {d.legacy_guess ? (
-            <LegacyBadge tone="guess">{prettyLegacyGuess(d.legacy_guess)}</LegacyBadge>
+ <LegacyBadge tone="boss">Boss</LegacyBadge>
+ {d.legacy_guess ? (
+ <LegacyBadge tone="guess">{prettyLegacyGuess(d.legacy_guess)}</LegacyBadge>
           ) : null}
           {d.confidence ? (
             <LegacyBadge tone={confidenceTone(d.confidence)}>
@@ -1378,29 +1378,29 @@ function BossLegacyCard({ row }: { row: LegacyCardRow }) {
             <span
               key={w}
               className="text-[11px] px-2.5 py-1 rounded-full border border-amber-700/50 bg-amber-950/30 text-amber-200/90"
-            >
-              {prettyWarning(w)}
-            </span>
-          ))}
-        </div>
-      )}
-    </article>
-  );
+ >
+ {prettyWarning(w)}
+ </span>
+ ))}
+ </div>
+ )}
+ </article>
+ );
 }
 
 function LegacyBadge({
-  children,
-  tone,
+ children,
+ tone,
 }: {
-  children: ReactNode;
-  tone: "boss" | "guess" | "high" | "medium" | "low";
+ children: ReactNode;
+ tone: "boss" | "guess" | "high" | "medium" | "low";
 }) {
-  const styles: Record<typeof tone, string> = {
-    boss: "border-[#8b5a2b]/70 bg-[#3d2618]/80 text-[#f3d8b6]",
-    guess: "border-[#5c3a21]/70 bg-black/30 text-[#e8d4bc]",
-    high: "border-emerald-800/60 bg-emerald-950/40 text-emerald-200/90",
-    medium: "border-amber-800/50 bg-amber-950/35 text-amber-200/90",
-    low: "border-[#5c3a21]/60 bg-black/25 text-[#c9b299]",
+ const styles: Record<typeof tone, string> = {
+ boss: "border-[#8b5a2b]/70 bg-[#3d2618]/80 text-[#f3d8b6]",
+ guess: "border-[#5c3a21]/70 bg-black/30 text-[#e8d4bc]",
+ high: "border-emerald-800/60 bg-emerald-950/40 text-emerald-200/90",
+ medium: "border-amber-800/50 bg-amber-950/35 text-amber-200/90",
+ low: "border-[#5c3a21]/60 bg-black/25 text-[#c9b299]",
   };
 
   return (
@@ -1491,10 +1491,10 @@ function HistoryCard({ row }: { row: CardRow }) {
           </div>
 
           <div className="text-xs text-[#f3d8b6]/60 mt-2">
-            {nowLocalNice(row.created_at)}
-            {typeof row.salon_id === "number" ? ` · salon ${row.salon_id}` : ""}
-            {typeof row.staff_id === "number" ? ` · staff ${row.staff_id}` : ""}
-            {typeof row.appointment_id === "number" ? ` · app #${row.appointment_id}` : ""}
+ {nowLocalNice(row.created_at)}
+ {typeof row.salon_id === "number" ? ` · salon ${row.salon_id}` : ""}
+ {typeof row.staff_id === "number" ? ` · staff ${row.staff_id}` : ""}
+ {typeof row.appointment_id === "number" ? ` · app #${row.appointment_id}` : ""}
           </div>
         </div>
 
@@ -1521,9 +1521,9 @@ function HistoryCard({ row }: { row: CardRow }) {
       )}
 
       <div className="mt-5 space-y-3">
-        {orderedKeys
-          .filter((k) => !["rlp", "goal", "outcome"].includes(k))
-          .filter((k) => String(payload[k] ?? "").trim() !== "")
+ {orderedKeys
+ .filter((k) => !["rlp", "goal", "outcome"].includes(k))
+ .filter((k) => String(payload[k] ?? "").trim() !== "")
           .map((k) => (
             <div key={k} className="rounded-2xl bg-black/15 border border-[#5c3a21]/40 p-4">
               <div className="text-xs text-[#f3d8b6]/60">{prettyKey(k)}</div>
@@ -1543,23 +1543,23 @@ function HistoryCard({ row }: { row: CardRow }) {
               <div key={r.label} className="text-sm">
                 <span className="text-[#c9b299]">{r.label}: </span>
                 <span className="text-white/90">{r.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+ </div>
+ ))}
+ </div>
+ </div>
+ )}
 
-      {colorRows.length > 0 && (
-        <StructuredHistoryBlock
-          title="Risultato colore chimico"
-          icon={Droplets}
-          rows={colorRows}
-        />
-      )}
+ {colorRows.length > 0 && (
+ <StructuredHistoryBlock
+ title="Risultato colore chimico"
+ icon={Droplets}
+ rows={colorRows}
+ />
+ )}
 
-      {botanicalRows.length > 0 && (
-        <StructuredHistoryBlock
-          title="Risultato botaniche / henné"
+ {botanicalRows.length > 0 && (
+ <StructuredHistoryBlock
+ title="Risultato botaniche / henné"
           icon={Leaf}
           rows={botanicalRows}
         />
@@ -1588,236 +1588,236 @@ function StructuredHistoryBlock({
           <div key={r.label} className="text-sm">
             <span className="text-[#c9b299]">{r.label}: </span>
             <span className="text-white/90">{r.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+ </div>
+ ))}
+ </div>
+ </div>
+ );
 }
 
 /* ================= helpers ================= */
 
 const READONLY_UNKNOWN_SERVICE_KEYS = [
-  "rlp",
-  "goal",
-  "outcome",
-  "general_notes",
-  "formula",
-  "mix",
-  "product",
-  "notes",
+ "rlp",
+ "goal",
+ "outcome",
+ "general_notes",
+ "formula",
+ "mix",
+ "product",
+ "notes",
 ] as const;
 
 function keysForService(service: string): string[] {
-  const base = ["rlp", "goal", "outcome"];
-  switch (service) {
-    case "oxidation_color":
-    case "oxidation":
-      return [...base, "formula", "volumes", "processing_time", "correction", "general_notes"];
-    case "gloss":
-      return [...base, "mix", "developer", "processing_time", "general_notes"];
-    case "lightening":
-      return [...base, "product", "volumes", "processing_time", "protection", "toning", "general_notes"];
-    case "keratin":
-    case "treatment":
-      return [...base, "product", "steps", "iron_temp", "passes", "aftercare", "general_notes"];
-    case "botanicals":
-      return [...base, "pre_direct", "mix", "heat", "processing_time", "rinse", "general_notes"];
-    case "direct":
-    case "direct_color":
-      return [...base, "mix", "developer", "processing_time", "general_notes"];
-    case "legacy_note":
-      return [...READONLY_UNKNOWN_SERVICE_KEYS];
-    default:
-      return [...READONLY_UNKNOWN_SERVICE_KEYS];
-  }
+ const base = ["rlp", "goal", "outcome"];
+ switch (service) {
+ case "oxidation_color":
+ case "oxidation":
+ return [...base, "formula", "volumes", "processing_time", "correction", "general_notes"];
+ case "gloss":
+ return [...base, "mix", "developer", "processing_time", "general_notes"];
+ case "lightening":
+ return [...base, "product", "volumes", "processing_time", "protection", "toning", "general_notes"];
+ case "keratin":
+ case "treatment":
+ return [...base, "product", "steps", "iron_temp", "passes", "aftercare", "general_notes"];
+ case "botanicals":
+ return [...base, "pre_direct", "mix", "heat", "processing_time", "rinse", "general_notes"];
+ case "direct":
+ case "direct_color":
+ return [...base, "mix", "developer", "processing_time", "general_notes"];
+ case "legacy_note":
+ return [...READONLY_UNKNOWN_SERVICE_KEYS];
+ default:
+ return [...READONLY_UNKNOWN_SERVICE_KEYS];
+ }
 }
 
 function prettyRlp(v: any) {
-  if (v === "radice") return "Radice";
-  if (v === "radice_lunghezze") return "Radice + Lunghezze";
-  if (v === "tutto") return "Tutto";
-  return "-";
+ if (v === "radice") return "Radice";
+ if (v === "radice_lunghezze") return "Radice + Lunghezze";
+ if (v === "tutto") return "Tutto";
+ return "-";
 }
 
 function prettyKey(k: string) {
-  const map: Record<string, string> = {
-    formula: "Formula",
-    volumes: "Volumi",
-    processing_time: "Tempo posa",
-    correction: "Correzioni",
-    mix: "Mix",
-    developer: "Developer",
-    product: "Prodotto / Tecnica",
-    protection: "Protezione (bond/additivi)",
-    toning: "Tonalizzazione finale",
-    steps: "Passaggi",
-    iron_temp: "Temp. piastra",
-    passes: "Passate",
-    aftercare: "Aftercare",
-    pre_direct: "Diretta pre-erbe",
-    heat: "Fonte di calore",
-    rinse: "Risciacquo / finitura",
-    general_notes: "Note generali",
-  };
-  return map[k] ?? k;
+ const map: Record<string, string> = {
+ formula: "Formula",
+ volumes: "Volumi",
+ processing_time: "Tempo posa",
+ correction: "Correzioni",
+ mix: "Mix",
+ developer: "Developer",
+ product: "Prodotto / Tecnica",
+ protection: "Protezione (bond/additivi)",
+ toning: "Tonalizzazione finale",
+ steps: "Passaggi",
+ iron_temp: "Temp. piastra",
+ passes: "Passate",
+ aftercare: "Aftercare",
+ pre_direct: "Diretta pre-erbe",
+ heat: "Fonte di calore",
+ rinse: "Risciacquo / finitura",
+ general_notes: "Note generali",
+ };
+ return map[k] ?? k;
 }
 
 /** Rimuove i campi diagnosi vuoti; natural_level salvato come numero. undefined se tutto vuoto. */
 function cleanDiagnosis(diag: any): Record<string, any> | undefined {
-  if (!diag || typeof diag !== "object") return undefined;
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(diag)) {
-    if (k === "natural_level") {
-      const n = Number(v);
-      if (Number.isFinite(n) && n >= 1 && n <= 10) out[k] = n;
-      continue;
-    }
-    const s = String(v ?? "").trim();
-    if (s !== "") out[k] = s;
-  }
-  return Object.keys(out).length ? out : undefined;
+ if (!diag || typeof diag !== "object") return undefined;
+ const out: Record<string, any> = {};
+ for (const [k, v] of Object.entries(diag)) {
+ if (k === "natural_level") {
+ const n = Number(v);
+ if (Number.isFinite(n) && n >= 1 && n <= 10) out[k] = n;
+ continue;
+ }
+ const s = String(v ?? "").trim();
+ if (s !== "") out[k] = s;
+ }
+ return Object.keys(out).length ? out : undefined;
 }
 
 /** Rimuove campi strutturati vuoti e salva come numeri solo le chiavi numeriche ammesse. */
 function cleanStructuredBlock(
-  block: any,
-  numericKeys: readonly string[],
+ block: any,
+ numericKeys: readonly string[],
 ): Record<string, any> | undefined {
-  if (!block || typeof block !== "object") return undefined;
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(block)) {
-    if (numericKeys.includes(k)) {
-      const n = Number(v);
-      if (Number.isFinite(n) && n > 0) out[k] = n;
-      continue;
-    }
-    const s = String(v ?? "").trim();
-    if (s !== "") out[k] = s;
-  }
-  return Object.keys(out).length ? out : undefined;
+ if (!block || typeof block !== "object") return undefined;
+ const out: Record<string, any> = {};
+ for (const [k, v] of Object.entries(block)) {
+ if (numericKeys.includes(k)) {
+ const n = Number(v);
+ if (Number.isFinite(n) && n > 0) out[k] = n;
+ continue;
+ }
+ const s = String(v ?? "").trim();
+ if (s !== "") out[k] = s;
+ }
+ return Object.keys(out).length ? out : undefined;
 }
 
 const DIAGNOSIS_LABELS: Record<string, string> = {
-  white_pct_band: "% bianchi",
-  white_resistance: "Resistenza bianchi",
-  natural_level: "Livello naturale",
-  prior_henna: "Henné / vegetali precedenti",
-  prior_box_dye: "Tinta supermercato / box dye",
-  patch_test_date: "Data patch test",
-  patch_test_result: "Esito patch test",
+ white_pct_band: "% bianchi",
+ white_resistance: "Resistenza bianchi",
+ natural_level: "Livello naturale",
+ prior_henna: "Henné / vegetali precedenti",
+ prior_box_dye: "Tinta supermercato / box dye",
+ patch_test_date: "Data patch test",
+ patch_test_result: "Esito patch test",
 };
 
 function prettyDiagnosisValue(key: string, value: any): string {
-  if (key === "white_pct_band") {
-    const map: Record<string, string> = {
-      "0": "0%",
-      lt_25: "< 25%",
-      "25_50": "25–50%",
-      "50_75": "50–75%",
-      gt_75: "> 75%",
-    };
-    return map[String(value)] ?? String(value);
-  }
-  if (key === "white_resistance") {
-    const map: Record<string, string> = { low: "Bassa", medium: "Media", high: "Alta" };
-    return map[String(value)] ?? String(value);
-  }
-  if (key === "prior_henna" || key === "prior_box_dye") {
-    const map: Record<string, string> = { yes: "Sì", no: "No", unknown: "Sconosciuto" };
-    return map[String(value)] ?? String(value);
-  }
-  if (key === "patch_test_result") {
-    const map: Record<string, string> = {
-      negative: "Negativo",
-      positive: "Positivo",
-      not_done: "Non eseguito",
-    };
-    return map[String(value)] ?? String(value);
-  }
-  return String(value);
+ if (key === "white_pct_band") {
+ const map: Record<string, string> = {
+ "0": "0%",
+ lt_25: "< 25%",
+ "25_50": "25–50%",
+ "50_75": "50–75%",
+ gt_75: "> 75%",
+ };
+ return map[String(value)] ?? String(value);
+ }
+ if (key === "white_resistance") {
+ const map: Record<string, string> = { low: "Bassa", medium: "Media", high: "Alta" };
+ return map[String(value)] ?? String(value);
+ }
+ if (key === "prior_henna" || key === "prior_box_dye") {
+ const map: Record<string, string> = { yes: "Sì", no: "No", unknown: "Sconosciuto" };
+ return map[String(value)] ?? String(value);
+ }
+ if (key === "patch_test_result") {
+ const map: Record<string, string> = {
+ negative: "Negativo",
+ positive: "Positivo",
+ not_done: "Non eseguito",
+ };
+ return map[String(value)] ?? String(value);
+ }
+ return String(value);
 }
 
 function renderDiagnosisRows(diagnosis: any): Array<{ label: string; value: string }> {
-  if (!diagnosis || typeof diagnosis !== "object") return [];
-  const rows: Array<{ label: string; value: string }> = [];
-  for (const key of Object.keys(DIAGNOSIS_LABELS)) {
-    const v = diagnosis[key];
-    if (v == null) continue;
-    const s = String(v).trim();
-    if (s === "") continue;
-    rows.push({ label: DIAGNOSIS_LABELS[key], value: prettyDiagnosisValue(key, v) });
-  }
-  return rows;
+ if (!diagnosis || typeof diagnosis !== "object") return [];
+ const rows: Array<{ label: string; value: string }> = [];
+ for (const key of Object.keys(DIAGNOSIS_LABELS)) {
+ const v = diagnosis[key];
+ if (v == null) continue;
+ const s = String(v).trim();
+ if (s === "") continue;
+ rows.push({ label: DIAGNOSIS_LABELS[key], value: prettyDiagnosisValue(key, v) });
+ }
+ return rows;
 }
 
 const COLOR_LABELS: Record<string, string> = {
-  target_level: "Livello target",
-  target_tone: "Riflesso target",
-  achieved_level: "Livello ottenuto",
-  achieved_tone: "Riflesso ottenuto",
-  developer_vol: "Developer vol",
-  processing_minutes: "Tempo posa minuti",
+ target_level: "Livello target",
+ target_tone: "Riflesso target",
+ achieved_level: "Livello ottenuto",
+ achieved_tone: "Riflesso ottenuto",
+ developer_vol: "Developer vol",
+ processing_minutes: "Tempo posa minuti",
 };
 
 function prettyColorValue(key: string, value: any): string {
-  if (key === "developer_vol") return `${value} vol`;
-  if (key === "processing_minutes") return `${value} min`;
-  return String(value);
+ if (key === "developer_vol") return `${value} vol`;
+ if (key === "processing_minutes") return `${value} min`;
+ return String(value);
 }
 
 function renderColorRows(color: any): Array<{ label: string; value: string }> {
-  if (!color || typeof color !== "object") return [];
-  const rows: Array<{ label: string; value: string }> = [];
-  for (const key of Object.keys(COLOR_LABELS)) {
-    const v = color[key];
-    if (v == null) continue;
-    const s = String(v).trim();
-    if (s === "") continue;
-    rows.push({ label: COLOR_LABELS[key], value: prettyColorValue(key, v) });
-  }
-  return rows;
+ if (!color || typeof color !== "object") return [];
+ const rows: Array<{ label: string; value: string }> = [];
+ for (const key of Object.keys(COLOR_LABELS)) {
+ const v = color[key];
+ if (v == null) continue;
+ const s = String(v).trim();
+ if (s === "") continue;
+ rows.push({ label: COLOR_LABELS[key], value: prettyColorValue(key, v) });
+ }
+ return rows;
 }
 
 const BOTANICAL_LABELS: Record<string, string> = {
-  coverage_result: "Copertura ottenuta",
-  warm_reflection: "Riflesso caldo / arancio",
-  cool_correction_needed: "Serve raffreddamento",
-  achieved_level: "Livello ottenuto",
-  achieved_tone: "Riflesso ottenuto",
-  processing_minutes: "Tempo posa minuti",
+ coverage_result: "Copertura ottenuta",
+ warm_reflection: "Riflesso caldo / arancio",
+ cool_correction_needed: "Serve raffreddamento",
+ achieved_level: "Livello ottenuto",
+ achieved_tone: "Riflesso ottenuto",
+ processing_minutes: "Tempo posa minuti",
 };
 
 function prettyBotanicalValue(key: string, value: any): string {
-  if (key === "coverage_result") {
-    const map: Record<string, string> = { low: "Bassa", medium: "Media", high: "Alta" };
-    return map[String(value)] ?? String(value);
-  }
-  if (key === "warm_reflection") {
-    const map: Record<string, string> = {
-      none: "Nessuno",
-      light: "Leggero",
-      medium: "Medio",
-      strong: "Forte",
-    };
-    return map[String(value)] ?? String(value);
-  }
-  if (key === "cool_correction_needed") {
-    const map: Record<string, string> = { yes: "Sì", no: "No" };
-    return map[String(value)] ?? String(value);
-  }
-  if (key === "processing_minutes") return `${value} min`;
-  return String(value);
+ if (key === "coverage_result") {
+ const map: Record<string, string> = { low: "Bassa", medium: "Media", high: "Alta" };
+ return map[String(value)] ?? String(value);
+ }
+ if (key === "warm_reflection") {
+ const map: Record<string, string> = {
+ none: "Nessuno",
+ light: "Leggero",
+ medium: "Medio",
+ strong: "Forte",
+ };
+ return map[String(value)] ?? String(value);
+ }
+ if (key === "cool_correction_needed") {
+ const map: Record<string, string> = { yes: "Sì", no: "No" };
+ return map[String(value)] ?? String(value);
+ }
+ if (key === "processing_minutes") return `${value} min`;
+ return String(value);
 }
 
 function renderBotanicalRows(botanical: any): Array<{ label: string; value: string }> {
-  if (!botanical || typeof botanical !== "object") return [];
-  const rows: Array<{ label: string; value: string }> = [];
-  for (const key of Object.keys(BOTANICAL_LABELS)) {
-    const v = botanical[key];
-    if (v == null) continue;
-    const s = String(v).trim();
-    if (s === "") continue;
+ if (!botanical || typeof botanical !== "object") return [];
+ const rows: Array<{ label: string; value: string }> = [];
+ for (const key of Object.keys(BOTANICAL_LABELS)) {
+ const v = botanical[key];
+ if (v == null) continue;
+ const s = String(v).trim();
+ if (s === "") continue;
     rows.push({ label: BOTANICAL_LABELS[key], value: prettyBotanicalValue(key, v) });
   }
   return rows;

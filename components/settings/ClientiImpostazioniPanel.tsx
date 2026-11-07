@@ -78,9 +78,9 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
           Scopo di questa sezione
         </span>
         <p className="mt-2">
-          Qui non si gestiscono i clienti: l&apos;operatività resta in{" "}
-          <Link
-            href="/dashboard/clienti"
+ Qui non si gestiscono i clienti: l&apos;operatività resta in{" "}
+ <Link
+ href="/dashboard/clienti"
             className="font-semibold text-[#f3d8b6] underline underline-offset-2 hover:text-white inline-flex items-center gap-1"
           >
             Clienti <ExternalLink size={12} />
@@ -103,9 +103,9 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
             Dominio dati — conteggi
           </p>
           <p className="text-sm text-[#c9b299]/80 mt-1">Aggiornato: {when}</p>
-        </div>
-        <Link
-          href="/dashboard/clienti"
+ </div>
+ <Link
+ href="/dashboard/clienti"
           className="inline-flex items-center gap-2 rounded-xl border border-[#f3d8b6]/30 bg-[#f3d8b6]/10 px-4 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/15"
         >
           Apri modulo Clienti

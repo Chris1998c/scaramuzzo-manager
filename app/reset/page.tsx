@@ -1,7 +1,7 @@
-// app/reset/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabaseClient";
 
 export default function ResetPasswordPage() {
@@ -12,15 +12,13 @@ export default function ResetPasswordPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    // quando apri il link della mail, Supabase mette i token nella sessione (magic link / recovery)
-    // qui controlliamo solo che esista una sessione valida
     (async () => {
       const supabase = createClient();
       const { data } = await supabase.auth.getSession();
       setReady(true);
 
       if (!data.session) {
-        setErr("Link non valido o scaduto. Rifai 'Password dimenticata?' dal login.");
+        setErr("Link non valido o scaduto. Rifai «Password dimenticata?» dal login.");
       }
     })();
   }, []);
@@ -47,57 +45,88 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    setMsg("Password aggiornata! Ora puoi fare login.");
+    setMsg("Password aggiornata. Ora puoi accedere.");
     setTimeout(() => {
       window.location.href = "/login";
     }, 800);
   }
 
+  const field =
+    "w-full px-3 py-2.5 rounded-lg bg-black/30 border border-white/10 text-white placeholder:text-white/35 focus:border-[#f3d8b6]/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f3d8b6]/35";
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 bg-[var(--bg)]">
-      <div className="w-full max-w-md rounded-3xl bg-[rgba(36,20,14,0.7)] backdrop-blur-xl border border-white/10 p-8 space-y-6">
-        <h1 className="text-2xl font-serif text-white text-center">Reimposta password</h1>
+    <div className="min-h-screen flex items-center justify-center px-5 py-10 bg-[var(--bg)]">
+      <div className="w-full max-w-md space-y-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Image
+            src="/logo-scaramuzzo.webp"
+            width={48}
+            height={48}
+            alt=""
+            className="h-12 w-12 object-contain"
+            priority
+          />
+          <h1 className="text-xl font-semibold text-[#f3d8b6]">Reimposta password</h1>
+        </div>
 
-        {!ready ? (
-          <p className="text-white/70 text-center">Caricamento…</p>
-        ) : (
-          <>
-            {err && <p className="text-red-400 text-center">{err}</p>}
-            {msg && <p className="text-green-300 text-center">{msg}</p>}
+        <div className="rounded-xl border border-white/[0.08] bg-scz-dark/80 px-5 py-6 space-y-4">
+          {!ready ? (
+            <p className="text-white/60 text-center text-sm">Caricamento…</p>
+          ) : (
+            <>
+              {err ? (
+                <p className="text-red-300 text-center text-sm" role="alert">
+                  {err}
+                </p>
+              ) : null}
+              {msg ? (
+                <p className="text-emerald-300 text-center text-sm" role="status">
+                  {msg}
+                </p>
+              ) : null}
 
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm text-white/80">Nuova password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white outline-none"
-                  placeholder="Min 6 caratteri"
-                />
-              </div>
+              <form onSubmit={handleUpdatePassword} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="reset-pass" className="text-sm text-[#f3d8b6]/90">
+                    Nuova password
+                  </label>
+                  <input
+                    id="reset-pass"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={field}
+                    placeholder="Minimo 6 caratteri"
+                    autoComplete="new-password"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <label className="text-sm text-white/80">Conferma password</label>
-                <input
-                  type="password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white outline-none"
-                  placeholder="Ripeti password"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="reset-confirm" className="text-sm text-[#f3d8b6]/90">
+                    Conferma password
+                  </label>
+                  <input
+                    id="reset-confirm"
+                    type="password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    className={field}
+                    placeholder="Ripeti password"
+                    autoComplete="new-password"
+                  />
+                </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-[var(--accent)] text-[var(--bg)] font-semibold uppercase tracking-widest text-sm"
-                disabled={!!err && err.includes("Link")}
-              >
-                Aggiorna password
-              </button>
-            </form>
-          </>
-        )}
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-lg bg-[#f3d8b6] text-[#1c0f0a] text-sm font-semibold hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6] disabled:opacity-50 transition"
+                  disabled={!!err && err.includes("Link")}
+                >
+                  Aggiorna password
+                </button>
+              </form>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

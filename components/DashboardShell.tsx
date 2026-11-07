@@ -24,13 +24,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-scz-darker overflow-x-hidden">
-      <Sidebar />
+ <Sidebar />
 
-      <motion.div
-        animate={{
-          marginLeft: isDesktop ? (sidebarOpen ? "19.25rem" : "0rem") : "0rem",
-        }}
-        transition={{ type: "spring", stiffness: 280, damping: 32 }}
+ <motion.div
+ animate={{
+ marginLeft: isDesktop ? (sidebarOpen ? "19.25rem" : "0rem") : "0rem",
+ }}
+ transition={{ type: "spring", stiffness: 280, damping: 32 }}
         className="flex flex-col flex-1 min-w-0 overflow-x-hidden"
       >
         <Header />

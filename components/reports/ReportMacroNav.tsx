@@ -16,10 +16,10 @@ export default function ReportMacroNav({ active, baseParams }: Props) {
   return (
     <div className="bg-scz-dark border border-white/10 rounded-2xl p-3 md:p-4">
       <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:gap-2">
-        {REPORT_MACRO_TAB_KEYS.map((key) => {
-          const params = new URLSearchParams({ ...baseParams, tab: key });
-          if (key === "vendite") params.set("subtab", "totali");
-          if (key === "cassa_audit") params.set("subtab", "cassa");
+ {REPORT_MACRO_TAB_KEYS.map((key) => {
+ const params = new URLSearchParams({ ...baseParams, tab: key });
+ if (key === "vendite") params.set("subtab", "totali");
+ if (key === "cassa_audit") params.set("subtab", "cassa");
 
           return (
             <Link

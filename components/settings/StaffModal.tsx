@@ -124,239 +124,239 @@ function defaultForm(
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="text-[11px] font-black uppercase tracking-[0.18em] text-[#f3d8b6]/90 pt-1">
-      {children}
-    </h3>
-  );
+ {children}
+ </h3>
+ );
 }
 
 export default function StaffModal({
-  open,
-  mode,
-  row,
-  allowedSalons,
-  defaultSalonId,
-  onClose,
-  onSaved,
+ open,
+ mode,
+ row,
+ allowedSalons,
+ defaultSalonId,
+ onClose,
+ onSaved,
 }: Props) {
-  const [form, setForm] = useState(() => defaultForm(null, defaultSalonId, allowedSalons));
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
+ const [form, setForm] = useState(() => defaultForm(null, defaultSalonId, allowedSalons));
+ const [error, setError] = useState("");
+ const [saving, setSaving] = useState(false);
 
-  const salonOptions = useMemo(
-    () => [...allowedSalons].sort((a, b) => a.id - b.id),
-    [allowedSalons],
-  );
+ const salonOptions = useMemo(
+ () => [...allowedSalons].sort((a, b) => a.id - b.id),
+ [allowedSalons],
+ );
 
-  const primarySalonId = Number(form.salon_id);
+ const primarySalonId = Number(form.salon_id);
 
-  const scheduleSalonOptions = useMemo(() => {
-    const ids = [...form.associatedSalonIds];
-    if (primarySalonId > 0 && !ids.includes(primarySalonId)) ids.push(primarySalonId);
-    return ids
-      .filter((id) => salonOptions.some((s) => s.id === id))
-      .sort((a, b) => a - b)
-      .map((id) => salonOptions.find((s) => s.id === id)!)
-      .filter(Boolean);
-  }, [form.associatedSalonIds, primarySalonId, salonOptions]);
+ const scheduleSalonOptions = useMemo(() => {
+ const ids = [...form.associatedSalonIds];
+ if (primarySalonId > 0 && !ids.includes(primarySalonId)) ids.push(primarySalonId);
+ return ids
+ .filter((id) => salonOptions.some((s) => s.id === id))
+ .sort((a, b) => a - b)
+ .map((id) => salonOptions.find((s) => s.id === id)!)
+ .filter(Boolean);
+ }, [form.associatedSalonIds, primarySalonId, salonOptions]);
 
-  useEffect(() => {
-    if (!open) return;
-    setError("");
-    setSaving(false);
-    setForm(defaultForm(mode === "edit" ? row : null, defaultSalonId, allowedSalons));
-  }, [open, mode, row, defaultSalonId, allowedSalons]);
+ useEffect(() => {
+ if (!open) return;
+ setError("");
+ setSaving(false);
+ setForm(defaultForm(mode === "edit" ? row : null, defaultSalonId, allowedSalons));
+ }, [open, mode, row, defaultSalonId, allowedSalons]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+ useEffect(() => {
+ if (!open) return;
+ const onKey = (e: KeyboardEvent) => {
+ if (e.key === "Escape") onClose();
+ };
+ window.addEventListener("keydown", onKey);
+ return () => window.removeEventListener("keydown", onKey);
+ }, [open, onClose]);
 
-  function setPrimarySalon(id: string) {
-    const n = Number(id);
-    setForm((f) => {
-      const next = new Set(f.associatedSalonIds);
-      if (Number.isFinite(n) && n > 0) next.add(n);
-      return { ...f, salon_id: id, associatedSalonIds: next };
-    });
-  }
+ function setPrimarySalon(id: string) {
+ const n = Number(id);
+ setForm((f) => {
+ const next = new Set(f.associatedSalonIds);
+ if (Number.isFinite(n) && n > 0) next.add(n);
+ return { ...f, salon_id: id, associatedSalonIds: next };
+ });
+ }
 
-  function toggleAssociated(salonId: number) {
-    if (salonId === primarySalonId) return;
-    setForm((f) => {
-      const next = new Set(f.associatedSalonIds);
-      if (next.has(salonId)) next.delete(salonId);
-      else next.add(salonId);
-      next.add(primarySalonId);
-      return { ...f, associatedSalonIds: next };
-    });
-  }
+ function toggleAssociated(salonId: number) {
+ if (salonId === primarySalonId) return;
+ setForm((f) => {
+ const next = new Set(f.associatedSalonIds);
+ if (next.has(salonId)) next.delete(salonId);
+ else next.add(salonId);
+ next.add(primarySalonId);
+ return { ...f, associatedSalonIds: next };
+ });
+ }
 
-  function toggleScheduleDay(iso: number) {
-    setForm((f) => {
-      const next = new Set(f.scheduleDays);
-      if (next.has(iso)) next.delete(iso);
-      else next.add(iso);
-      return { ...f, scheduleDays: next };
-    });
-  }
+ function toggleScheduleDay(iso: number) {
+ setForm((f) => {
+ const next = new Set(f.scheduleDays);
+ if (next.has(iso)) next.delete(iso);
+ else next.add(iso);
+ return { ...f, scheduleDays: next };
+ });
+ }
 
-  function setScheduleSalonId(salonId: number) {
-    const sched = scheduleFromRow(mode === "edit" ? row : null, salonId);
-    setForm((f) => ({
-      ...f,
-      scheduleSalonId: salonId,
-      scheduleDays: sched.scheduleDays,
-      scheduleStart: sched.scheduleStart,
-      scheduleEnd: sched.scheduleEnd,
-    }));
-  }
+ function setScheduleSalonId(salonId: number) {
+ const sched = scheduleFromRow(mode === "edit" ? row : null, salonId);
+ setForm((f) => ({
+ ...f,
+ scheduleSalonId: salonId,
+ scheduleDays: sched.scheduleDays,
+ scheduleStart: sched.scheduleStart,
+ scheduleEnd: sched.scheduleEnd,
+ }));
+ }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (saving) return;
+ async function handleSubmit(e: React.FormEvent) {
+ e.preventDefault();
+ if (saving) return;
 
-    setSaving(true);
-    setError("");
+ setSaving(true);
+ setError("");
 
-    const staffCode = form.staff_code.trim().replace(/\s+/g, " ");
-    const name = form.name.trim();
-    const salonId = Number(form.salon_id);
+ const staffCode = form.staff_code.trim().replace(/\s+/g, " ");
+ const name = form.name.trim();
+ const salonId = Number(form.salon_id);
 
-    if (!staffCode) {
-      setError("Il codice collaboratore è obbligatorio.");
-      setSaving(false);
-      return;
-    }
-    if (!name) {
-      setError("Il nome è obbligatorio.");
-      setSaving(false);
-      return;
-    }
-    if (!form.salon_id || !Number.isFinite(salonId) || salonId <= 0) {
-      setError("Seleziona un salone primario valido.");
-      setSaving(false);
-      return;
-    }
-    if (!allowedSalons.some((s) => s.id === salonId)) {
-      setError("Salone primario non consentito per il tuo profilo.");
-      setSaving(false);
-      return;
-    }
-    if (!STAFF_ROLE_OPTIONS.includes(form.role as (typeof STAFF_ROLE_OPTIONS)[number])) {
-      setError("Ruolo non valido.");
-      setSaving(false);
-      return;
-    }
+ if (!staffCode) {
+ setError("Il codice collaboratore è obbligatorio.");
+ setSaving(false);
+ return;
+ }
+ if (!name) {
+ setError("Il nome è obbligatorio.");
+ setSaving(false);
+ return;
+ }
+ if (!form.salon_id || !Number.isFinite(salonId) || salonId <= 0) {
+ setError("Seleziona un salone primario valido.");
+ setSaving(false);
+ return;
+ }
+ if (!allowedSalons.some((s) => s.id === salonId)) {
+ setError("Salone primario non consentito per il tuo profilo.");
+ setSaving(false);
+ return;
+ }
+ if (!STAFF_ROLE_OPTIONS.includes(form.role as (typeof STAFF_ROLE_OPTIONS)[number])) {
+ setError("Ruolo non valido.");
+ setSaving(false);
+ return;
+ }
 
-    let phone: string | null = null;
-    if (form.phone.trim()) {
-      phone = form.phone.trim().replace(/\s+/g, " ");
-      if (phone.length > 40) {
-        setError("Telefono troppo lungo (max 40 caratteri).");
-        setSaving(false);
-        return;
-      }
-    }
+ let phone: string | null = null;
+ if (form.phone.trim()) {
+ phone = form.phone.trim().replace(/\s+/g, " ");
+ if (phone.length > 40) {
+ setError("Telefono troppo lungo (max 40 caratteri).");
+ setSaving(false);
+ return;
+ }
+ }
 
-    const email = form.email.trim() ? form.email.trim() : null;
+ const email = form.email.trim() ? form.email.trim() : null;
 
-    const associated = [...form.associatedSalonIds];
-    if (!associated.includes(salonId)) associated.push(salonId);
+ const associated = [...form.associatedSalonIds];
+ if (!associated.includes(salonId)) associated.push(salonId);
 
-    const payload = {
-      staff_code: staffCode,
-      salon_id: salonId,
-      name,
-      role: form.role,
-      phone,
-      email,
-      active: form.active,
-      associated_salon_ids: associated,
-      mobile_enabled: form.mobile_enabled,
-      mobile_pin: form.mobile_pin.trim() || null,
-      clear_mobile_pin: form.clear_mobile_pin,
-      schedule_salon_id: form.scheduleSalonId,
-      schedule_days: [...form.scheduleDays].sort((a, b) => a - b).map((day_of_week) => ({
-        day_of_week,
-        start_time: form.scheduleStart.trim() || null,
-        end_time: form.scheduleEnd.trim() || null,
-      })),
-    };
+ const payload = {
+ staff_code: staffCode,
+ salon_id: salonId,
+ name,
+ role: form.role,
+ phone,
+ email,
+ active: form.active,
+ associated_salon_ids: associated,
+ mobile_enabled: form.mobile_enabled,
+ mobile_pin: form.mobile_pin.trim() || null,
+ clear_mobile_pin: form.clear_mobile_pin,
+ schedule_salon_id: form.scheduleSalonId,
+ schedule_days: [...form.scheduleDays].sort((a, b) => a - b).map((day_of_week) => ({
+ day_of_week,
+ start_time: form.scheduleStart.trim() || null,
+ end_time: form.scheduleEnd.trim() || null,
+ })),
+ };
 
-    let result;
-    if (mode === "create") {
-      result = await createStaffAction(payload);
-    } else {
-      if (!row?.id) {
-        setError("Collaboratore non valido.");
-        setSaving(false);
-        return;
-      }
-      result = await updateStaffAction(row.id, payload);
-    }
+ let result;
+ if (mode === "create") {
+ result = await createStaffAction(payload);
+ } else {
+ if (!row?.id) {
+ setError("Collaboratore non valido.");
+ setSaving(false);
+ return;
+ }
+ result = await updateStaffAction(row.id, payload);
+ }
 
-    setSaving(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    toast.success(mode === "create" ? "Collaboratore creato." : "Collaboratore aggiornato.");
-    onSaved();
-    onClose();
-  }
+ setSaving(false);
+ if (!result.ok) {
+ setError(result.error);
+ return;
+ }
+ toast.success(mode === "create" ? "Collaboratore creato." : "Collaboratore aggiornato.");
+ onSaved();
+ onClose();
+ }
 
-  const fieldClass =
-    "w-full rounded-xl border border-[#5c3a21]/50 bg-black/30 px-3 py-2.5 text-sm text-[#f3d8b6] placeholder:text-white/25 outline-none focus:border-[#f3d8b6]/40";
+ const fieldClass =
+ "w-full rounded-xl border border-[#5c3a21]/50 bg-black/30 px-3 py-2.5 text-sm text-[#f3d8b6] placeholder:text-white/25 outline-none focus:border-[#f3d8b6]/40";
 
-  const scheduleHint =
-    form.scheduleDays.size === 0
-      ? "Nessun giorno selezionato: visibile in agenda tutti i giorni (legacy)."
-      : `Giorni attivi: ${[...form.scheduleDays]
-          .sort((a, b) => a - b)
-          .map((d) => STAFF_WEEKDAYS.find((w) => w.iso === d)?.short ?? d)
-          .join(", ")} · Orario ${form.scheduleStart || "—"}–${form.scheduleEnd || "—"} (vuoto = default salone)`;
+ const scheduleHint =
+ form.scheduleDays.size === 0
+ ? "Nessun giorno selezionato: visibile in agenda tutti i giorni (legacy)."
+ : `Giorni attivi: ${[...form.scheduleDays]
+ .sort((a, b) => a - b)
+ .map((d) => STAFF_WEEKDAYS.find((w) => w.iso === d)?.short ?? d)
+ .join(", ")} · Orario ${form.scheduleStart || "—"}–${form.scheduleEnd || "—"} (vuoto = default salone)`;
 
   return (
     <AnimatePresence>
       {open ? (
         <motion.div
           className="fixed inset-0 z-[102] flex items-end justify-center sm:items-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <button
-            type="button"
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ >
+ <button
+ type="button"
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            aria-label="Chiudi"
-            onClick={onClose}
-          />
+ aria-label="Chiudi"
+ onClick={onClose}
+ />
 
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="staff-modal-title"
-            initial={{ y: 24, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 24, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 320, damping: 28 }}
+ <motion.div
+ role="dialog"
+ aria-modal="true"
+ aria-labelledby="staff-modal-title"
+ initial={{ y: 24, opacity: 0 }}
+ animate={{ y: 0, opacity: 1 }}
+ exit={{ y: 24, opacity: 0 }}
+ transition={{ type: "spring", stiffness: 320, damping: 28 }}
             className="relative z-10 w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-[1.75rem] border border-[#5c3a21]/60 bg-[#1a100c] shadow-2xl"
           >
             <motion.div
               className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#5c3a21]/40 bg-[#1a100c]/95 px-5 py-4 backdrop-blur"
-            >
-              <h2 id="staff-modal-title" className="text-lg font-black text-[#f3d8b6]">
-                {mode === "create" ? "Nuovo collaboratore" : "Modifica collaboratore"}
-              </h2>
-              <button
-                type="button"
+ >
+ <h2 id="staff-modal-title" className="text-lg font-black text-[#f3d8b6]">
+ {mode === "create" ? "Nuovo collaboratore" : "Modifica collaboratore"}
+ </h2>
+ <button
+ type="button"
                 onClick={onClose}
                 className="rounded-xl p-2 text-[#c9b299] hover:bg-white/10 hover:text-white"
-                aria-label="Chiudi finestra"
+ aria-label="Chiudi finestra"
               >
                 <X size={20} />
               </button>
@@ -421,8 +421,8 @@ export default function StaffModal({
                   </label>
 
                   <label className="flex items-center gap-3 cursor-pointer rounded-xl border border-white/10 bg-black/20 px-4 py-3 self-end">
-                    <input
-                      type="checkbox"
+ <input
+ type="checkbox"
                       className="h-4 w-4 rounded border-[#5c3a21] bg-black/40 text-emerald-600"
                       checked={form.active}
                       onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
@@ -445,10 +445,10 @@ export default function StaffModal({
 
                   <label className="block space-y-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-[#c9b299]/80">
-                      Email contatto
-                    </span>
-                    <input
-                      type="email"
+ Email contatto
+ </span>
+ <input
+ type="email"
                       className={fieldClass}
                       value={form.email}
                       onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -493,14 +493,14 @@ export default function StaffModal({
                     Saloni associati
                   </span>
                   <div className="flex flex-wrap gap-2">
-                    {salonOptions.map((s) => {
-                      const checked = form.associatedSalonIds.has(s.id);
-                      const isPrimary = s.id === primarySalonId;
-                      const isWarehouse = s.id === MAGAZZINO_CENTRALE_ID;
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
+ {salonOptions.map((s) => {
+ const checked = form.associatedSalonIds.has(s.id);
+ const isPrimary = s.id === primarySalonId;
+ const isWarehouse = s.id === MAGAZZINO_CENTRALE_ID;
+ return (
+ <button
+ key={s.id}
+ type="button"
                           disabled={isPrimary}
                           onClick={() => toggleAssociated(s.id)}
                           className={[
@@ -538,8 +538,8 @@ export default function StaffModal({
                 </div>
 
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
+ <input
+ type="checkbox"
                     className="h-4 w-4 rounded border-[#5c3a21] bg-black/40 text-violet-500"
                     checked={form.mobile_enabled}
                     onChange={(e) =>
@@ -551,14 +551,14 @@ export default function StaffModal({
 
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#c9b299]/80">
-                    {mode === "edit" && row?.has_mobile_pin && !form.clear_mobile_pin
-                      ? "Nuovo PIN (lascia vuoto per non cambiare)"
-                      : "PIN app (4–8 cifre)"}
-                  </span>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
+ {mode === "edit" && row?.has_mobile_pin && !form.clear_mobile_pin
+ ? "Nuovo PIN (lascia vuoto per non cambiare)"
+ : "PIN app (4–8 cifre)"}
+ </span>
+ <input
+ type="password"
+ inputMode="numeric"
+ pattern="[0-9]*"
                     className={`${fieldClass} font-mono tracking-widest max-w-xs`}
                     value={form.mobile_pin}
                     onChange={(e) =>
@@ -575,15 +575,15 @@ export default function StaffModal({
 
                 {mode === "edit" && row?.has_mobile_pin ? (
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
+ <input
+ type="checkbox"
                       className="h-4 w-4 rounded border-[#5c3a21] bg-black/40 text-red-500"
-                      checked={form.clear_mobile_pin}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          clear_mobile_pin: e.target.checked,
-                          mobile_pin: e.target.checked ? "" : f.mobile_pin,
+ checked={form.clear_mobile_pin}
+ onChange={(e) =>
+ setForm((f) => ({
+ ...f,
+ clear_mobile_pin: e.target.checked,
+ mobile_pin: e.target.checked ? "" : f.mobile_pin,
                         }))
                       }
                     />
@@ -593,11 +593,11 @@ export default function StaffModal({
 
                 <p className="text-[11px] text-[#c9b299]/80 leading-relaxed">
                   Login app: codice <span className="font-mono">{form.staff_code || "…"}</span> + PIN.
-                  {row?.has_mobile_pin && !form.clear_mobile_pin
-                    ? " PIN già configurato."
-                    : form.mobile_enabled
-                      ? " Richiesto se l'accesso mobile è attivo."
-                      : ""}
+ {row?.has_mobile_pin && !form.clear_mobile_pin
+ ? " PIN già configurato."
+ : form.mobile_enabled
+ ? " Richiesto se l'accesso mobile è attivo."
+ : ""}
                 </p>
               </div>
 
@@ -626,12 +626,12 @@ export default function StaffModal({
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  {STAFF_WEEKDAYS.map((d) => {
-                    const on = form.scheduleDays.has(d.iso);
-                    return (
-                      <button
-                        key={d.iso}
-                        type="button"
+ {STAFF_WEEKDAYS.map((d) => {
+ const on = form.scheduleDays.has(d.iso);
+ return (
+ <button
+ key={d.iso}
+ type="button"
                         onClick={() => toggleScheduleDay(d.iso)}
                         title={d.label}
                         className={[
@@ -652,8 +652,8 @@ export default function StaffModal({
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block space-y-1">
                     <span className="text-[10px] text-[#c9b299]/80">Inizio</span>
-                    <input
-                      type="time"
+ <input
+ type="time"
                       value={form.scheduleStart}
                       onChange={(e) => setForm((f) => ({ ...f, scheduleStart: e.target.value }))}
                       className={fieldClass}
@@ -661,8 +661,8 @@ export default function StaffModal({
                   </label>
                   <label className="block space-y-1">
                     <span className="text-[10px] text-[#c9b299]/80">Fine</span>
-                    <input
-                      type="time"
+ <input
+ type="time"
                       value={form.scheduleEnd}
                       onChange={(e) => setForm((f) => ({ ...f, scheduleEnd: e.target.value }))}
                       className={fieldClass}
@@ -670,11 +670,11 @@ export default function StaffModal({
                   </label>
                 </div>
                 <p className="text-[11px] text-[#c9b299]/80">{scheduleHint}</p>
-              </motion.div>
+ </motion.div>
 
-              {mode === "edit" && row?.user_id ? (
+ {mode === "edit" && row?.user_id ? (
                 <p className="text-[11px] text-[#c9b299]/80 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                  Account gestionale collegato:{" "}
+ Account gestionale collegato:{" "}
                   <span className="font-mono text-[#f3d8b6]/80">{row.user_id}</span> (non modificabile
                   da qui).
                 </p>
@@ -687,19 +687,19 @@ export default function StaffModal({
               ) : null}
 
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 pb-1">
-                <button
-                  type="button"
+ <button
+ type="button"
                   onClick={onClose}
                   className="rounded-xl px-4 py-2.5 text-sm font-bold text-[#c9b299] hover:bg-white/5"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="submit"
+ >
+ Annulla
+ </button>
+ <button
+ type="submit"
                   disabled={saving || allowedSalons.length === 0}
                   className="rounded-xl bg-[#0FA958] px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/30 hover:bg-[#0da052] disabled:opacity-50"
-                >
-                  {saving ? "Salvataggio…" : "Salva collaboratore"}
+ >
+ {saving ? "Salvataggio…" : "Salva collaboratore"}
                 </button>
               </div>
             </form>

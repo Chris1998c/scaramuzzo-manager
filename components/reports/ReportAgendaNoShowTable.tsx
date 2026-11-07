@@ -20,7 +20,7 @@ export default function ReportAgendaNoShowTable({ rows }: { rows: Row[] }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark">
       <div className="border-b border-white/10 bg-black/20 px-6 py-5">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+        <div className="text-xs font-medium text-white/40">
           No-show e cancellazioni
         </div>
         <div className="mt-1 text-sm text-white/50">

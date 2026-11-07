@@ -54,7 +54,7 @@ export default function ReportTopItemsTable({
               rows.map((r) => (
                 <tr key={r.key}>
                   <td className="px-3 py-2 border-b border-white/5">
-                    {r.item_type === "product" ? "Prodotto" : "Servizio"}
+ {r.item_type === "product" ? "Prodotto" : "Servizio"}
                   </td>
                   <td className="px-3 py-2 border-b border-white/5">
                     {r.name}

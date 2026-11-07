@@ -126,261 +126,261 @@ function PeriodChips({
       )}
       {paymentMethod && (
         <span className="rounded-full border border-white/20 bg-black/30 px-3 py-1.5 text-xs font-bold text-white/80">
-          Pagamento: {paymentMethod === "cash" ? "Contanti" : "Carta"}
+ Pagamento: {paymentMethod === "cash" ? "Contanti" : "Carta"}
         </span>
       )}
       {itemType && (
         <span className="rounded-full border border-white/20 bg-black/30 px-3 py-1.5 text-xs font-bold text-white/80">
-          Tipo: {itemType === "service" ? "Servizi" : "Prodotti"}
+ Tipo: {itemType === "service" ? "Servizi" : "Prodotti"}
         </span>
       )}
     </div>
     {periodWarning ? (
       <p className="text-xs text-amber-200/85 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2">
-        Periodo molto lungo ({spanDays} giorni): le query Team/Clienti possono essere lente. Consigliato
-        ≤ {REPORT_MAX_PERIOD_DAYS} giorni.
-      </p>
-    ) : null}
-    </div>
-  );
+ Periodo molto lungo ({spanDays} giorni): le query Team/Clienti possono essere lente. Consigliato
+ ≤ {REPORT_MAX_PERIOD_DAYS} giorni.
+ </p>
+ ) : null}
+ </div>
+ );
 }
 
 type ReportPageProps = {
-  searchParams?: Promise<ReportPageSearchParams>;
+ searchParams?: Promise<ReportPageSearchParams>;
 };
 
 export default async function ReportPage({ searchParams }: ReportPageProps) {
-  const sp = (await searchParams) ?? {};
+ const sp = (await searchParams) ?? {};
 
-  const supabase = await createServerSupabase();
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData?.user) redirect("/login");
-  const access = await getUserAccess();
-  if (access.role !== "coordinator") redirect("/dashboard");
+ const supabase = await createServerSupabase();
+ const { data: authData } = await supabase.auth.getUser();
+ if (!authData?.user) redirect("/login");
+ const access = await getUserAccess();
+ if (access.role !== "coordinator") redirect("/dashboard");
 
-  const dateRange = resolveReportDateRange({
-    dateFrom: sp.date_from as string | undefined,
-    dateTo: sp.date_to as string | undefined,
-  });
+ const dateRange = resolveReportDateRange({
+ dateFrom: sp.date_from as string | undefined,
+ dateTo: sp.date_to as string | undefined,
+ });
 
-  const staffId = toInt(sp.staff_id as string | undefined);
-  const paymentMethod = (sp.payment_method as string | undefined) ?? null;
-  const itemType = (sp.item_type as string | undefined) ?? null;
+ const staffId = toInt(sp.staff_id as string | undefined);
+ const paymentMethod = (sp.payment_method as string | undefined) ?? null;
+ const itemType = (sp.item_type as string | undefined) ?? null;
 
-  const nav = resolveReportNavigation(sp.tab, sp.subtab);
-  const { macro, venditeSubtab, cassaAuditSubtab, exportTab } = nav;
+ const nav = resolveReportNavigation(sp.tab, sp.subtab);
+ const { macro, venditeSubtab, cassaAuditSubtab, exportTab } = nav;
 
-  if (dateRange.needsRedirect) {
-    const redirectParams: Record<string, string> = {
-      date_from: dateRange.dateFrom,
-      date_to: dateRange.dateTo,
-      tab: macro,
-    };
-    if (macro === "vendite") redirectParams.subtab = venditeSubtab;
-    if (macro === "cassa_audit") redirectParams.subtab = cassaAuditSubtab;
-    redirect(`/dashboard/report?${mergeReportRedirectQuery(sp, redirectParams)}`);
-  }
+ if (dateRange.needsRedirect) {
+ const redirectParams: Record<string, string> = {
+ date_from: dateRange.dateFrom,
+ date_to: dateRange.dateTo,
+ tab: macro,
+ };
+ if (macro === "vendite") redirectParams.subtab = venditeSubtab;
+ if (macro === "cassa_audit") redirectParams.subtab = cassaAuditSubtab;
+ redirect(`/dashboard/report?${mergeReportRedirectQuery(sp, redirectParams)}`);
+ }
 
-  const dateFrom = dateRange.dateFrom;
-  const dateTo = dateRange.dateTo;
-  const periodExceedsGuardrail = dateRange.exceedsMaxPeriod;
+ const dateFrom = dateRange.dateFrom;
+ const dateTo = dateRange.dateTo;
+ const periodExceedsGuardrail = dateRange.exceedsMaxPeriod;
 
-  const rawSalon = sp.salon_id;
-  const querySalonNum =
-    typeof rawSalon === "string"
-      ? Number(rawSalon)
-      : Array.isArray(rawSalon)
-        ? Number(rawSalon[0])
-        : NaN;
+ const rawSalon = sp.salon_id;
+ const querySalonNum =
+ typeof rawSalon === "string"
+ ? Number(rawSalon)
+ : Array.isArray(rawSalon)
+ ? Number(rawSalon[0])
+ : NaN;
 
-  const allowedIds = access.allowedSalonIds;
-  let salonId: number;
+ const allowedIds = access.allowedSalonIds;
+ let salonId: number;
 
-  if (
-    Number.isFinite(querySalonNum) &&
-    querySalonNum > 0 &&
-    allowedIds.includes(querySalonNum)
-  ) {
-    salonId = querySalonNum;
-  } else {
-    const fb = pickDefaultSalonIdForReport(allowedIds, access.defaultSalonId);
-    if (fb != null) {
-      const redirectParams: Record<string, string> = {
-        salon_id: String(fb),
-        date_from: dateFrom,
-        date_to: dateTo,
-        tab: macro,
-      };
-      if (macro === "vendite") redirectParams.subtab = venditeSubtab;
-      if (macro === "cassa_audit") redirectParams.subtab = cassaAuditSubtab;
-      redirect(`/dashboard/report?${mergeReportRedirectQuery(sp, redirectParams)}`);
-    }
-    salonId = 0;
-  }
+ if (
+ Number.isFinite(querySalonNum) &&
+ querySalonNum > 0 &&
+ allowedIds.includes(querySalonNum)
+ ) {
+ salonId = querySalonNum;
+ } else {
+ const fb = pickDefaultSalonIdForReport(allowedIds, access.defaultSalonId);
+ if (fb != null) {
+ const redirectParams: Record<string, string> = {
+ salon_id: String(fb),
+ date_from: dateFrom,
+ date_to: dateTo,
+ tab: macro,
+ };
+ if (macro === "vendite") redirectParams.subtab = venditeSubtab;
+ if (macro === "cassa_audit") redirectParams.subtab = cassaAuditSubtab;
+ redirect(`/dashboard/report?${mergeReportRedirectQuery(sp, redirectParams)}`);
+ }
+ salonId = 0;
+ }
 
-  const reportSalonLabel =
-    salonId > 0
-      ? access.allowedSalons.find((s) => s.id === salonId)?.name ?? null
-      : null;
+ const reportSalonLabel =
+ salonId > 0
+ ? access.allowedSalons.find((s) => s.id === salonId)?.name ?? null
+ : null;
 
-  const staffRows = salonId ? await fetchActiveStaffForSalon(supabaseAdmin, salonId, "id, name") : [];
+ const staffRows = salonId ? await fetchActiveStaffForSalon(supabaseAdmin, salonId, "id, name") : [];
 
-  const staffOptions =
-    (staffRows ?? [])
-      .filter((s: any) => s?.id != null)
-      .map((s: any) => ({
-        id: Number(s.id),
-        name: String(s.name ?? `Staff ${s.id}`),
-      }));
+ const staffOptions =
+ (staffRows ?? [])
+ .filter((s: any) => s?.id != null)
+ .map((s: any) => ({
+ id: Number(s.id),
+ name: String(s.name ?? `Staff ${s.id}`),
+ }));
 
-  const baseParams: Record<string, string> = {
-    ...(salonId ? { salon_id: String(salonId) } : {}),
-    date_from: dateFrom,
-    date_to: dateTo,
-    tab: macro,
-  };
-  if (staffId) baseParams.staff_id = String(staffId);
-  if (paymentMethod) baseParams.payment_method = paymentMethod;
-  if (itemType) baseParams.item_type = itemType;
-  if (macro === "vendite") baseParams.subtab = venditeSubtab;
-  if (macro === "cassa_audit") baseParams.subtab = cassaAuditSubtab;
+ const baseParams: Record<string, string> = {
+ ...(salonId ? { salon_id: String(salonId) } : {}),
+ date_from: dateFrom,
+ date_to: dateTo,
+ tab: macro,
+ };
+ if (staffId) baseParams.staff_id = String(staffId);
+ if (paymentMethod) baseParams.payment_method = paymentMethod;
+ if (itemType) baseParams.item_type = itemType;
+ if (macro === "vendite") baseParams.subtab = venditeSubtab;
+ if (macro === "cassa_audit") baseParams.subtab = cassaAuditSubtab;
 
-  const needSalesAnalytics =
-    salonId &&
-    (macro === "team" ||
-      (macro === "vendite" &&
-        (venditeSubtab === "totali" ||
-          venditeSubtab === "giorni" ||
-          venditeSubtab === "dettaglio")));
+ const needSalesAnalytics =
+ salonId &&
+ (macro === "team" ||
+ (macro === "vendite" &&
+ (venditeSubtab === "totali" ||
+ venditeSubtab === "giorni" ||
+ venditeSubtab === "dettaglio")));
 
-  const salesAnalytics = needSalesAnalytics
-    ? await getSalonTurnoverAnalytics({
-        salonId,
-        dateFrom,
-        dateTo,
-        staffId,
-        paymentMethod,
-        itemType,
-      })
-    : {
-        totals: {
-          receipts_count: 0,
-          gross_total: 0,
-          net_total: 0,
-          vat_total: 0,
-          discount_total: 0,
-          gross_services: 0,
-          gross_products: 0,
-        },
-        rows: [],
-        daily: [],
-        topItems: [],
-        staffPerformance: [],
-        previousTotals: { gross_total: 0, net_total: 0, receipts_count: 0 },
-        previousStaffPerformance: [],
-        customerBySaleId: {},
-      };
+ const salesAnalytics = needSalesAnalytics
+ ? await getSalonTurnoverAnalytics({
+ salonId,
+ dateFrom,
+ dateTo,
+ staffId,
+ paymentMethod,
+ itemType,
+ })
+ : {
+ totals: {
+ receipts_count: 0,
+ gross_total: 0,
+ net_total: 0,
+ vat_total: 0,
+ discount_total: 0,
+ gross_services: 0,
+ gross_products: 0,
+ },
+ rows: [],
+ daily: [],
+ topItems: [],
+ staffPerformance: [],
+ previousTotals: { gross_total: 0, net_total: 0, receipts_count: 0 },
+ previousStaffPerformance: [],
+ customerBySaleId: {},
+ };
 
-  const cashReport =
-    salonId && macro === "cassa_audit" && cassaAuditSubtab === "cassa"
-      ? await getCashSessionsReport({ salonId, dateFrom, dateTo })
-      : { sessions: [], totals: { sessions: 0, gross_total: 0, gross_cash: 0, gross_card: 0 } };
+ const cashReport =
+ salonId && macro === "cassa_audit" && cassaAuditSubtab === "cassa"
+ ? await getCashSessionsReport({ salonId, dateFrom, dateTo })
+ : { sessions: [], totals: { sessions: 0, gross_total: 0, gross_cash: 0, gross_card: 0 } };
 
-  const agendaReport =
-    salonId && macro === "cassa_audit" && cassaAuditSubtab === "agenda"
-      ? await getAgendaReport({ salonId, dateFrom, dateTo })
-      : {
-          totals: { appointments: 0, done: 0, no_show: 0, cancelled: 0, in_sala: 0, completion_rate: 0 },
-          daily: [],
-          staffUtilization: [],
-        };
+ const agendaReport =
+ salonId && macro === "cassa_audit" && cassaAuditSubtab === "agenda"
+ ? await getAgendaReport({ salonId, dateFrom, dateTo })
+ : {
+ totals: { appointments: 0, done: 0, no_show: 0, cancelled: 0, in_sala: 0, completion_rate: 0 },
+ daily: [],
+ staffUtilization: [],
+ };
 
-  const emptyClientsReport = {
-    totals: {
-      customers_total: 0,
-      new_customers: 0,
-      returning_customers: 0,
-      repeat_rate: 0,
-      customers_with_retail: 0,
-      customers_without_retail: 0,
-      retail_penetration_pct: null,
-    },
-    newCustomers: [],
-    topSpenders: [],
-  };
+ const emptyClientsReport = {
+ totals: {
+ customers_total: 0,
+ new_customers: 0,
+ returning_customers: 0,
+ repeat_rate: 0,
+ customers_with_retail: 0,
+ customers_without_retail: 0,
+ retail_penetration_pct: null,
+ },
+ newCustomers: [],
+ topSpenders: [],
+ };
 
-  const [clientsReport, crmActions] =
-    salonId && macro === "clienti"
-      ? await Promise.all([
-          getClientsReport({
-            salonId,
-            dateFrom,
-            dateTo,
-            staffId,
-            paymentMethod,
-          }),
-          (async () => {
-            const [base, colorAbsent] = await Promise.all([
-              getDirectionCrmActions(salonId),
-              getColorAbsentCustomers(salonId),
-            ]);
-            return { ...base, colorAbsent };
-          })(),
-        ])
-      : [emptyClientsReport, null];
+ const [clientsReport, crmActions] =
+ salonId && macro === "clienti"
+ ? await Promise.all([
+ getClientsReport({
+ salonId,
+ dateFrom,
+ dateTo,
+ staffId,
+ paymentMethod,
+ }),
+ (async () => {
+ const [base, colorAbsent] = await Promise.all([
+ getDirectionCrmActions(salonId),
+ getColorAbsentCustomers(salonId),
+ ]);
+ return { ...base, colorAbsent };
+ })(),
+ ])
+ : [emptyClientsReport, null];
 
-  const servicesReport =
-    salonId && macro === "vendite" && venditeSubtab === "servizi"
-      ? await getServicesReport({
-          salonId,
-          dateFrom,
-          dateTo,
-          staffId,
-          paymentMethod,
-          itemType,
-        } as any)
-      : { totals: { services_qty: 0, services_gross_total: 0, services_avg_price: 0 }, topServices: [] };
+ const servicesReport =
+ salonId && macro === "vendite" && venditeSubtab === "servizi"
+ ? await getServicesReport({
+ salonId,
+ dateFrom,
+ dateTo,
+ staffId,
+ paymentMethod,
+ itemType,
+ } as any)
+ : { totals: { services_qty: 0, services_gross_total: 0, services_avg_price: 0 }, topServices: [] };
 
-  const productsReport =
-    salonId && macro === "vendite" && venditeSubtab === "prodotti"
-      ? await getProductsReport({
-          salonId,
-          dateFrom,
-          dateTo,
-          staffId,
-          paymentMethod,
-        })
-      : { totals: { products_qty: 0, products_gross: 0, low_stock_count: 0 }, topProducts: [], lowStock: [] };
+ const productsReport =
+ salonId && macro === "vendite" && venditeSubtab === "prodotti"
+ ? await getProductsReport({
+ salonId,
+ dateFrom,
+ dateTo,
+ staffId,
+ paymentMethod,
+ })
+ : { totals: { products_qty: 0, products_gross: 0, low_stock_count: 0 }, topProducts: [], lowStock: [] };
 
-  const waReminderLog =
-    salonId && macro === "cassa_audit" && cassaAuditSubtab === "whatsapp"
-      ? await getWhatsAppReminderLog({ salonId, dateFrom, dateTo })
-      : {
-          rows: [],
-          totals: {
-            sent: 0,
-            failed: 0,
-            skipped: 0,
-            pending: 0,
-            delivered: 0,
-            read: 0,
-            delivery_failed: 0,
-          },
-        };
+ const waReminderLog =
+ salonId && macro === "cassa_audit" && cassaAuditSubtab === "whatsapp"
+ ? await getWhatsAppReminderLog({ salonId, dateFrom, dateTo })
+ : {
+ rows: [],
+ totals: {
+ sent: 0,
+ failed: 0,
+ skipped: 0,
+ pending: 0,
+ delivered: 0,
+ read: 0,
+ delivery_failed: 0,
+ },
+ };
 
-  const directionReport =
-    salonId && macro === "riepilogo" ? await getDirectionReport(salonId) : null;
+ const directionReport =
+ salonId && macro === "riepilogo" ? await getDirectionReport(salonId) : null;
 
-  const { totals, rows, daily, topItems, staffPerformance, previousTotals, previousStaffPerformance, customerBySaleId } =
-    salesAnalytics;
+ const { totals, rows, daily, topItems, staffPerformance, previousTotals, previousStaffPerformance, customerBySaleId } =
+ salesAnalytics;
 
-  const teamStaffPerformance =
-    macro === "team" && salonId > 0 && !staffId
-      ? mergeStaffKpiWithSalonStaff(staffPerformance ?? [], staffOptions)
-      : (staffPerformance ?? []);
+ const teamStaffPerformance =
+ macro === "team" && salonId > 0 && !staffId
+ ? mergeStaffKpiWithSalonStaff(staffPerformance ?? [], staffOptions)
+ : (staffPerformance ?? []);
 
-  const staffDrillDownByStaff =
-    salonId && macro === "team" && teamStaffPerformance.length > 0
+ const staffDrillDownByStaff =
+ salonId && macro === "team" && teamStaffPerformance.length > 0
       ? await buildStaffDrillDownPayloadServer({
           rows: rows ?? [],
           staffPerformance: teamStaffPerformance,
@@ -433,162 +433,162 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       {salonId === MAGAZZINO_CENTRALE_ID ? (
         <EmptyDataNote>
           <span className="font-bold text-amber-100/90">Magazzino Centrale</span>
-          <br />
-          Sede non operativa per report vendite/team/clienti: i dati possono essere assenti o non
-          rappresentativi. Seleziona un salone 1–4 dalla Vista per l&apos;analisi operativa.
-        </EmptyDataNote>
-      ) : null}
+ <br />
+ Sede non operativa per report vendite/team/clienti: i dati possono essere assenti o non
+ rappresentativi. Seleziona un salone 1–4 dalla Vista per l&apos;analisi operativa.
+ </EmptyDataNote>
+ ) : null}
 
-      {macro === "riepilogo" && salonId > 0 && directionReport ? (
-        <ReportDirectionView data={directionReport} salonLabel={reportSalonLabel} />
-      ) : null}
+ {macro === "riepilogo" && salonId > 0 && directionReport ? (
+ <ReportDirectionView data={directionReport} salonLabel={reportSalonLabel} />
+ ) : null}
 
-      {macro === "team" && salonId > 0 && (
+ {macro === "team" && salonId > 0 && (
         <section className="space-y-6">
           <div>
             <h2 className="text-xl font-extrabold tracking-tight text-white md:text-2xl">Team</h2>
             <p className="mt-1 text-sm text-white/50">
-              Performance collaboratori nel periodo filtrato
-            </p>
-          </div>
-          <PeriodChips
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            spanDays={dateRange.spanDays}
-            periodWarning={periodExceedsGuardrail}
-            staffId={staffId}
-            staffOptions={staffOptions}
-            paymentMethod={paymentMethod}
-            itemType={itemType}
-          />
-          <ReportStaffEnterpriseTable
-            rows={teamStaffPerformance}
-            staffDrillDownByStaff={staffDrillDownByStaff}
-            previousStaffRows={previousStaffPerformance ?? []}
-          />
-        </section>
-      )}
+ Performance collaboratori nel periodo filtrato
+ </p>
+ </div>
+ <PeriodChips
+ dateFrom={dateFrom}
+ dateTo={dateTo}
+ spanDays={dateRange.spanDays}
+ periodWarning={periodExceedsGuardrail}
+ staffId={staffId}
+ staffOptions={staffOptions}
+ paymentMethod={paymentMethod}
+ itemType={itemType}
+ />
+ <ReportStaffEnterpriseTable
+ rows={teamStaffPerformance}
+ staffDrillDownByStaff={staffDrillDownByStaff}
+ previousStaffRows={previousStaffPerformance ?? []}
+ />
+ </section>
+ )}
 
-      {macro === "clienti" && salonId > 0 && crmActions ? (
+ {macro === "clienti" && salonId > 0 && crmActions ? (
         <section className="space-y-4">
-          <PeriodChips
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            spanDays={dateRange.spanDays}
-            periodWarning={periodExceedsGuardrail}
-            staffId={staffId}
-            staffOptions={staffOptions}
-            paymentMethod={paymentMethod}
-            itemType={itemType}
-          />
-          <ReportClientiSection clientsReport={clientsReport} crm={crmActions} />
-        </section>
-      ) : null}
+ <PeriodChips
+ dateFrom={dateFrom}
+ dateTo={dateTo}
+ spanDays={dateRange.spanDays}
+ periodWarning={periodExceedsGuardrail}
+ staffId={staffId}
+ staffOptions={staffOptions}
+ paymentMethod={paymentMethod}
+ itemType={itemType}
+ />
+ <ReportClientiSection clientsReport={clientsReport} crm={crmActions} />
+ </section>
+ ) : null}
 
-      {macro === "vendite" && salonId > 0 && (
+ {macro === "vendite" && salonId > 0 && (
         <section className="space-y-6">
           <div>
             <h2 className="text-xl font-extrabold tracking-tight text-white md:text-2xl">Vendite</h2>
             <p className="mt-1 text-sm text-white/50">
-              Analisi del periodo filtrato — diverso dal Riepilogo (oggi/mese)
-            </p>
-          </div>
+ Analisi del periodo filtrato — diverso dal Riepilogo (oggi/mese)
+ </p>
+ </div>
 
-          <ReportSubNav
-            subtabs={venditeSubtabs}
-            activeKey={venditeSubtab}
-            baseParams={baseParams}
-            macroTab="vendite"
-          />
+ <ReportSubNav
+ subtabs={venditeSubtabs}
+ activeKey={venditeSubtab}
+ baseParams={baseParams}
+ macroTab="vendite"
+ />
 
-          <PeriodChips
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            spanDays={dateRange.spanDays}
-            periodWarning={periodExceedsGuardrail}
-            staffId={staffId}
-            staffOptions={staffOptions}
-            paymentMethod={paymentMethod}
-            itemType={itemType}
-          />
+ <PeriodChips
+ dateFrom={dateFrom}
+ dateTo={dateTo}
+ spanDays={dateRange.spanDays}
+ periodWarning={periodExceedsGuardrail}
+ staffId={staffId}
+ staffOptions={staffOptions}
+ paymentMethod={paymentMethod}
+ itemType={itemType}
+ />
 
-          {venditeSubtab === "totali" && (
-            <>
-              <ReportKpiRow totals={totals} />
-              <ReportPeriodComparison current={totals} previous={previousTotals} />
-              <ReportTopItemsTable rows={topItems ?? []} />
-            </>
-          )}
+ {venditeSubtab === "totali" && (
+ <>
+ <ReportKpiRow totals={totals} />
+ <ReportPeriodComparison current={totals} previous={previousTotals} />
+ <ReportTopItemsTable rows={topItems ?? []} />
+ </>
+ )}
 
-          {venditeSubtab === "giorni" && <ReportDailyTable rows={daily ?? []} />}
+ {venditeSubtab === "giorni" && <ReportDailyTable rows={daily ?? []} />}
 
-          {venditeSubtab === "servizi" && (
-            <>
-              <ReportServicesKpiRow
-                totals={{
-                  services_qty: Number((servicesReport as any)?.totals?.services_qty ?? 0),
-                  services_gross: Number(
-                    (servicesReport as any)?.totals?.services_gross_total ??
-                      (servicesReport as any)?.totals?.gross_total ??
-                      0,
-                  ),
-                  avg_service_price: Number(
-                    (servicesReport as any)?.totals?.avg_service_price ??
-                      (servicesReport as any)?.totals?.services_avg_price ??
-                      0,
-                  ),
-                }}
-              />
-              <ReportServicesTopTable rows={(servicesReport as any).topServices ?? []} />
-            </>
-          )}
+ {venditeSubtab === "servizi" && (
+ <>
+ <ReportServicesKpiRow
+ totals={{
+ services_qty: Number((servicesReport as any)?.totals?.services_qty ?? 0),
+ services_gross: Number(
+ (servicesReport as any)?.totals?.services_gross_total ??
+ (servicesReport as any)?.totals?.gross_total ??
+ 0,
+ ),
+ avg_service_price: Number(
+ (servicesReport as any)?.totals?.avg_service_price ??
+ (servicesReport as any)?.totals?.services_avg_price ??
+ 0,
+ ),
+ }}
+ />
+ <ReportServicesTopTable rows={(servicesReport as any).topServices ?? []} />
+ </>
+ )}
 
-          {venditeSubtab === "prodotti" && (
-            <>
-              <ReportProductsKpiRow totals={productsReport.totals as any} />
-              <ReportProductsTopTable rows={productsReport.topProducts as any} />
-              <ReportProductsLowStockTable rows={productsReport.lowStock as any} />
-            </>
-          )}
+ {venditeSubtab === "prodotti" && (
+ <>
+ <ReportProductsKpiRow totals={productsReport.totals as any} />
+ <ReportProductsTopTable rows={productsReport.topProducts as any} />
+ <ReportProductsLowStockTable rows={productsReport.lowStock as any} />
+ </>
+ )}
 
-          {venditeSubtab === "dettaglio" && (
-            <ReportRowsTable rows={(rows ?? []).slice(0, 400)} />
-          )}
-        </section>
-      )}
+ {venditeSubtab === "dettaglio" && (
+ <ReportRowsTable rows={(rows ?? []).slice(0, 400)} />
+ )}
+ </section>
+ )}
 
-      {macro === "cassa_audit" && salonId > 0 && (
+ {macro === "cassa_audit" && salonId > 0 && (
         <section className="space-y-6">
           <div>
             <h2 className="text-xl font-extrabold tracking-tight text-white md:text-2xl">
               Cassa / Audit
             </h2>
             <p className="mt-1 text-sm text-white/50">Cassa, agenda e log comunicazioni</p>
-          </div>
+ </div>
 
-          <ReportSubNav
-            subtabs={cassaAuditSubtabs}
-            activeKey={cassaAuditSubtab}
-            baseParams={baseParams}
-            macroTab="cassa_audit"
-          />
+ <ReportSubNav
+ subtabs={cassaAuditSubtabs}
+ activeKey={cassaAuditSubtab}
+ baseParams={baseParams}
+ macroTab="cassa_audit"
+ />
 
-          {cassaAuditSubtab === "cassa" && (
-            <>
-              <ReportCashKpiRow totals={cashReport.totals as any} />
-              <ReportCashSessionsTable rows={cashReport.sessions as any} />
-            </>
-          )}
+ {cassaAuditSubtab === "cassa" && (
+ <>
+ <ReportCashKpiRow totals={cashReport.totals as any} />
+ <ReportCashSessionsTable rows={cashReport.sessions as any} />
+ </>
+ )}
 
-          {cassaAuditSubtab === "agenda" && (
-            <>
-              <ReportAgendaKpiRow totals={agendaReport.totals as any} />
-              <ReportAgendaNoShowTable rows={agendaReport.daily as any} />
-              <ReportAgendaStaffUtilizationTable rows={agendaReport.staffUtilization as any} />
-            </>
-          )}
+ {cassaAuditSubtab === "agenda" && (
+ <>
+ <ReportAgendaKpiRow totals={agendaReport.totals as any} />
+ <ReportAgendaNoShowTable rows={agendaReport.daily as any} />
+ <ReportAgendaStaffUtilizationTable rows={agendaReport.staffUtilization as any} />
+ </>
+ )}
 
-          {cassaAuditSubtab === "whatsapp" && (
+ {cassaAuditSubtab === "whatsapp" && (
             <ReportWhatsAppRemindersTable rows={waReminderLog.rows} totals={waReminderLog.totals} />
           )}
         </section>

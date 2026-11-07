@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import Image from "next/image";
 import { createClient } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
@@ -33,7 +33,7 @@ export default function LoginPage() {
 
     const mail = email.trim();
     if (!mail) {
-      setError("Inserisci prima la tua email, poi clicca 'Password dimenticata?'.");
+      setError("Inserisci prima la tua email, poi clicca «Password dimenticata?».");
       return;
     }
 
@@ -52,96 +52,76 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center px-6 bg-[var(--bg)] overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.10),transparent_70%)] opacity-30" />
+    <div className="relative min-h-screen flex flex-col items-center justify-center px-5 py-10 bg-[var(--bg)]">
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Image
+            src="/logo-scaramuzzo.webp"
+            width={56}
+            height={56}
+            alt=""
+            className="h-14 w-14 object-contain"
+            priority
+          />
+          <h1 className="text-xl font-semibold tracking-tight text-[#f3d8b6]">
+            Scaramuzzo Manager
+          </h1>
+        </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="text-center mb-16"
-      >
-        <h1 className="text-5xl font-serif tracking-wide text-[var(--text)] drop-shadow">
-          Scaramuzzo Manager
-        </h1>
-      </motion.div>
+        <div className="rounded-xl border border-white/[0.08] bg-scz-dark/80 px-5 py-6 space-y-5">
+          {error ? (
+            <p className="text-sm text-center text-red-300" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-      <motion.img
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        src="/logo-scaramuzzo.webp"
-        className="w-28 mb-10 opacity-95 drop-shadow-[0_0_25px_rgba(0,0,0,0.4)]"
-        alt="Scaramuzzo"
-      />
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div className="space-y-1.5">
+              <label htmlFor="login-email" className="text-sm text-[#f3d8b6]/90">
+                Email
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@esempio.it"
+                className="w-full px-3 py-2.5 rounded-lg bg-black/30 border border-white/10 text-white placeholder:text-white/35 focus:border-[#f3d8b6]/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f3d8b6]/35"
+              />
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="self-end text-xs text-white/55 hover:text-white underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
+              >
+                Password dimenticata?
+              </button>
+            </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 35 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, delay: 0.1 }}
-        className="
-          w-full max-w-xl px-10 py-12
-          rounded-3xl bg-[rgba(36,20,14,0.7)]
-          backdrop-blur-xl border border-[var(--border)]/50
-          shadow-card space-y-10
-        "
-      >
-        {error && <p className="text-red-400 text-center">{error}</p>}
-
-        <form onSubmit={handleLogin} className="flex flex-col space-y-8">
-          <div className="flex flex-col space-y-2">
-            <label className="text-[var(--accent)] text-sm">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Inserisci la tua email"
-              className="
-                w-full px-4 py-4 rounded-xl
-                bg-white/10 border border-white/20
-                text-white placeholder:text-white/40
-                focus:border-white/40 outline-none
-              "
-            />
+            <div className="space-y-1.5">
+              <label htmlFor="login-password" className="text-sm text-[#f3d8b6]/90">
+                Password
+              </label>
+              <input
+                id="login-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="w-full px-3 py-2.5 rounded-lg bg-black/30 border border-white/10 text-white placeholder:text-white/35 focus:border-[#f3d8b6]/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f3d8b6]/35"
+              />
+            </div>
 
             <button
-              type="button"
-              onClick={handleForgotPassword}
-              className="self-end text-xs text-white/70 hover:text-white underline underline-offset-4 mt-1"
+              type="submit"
+              className="w-full py-2.5 rounded-lg bg-[#f3d8b6] text-[#1c0f0a] text-sm font-semibold hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6] transition"
             >
-              Password dimenticata?
+              Accedi
             </button>
-          </div>
-
-          <div className="flex flex-col space-y-2">
-            <label className="text-[var(--accent)] text-sm">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Inserisci la password"
-              className="
-                w-full px-4 py-4 rounded-xl
-                bg-white/10 border border-white/20
-                text-white placeholder:text-white/40
-                focus:border-white/40 outline-none
-              "
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="
-              w-full py-4 rounded-xl
-              bg-[var(--accent)] text-[var(--bg)]
-              font-semibold tracking-widest uppercase text-sm
-              shadow-soft hover:brightness-110 transition
-            "
-          >
-            Accedi
-          </button>
-        </form>
-      </motion.div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

@@ -120,86 +120,86 @@ export default function FiscalJobRowActions({ job, canAct }: Props) {
 
   if (!hasAny) {
     return <span className="text-[10px] text-white/25">—</span>;
-  }
+ }
 
-  const disabled = pending || busy != null;
-  const dialogCopy = pendingRun
-    ? confirmCopy(pendingRun.kind, job, pendingRun.needsZ && job.kind === "z_report")
+ const disabled = pending || busy != null;
+ const dialogCopy = pendingRun
+ ? confirmCopy(pendingRun.kind, job, pendingRun.needsZ && job.kind === "z_report")
     : null;
 
   return (
     <>
       <div className="flex flex-col gap-1.5 min-w-[100px]">
-        {actions.requeue ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => beginRun("requeue", actions.requeueNeedsZConfirm)}
+ {actions.requeue ? (
+ <button
+ type="button"
+ disabled={disabled}
+ onClick={() => beginRun("requeue", actions.requeueNeedsZConfirm)}
             className="rounded-lg border border-[#f3d8b6]/25 bg-[#f3d8b6]/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#f3d8b6] hover:bg-[#f3d8b6]/20 disabled:opacity-40"
-          >
-            {busy === "requeue" ? "…" : "Requeue"}
+ >
+ {busy === "requeue" ? "…" : "Requeue"}
           </button>
         ) : actions.requeueDisabledReason ? (
           <span
             className="text-[9px] text-amber-200/70 leading-snug"
-            title={actions.requeueDisabledReason}
-          >
-            Requeue N/D
-          </span>
-        ) : null}
+ title={actions.requeueDisabledReason}
+ >
+ Requeue N/D
+ </span>
+ ) : null}
 
-        {actions.cancel ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => beginRun("cancel", actions.cancelNeedsZConfirm)}
+ {actions.cancel ? (
+ <button
+ type="button"
+ disabled={disabled}
+ onClick={() => beginRun("cancel", actions.cancelNeedsZConfirm)}
             className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-200/95 hover:bg-amber-500/20 disabled:opacity-40"
-          >
-            {busy === "cancel" ? "…" : "Annulla"}
+ >
+ {busy === "cancel" ? "…" : "Annulla"}
           </button>
         ) : actions.cancelDisabledReason ? (
           <span
             className="text-[9px] text-white/35 leading-snug"
-            title={actions.cancelDisabledReason}
-          >
-            —
-          </span>
-        ) : null}
-      </div>
+ title={actions.cancelDisabledReason}
+ >
+ —
+ </span>
+ ) : null}
+ </div>
 
-      {dialogCopy && pendingRun ? (
-        <ConfirmActionDialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setPendingRun(null);
-          }}
-          title={dialogCopy.title}
-          description={dialogCopy.description}
-          confirmLabel={pendingRun.kind === "requeue" ? "Requeue" : "Annulla job"}
-          variant={pendingRun.kind === "cancel" ? "warning" : "default"}
-          loading={busy != null}
-          onConfirm={afterFirstConfirm}
-        />
-      ) : null}
+ {dialogCopy && pendingRun ? (
+ <ConfirmActionDialog
+ open
+ onOpenChange={(open) => {
+ if (!open) setPendingRun(null);
+ }}
+ title={dialogCopy.title}
+ description={dialogCopy.description}
+ confirmLabel={pendingRun.kind === "requeue" ? "Requeue" : "Annulla job"}
+ variant={pendingRun.kind === "cancel" ? "warning" : "default"}
+ loading={busy != null}
+ onConfirm={afterFirstConfirm}
+ />
+ ) : null}
 
-      <ConfirmWithInputDialog
-        isOpen={zInputOpen}
-        onClose={() => {
-          setZInputOpen(false);
-          setZPendingRun(null);
-        }}
-        onConfirm={() => {
-          const run = zPendingRun;
-          setZInputOpen(false);
-          setZPendingRun(null);
-          if (run) void executeRun(run);
-        }}
-        title="Conferma Z-REPORT"
-        description="Operazione sensibile sulla chiusura giornaliera. Digita il testo richiesto per procedere."
-        confirmLabel="Conferma operazione"
-        requiredText="Z-REPORT"
-        inputLabel='Scrivi "Z-REPORT" per confermare'
-        variant="danger"
+ <ConfirmWithInputDialog
+ isOpen={zInputOpen}
+ onClose={() => {
+ setZInputOpen(false);
+ setZPendingRun(null);
+ }}
+ onConfirm={() => {
+ const run = zPendingRun;
+ setZInputOpen(false);
+ setZPendingRun(null);
+ if (run) void executeRun(run);
+ }}
+ title="Conferma Z-REPORT"
+ description="Operazione sensibile sulla chiusura giornaliera. Digita il testo richiesto per procedere."
+ confirmLabel="Conferma operazione"
+ requiredText="Z-REPORT"
+ inputLabel='Scrivi "Z-REPORT" per confermare'
+ variant="danger"
       />
     </>
   );

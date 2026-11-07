@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import Link from "next/link";
-import { LayoutList, ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, MoreHorizontal } from "lucide-react";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import { useMagazzinoSalonContext } from "@/hooks/useMagazzinoSalonContext";
 import {
@@ -16,6 +16,12 @@ import {
 } from "@/lib/magazzino/inventarioCatalog";
 
 type Product = InventarioProductRow;
+
+const fieldClass =
+  "w-full min-w-0 rounded-lg bg-black/25 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/35 focus:border-[#f3d8b6]/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f3d8b6]/35";
+
+const ghostBtn =
+  "inline-flex items-center justify-center rounded-lg border border-white/10 bg-transparent px-3 py-2 text-sm text-[#f3d8b6]/90 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 disabled:opacity-40 transition";
 
 export default function InventarioPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -44,7 +50,6 @@ export default function InventarioPage() {
       .catch((e) => console.error(e));
   }, [isReady, supabase]);
 
-  // Fetch quando cambia salone, filtri o pagina.
   useEffect(() => {
     let cancelled = false;
 
@@ -62,7 +67,7 @@ export default function InventarioPage() {
         setErrMsg(
           isWarehouse
             ? "Nessun salone selezionato: usa lo switcher in alto."
-            : "Questo utente non ha un salone associato: non posso mostrare l’inventario."
+            : "Questo utente non ha un salone associato: non posso mostrare l’inventario.",
         );
         return;
       }
@@ -159,356 +164,348 @@ export default function InventarioPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function handleRefresh() {
+    if (ctxSalonId == null) return;
+    try {
+      setLoading(true);
+      setErrMsg(null);
+      const result = await fetchInventarioCatalogPage(supabase, ctxSalonId, {
+        search: filter,
+        category,
+        sottoscortaOnly: showOnlySottoscorta,
+        page,
+      });
+      setProducts(result.rows);
+      setTotalCount(result.totalCount);
+      setSottoscortaCount(result.sottoscortaCount);
+      setPageCount(result.pageCount);
+    } catch (e: unknown) {
+      console.error("[inventario]", e);
+      setErrMsg(inventarioUserFacingMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!isReady || loading) {
-    return (
-      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
-        Caricamento…
-      </div>
-    );
+    return <div className="px-4 py-6 md:px-6 text-white/70 text-sm">Caricamento…</div>;
   }
 
   if (errMsg) {
     return (
-      <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white">
-        <h1 className="text-3xl font-bold mb-3">Inventario</h1>
-        <p className="text-white/70">{errMsg}</p>
+      <div className="px-4 py-6 md:px-6 text-white space-y-2">
+        <h1 className="text-xl font-semibold text-[#f3d8b6]">Inventario</h1>
+        <p className="text-sm text-white/70">{errMsg}</p>
       </div>
     );
   }
 
   return (
-    <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white space-y-6">
-      {/* HERO */}
-      <div className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 md:p-7 bg-black/20 border-b border-white/10">
-          <div className="flex items-start gap-4">
-            <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
-              <LayoutList className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-                Magazzino
-              </div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                Inventario
-              </h1>
-              <p className="text-white/60 mt-1">
-                Giacenze e prodotti per <span className="font-semibold text-white/90">{salonName}</span>
-              </p>
-              <p className="text-white/50 text-sm mt-1">
-                {isWarehouse
-                  ? "Cambia salone dallo switcher in alto."
-                  : "Visualizzazione del tuo salone."}
-              </p>
-            </div>
-          </div>
-          <div className="shrink-0 self-start sm:self-center flex flex-wrap gap-2">
-            <button
-              className="px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-              onClick={() => window.print()}
-            >
-              Stampa
-            </button>
-            <button
-              type="button"
-              title={`Esporta CSV della pagina corrente (${page})`}
-              className="px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-              onClick={handleExportCsv}
-            >
-              Esporta CSV (pagina)
-            </button>
-            <button
-              className="px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-              onClick={async () => {
-                if (ctxSalonId == null) return;
-                try {
-                  setLoading(true);
-                  setErrMsg(null);
-                  const result = await fetchInventarioCatalogPage(supabase, ctxSalonId, {
-                    search: filter,
-                    category,
-                    sottoscortaOnly: showOnlySottoscorta,
-                    page,
-                  });
-                  setProducts(result.rows);
-                  setTotalCount(result.totalCount);
-                  setSottoscortaCount(result.sottoscortaCount);
-                  setPageCount(result.pageCount);
-                } catch (e: unknown) {
-                  console.error("[inventario]", e);
-                  setErrMsg(inventarioUserFacingMessage(e));
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            >
-              Aggiorna
-            </button>
-          </div>
+    <div className="px-3 py-4 md:px-5 md:py-5 text-white space-y-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h1 className="text-xl md:text-2xl font-semibold text-[#f3d8b6] tracking-tight">
+            Inventario
+          </h1>
+          <p className="text-sm text-white/50 truncate">{salonName}</p>
+          <p className="text-sm text-white/70 tabular-nums">
+            <span className="text-[#f3d8b6] font-semibold">{totalCount}</span>
+            {" prodotti"}
+            <span className="mx-2 text-white/25" aria-hidden>
+              ·
+            </span>
+            <span className={sottoscortaCount > 0 ? "text-red-400 font-semibold" : "text-white/70"}>
+              {sottoscortaCount}
+            </span>
+            {` sottoscorta (≤${INVENTARIO_SOTTOSORTA_THRESHOLD})`}
+          </p>
         </div>
-      </div>
 
-      {/* KPI ROW */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="rounded-2xl p-5 bg-black/20 border border-white/10">
-          <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-            Prodotti (filtri attivi)
-          </div>
-          <div className="text-3xl font-extrabold text-[#f3d8b6]">{totalCount}</div>
-        </div>
-        <div className="rounded-2xl p-5 bg-black/20 border border-white/10">
-          <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-            In sottoscorta (≤{INVENTARIO_SOTTOSORTA_THRESHOLD})
-          </div>
-          <div className={`text-3xl font-extrabold ${sottoscortaCount > 0 ? "text-red-400" : "text-[#f3d8b6]"}`}>
-            {sottoscortaCount}
-          </div>
-        </div>
-      </div>
-
-      {/* FILTRI */}
-      <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
-        <div className="text-[10px] font-black uppercase tracking-wider text-white/50">Filtri</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-white/70 mb-1.5">Cerca prodotto</label>
-            <input
-              className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder:text-white/40 focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
-              placeholder="Nome o barcode…"
-              value={filter}
-              onChange={(e) => {
-                setFilter(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-white/70 mb-1.5">Categoria</label>
-            <select
-              className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">Tutte le categorie</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 cursor-pointer p-3 rounded-xl bg-black/20 border border-white/10 w-full md:w-auto">
-              <input
-                type="checkbox"
-                checked={showOnlySottoscorta}
-                onChange={(e) => {
-                  setShowOnlySottoscorta(e.target.checked);
-                  setPage(1);
-                }}
-                className="rounded border-white/30 bg-black/30 text-[#f3d8b6] focus:ring-[#f3d8b6]/50"
-              />
-              <span className="text-sm font-medium text-white/90">Solo sottoscorta</span>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      {/* MOBILE CARDS */}
-      <div className="md:hidden space-y-3">
-        {sortedProducts.map((p) => (
-          <div
-            key={p.product_id}
-            className="rounded-xl border border-white/10 bg-scz-dark p-4 space-y-3"
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <button type="button" className={ghostBtn} onClick={() => window.print()}>
+            Stampa
+          </button>
+          <button
+            type="button"
+            title={`CSV della pagina ${page}`}
+            className={ghostBtn}
+            onClick={handleExportCsv}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-bold text-white truncate">{p.name}</p>
-                <p className="text-xs text-white/50 mt-0.5">
-                  {p.category ?? "—"} · {p.barcode || "—"}
-                </p>
-              </div>
-              <span
-                className={`text-lg font-extrabold tabular-nums ${
-                  p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD ? "text-red-400" : "text-[#f3d8b6]"
-                }`}
-              >
-                {p.quantity}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {canCarico && (
-                <Link
-                  href={`/dashboard/magazzino/carico?product=${p.product_id}`}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0FA958] text-white"
-                >
-                  Carica
-                </Link>
-              )}
-              <Link
-                href={`/dashboard/magazzino/scarico?product=${p.product_id}`}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600/90 text-white"
-              >
-                Scarica
-              </Link>
-              <Link
-                href={`/dashboard/magazzino/prodotto/${p.product_id}`}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-black/30 border border-white/10 text-[#f3d8b6]"
-              >
-                Dettaglio
-              </Link>
-            </div>
-          </div>
-        ))}
+            CSV pagina
+          </button>
+          <button type="button" className={ghostBtn} onClick={handleRefresh}>
+            Aggiorna
+          </button>
+        </div>
       </div>
 
-      {/* TABELLA desktop */}
-      <div className="hidden md:block bg-[#FFF9F4] text-[#341A09] p-6 rounded-xl shadow">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 rounded-xl border border-white/[0.08] bg-scz-dark/80 p-2.5">
+        <label className="sr-only" htmlFor="inv-search">
+          Cerca prodotto
+        </label>
+        <input
+          id="inv-search"
+          className={`${fieldClass} sm:flex-1 sm:min-w-[12rem]`}
+          placeholder="Cerca nome o barcode…"
+          value={filter}
+          onChange={(e) => {
+            setFilter(e.target.value);
+            setPage(1);
+          }}
+        />
+        <label className="sr-only" htmlFor="inv-category">
+          Categoria
+        </label>
+        <select
+          id="inv-category"
+          className={`${fieldClass} sm:w-48`}
+          value={category}
+          onChange={(e) => {
+            setCategory(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">Tutte le categorie</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
+          ))}
+        </select>
+        <label className="inline-flex items-center gap-2 px-2 py-2 text-sm text-white/80 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showOnlySottoscorta}
+            onChange={(e) => {
+              setShowOnlySottoscorta(e.target.checked);
+              setPage(1);
+            }}
+            className="rounded border-white/30 bg-black/30 text-[#f3d8b6] focus:ring-[#f3d8b6]/50"
+          />
+          Solo sottoscorta
+        </label>
+      </div>
+
+      <div className="md:hidden divide-y divide-white/[0.06] rounded-xl border border-white/[0.08] bg-scz-dark overflow-hidden">
+        {sortedProducts.map((p) => {
+          const low = p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD;
+          return (
+            <div key={p.product_id} className="px-3 py-2.5 space-y-1.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Link
+                    href={`/dashboard/magazzino/prodotto/${p.product_id}`}
+                    className="font-medium text-white/95 hover:text-[#f3d8b6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
+                  >
+                    {p.name}
+                  </Link>
+                  <p className="text-xs text-white/40 mt-0.5 truncate">
+                    {[p.category, p.barcode].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 text-base font-semibold tabular-nums ${
+                    low ? "text-red-400" : "text-[#f3d8b6]"
+                  }`}
+                >
+                  {p.quantity}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                {canCarico ? (
+                  <Link
+                    href={`/dashboard/magazzino/carico?product=${p.product_id}`}
+                    className="text-emerald-400/90 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400/50 rounded"
+                  >
+                    Carico
+                  </Link>
+                ) : null}
+                <Link
+                  href={`/dashboard/magazzino/scarico?product=${p.product_id}`}
+                  className="text-[#f3d8b6] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
+                >
+                  Scarico
+                </Link>
+                {isWarehouse ? (
+                  <>
+                    <Link
+                      href={`/dashboard/magazzino/prodotto/${p.product_id}/modifica`}
+                      className="text-white/45 hover:text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
+                    >
+                      Modifica
+                    </Link>
+                    <Link
+                      href={`/dashboard/magazzino/prodotto/${p.product_id}/qr`}
+                      className="text-white/45 hover:text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
+                    >
+                      QR
+                    </Link>
+                  </>
+                ) : (
+                  <Link
+                    href={`/dashboard/magazzino/prodotto/${p.product_id}`}
+                    className="text-white/45 hover:text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
+                  >
+                    Dettaglio
+                  </Link>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {sortedProducts.length === 0 ? (
+          <p className="px-3 py-8 text-center text-sm text-white/45">
+            Nessun prodotto con i filtri attuali.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-white/[0.08] bg-scz-dark">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#341A09]/20 font-semibold">
-              <th className="p-3 text-left">
-                <button
-                  type="button"
-                  onClick={() => handleSort("name")}
-                  className="flex items-center gap-1 text-left hover:text-[#341A09]/80 transition"
-                >
-                  Prodotto
-                  {sortKey === "name" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
-                </button>
+            <tr className="border-b border-white/[0.08] text-left text-white/45">
+              <th className="px-3 py-2 font-medium">
+                <SortBtn label="Prodotto" active={sortKey === "name"} dir={sortDir} onClick={() => handleSort("name")} />
               </th>
-              <th className="p-3 text-left">
-                <button
-                  type="button"
-                  onClick={() => handleSort("category")}
-                  className="flex items-center gap-1 text-left hover:text-[#341A09]/80 transition"
-                >
-                  Categoria
-                  {sortKey === "category" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
-                </button>
+              <th className="px-3 py-2 font-medium">
+                <SortBtn label="Categoria" active={sortKey === "category"} dir={sortDir} onClick={() => handleSort("category")} />
               </th>
-              <th className="p-3 text-left">Barcode</th>
-              <th className="p-3 text-left">
-                <button
-                  type="button"
-                  onClick={() => handleSort("quantity")}
-                  className="flex items-center gap-1 text-left hover:text-[#341A09]/80 transition"
-                >
-                  Giacenza
-                  {sortKey === "quantity" && (sortDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
-                </button>
+              <th className="px-3 py-2 font-medium">Barcode</th>
+              <th className="px-3 py-2 font-medium">
+                <SortBtn label="Giacenza" active={sortKey === "quantity"} dir={sortDir} onClick={() => handleSort("quantity")} />
               </th>
-              <th className="p-3 text-right w-[1%]">Azioni</th>
+              <th className="px-3 py-2 font-medium text-right">Azioni</th>
             </tr>
           </thead>
-
           <tbody>
-            {sortedProducts.map((p) => (
-              <tr key={p.product_id} className="border-b">
-                <td className="p-3">{p.name}</td>
-                <td className="p-3">{p.category ?? "-"}</td>
-                <td className="p-3">{p.barcode || "-"}</td>
-
-                <td className="p-3">
-                  <div className="flex flex-col gap-1">
-                    <span
-                      className={
-                        p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD
-                          ? "font-bold text-red-600"
-                          : ""
-                      }
+            {sortedProducts.map((p) => {
+              const low = p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD;
+              return (
+                <tr key={p.product_id} className="border-b border-white/[0.05] hover:bg-white/[0.03]">
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/dashboard/magazzino/prodotto/${p.product_id}`}
+                      className="font-medium text-white/95 hover:text-[#f3d8b6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
                     >
-                      {p.quantity}
-                    </span>
+                      {p.name}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2 text-white/55">{p.category ?? "—"}</td>
+                  <td className="px-3 py-2 text-white/45 tabular-nums">{p.barcode || "—"}</td>
+                  <td className="px-3 py-2">
                     <span
-                      className={`inline-flex w-fit px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                        p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD
-                          ? "bg-red-500/20 text-red-700"
-                          : "bg-[#341A09]/15 text-[#341A09]/80"
+                      className={`inline-flex items-baseline gap-2 tabular-nums font-semibold ${
+                        low ? "text-red-400" : "text-[#f3d8b6]"
                       }`}
                     >
-                      {p.quantity <= INVENTARIO_SOTTOSORTA_THRESHOLD ? "Sottoscorta" : "OK"}
+                      {p.quantity}
+                      {low ? <span className="text-[11px] font-medium text-red-400/80">sottoscorta</span> : null}
                     </span>
-                  </div>
-                </td>
-
-                <td className="p-3 text-right">
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    {canCarico && (
-                      <Link
-                        href={`/dashboard/magazzino/carico?product=${p.product_id}`}
-                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-[#0FA958] text-white hover:opacity-90 transition"
-                      >
-                        Carico
-                      </Link>
-                    )}
-                    <Link
-                      href={`/dashboard/magazzino/scarico?product=${p.product_id}`}
-                      className="px-2.5 py-1 text-xs font-medium rounded-lg bg-red-600/90 text-white hover:opacity-90 transition"
-                    >
-                      Scarico
-                    </Link>
-                    {isWarehouse && (
-                      <>
-                        <Link
-                          href={`/dashboard/magazzino/prodotto/${p.product_id}/modifica`}
-                          className="px-2.5 py-1 text-xs font-medium rounded-lg bg-[#341A09]/90 text-white hover:opacity-90 transition"
-                        >
-                          Modifica
-                        </Link>
-                        <Link
-                          href={`/dashboard/magazzino/prodotto/${p.product_id}/qr`}
-                          className="px-2.5 py-1 text-xs font-medium rounded-lg bg-[#B88A54]/90 text-white hover:opacity-90 transition"
-                        >
-                          QR
-                        </Link>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-3 py-2">
+                    <RowActions productId={p.product_id} canCarico={canCarico} isWarehouse={isWarehouse} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-
-        {sortedProducts.length === 0 && (
-          <div className="text-center text-sm opacity-60 py-10">
-            Nessun prodotto trovato con i filtri attuali.
-          </div>
-        )}
+        {sortedProducts.length === 0 ? (
+          <p className="px-3 py-10 text-center text-sm text-white/45">Nessun prodotto con i filtri attuali.</p>
+        ) : null}
       </div>
 
-      {totalCount > 0 && (
-        <p className="text-xs text-white/45 text-center">
-          Pagina {page} di {pageCount} — {INVENTARIO_PAGE_SIZE} prodotti per pagina
-        </p>
-      )}
-
-      {pageCount > 1 && (
-        <div className="flex items-center justify-between gap-3 px-2">
-          <button
-            type="button"
-            disabled={page <= 1}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Precedente
-          </button>
-          <span className="text-xs text-white/50 tabular-nums">
-            {page} / {pageCount}
-          </span>
-          <button
-            type="button"
-            disabled={page >= pageCount}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40"
-            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-          >
-            Successiva
-          </button>
+      {totalCount > 0 ? (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-white/45 px-0.5">
+          <p className="tabular-nums">
+            Pagina {page} di {pageCount} · {INVENTARIO_PAGE_SIZE} per pagina
+          </p>
+          {pageCount > 1 ? (
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={page <= 1} className={ghostBtn} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                Precedente
+              </button>
+              <button type="button" disabled={page >= pageCount} className={ghostBtn} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
+                Successiva
+              </button>
+            </div>
+          ) : null}
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SortBtn({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 hover:text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
+    >
+      {label}
+      {active ? (dir === "asc" ? <ChevronUp className="w-3.5 h-3.5" aria-hidden /> : <ChevronDown className="w-3.5 h-3.5" aria-hidden />) : null}
+    </button>
+  );
+}
+
+function RowActions({
+  productId,
+  canCarico,
+  isWarehouse,
+}: {
+  productId: number;
+  canCarico: boolean;
+  isWarehouse: boolean;
+}) {
+  const link =
+    "text-xs text-[#f3d8b6]/90 hover:text-[#f3d8b6] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded";
+
+  return (
+    <div className="flex items-center justify-end gap-3 whitespace-nowrap">
+      {canCarico ? (
+        <Link href={`/dashboard/magazzino/carico?product=${productId}`} className={link}>
+          Carico
+        </Link>
+      ) : null}
+      <Link href={`/dashboard/magazzino/scarico?product=${productId}`} className={link}>
+        Scarico
+      </Link>
+      {isWarehouse ? (
+        <details className="relative">
+          <summary
+            className="list-none cursor-pointer inline-flex items-center gap-1 text-xs text-white/45 hover:text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded [&::-webkit-details-marker]:hidden"
+            aria-label="Altre azioni"
+          >
+            <MoreHorizontal size={14} aria-hidden />
+            Altro
+          </summary>
+          <div className="absolute right-0 z-20 mt-1 min-w-[8.5rem] rounded-lg border border-white/10 bg-[#1b0d08] py-1 shadow-lg">
+            <Link href={`/dashboard/magazzino/prodotto/${productId}/modifica`} className="block px-3 py-1.5 text-xs text-white/80 hover:bg-white/[0.06]">
+              Modifica
+            </Link>
+            <Link href={`/dashboard/magazzino/prodotto/${productId}/qr`} className="block px-3 py-1.5 text-xs text-white/80 hover:bg-white/[0.06]">
+              QR
+            </Link>
+            <Link href={`/dashboard/magazzino/prodotto/${productId}`} className="block px-3 py-1.5 text-xs text-white/80 hover:bg-white/[0.06]">
+              Dettaglio
+            </Link>
+          </div>
+        </details>
+      ) : (
+        <Link href={`/dashboard/magazzino/prodotto/${productId}`} className={link}>
+          Dettaglio
+        </Link>
       )}
     </div>
   );

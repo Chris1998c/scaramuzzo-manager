@@ -52,19 +52,19 @@ export default function FiscalJobsFilters({
       <div className="flex flex-wrap items-end gap-4">
         {showSalonFilter ? (
           <label className="flex flex-col gap-1.5 min-w-[160px]">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+            <span className="text-xs font-medium text-white/40">
               Salone
             </span>
             <select
               className="input text-sm"
-              value={salonId != null ? String(salonId) : ""}
-              disabled={isPending}
-              onChange={(e) => {
-                const v = e.target.value;
-                apply({ salon_id: v === "" ? null : v });
-              }}
-            >
-              <option value="">Tutti</option>
+ value={salonId != null ? String(salonId) : ""}
+ disabled={isPending}
+ onChange={(e) => {
+ const v = e.target.value;
+ apply({ salon_id: v === "" ? null : v });
+ }}
+ >
+ <option value="">Tutti</option>
               {salonOptions.map((s) => (
                 <option key={s.id} value={String(s.id)}>
                   {s.name} (#{s.id})
@@ -75,36 +75,36 @@ export default function FiscalJobsFilters({
         ) : null}
 
         <label className="flex flex-col gap-1.5 min-w-[140px]">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+          <span className="text-xs font-medium text-white/40">
             Stato
           </span>
           <select
             className="input text-sm"
-            value={status}
-            disabled={isPending}
-            onChange={(e) => apply({ status: e.target.value || null })}
-          >
-            {STATUSES.map((s) => (
-              <option key={s || "all"} value={s}>
-                {s === "" ? "Tutti" : s}
+ value={status}
+ disabled={isPending}
+ onChange={(e) => apply({ status: e.target.value || null })}
+ >
+ {STATUSES.map((s) => (
+ <option key={s || "all"} value={s}>
+ {s === "" ? "Tutti" : s}
               </option>
             ))}
           </select>
         </label>
 
         <label className="flex flex-col gap-1.5 min-w-[160px]">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+          <span className="text-xs font-medium text-white/40">
             Tipo job
           </span>
           <select
             className="input text-sm"
-            value={kind}
-            disabled={isPending}
-            onChange={(e) => apply({ kind: e.target.value || null })}
-          >
-            {KINDS.map((k) => (
-              <option key={k || "all"} value={k}>
-                {k === "" ? "Tutti" : k}
+ value={kind}
+ disabled={isPending}
+ onChange={(e) => apply({ kind: e.target.value || null })}
+ >
+ {KINDS.map((k) => (
+ <option key={k || "all"} value={k}>
+ {k === "" ? "Tutti" : k}
               </option>
             ))}
           </select>

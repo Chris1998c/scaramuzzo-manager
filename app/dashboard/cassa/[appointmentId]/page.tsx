@@ -611,197 +611,160 @@ setProducts(cashProducts);
   if (error)
     return (
       <div className="p-8 text-red-400 bg-red-500/10 rounded-2xl m-6 border border-red-500/20">
-        {error}
-      </div>
-    );
+ {error}
+ </div>
+ );
 
-  const customerLabel = customer
-    ? `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim() ||
-      "Cliente"
-    : "Cliente Occasionale";
+ const customerLabel = customer
+ ? `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim() ||
+ "Cliente"
+ : "Cliente Occasionale";
 
   const salonName = cassa?.salon?.name ?? null;
 
   return (
-    <div className="min-h-screen p-6 pb-10 md:p-8 md:pb-12 lg:p-10 lg:pb-14 text-white max-w-6xl mx-auto space-y-7 animate-in fade-in duration-500">
+    <div className="min-h-screen px-3 py-4 md:px-5 md:py-5 pb-10 text-white max-w-6xl mx-auto space-y-3 animate-in fade-in duration-500">
       {isNotInSala && (
-        <div className="overflow-hidden rounded-2xl border border-red-500/30 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
-          <div className="border-b border-red-500/20 bg-red-500/10 px-6 py-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-200/90">
-              Accesso bloccato
-            </div>
-            <div className="mt-1 text-sm text-red-200/70">
-              L’appuntamento non è in sala
-            </div>
-          </div>
-          <div className="p-6 space-y-4">
-            <p className="text-white/80 text-sm">
-              Porta il cliente in sala dall’Agenda, poi torna qui per chiudere lo scontrino.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/dashboard/agenda"
-                className="h-11 px-5 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] bg-[#f3d8b6] text-black hover:opacity-95 active:scale-[0.98] inline-flex items-center justify-center border border-[#f3d8b6]"
-              >
-                ← Agenda
-              </Link>
-              <Link
-                href="/dashboard/in-sala"
-                className="h-11 px-5 rounded-xl font-bold uppercase tracking-[0.15em] text-[10px] bg-black/30 text-white/80 hover:bg-black/40 border border-white/10 inline-flex items-center justify-center"
-              >
-                In sala
-              </Link>
-            </div>
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 space-y-2">
+          <p className="text-sm font-semibold text-red-200">Appuntamento non in sala</p>
+          <p className="text-sm text-red-200/80">
+            Porta il cliente in sala, poi torna qui per chiudere lo scontrino.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/in-sala"
+              className="h-9 px-3 rounded-lg text-sm font-semibold bg-[#f3d8b6] text-black inline-flex items-center"
+            >
+              In sala
+            </Link>
+            <Link
+              href="/dashboard/agenda"
+              className="h-9 px-3 rounded-lg text-sm border border-white/10 text-white/80 inline-flex items-center"
+            >
+              Agenda
+            </Link>
           </div>
         </div>
       )}
 
-      {/* HERO / HEADER */}
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
-        <div className="border-b border-white/10 bg-black/20 px-6 py-4">
+      {/* Contesto + totale (titolo pagina già nell’header: Check-out cassa) */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 space-y-1">
           <Link
-            href="/dashboard/agenda"
-            className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 hover:text-[#f3d8b6] transition-colors"
+            href="/dashboard/in-sala"
+            className="text-xs text-white/45 hover:text-[#f3d8b6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded"
           >
-            ← Torna all’Agenda
+            ← In sala
           </Link>
-          <h1 className="mt-2 text-3xl md:text-4xl font-black text-[#f3d8b6] tracking-tight">
-            Check-out
-          </h1>
+          <p className="text-lg font-semibold text-[#f3d8b6] truncate">{customerLabel}</p>
+          <p className="text-sm text-white/50 truncate">
+            {salonName ?? `Salone #${appointment?.salon_id}`}
+          </p>
         </div>
-        <div className="p-6 md:p-7 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-w-0">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:p-5">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/40">Cliente</div>
-              <div className="mt-1 text-lg font-bold text-[#f3d8b6] truncate">
-                {customerLabel}
-              </div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:p-5">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/40">Salone</div>
-              <div className="mt-1 text-lg font-semibold text-white/90">
-                {salonName ?? `#${appointment?.salon_id}`}
-              </div>
-            </div>
-          </div>
-          <div className="rounded-xl border border-[#f3d8b6]/30 bg-[#f3d8b6]/5 p-4 md:p-5 min-w-[180px] md:min-w-[200px] text-right shrink-0">
-            <div className="text-[10px] font-black uppercase tracking-wider text-[#f3d8b6]/80">Totale</div>
-            <div className="mt-1 text-2xl md:text-3xl font-black text-[#f3d8b6]">€ {total.toFixed(2)}</div>
+        <div className="shrink-0 text-left sm:text-right rounded-xl border border-[#f3d8b6]/30 bg-[#f3d8b6]/10 px-4 py-3">
+          <div className="text-xs text-[#f3d8b6]/80">Totale</div>
+          <div className="text-2xl font-semibold tabular-nums text-[#f3d8b6]">
+            € {total.toFixed(2)}
           </div>
         </div>
       </div>
 
-      {/* STATO CASSA */}
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
-        <div className="border-b border-white/10 bg-black/20 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
-            Stato cassa
-          </div>
+      {/* Stato cassa + stampante */}
+      <div className="rounded-xl border border-white/[0.08] bg-scz-dark px-3 py-3 md:px-4 space-y-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-sm font-medium text-white/55">Stato cassa</span>
           <span
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+            className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
               cassaLoading
                 ? "bg-white/10 text-white/50"
                 : cassa?.is_open
-                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                  : "bg-red-500/20 text-red-300 border border-red-500/30"
+                  ? "bg-emerald-500/20 text-emerald-300"
+                  : "bg-red-500/20 text-red-300"
             }`}
           >
-            {cassaLoading ? "Verifica..." : cassa?.is_open ? "Aperta" : "Chiusa"}
+            {cassaLoading ? "Verifica…" : cassa?.is_open ? "Aperta" : "Chiusa"}
           </span>
-        </div>
-        <div className="p-6 md:p-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm text-white/60">
+          {cassa?.error ? (
+            <span className="text-sm text-red-400/90">{cassa.error}</span>
+          ) : (
+            <span className="text-sm text-white/45">
               {cassa?.is_open
-                ? "Cassa operativa. Puoi chiudere lo scontrino in fondo alla pagina."
-                : "Apri la cassa per abilitare la chiusura scontrino."}
-            </p>
-            {cassa?.error && (
-              <p className="mt-2 text-xs font-medium text-red-400/90">{cassa.error}</p>
-            )}
-          </div>
-          {cassa?.is_open && (
-            <div className="w-full sm:w-auto rounded-xl border border-white/10 bg-black/25 px-4 py-3 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-[10px] font-black uppercase tracking-wider text-white/40">
-                  Stampante fiscale
-                </div>
-                <span
-                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    printerEnabled
-                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                      : "bg-amber-500/15 text-amber-200 border border-amber-500/30"
-                  }`}
-                >
-                  {printerEnabled ? "ON" : "OFF"}
-                </span>
-              </div>
-              <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-white/90">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-white/20 bg-black/40"
-                  checked={printerEnabled}
-                  onChange={(e) => void setPrinterEnabledPersist(e.target.checked)}
-                />
-                <span>Stampante fiscale attiva in questa sessione</span>
-              </label>
-              <p className="text-[11px] text-white/50 leading-snug">
-                {printerEnabled
-                  ? "Alla chiusura scontrino: vendita salvata e stampa fiscale accodata (Print Bridge + job esistente)."
-                  : "Alla chiusura scontrino: vendita salvata senza stampa fiscale."}
-              </p>
-            </div>
+                ? "Puoi chiudere lo scontrino in fondo"
+                : "Apri la cassa per abilitare la chiusura"}
+            </span>
           )}
-          {!cassa?.is_open && (
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
-                Fondo cassa (€)
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={5}
-                value={openingCash}
-                onChange={(e) =>
-                  setOpeningCash(Math.max(0, Number(e.target.value) || 0))
-                }
-                className="w-24 bg-black/40 border border-white/10 rounded-xl py-2.5 px-3 text-sm font-bold text-white focus:border-[#f3d8b6]/50 outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleOpenCassa}
-                disabled={opening}
-                className={`h-11 px-5 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] transition-all ${
-                  opening
-                    ? "bg-white/5 text-white/30 cursor-not-allowed border border-white/10"
-                    : "bg-[#f3d8b6] text-black border border-[#f3d8b6] hover:opacity-95 active:scale-[0.98]"
-                }`}
-              >
-                {opening ? "Apertura..." : "Apri cassa"}
-              </button>
-            </div>
-          )}
-          {cassa?.is_open && (
+          {cassa?.is_open ? (
             <button
               type="button"
               onClick={async () => {
                 await refreshCassaStatus(Number(appointment?.salon_id));
                 toast.message("Stato cassa aggiornato");
               }}
-              className="h-11 px-5 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] bg-black/30 text-white/70 hover:bg-black/40 border border-white/10 shrink-0"
+              className="h-9 px-3 rounded-lg border border-white/10 text-sm text-white/70 hover:bg-white/[0.06] sm:ml-auto"
             >
               Aggiorna
             </button>
-          )}
+          ) : null}
         </div>
+
+        {cassa?.is_open ? (
+          <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-white/[0.06]">
+            <span className="text-sm text-white/55">Stampante in chiusura</span>
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                printerEnabled
+                  ? "bg-emerald-500/20 text-emerald-300"
+                  : "bg-amber-500/15 text-amber-200"
+              }`}
+            >
+              {printerEnabled ? "Abilitata (sessione)" : "Disabilitata (sessione)"}
+            </span>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-white/85">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-white/20 bg-black/40"
+                checked={printerEnabled}
+                onChange={(e) => void setPrinterEnabledPersist(e.target.checked)}
+              />
+              Usa stampante alla registrazione
+            </label>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/[0.06]">
+            <label className="text-xs text-white/45" htmlFor="cassa-opening-cash">
+              Fondo cassa (€)
+            </label>
+            <input
+              id="cassa-opening-cash"
+              type="number"
+              min={0}
+              step={5}
+              value={openingCash}
+              onChange={(e) => setOpeningCash(Math.max(0, Number(e.target.value) || 0))}
+              className="w-24 bg-black/40 border border-white/10 rounded-lg py-2 px-3 text-sm font-semibold text-white focus:border-[#f3d8b6]/50 outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleOpenCassa}
+              disabled={opening}
+              className={`h-9 px-3 rounded-lg text-sm font-semibold ${
+                opening
+                  ? "bg-white/5 text-white/30 cursor-not-allowed border border-white/10"
+                  : "bg-[#f3d8b6] text-black hover:opacity-95"
+              }`}
+            >
+              {opening ? "Apertura…" : "Apri cassa"}
+            </button>
+          </div>
+        )}
       </div>
 
       {hasLinkedSale && <FiscalDocumentCard saleId={linkedSaleId} />}
 
       {/* AGGIUNGI SERVIZI / PRODOTTI */}
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark">
         <div className="border-b border-white/10 bg-black/20 px-6 py-4">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+          <div className="text-xs font-medium text-white/40">
             Aggiungi alla vendita
           </div>
           <div className="mt-1 text-sm text-white/50">
@@ -810,18 +773,18 @@ setProducts(cashProducts);
         </div>
         <div className="p-6 md:p-7 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-[10px] font-black uppercase tracking-wider text-white/40 block mb-2">
+            <label className="text-xs font-medium text-white/40 block mb-2">
               Servizi
             </label>
             <select
               className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white/90 focus:border-[#f3d8b6]/50 focus:ring-1 focus:ring-[#f3d8b6]/20 outline-none appearance-none cursor-pointer text-sm"
-              onChange={(e) => {
-                const s = services.find((x) => x.id === Number(e.target.value));
-                if (s) addItem("service", s);
-                e.target.value = "";
-              }}
-            >
-              <option value="">+ Aggiungi servizio...</option>
+ onChange={(e) => {
+ const s = services.find((x) => x.id === Number(e.target.value));
+ if (s) addItem("service", s);
+ e.target.value = "";
+ }}
+ >
+ <option value="">+ Aggiungi servizio...</option>
               {services.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} — €{s.price}
@@ -830,18 +793,18 @@ setProducts(cashProducts);
             </select>
           </div>
           <div>
-            <label className="text-[10px] font-black uppercase tracking-wider text-white/40 block mb-2">
+            <label className="text-xs font-medium text-white/40 block mb-2">
               Prodotti
             </label>
             <select
               className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white/90 focus:border-[#f3d8b6]/50 focus:ring-1 focus:ring-[#f3d8b6]/20 outline-none appearance-none cursor-pointer text-sm"
-              onChange={(e) => {
-                const p = products.find((x) => x.id === Number(e.target.value));
-                if (p) addItem("product", p);
-                e.target.value = "";
-              }}
-            >
-              <option value="">+ Aggiungi prodotto...</option>
+ onChange={(e) => {
+ const p = products.find((x) => x.id === Number(e.target.value));
+ if (p) addItem("product", p);
+ e.target.value = "";
+ }}
+ >
+ <option value="">+ Aggiungi prodotto...</option>
               {products.map((p) => {
                 const status = cashProductStockStatus(p.stockQty);
                 const addable = canAddCashProduct(p);
@@ -866,10 +829,10 @@ setProducts(cashProducts);
       </div>
 
       {/* ITEMS LIST — Cart enterprise */}
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark">
         <div className="border-b border-white/10 bg-black/20 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+            <div className="text-xs font-medium text-white/40">
               Riepilogo Prestazioni e Vendite
             </div>
             <div className="mt-1 text-sm text-white/50">
@@ -878,13 +841,13 @@ setProducts(cashProducts);
           </div>
           <div className="flex items-center gap-4 text-sm">
             <span className="rounded-full bg-[#f3d8b6]/10 border border-[#f3d8b6]/20 px-3 py-1.5 font-bold text-[#f3d8b6]">
-              {items.length} {items.length === 1 ? "voce" : "voci"}
+ {items.length} {items.length === 1 ? "voce" : "voci"}
             </span>
             <span className="text-white/50">
               Subtotale <span className="font-extrabold text-white/90">€ {subtotal.toFixed(2)}</span>
             </span>
             <span className="text-white/40">
-              {items.filter((i) => i.kind === "product").length} prodotti
+ {items.filter((i) => i.kind === "product").length} prodotti
             </span>
           </div>
         </div>
@@ -893,14 +856,14 @@ setProducts(cashProducts);
           <table className="min-w-[720px] md:min-w-[800px] w-full text-sm">
             <thead>
               <tr className="bg-black/30">
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider border-b border-white/10 text-left text-white/90 w-[90px]">Tipo</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider border-b border-white/10 text-left text-white/90 min-w-[160px]">Nome</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider border-b border-white/10 text-left text-white/50 min-w-[80px]">Operatore</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider border-b border-white/10 text-right text-white/90 w-[70px]">Qtà</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider border-b border-white/10 text-right text-white/90 w-[100px]">Prezzo unit.</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider border-b border-white/10 text-right text-white/90 w-[90px]">Sconto €</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider border-b border-white/10 text-right text-[#f3d8b6] w-[100px]">Totale riga</th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider border-b border-white/10 text-right text-white/50 w-[100px]">Azioni</th>
+                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-left text-white/90 w-[90px]">Tipo</th>
+                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-left text-white/90 min-w-[160px]">Nome</th>
+                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-left text-white/50 min-w-[80px]">Operatore</th>
+                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-right text-white/90 w-[70px]">Qtà</th>
+                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-right text-white/90 w-[100px]">Prezzo unit.</th>
+                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-right text-white/90 w-[90px]">Sconto €</th>
+                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-right text-[#f3d8b6] w-[100px]">Totale riga</th>
+                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-right text-white/50 w-[100px]">Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -908,34 +871,34 @@ setProducts(cashProducts);
                 <tr>
                   <td colSpan={8} className="px-4 py-16 text-center">
                     <div className="text-4xl opacity-20 mb-3">🛒</div>
-                    <div className="text-white/40 italic uppercase tracking-widest text-xs font-medium">La cassa è vuota</div>
-                  </td>
-                </tr>
-              ) : (
-                items.map((it, idx) => {
-                  const gross = it.unitPrice * it.qty;
-                  const disc = Math.min(it.discountEur, gross);
-                  const lineTotal = Math.max(0, gross - disc);
-                  const discPct = gross > 0 ? (disc / gross) * 100 : 0;
-                  const warnZero = it.unitPrice === 0;
-                  const warnHighDisc = discPct > 50;
-                  const warnQty = it.qty > 99;
-                  const catalogProduct =
-                    it.kind === "product" ? productById.get(it.id) : undefined;
-                  const lineStock =
-                    catalogProduct != null
-                      ? productQtyInCart(items, it.id)
-                      : 0;
-                  const warnStock =
-                    it.kind === "product" &&
-                    catalogProduct != null &&
-                    lineStock > catalogProduct.stockQty;
-                  const stockStatus =
-                    catalogProduct != null
-                      ? cashProductStockStatus(catalogProduct.stockQty)
-                      : null;
-                  const svcTint =
-                    it.kind === "service" && it.accentHex
+                    <div className="text-white/40 text-sm font-medium">Nessuna riga nel conto</div>
+ </td>
+ </tr>
+ ) : (
+ items.map((it, idx) => {
+ const gross = it.unitPrice * it.qty;
+ const disc = Math.min(it.discountEur, gross);
+ const lineTotal = Math.max(0, gross - disc);
+ const discPct = gross > 0 ? (disc / gross) * 100 : 0;
+ const warnZero = it.unitPrice === 0;
+ const warnHighDisc = discPct > 50;
+ const warnQty = it.qty > 99;
+ const catalogProduct =
+ it.kind === "product" ? productById.get(it.id) : undefined;
+ const lineStock =
+ catalogProduct != null
+ ? productQtyInCart(items, it.id)
+ : 0;
+ const warnStock =
+ it.kind === "product" &&
+ catalogProduct != null &&
+ lineStock > catalogProduct.stockQty;
+ const stockStatus =
+ catalogProduct != null
+ ? cashProductStockStatus(catalogProduct.stockQty)
+ : null;
+ const svcTint =
+ it.kind === "service" && it.accentHex
                       ? `${it.accentHex}22`
                       : undefined;
                   return (
@@ -957,7 +920,7 @@ setProducts(cashProducts);
                     >
                       <td className="px-4 py-3 align-middle">
                         <span
-                          className={`inline-block text-[10px] font-black uppercase px-2.5 py-1 rounded-lg ${
+                          className={`inline-block text-[11px] font-medium px-2.5 py-1 rounded-lg ${
                             it.kind === "service"
                               ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
                               : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
@@ -970,7 +933,7 @@ setProducts(cashProducts);
                         <span className="text-[#f3d8b6] drop-shadow-sm">{it.name}</span>
                         {(warnZero || warnHighDisc || warnQty || warnStock || stockStatus) && (
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {it.kind === "product" && stockStatus && (
+ {it.kind === "product" && stockStatus && (
                               <span
                                 className={`text-[10px] px-1.5 py-0.5 rounded-lg ${
                                   stockStatus === "out"
@@ -1006,8 +969,8 @@ setProducts(cashProducts);
                       </td>
                       <td className="px-4 py-3 text-white/40 text-xs align-middle">—</td>
                       <td className="px-4 py-3 text-right align-middle">
-                        <input
-                          type="number"
+ <input
+ type="number"
                           min={1}
                           value={it.qty}
                           onChange={(e) =>
@@ -1020,10 +983,10 @@ setProducts(cashProducts);
                         € {it.unitPrice.toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-right align-middle">
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.5"
+ <input
+ type="number"
+ min={0}
+ step="0.5"
                           value={it.discountEur}
                           onChange={(e) =>
                             updateItem(idx, { discountEur: Math.max(0, Number(e.target.value) || 0) })
@@ -1039,14 +1002,14 @@ setProducts(cashProducts);
                           <button
                             onClick={() => duplicateItem(idx)}
                             className="w-9 h-9 flex items-center justify-center rounded-xl border border-white/10 text-white/60 hover:bg-white/10 hover:text-[#f3d8b6] transition-all"
-                            title="Duplica riga"
+ title="Duplica riga"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                           </button>
                           <button
                             onClick={() => removeItem(idx)}
                             className="w-9 h-9 flex items-center justify-center rounded-xl border border-red-500/20 text-red-400/80 hover:bg-red-500/20 hover:text-red-300 transition-all"
-                            title="Elimina"
+ title="Elimina"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
@@ -1062,76 +1025,86 @@ setProducts(cashProducts);
       </div>
 
       {/* SUMMARY / PAYMENT PANEL */}
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
-        <div className="border-b border-white/10 bg-black/20 px-6 py-4">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
-            Chiusura scontrino
-          </div>
-          <div className="mt-1 text-sm text-white/50">
-            Metodo di pagamento, sconto e conferma
-          </div>
+      <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-scz-dark">
+        <div className="border-b border-white/[0.06] px-3 py-2.5 md:px-4">
+          <h2 className="text-sm font-semibold text-white/85">Pagamento e conferma</h2>
         </div>
 
-        <div className="p-6 md:p-7 space-y-6">
+        <div className="p-3 md:p-4 space-y-4">
           {/* Riga totali: subtotale, sconto, totale */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:p-5">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/40">Subtotale</div>
+              <div className="text-xs font-medium text-white/40">Subtotale</div>
               <div className="mt-1 text-xl font-extrabold text-white/90">€ {subtotal.toFixed(2)}</div>
             </div>
             <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:p-5">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/40">Sconto cassa (€)</div>
-              <input
-                type="number"
-                min={0}
-                step="0.5"
+              <div className="text-xs font-medium text-white/40">Sconto cassa (€)</div>
+ <input
+ type="number"
+ min={0}
+ step="0.5"
                 value={globalDiscountEur}
                 onChange={(e) =>
                   setGlobalDiscountEur(Math.max(0, Number(e.target.value) || 0))
                 }
                 className="mt-1 w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 font-bold text-white focus:border-[#f3d8b6]/50 outline-none"
-                placeholder="0,00"
+ placeholder="0,00"
               />
               {globalDiscountEur > subtotal && (
-                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-400/90">
+                <p className="mt-1.5 text-[11px] font-medium text-amber-400/90">
                   Ridotto a € {globalDisc.toFixed(2)}
                 </p>
               )}
             </div>
             <div className="rounded-xl border border-[#f3d8b6]/30 bg-[#f3d8b6]/5 p-4 md:p-5">
-              <div className="text-[10px] font-black uppercase tracking-wider text-[#f3d8b6]/80">Totale da pagare</div>
-              <div className="mt-1 text-2xl md:text-3xl font-black text-[#f3d8b6]">€ {total.toFixed(2)}</div>
+              <div className="text-xs font-medium text-[#f3d8b6]/80">Totale da pagare</div>
+              <div className="mt-1 text-xl md:text-2xl font-semibold text-[#f3d8b6]">€ {total.toFixed(2)}</div>
             </div>
           </div>
 
-          {cassa?.is_open && (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-              <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-white/90">
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 md:px-4">
+            <span className="text-sm text-white/55">Stampante in chiusura</span>
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                printerEnabled
+                  ? "bg-emerald-500/20 text-emerald-300"
+                  : "bg-amber-500/15 text-amber-200"
+              }`}
+            >
+              {cassa?.is_open
+                ? printerEnabled
+                  ? "Abilitata (sessione)"
+                  : "Disabilitata (sessione)"
+                : printerEnabled
+                  ? "Predefinita: abilitata"
+                  : "Predefinita: disabilitata"}
+            </span>
+            {cassa?.is_open ? (
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-white/85">
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-white/20 bg-black/40"
                   checked={printerEnabled}
                   onChange={(e) => void setPrinterEnabledPersist(e.target.checked)}
                 />
-                <span>Stampante fiscale attiva</span>
+                Usa alla registrazione
               </label>
-              <span className="text-[10px] text-white/45 max-w-[280px]">
-                {printerEnabled
-                  ? "Vendita con stampa fiscale (flusso esistente)."
-                  : "Vendita salvata senza stampa fiscale."}
+            ) : (
+              <span className="text-xs text-white/45">
+                Preferenza di stampa; non è lo stato cassa. Si conferma all’apertura.
               </span>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Metodi di pagamento */}
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 mb-3">
+            <div className="text-xs font-medium text-white/40 mb-3">
               Metodo di pagamento
             </div>
             <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("cash")}
+ <button
+ type="button"
+ onClick={() => setPaymentMethod("cash")}
                 className={`min-w-[140px] py-4 px-6 rounded-xl font-bold text-sm border transition-all ${
                   paymentMethod === "cash"
                     ? "bg-[#f3d8b6] text-black border-[#f3d8b6] shadow-lg shadow-[#f3d8b6]/20"
@@ -1139,11 +1112,11 @@ setProducts(cashProducts);
                 }`}
               >
                 <span className="block text-lg mb-0.5">💵</span>
-                Contanti
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("card")}
+ Contanti
+ </button>
+ <button
+ type="button"
+ onClick={() => setPaymentMethod("card")}
                 className={`min-w-[140px] py-4 px-6 rounded-xl font-bold text-sm border transition-all ${
                   paymentMethod === "card"
                     ? "bg-[#f3d8b6] text-black border-[#f3d8b6] shadow-lg shadow-[#f3d8b6]/20"
@@ -1158,11 +1131,11 @@ setProducts(cashProducts);
 
           {/* CTA + messaggio stato */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-1">
-            <button
-              type="button"
+ <button
+ type="button"
               disabled={!canClose}
               onClick={handleClose}
-              className={`flex-1 min-h-[56px] sm:min-h-[64px] rounded-2xl font-black uppercase tracking-[0.2em] text-xs sm:text-sm transition-all flex items-center justify-center ${
+              className={`flex-1 min-h-[56px] sm:min-h-[64px] rounded-2xl text-sm sm:text-base font-semibold transition-all flex items-center justify-center ${
                 !canClose
                   ? "bg-black/20 text-white/30 cursor-not-allowed border border-white/10"
                   : "bg-[#f3d8b6] text-black border-2 border-[#f3d8b6] hover:opacity-95 active:scale-[0.99] shadow-[0_20px_40px_-12px_rgba(243,216,182,0.35)]"
@@ -1181,22 +1154,22 @@ setProducts(cashProducts);
                   <svg className="animate-spin h-5 w-5 text-black" viewBox="0 0 24 24" aria-hidden>
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Elaborazione...
-                </span>
-              ) : cassa?.is_open ? (
-                printerEnabled ? "Registra e stampa" : "Registra"
-              ) : (
-                "Apri cassa per chiudere"
+ </svg>
+ Elaborazione...
+ </span>
+ ) : cassa?.is_open ? (
+ printerEnabled ? "Registra e stampa" : "Registra"
+ ) : (
+ "Apri cassa per chiudere"
               )}
             </button>
             {!canClose && (
               <p className="text-xs text-white/50 font-medium max-w-[280px]">
-                {closeBlockReason ??
-                  (!cassa?.is_open
-                    ? "Apri la cassa dalla barra sopra per abilitare la chiusura."
-                    : items.length === 0
-                      ? "Aggiungi almeno una riga al riepilogo per chiudere."
+ {closeBlockReason ??
+ (!cassa?.is_open
+ ? "Apri la cassa dalla barra sopra per abilitare la chiusura."
+ : items.length === 0
+ ? "Aggiungi almeno una riga al riepilogo per chiudere."
                       : null)}
               </p>
             )}

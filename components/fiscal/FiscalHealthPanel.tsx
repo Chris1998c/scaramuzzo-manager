@@ -54,89 +54,89 @@ export default function FiscalHealthPanel({
 
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-5 md:p-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
-          <KpiCard
-            label="Pending"
-            value={String(metrics.pendingCount)}
-            hint={
-              metrics.oldestPendingAgeMinutes != null
-                ? `Più vecchio: ${formatAge(metrics.oldestPendingAgeMinutes)}`
-                : undefined
-            }
-            tone={metrics.pendingCount > 0 ? "warn" : "neutral"}
-          />
-          <KpiCard
-            label="Processing"
-            value={String(metrics.processingCount)}
-            hint={
-              metrics.oldestProcessingAgeMinutes != null
-                ? `Più vecchio: ${formatAge(metrics.oldestProcessingAgeMinutes)}`
-                : undefined
-            }
-            tone={metrics.processingCount > 0 ? "warn" : "neutral"}
-          />
-          <KpiCard
-            label="Failed 24h"
-            value={String(metrics.failedLast24h)}
-            tone={metrics.failedLast24h > 0 ? "err" : "neutral"}
-          />
-          <KpiCard
-            label="Completed 24h"
-            value={String(metrics.completedLast24h)}
-            tone={metrics.completedLast24h > 0 ? "ok" : "neutral"}
-          />
-          <KpiCard
-            label="Pending max età"
-            value={formatAge(metrics.oldestPendingAgeMinutes)}
-            tone={
-              metrics.oldestPendingAgeMinutes != null &&
-              metrics.oldestPendingAgeMinutes > 5
-                ? "warn"
-                : "neutral"
-            }
-          />
-          <KpiCard
-            label="Processing max età"
-            value={formatAge(metrics.oldestProcessingAgeMinutes)}
-            tone={
-              metrics.oldestProcessingAgeMinutes != null &&
-              metrics.oldestProcessingAgeMinutes > 5
-                ? "err"
-                : "neutral"
+ <KpiCard
+ label="Pending"
+ value={String(metrics.pendingCount)}
+ hint={
+ metrics.oldestPendingAgeMinutes != null
+ ? `Più vecchio: ${formatAge(metrics.oldestPendingAgeMinutes)}`
+ : undefined
+ }
+ tone={metrics.pendingCount > 0 ? "warn" : "neutral"}
+ />
+ <KpiCard
+ label="Processing"
+ value={String(metrics.processingCount)}
+ hint={
+ metrics.oldestProcessingAgeMinutes != null
+ ? `Più vecchio: ${formatAge(metrics.oldestProcessingAgeMinutes)}`
+ : undefined
+ }
+ tone={metrics.processingCount > 0 ? "warn" : "neutral"}
+ />
+ <KpiCard
+ label="Failed 24h"
+ value={String(metrics.failedLast24h)}
+ tone={metrics.failedLast24h > 0 ? "err" : "neutral"}
+ />
+ <KpiCard
+ label="Completed 24h"
+ value={String(metrics.completedLast24h)}
+ tone={metrics.completedLast24h > 0 ? "ok" : "neutral"}
+ />
+ <KpiCard
+ label="Pending max età"
+ value={formatAge(metrics.oldestPendingAgeMinutes)}
+ tone={
+ metrics.oldestPendingAgeMinutes != null &&
+ metrics.oldestPendingAgeMinutes > 5
+ ? "warn"
+ : "neutral"
+ }
+ />
+ <KpiCard
+ label="Processing max età"
+ value={formatAge(metrics.oldestProcessingAgeMinutes)}
+ tone={
+ metrics.oldestProcessingAgeMinutes != null &&
+ metrics.oldestProcessingAgeMinutes > 5
+ ? "err"
+ : "neutral"
             }
           />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <BridgeCard bridge={bridge} />
-        <WarningsCard warnings={warnings} />
-      </div>
-    </section>
-  );
+ <BridgeCard bridge={bridge} />
+ <WarningsCard warnings={warnings} />
+ </div>
+ </section>
+ );
 }
 
 function KpiCard({
-  label,
-  value,
-  hint,
-  tone = "neutral",
+ label,
+ value,
+ hint,
+ tone = "neutral",
 }: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: "neutral" | "ok" | "warn" | "err";
+ label: string;
+ value: string;
+ hint?: string;
+ tone?: "neutral" | "ok" | "warn" | "err";
 }) {
-  const borders = {
-    neutral: "border-white/10",
-    ok: "border-emerald-500/30",
-    warn: "border-amber-500/30",
-    err: "border-red-500/30",
-  };
-  const values = {
-    neutral: "text-[#f3d8b6]",
-    ok: "text-emerald-200/95",
-    warn: "text-amber-200/95",
-    err: "text-red-200/95",
+ const borders = {
+ neutral: "border-white/10",
+ ok: "border-emerald-500/30",
+ warn: "border-amber-500/30",
+ err: "border-red-500/30",
+ };
+ const values = {
+ neutral: "text-[#f3d8b6]",
+ ok: "text-emerald-200/95",
+ warn: "text-amber-200/95",
+ err: "text-red-200/95",
   };
 
   return (
@@ -162,7 +162,7 @@ function BridgeCard({ bridge }: { bridge: PrintBridgeHealthProbe }) {
     <div className="rounded-2xl border border-white/10 bg-scz-dark p-5">
       <div className="flex items-center gap-2 mb-4">
         <Server className="text-[#f3d8b6]/80" size={18} />
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+        <span className="text-xs font-medium text-white/40">
           Print Bridge
         </span>
       </div>
@@ -193,7 +193,7 @@ function BridgeCard({ bridge }: { bridge: PrintBridgeHealthProbe }) {
       ) : null}
       {!bridge.configured ? (
         <p className="mt-2 text-xs text-amber-200/80">
-          Configura{" "}
+ Configura{" "}
           <code className="text-white/50">PRINT_BRIDGE_HEALTH_URL</code> sul server.
         </p>
       ) : null}
@@ -206,7 +206,7 @@ function WarningsCard({ warnings }: { warnings: FiscalHealthWarning[] }) {
     <div className="rounded-2xl border border-white/10 bg-scz-dark p-5">
       <div className="flex items-center gap-2 mb-4">
         <AlertTriangle className="text-amber-400/90" size={18} />
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+        <span className="text-xs font-medium text-white/40">
           Avvisi automatici
         </span>
         {warnings.length > 0 ? (

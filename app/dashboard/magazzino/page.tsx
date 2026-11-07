@@ -50,29 +50,18 @@ export default function MagazzinoPage() {
       ? "…"
       : formatMagazzinoCurrency(kpis.stockValueEstimate);
 
-  const salonHint = ctx.isWarehouse
-    ? "Cambia salone dallo switcher in alto."
-    : "Operazioni sul tuo salone reception.";
-
   return (
     <MagazzinoPageShell>
       <MagazzinoHero
-        eyebrow="Modulo"
         title="Magazzino"
         icon={Package}
         compact
-        subtitle={
-          <>
-            Operazioni per{" "}
-            <span className="font-semibold text-white/90">{ctx.contextLabel}</span>
-          </>
-        }
+        subtitle={ctx.contextLabel}
       />
 
       <MagazzinoSalonContextBar
         contextLabel={ctx.contextLabel}
         contextKind={ctx.contextKind}
-        hint={salonHint}
       />
 
       {ctx.showMissingSalonBanner && (

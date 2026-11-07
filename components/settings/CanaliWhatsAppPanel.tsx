@@ -157,7 +157,7 @@ export default function CanaliWhatsAppPanel({
           Canali · WhatsApp
         </span>
         <p className="mt-2">
-          Configurazione per salone{" "}
+ Configurazione per salone{" "}
           <strong className="text-[#f3d8b6]">{salonLabel ?? `#${salonId}`}</strong>. Tre concetti
           distinti: <strong className="text-[#f3d8b6]">Meta Phone Number ID</strong> (ID tecnico
           API), <strong className="text-[#f3d8b6]">Numero WhatsApp</strong> (numero reale del
@@ -173,7 +173,7 @@ export default function CanaliWhatsAppPanel({
             (Meta API, template promemoria appuntamento).
             <br />
             Il <span className="font-semibold text-[#f3d8b6]">consenso marketing WhatsApp</span> (messaggi promozionali
-            dalla console WhatsApp manuale) si gestisce in{" "}
+ dalla console WhatsApp manuale) si gestisce in{" "}
             <span className="font-semibold text-[#f3d8b6]">Clienti → scheda anagrafica</span>. I reminder automatici
             ~24h prima dell&apos;appuntamento sono messaggi transazionali su template approvato e non passano da quel
             consenso.
@@ -203,9 +203,9 @@ export default function CanaliWhatsAppPanel({
           )}
           <div>
             <div className="font-bold">
-              {configStatus.ready
-                ? "Configurazione operativa"
-                : "Configurazione incompleta"}
+ {configStatus.ready
+ ? "Configurazione operativa"
+ : "Configurazione incompleta"}
             </div>
             {configStatus.ready ? (
               <p className="text-xs mt-1 opacity-90">
@@ -214,18 +214,18 @@ export default function CanaliWhatsAppPanel({
               </p>
             ) : (
               <ul className="text-xs mt-1.5 space-y-0.5 list-disc pl-4 opacity-95">
-                {configStatus.issues.map((issue) => (
-                  <li key={issue}>{issue}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      ) : null}
+ {configStatus.issues.map((issue) => (
+ <li key={issue}>{issue}</li>
+ ))}
+ </ul>
+ )}
+ </div>
+ </div>
+ ) : null}
 
-      {error ? (
-        <div
-          role="alert"
+ {error ? (
+ <div
+ role="alert"
           className="rounded-xl border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-200"
         >
           {error}
@@ -249,11 +249,11 @@ export default function CanaliWhatsAppPanel({
             <div>
               <div className="text-sm font-bold text-[#f3d8b6]">WhatsApp attivo</div>
               <div className="text-xs text-[#c9b299]/90 mt-0.5">
-                Abilita il canale per questo salone (invii futuri useranno questa config).
-              </div>
-            </div>
-            <button
-              type="button"
+ Abilita il canale per questo salone (invii futuri useranno questa config).
+ </div>
+ </div>
+ <button
+ type="button"
               disabled={!canManage || saving}
               onClick={() => setIsEnabled((v) => !v)}
               className={[
@@ -273,19 +273,19 @@ export default function CanaliWhatsAppPanel({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="wa_phone_number_id" className="text-xs font-bold uppercase tracking-wider text-[#f3d8b6]/80">
+ <label htmlFor="wa_phone_number_id" className="text-xs font-medium text-[#f3d8b6]/80">
               Meta Phone Number ID
             </label>
             <p className="text-[11px] text-[#c9b299]/85 leading-snug">
-              Identificativo tecnico del numero WhatsApp in Meta (Graph API), non è un numero da
-              chiamare.{" "}
+ Identificativo tecnico del numero WhatsApp in Meta (Graph API), non è un numero da
+ chiamare.{" "}
               <span className="text-amber-200/90">Non inserire qui il cellulare come +39…</span>
-            </p>
-            <input
-              id="wa_phone_number_id"
+ </p>
+ <input
+ id="wa_phone_number_id"
               className="input font-mono text-sm"
-              autoComplete="off"
-              placeholder="ID da Meta Business Suite → WhatsApp → API"
+ autoComplete="off"
+ placeholder="ID da Meta Business Suite → WhatsApp → API"
               value={phoneNumberId}
               onChange={(e) => setPhoneNumberId(e.target.value)}
               disabled={!canManage || saving}
@@ -293,40 +293,40 @@ export default function CanaliWhatsAppPanel({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="wa_display_phone" className="text-xs font-bold uppercase tracking-wider text-[#f3d8b6]/80">
+ <label htmlFor="wa_display_phone" className="text-xs font-medium text-[#f3d8b6]/80">
               Numero WhatsApp
             </label>
             <p className="text-[11px] text-[#c9b299]/85 leading-snug">
-              Il numero di telefono reale collegato all&apos;account WhatsApp Business (formato
-              leggibile, es. +39 …).
-            </p>
-            <input
-              id="wa_display_phone"
+ Il numero di telefono reale collegato all&apos;account WhatsApp Business (formato
+ leggibile, es. +39 …).
+ </p>
+ <input
+ id="wa_display_phone"
               className="input"
-              autoComplete="off"
-              placeholder="es. +39 333 1234567"
-              value={displayPhone}
-              onChange={(e) => setDisplayPhone(e.target.value)}
-              disabled={!canManage || saving}
-              type="tel"
+ autoComplete="off"
+ placeholder="es. +39 333 1234567"
+ value={displayPhone}
+ onChange={(e) => setDisplayPhone(e.target.value)}
+ disabled={!canManage || saving}
+ type="tel"
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="wa_display_name" className="text-xs font-bold uppercase tracking-wider text-[#f3d8b6]/80">
+ <label htmlFor="wa_display_name" className="text-xs font-medium text-[#f3d8b6]/80">
               Nome visibile cliente (Display Name)
             </label>
             <p className="text-[11px] text-[#c9b299]/85 leading-snug">
-              Nome mostrato su WhatsApp alle clienti. Deve essere approvato da Meta (es: Scaramuzzo
-              Roma).
-            </p>
-            <input
-              id="wa_display_name"
+ Nome mostrato su WhatsApp alle clienti. Deve essere approvato da Meta (es: Scaramuzzo
+ Roma).
+ </p>
+ <input
+ id="wa_display_name"
               className="input"
-              type="text"
-              autoComplete="off"
-              dir="auto"
-              placeholder="es. Scaramuzzo Roma"
+ type="text"
+ autoComplete="off"
+ dir="auto"
+ placeholder="es. Scaramuzzo Roma"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               disabled={!canManage || saving}
@@ -339,10 +339,10 @@ export default function CanaliWhatsAppPanel({
               <div className="min-w-0">
                 <div className="text-sm font-bold text-sky-100/95">Reminder appuntamenti</div>
                 <p className="text-[11px] text-[#c9b299]/90 leading-snug mt-1">
-                  Invio automatico ~24h prima (cron). Usa sempre un{" "}
+ Invio automatico ~24h prima (cron). Usa sempre un{" "}
                   <strong className="text-[#e8dcc8]">template approvato su Meta</strong> con gli
-                  stessi parametri testo previsti (ordine: nome, data, ora, nome salone). Qui scegli se
-                  inviare i reminder per questo salone e quale template usare;{" "}
+ stessi parametri testo previsti (ordine: nome, data, ora, nome salone). Qui scegli se
+ inviare i reminder per questo salone e quale template usare;{" "}
                   <strong className="text-[#e8dcc8]">non</strong> si scrive testo libero arbitrario.
                 </p>
               </div>
@@ -352,12 +352,12 @@ export default function CanaliWhatsAppPanel({
               <div>
                 <div className="text-xs font-bold text-[#f3d8b6]">Reminder automatico attivo</div>
                 <div className="text-[10px] text-[#c9b299]/85 mt-0.5">
-                  Disattiva solo i messaggi promesso appuntamento; il canale resta regolato da &quot;WhatsApp
-                  attivo&quot; sopra.
-                </div>
-              </div>
-              <button
-                type="button"
+ Disattiva solo i messaggi promesso appuntamento; il canale resta regolato da &quot;WhatsApp
+ attivo&quot; sopra.
+ </div>
+ </div>
+ <button
+ type="button"
                 disabled={!canManage || saving}
                 onClick={() => setReminderEnabled((v) => !v)}
                 className={[
@@ -377,21 +377,21 @@ export default function CanaliWhatsAppPanel({
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor="wa_reminder_template_name"
-                className="text-xs font-bold uppercase tracking-wider text-[#f3d8b6]/80"
+ <label
+ htmlFor="wa_reminder_template_name"
+                className="text-xs font-medium text-[#f3d8b6]/80"
               >
                 Nome template Meta (reminder)
               </label>
               <p className="text-[11px] text-[#c9b299]/85 leading-snug">
-                Lasciare vuoto per usare il default ambiente{" "}
+ Lasciare vuoto per usare il default ambiente{" "}
                 <span className="font-mono text-[10px]">WHATSAPP_APPOINTMENT_REMINDER_TEMPLATE_NAME</span>.
-              </p>
-              <input
-                id="wa_reminder_template_name"
+ </p>
+ <input
+ id="wa_reminder_template_name"
                 className="input font-mono text-sm"
-                autoComplete="off"
-                placeholder="es. appointment_reminder_it"
+ autoComplete="off"
+ placeholder="es. appointment_reminder_it"
                 value={reminderTemplateName}
                 onChange={(e) => setReminderTemplateName(e.target.value)}
                 disabled={!canManage || saving}
@@ -399,20 +399,20 @@ export default function CanaliWhatsAppPanel({
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor="wa_reminder_template_lang"
-                className="text-xs font-bold uppercase tracking-wider text-[#f3d8b6]/80"
+ <label
+ htmlFor="wa_reminder_template_lang"
+                className="text-xs font-medium text-[#f3d8b6]/80"
               >
                 Lingua template
               </label>
               <p className="text-[11px] text-[#c9b299]/85 leading-snug">
                 Codice lingua (es. <span className="font-mono">it</span>). Vuoto = default ambiente.
-              </p>
-              <input
-                id="wa_reminder_template_lang"
+ </p>
+ <input
+ id="wa_reminder_template_lang"
                 className="input font-mono text-sm max-w-[12rem]"
-                autoComplete="off"
-                placeholder="it"
+ autoComplete="off"
+ placeholder="it"
                 value={reminderTemplateLang}
                 onChange={(e) => setReminderTemplateLang(e.target.value)}
                 disabled={!canManage || saving}
@@ -437,20 +437,20 @@ export default function CanaliWhatsAppPanel({
                 </li>
                 <li>
                   <span className="text-[#f3d8b6]">Salone:</span>{" "}
-                  {salonLabel || "Nome salone"}
-                </li>
-              </ul>
-            </div>
-          </div>
+ {salonLabel || "Nome salone"}
+ </li>
+ </ul>
+ </div>
+ </div>
 
-          {canManage ? (
-            <button
-              type="submit"
+ {canManage ? (
+ <button
+ type="submit"
               disabled={saving}
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0FA958] px-6 py-3 text-sm font-black text-white shadow-lg shadow-emerald-900/25 hover:bg-[#0da052] disabled:opacity-60"
             >
               {saving ? <Loader2 className="animate-spin" size={18} /> : null}
-              {saving ? "Salvataggio…" : "Salva impostazioni"}
+ {saving ? "Salvataggio…" : "Salva impostazioni"}
             </button>
           ) : null}
         </form>

@@ -94,21 +94,21 @@ export default function SchedaProdotto() {
 
       {/* INFO */}
       <div className="bg-[#FDF8F3] text-[#341A09] p-6 rounded-2xl shadow-xl space-y-3">
-        <p>
-          <b>Categoria:</b> {product.category || "-"}
-        </p>
-        <p>
-          <b>Barcode:</b> {product.barcode || "-"}
-        </p>
-        <p>
-          <b>Costo:</b> {product.cost} €
-        </p>
-        <p>
-          <b>Tipo:</b> {product.type}
-        </p>
-        <p>
-          <b>Descrizione:</b>{" "}
-          {product.description || "Nessuna descrizione"}
+ <p>
+ <b>Categoria:</b> {product.category || "-"}
+ </p>
+ <p>
+ <b>Barcode:</b> {product.barcode || "-"}
+ </p>
+ <p>
+ <b>Costo:</b> {product.cost} €
+ </p>
+ <p>
+ <b>Tipo:</b> {product.type}
+ </p>
+ <p>
+ <b>Descrizione:</b>{" "}
+ {product.description || "Nessuna descrizione"}
         </p>
       </div>
 

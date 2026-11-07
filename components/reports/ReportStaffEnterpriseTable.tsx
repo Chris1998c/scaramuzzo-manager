@@ -64,7 +64,7 @@ export default function ReportStaffEnterpriseTable({
         <div className="overflow-x-auto">
           <table className="min-w-[880px] w-full text-sm">
             <thead>
-              <tr className="bg-black/30 text-[10px] font-black uppercase tracking-wider text-white/50">
+              <tr className="bg-black/30 text-xs font-medium text-white/50">
                 <th className="px-3 py-3 text-left text-white/90">Collaboratore</th>
                 <th className="px-3 py-3 text-right text-scz-gold/90">Incassato</th>
                 <th className="px-3 py-3 text-right">Valore listino</th>
@@ -138,7 +138,7 @@ export default function ReportStaffEnterpriseTable({
                           {formatReportMoney(m.avg_ticket_real)}
                         </td>
                         <td className="px-3 py-3 text-center text-white/30 text-xs">
-                          {isOpen ? "▲" : "▼"}
+ {isOpen ? "▲" : "▼"}
                         </td>
                       </tr>
                       {isOpen && drillDown ? (

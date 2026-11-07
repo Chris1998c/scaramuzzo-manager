@@ -287,10 +287,10 @@ export default function CalendarioOperativoPanel({
 
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         {canChooseSalon && allowedSalons.length > 1 ? (
-          <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-[#c9b299]/80">
-            Salone
-            <select
-              value={pickedSalonId ?? ""}
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-[#c9b299]/80">
+ Salone
+ <select
+ value={pickedSalonId ?? ""}
               onChange={(e) => setPickedSalonId(Number(e.target.value) || null)}
               className="rounded-xl border border-[#5c3a21]/50 bg-black/30 px-3 py-2.5 text-sm font-semibold text-[#f3d8b6] min-w-[200px]"
             >
@@ -308,9 +308,9 @@ export default function CalendarioOperativoPanel({
         )}
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label="Mese precedente"
+ <button
+ type="button"
+ aria-label="Mese precedente"
             onClick={() => {
               const prev = shiftYearMonth(yearMonth, -1);
               if (prev) setYearMonth(prev);
@@ -320,36 +320,36 @@ export default function CalendarioOperativoPanel({
             <ChevronLeft size={18} />
           </button>
           <span className="min-w-[140px] text-center text-sm font-bold text-[#f3d8b6] capitalize">
-            {monthMeta?.label ?? yearMonth}
-          </span>
-          <button
-            type="button"
-            aria-label="Mese successivo"
+ {monthMeta?.label ?? yearMonth}
+ </span>
+ <button
+ type="button"
+ aria-label="Mese successivo"
             onClick={() => {
               const next = shiftYearMonth(yearMonth, 1);
               if (next) setYearMonth(next);
             }}
             className="rounded-xl border border-[#5c3a21]/50 bg-black/25 p-2 text-[#f3d8b6] hover:bg-white/10"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
+ >
+ <ChevronRight size={18} />
+ </button>
+ </div>
 
-        {canManage ? (
-          <button
-            type="button"
+ {canManage ? (
+ <button
+ type="button"
             onClick={openCreateForm}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#0FA958] px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/25 hover:bg-[#0da052]"
-          >
-            <Plus size={18} />
-            Aggiungi eccezione
-          </button>
-        ) : null}
-      </div>
+ >
+ <Plus size={18} />
+ Aggiungi eccezione
+ </button>
+ ) : null}
+ </div>
 
-      {error ? (
-        <div
-          role="alert"
+ {error ? (
+ <div
+ role="alert"
           className="rounded-xl border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-200"
         >
           {error}
@@ -368,14 +368,14 @@ export default function CalendarioOperativoPanel({
           className="rounded-2xl border border-[#5c3a21]/50 bg-black/25 p-5 space-y-4"
         >
           <p className="text-sm font-bold text-[#f3d8b6]">
-            {editSalonId != null || editStaffId != null ? "Modifica eccezione" : "Nuova eccezione"}
+ {editSalonId != null || editStaffId != null ? "Modifica eccezione" : "Nuova eccezione"}
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-xs font-bold text-[#c9b299]/90">
-              Data *
-              <input
-                type="date"
+ Data *
+ <input
+ type="date"
                 required
                 value={operativeDate}
                 onChange={(e) => setOperativeDate(e.target.value)}
@@ -384,17 +384,17 @@ export default function CalendarioOperativoPanel({
             </label>
 
             <label className="flex flex-col gap-1.5 text-xs font-bold text-[#c9b299]/90">
-              Tipo *
-              <select
-                required
-                value={formKind}
-                onChange={(e) => {
-                  const v = e.target.value as OperationalExceptionFormKind;
-                  setFormKind(v);
-                  if (!isStaffFormKind(v)) setStaffId("");
-                  if (v === "closed") {
-                    setStartTime("");
-                    setEndTime("");
+ Tipo *
+ <select
+ required
+ value={formKind}
+ onChange={(e) => {
+ const v = e.target.value as OperationalExceptionFormKind;
+ setFormKind(v);
+ if (!isStaffFormKind(v)) setStaffId("");
+ if (v === "closed") {
+ setStartTime("");
+ setEndTime("");
                   }
                 }}
                 disabled={editSalonId != null || editStaffId != null}
@@ -410,38 +410,38 @@ export default function CalendarioOperativoPanel({
 
             {isStaffFormKind(formKind) ? (
               <label className="flex flex-col gap-1.5 text-xs font-bold text-[#c9b299]/90 sm:col-span-2">
-                Collaboratore *
-                <select
-                  required
-                  value={staffId === "" ? "" : String(staffId)}
-                  onChange={(e) => setStaffId(e.target.value ? Number(e.target.value) : "")}
+ Collaboratore *
+ <select
+ required
+ value={staffId === "" ? "" : String(staffId)}
+ onChange={(e) => setStaffId(e.target.value ? Number(e.target.value) : "")}
                   className="rounded-xl border border-[#5c3a21]/50 bg-black/30 px-3 py-2.5 text-sm text-[#f3d8b6]"
-                >
-                  <option value="">— Seleziona —</option>
-                  {staffOptions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
+ >
+ <option value="">— Seleziona —</option>
+ {staffOptions.map((s) => (
+ <option key={s.id} value={s.id}>
+ {s.name}
+ </option>
+ ))}
+ </select>
+ </label>
+ ) : null}
 
-            {(formKind === "open_extra" || isStaffFormKind(formKind)) && (
+ {(formKind === "open_extra" || isStaffFormKind(formKind)) && (
               <>
                 <label className="flex flex-col gap-1.5 text-xs font-bold text-[#c9b299]/90">
-                  Orario inizio (opz.)
-                  <input
-                    type="time"
+ Orario inizio (opz.)
+ <input
+ type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
                     className="rounded-xl border border-[#5c3a21]/50 bg-black/30 px-3 py-2.5 text-sm text-[#f3d8b6]"
                   />
                 </label>
                 <label className="flex flex-col gap-1.5 text-xs font-bold text-[#c9b299]/90">
-                  Orario fine (opz.)
-                  <input
-                    type="time"
+ Orario fine (opz.)
+ <input
+ type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
                     className="rounded-xl border border-[#5c3a21]/50 bg-black/30 px-3 py-2.5 text-sm text-[#f3d8b6]"
@@ -451,31 +451,31 @@ export default function CalendarioOperativoPanel({
             )}
 
             <label className="flex flex-col gap-1.5 text-xs font-bold text-[#c9b299]/90 sm:col-span-2">
-              Note (opz.)
-              <textarea
-                rows={2}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                maxLength={500}
-                placeholder="Es. mercoledì straordinario, sabato Scaramuzzo…"
+ Note (opz.)
+ <textarea
+ rows={2}
+ value={notes}
+ onChange={(e) => setNotes(e.target.value)}
+ maxLength={500}
+ placeholder="Es. mercoledì straordinario, sabato Scaramuzzo…"
                 className="rounded-xl border border-[#5c3a21]/50 bg-black/30 px-3 py-2.5 text-sm text-[#f3d8b6] resize-y"
               />
             </label>
           </div>
 
           <div className="flex flex-wrap gap-2 justify-end">
-            <button
-              type="button"
+ <button
+ type="button"
               onClick={() => {
                 setFormOpen(false);
                 resetForm();
               }}
               className="rounded-xl border border-[#5c3a21]/50 px-4 py-2 text-sm font-bold text-[#c9b299] hover:bg-white/5"
-            >
-              Annulla
-            </button>
-            <button
-              type="submit"
+ >
+ Annulla
+ </button>
+ <button
+ type="submit"
               disabled={saving}
               className="inline-flex items-center gap-2 rounded-xl bg-[#f3d8b6] px-4 py-2 text-sm font-black text-[#24140e] hover:bg-[#e8c9a0] disabled:opacity-60"
             >
@@ -498,16 +498,16 @@ export default function CalendarioOperativoPanel({
         </p>
       ) : (
         <ul className="space-y-3">
-          {cards.map((card) => {
-            const badgeKey =
-              card.kind === "salon"
-                ? card.salonKind
-                : card.staffKind === "available"
-                  ? "staff_available"
-                  : "staff_unavailable";
-            const badge = OPERATIONAL_BADGE[badgeKey];
-            const timeStr =
-              card.kind === "salon"
+ {cards.map((card) => {
+ const badgeKey =
+ card.kind === "salon"
+ ? card.salonKind
+ : card.staffKind === "available"
+ ? "staff_available"
+ : "staff_unavailable";
+ const badge = OPERATIONAL_BADGE[badgeKey];
+ const timeStr =
+ card.kind === "salon"
                 ? formatTimeRange(card.open_start_time, card.open_end_time)
                 : formatTimeRange(card.start_time, card.end_time);
 
@@ -542,38 +542,38 @@ export default function CalendarioOperativoPanel({
                 </div>
                 {canManage ? (
                   <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
+ <button
+ type="button"
                       onClick={() => openEditCard(card)}
                       className="inline-flex items-center gap-1 rounded-xl border border-[#5c3a21]/50 bg-black/25 px-3 py-1.5 text-xs font-bold text-[#f3d8b6] hover:bg-white/10"
-                    >
-                      <Pencil size={14} />
-                      Modifica
-                    </button>
-                    <button
-                      type="button"
+ >
+ <Pencil size={14} />
+ Modifica
+ </button>
+ <button
+ type="button"
                       onClick={() => setDeleteTarget(card)}
                       className="inline-flex items-center gap-1 rounded-xl border border-red-500/30 bg-red-950/20 px-3 py-1.5 text-xs font-bold text-red-200/90 hover:bg-red-950/40"
-                    >
-                      <Trash2 size={14} />
-                      Elimina
-                    </button>
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <ConfirmActionDialog
-        open={deleteTarget != null}
-        onOpenChange={(open) => {
-          if (!open && !deleting) setDeleteTarget(null);
-        }}
-        title="Elimina eccezione"
-        description="Vuoi eliminare questa eccezione dal calendario operativo? L'operazione non può essere annullata."
-        confirmLabel="Elimina"
-        variant="danger"
+ >
+ <Trash2 size={14} />
+ Elimina
+ </button>
+ </div>
+ ) : null}
+ </li>
+ );
+ })}
+ </ul>
+ )}
+ <ConfirmActionDialog
+ open={deleteTarget != null}
+ onOpenChange={(open) => {
+ if (!open && !deleting) setDeleteTarget(null);
+ }}
+ title="Elimina eccezione"
+ description="Vuoi eliminare questa eccezione dal calendario operativo? L'operazione non può essere annullata."
+ confirmLabel="Elimina"
+ variant="danger"
         loading={deleting}
         onConfirm={confirmDeleteException}
       />

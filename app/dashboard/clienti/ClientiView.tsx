@@ -153,14 +153,14 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
           <Search
             size={18}
             className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50"
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cerca per nome, cognome, telefono o email…"
+ />
+ <input
+ value={query}
+ onChange={(e) => setQuery(e.target.value)}
+ placeholder="Cerca per nome, cognome, telefono o email…"
             className="w-full rounded-2xl bg-[#24140e]/70 border border-[#5c3a21]/60
-              pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/40
-              backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/40
+ backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
           />
         </div>
 
@@ -168,8 +168,8 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
           <button
             onClick={exportCSV}
             className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-              border border-[#5c3a21]/60 text-[#f3d8b6]
-              hover:bg-white/5 transition"
+ border border-[#5c3a21]/60 text-[#f3d8b6]
+ hover:bg-white/5 transition"
           >
             <Download size={18} />
             Esporta CSV
@@ -178,9 +178,9 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
           <button
             onClick={() => setOpen(true)}
             className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
-              bg-[#f3d8b6] text-black font-semibold
-              shadow-[0_10px_35px_rgba(243,216,182,0.25)]
-              hover:brightness-110 transition"
+ bg-[#f3d8b6] text-black font-semibold
+ shadow-[0_10px_35px_rgba(243,216,182,0.25)]
+ hover:brightness-110 transition"
           >
             <Plus size={18} />
             Nuovo cliente
@@ -190,7 +190,7 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
 
       {(searching || searchError) && (
         <p className="text-sm text-[#c9b299]">
-          {searching ? "Ricerca sul database…" : null}
+ {searching ? "Ricerca sul database…" : null}
           {searchError ? (
             <span className="text-red-400"> Errore ricerca: {searchError}</span>
           ) : null}
@@ -206,10 +206,10 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
               key={c.id}
               href={`/dashboard/clienti/${c.id}`}
               className="group block rounded-3xl p-6
-              bg-[#24140e]/70 border border-[#5c3a21]/60 backdrop-blur-md
-              shadow-[0_0_40px_rgba(0,0,0,0.18)]
-              hover:border-[#f3d8b6]/60 hover:shadow-[0_0_60px_rgba(243,216,182,0.12)]
-              hover:-translate-y-0.5 transition"
+ bg-[#24140e]/70 border border-[#5c3a21]/60 backdrop-blur-md
+ shadow-[0_0_40px_rgba(0,0,0,0.18)]
+ hover:border-[#f3d8b6]/60 hover:shadow-[0_0_60px_rgba(243,216,182,0.12)]
+ hover:-translate-y-0.5 transition"
             >
               <div className="flex items-start gap-4">
                 <div className="rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
@@ -262,31 +262,31 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
             </div>
 
             <div className="space-y-3">
-              <input
-                placeholder="Nome *"
+ <input
+ placeholder="Nome *"
                 className="w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white placeholder:text-white/40
-                  focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
-                value={form.first_name}
-                onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-              />
-              <input
-                placeholder="Cognome *"
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ value={form.first_name}
+ onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+ />
+ <input
+ placeholder="Cognome *"
                 className="w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white placeholder:text-white/40
-                  focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
-                value={form.last_name}
-                onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-              />
-              <input
-                placeholder="Telefono *"
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ value={form.last_name}
+ onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+ />
+ <input
+ placeholder="Telefono *"
                 className="w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white placeholder:text-white/40
-                  focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-              <input
-                placeholder="Indirizzo"
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ value={form.phone}
+ onChange={(e) => setForm({ ...form, phone: e.target.value })}
+ />
+ <input
+ placeholder="Indirizzo"
                 className="w-full rounded-xl bg-[#1c0f0a] border border-[#5c3a21]/60 px-4 py-3 text-sm text-white placeholder:text-white/40
-                  focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+ focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
               />
@@ -297,9 +297,9 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
                 onClick={saveCustomer}
                 disabled={saving}
                 className="w-full mt-4 rounded-xl bg-[#f3d8b6] text-black py-3 font-semibold
-                  hover:brightness-110 disabled:opacity-50"
-              >
-                {saving ? "Salvataggio…" : "Salva cliente"}
+ hover:brightness-110 disabled:opacity-50"
+ >
+ {saving ? "Salvataggio…" : "Salva cliente"}
               </button>
             </div>
           </div>

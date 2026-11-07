@@ -110,14 +110,14 @@ export default async function PresenzePage() {
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-4">
       {/* Hero — allineato a Magazzino / hub operativi */}
-      <section className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
+      <section className="rounded-3xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="flex flex-col gap-5 p-5 md:p-7 bg-black/20 border-b border-white/10 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4 min-w-0">
             <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
               <ClipboardList className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+              <div className="text-xs font-medium text-white/50 mb-1">
                 Modulo
               </div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
@@ -130,25 +130,25 @@ export default async function PresenzePage() {
           </div>
 
           <div className="flex flex-wrap gap-2 sm:justify-end">
-            <StatChip label="Righe" value={totalRows} variant="neutral" />
-            <StatChip label="OK" value={okCount} variant="ok" />
-            <StatChip label="Incomplete" value={incompleteCount} variant="warn" />
-            <StatChip label="Dentro ora" value={insideNowCount} variant="live" />
+ <StatChip label="Righe" value={totalRows} variant="neutral" />
+ <StatChip label="OK" value={okCount} variant="ok" />
+ <StatChip label="Incomplete" value={incompleteCount} variant="warn" />
+ <StatChip label="Dentro ora" value={insideNowCount} variant="live" />
           </div>
         </div>
       </section>
 
       {/* Tabella — card operativa Cassa / Impostazioni */}
-      <section className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+      <section className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark">
         <div className="border-b border-white/10 bg-black/20 px-5 py-3.5">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+          <div className="text-xs font-medium text-white/40">
             Riepilogo giornaliero
           </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
+            <thead className="bg-black/30 text-xs font-medium text-[#c9b299]/80">
               <tr>
                 <th className="px-5 py-3.5 text-left">Giorno</th>
                 <th className="px-5 py-3.5 text-left">Collaboratore</th>
@@ -172,7 +172,7 @@ export default async function PresenzePage() {
                   >
                     <td className="px-5 py-4 align-middle text-[#c9b299] tabular-nums">{row.day}</td>
                     <td className="px-5 py-4 align-middle font-semibold text-[#f3d8b6]">
-                      {row.staff_name ?? "-"}
+ {row.staff_name ?? "-"}
                     </td>
                     <td className="px-5 py-4 align-middle text-[#c9b299]">#{row.salon_id}</td>
                     <td className="px-5 py-4 align-middle text-[#c9b299]">
@@ -199,7 +199,7 @@ export default async function PresenzePage() {
                       )}
                     </td>
                     <td className="px-5 py-4 align-middle">
-                      {liveStatus === "inside" ? (
+ {liveStatus === "inside" ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f3d8b6]/35 bg-[#f3d8b6]/10 px-2.5 py-1 text-[11px] font-bold text-[#f3d8b6] shadow-[0_0_12px_rgba(243,216,182,0.12)]">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
                           Dentro ora
@@ -234,37 +234,37 @@ export default async function PresenzePage() {
                           : "Nessuna presenza trovata"}
                       </p>
                       <p className="mt-1.5 text-xs text-[#c9b299] leading-relaxed">
-                        {hasError
-                          ? "Riprova tra pochi secondi. Se il problema persiste, verifica la connessione."
-                          : "I riepiloghi compariranno qui dopo le timbrature dalla Team App."}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
+ {hasError
+ ? "Riprova tra pochi secondi. Se il problema persiste, verifica la connessione."
+ : "I riepiloghi compariranno qui dopo le timbrature dalla Team App."}
+ </p>
+ </div>
+ </td>
+ </tr>
+ )}
+ </tbody>
+ </table>
+ </div>
+ </section>
+ </div>
+ );
 }
 
 function StatChip({
-  label,
-  value,
-  variant,
+ label,
+ value,
+ variant,
 }: {
-  label: string;
-  value: number;
-  variant: "neutral" | "ok" | "warn" | "live";
+ label: string;
+ value: number;
+ variant: "neutral" | "ok" | "warn" | "live";
 }) {
-  const styles = {
-    neutral:
-      "border-[#5c3a21]/50 bg-black/25 text-[#c9b299]",
-    ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200/95",
-    warn: "border-amber-500/30 bg-amber-500/10 text-amber-200/95",
-    live: "border-[#f3d8b6]/30 bg-[#f3d8b6]/10 text-[#f3d8b6]",
+ const styles = {
+ neutral:
+ "border-[#5c3a21]/50 bg-black/25 text-[#c9b299]",
+ ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200/95",
+ warn: "border-amber-500/30 bg-amber-500/10 text-amber-200/95",
+ live: "border-[#f3d8b6]/30 bg-[#f3d8b6]/10 text-[#f3d8b6]",
   } as const;
 
   return (

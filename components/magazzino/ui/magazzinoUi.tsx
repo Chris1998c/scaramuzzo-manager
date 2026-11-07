@@ -1,30 +1,31 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import {
+  PageHeader,
+  PageShell,
+  PageToolbar,
+  sczBtnGhost,
+  sczField,
+} from "@/components/ui/PageHeader";
 
 export function MagazzinoPageShell({
   children,
-  compact,
+  compact: _compact,
 }: {
   children: ReactNode;
   compact?: boolean;
 }) {
-  return (
-    <div
-      className={`px-4 sm:px-6 ${compact ? "py-6" : "py-8"} bg-[#1A0F0A] min-h-screen text-white space-y-5`}
-    >
-      {children}
-    </div>
-  );
+  return <PageShell className="bg-transparent min-h-screen">{children}</PageShell>;
 }
 
 export function MagazzinoHero({
-  eyebrow = "Magazzino",
   title,
   subtitle,
   icon: Icon,
   actions,
-  compact,
+  compact: _compact,
+  eyebrow: _eyebrow,
 }: {
   eyebrow?: string;
   title: string;
@@ -34,31 +35,16 @@ export function MagazzinoHero({
   compact?: boolean;
 }) {
   return (
-    <div className="rounded-2xl md:rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_40px_rgba(0,0,0,0.22)] overflow-hidden">
-      <div
-        className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${compact ? "p-4 md:p-5" : "p-5 md:p-6"} bg-black/20 border-b border-white/10`}
-      >
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="shrink-0 rounded-xl md:rounded-2xl p-2.5 md:p-3 bg-black/30 border border-white/10">
-            <Icon className="text-[#f3d8b6]" size={compact ? 22 : 26} strokeWidth={1.7} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-0.5">
-              {eyebrow}
-            </div>
-            <h1
-              className={`${compact ? "text-xl md:text-2xl" : "text-2xl md:text-3xl"} font-extrabold text-[#f3d8b6] tracking-tight`}
-            >
-              {title}
-            </h1>
-            {subtitle ? (
-              <div className="text-white/60 mt-1 text-sm leading-relaxed">{subtitle}</div>
-            ) : null}
-          </div>
-        </div>
-        {actions ? <div className="shrink-0 self-start sm:self-center">{actions}</div> : null}
-      </div>
-    </div>
+    <PageHeader
+      title={title}
+      meta={
+        <span className="inline-flex items-center gap-2 min-w-0">
+          <Icon className="shrink-0 text-[#f3d8b6]/80" size={16} strokeWidth={1.85} aria-hidden />
+          {subtitle ? <span className="min-w-0">{subtitle}</span> : null}
+        </span>
+      }
+      actions={actions}
+    />
   );
 }
 
@@ -71,31 +57,18 @@ export function MagazzinoSalonContextBar({
   contextKind: "central" | "warehouse_salon" | "reception" | "other";
   hint?: string;
 }) {
-  const badgeClass =
-    contextKind === "central"
-      ? "bg-[#f3d8b6]/15 text-[#f3d8b6] border-[#f3d8b6]/30"
-      : contextKind === "reception"
-        ? "bg-sky-500/15 text-sky-200 border-sky-400/30"
-        : "bg-emerald-500/15 text-emerald-200 border-emerald-400/30";
-
-  const badgeLabel =
+  const kindLabel =
     contextKind === "central"
       ? "Hub centrale"
       : contextKind === "reception"
-        ? "Reception salone"
-        : "Salone attivo";
+        ? "Reception"
+        : "Salone";
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2 min-w-0">
-        <span
-          className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${badgeClass}`}
-        >
-          {badgeLabel}
-        </span>
-        <span className="text-sm font-semibold text-white/90 truncate">{contextLabel}</span>
-      </div>
-      {hint ? <span className="text-xs text-white/45">{hint}</span> : null}
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-white/55">
+      <span className="text-white/40">{kindLabel}</span>
+      <span className="font-medium text-white/85 truncate">{contextLabel}</span>
+      {hint ? <span className="text-white/40">· {hint}</span> : null}
     </div>
   );
 }
@@ -121,18 +94,16 @@ export function MagazzinoKpiCard({
           : "text-[#f3d8b6]";
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-      <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-        {label}
-      </div>
-      <div className={`text-2xl font-extrabold tabular-nums ${valueClass}`}>{value}</div>
-      {hint ? <div className="text-[11px] text-white/45 mt-1">{hint}</div> : null}
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3.5">
+      <div className="text-xs font-medium text-white/50 mb-0.5">{label}</div>
+      <div className={`text-xl font-semibold tabular-nums ${valueClass}`}>{value}</div>
+      {hint ? <div className="text-[11px] text-white/40 mt-0.5">{hint}</div> : null}
     </div>
   );
 }
 
 export function MagazzinoKpiRow({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">{children}</div>;
+  return <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">{children}</div>;
 }
 
 export function MagazzinoNavCard({
@@ -149,41 +120,35 @@ export function MagazzinoNavCard({
   accent?: "default" | "primary";
 }) {
   return (
-    <Link href={href} className="block group">
-      <div
-        className={`rounded-xl border p-4 md:p-5 transition h-full ${
-          accent === "primary"
-            ? "border-emerald-500/30 bg-emerald-600/10 hover:bg-emerald-600/15"
-            : "border-white/10 bg-scz-dark hover:bg-black/30 hover:border-white/20"
-        }`}
-      >
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 rounded-lg p-2 bg-black/30 border border-white/10 group-hover:border-[#f3d8b6]/25 transition">
-            <Icon className="text-[#f3d8b6]" size={22} strokeWidth={1.7} />
-          </div>
-          <div className="min-w-0">
-            <div className="font-bold text-white">{title}</div>
-            <div className="text-xs text-white/55 mt-1 leading-relaxed">{subtitle}</div>
-          </div>
-        </div>
-      </div>
+    <Link
+      href={href}
+      className={[
+        "group flex items-center gap-3 rounded-xl px-3.5 py-3 border transition-premium",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50",
+        accent === "primary"
+          ? "border-emerald-500/30 bg-emerald-600/10 hover:bg-emerald-600/15"
+          : "border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.12]",
+      ].join(" ")}
+    >
+      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/25 text-[#f3d8b6] shrink-0">
+        <Icon size={18} strokeWidth={1.85} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-[#f3d8b6] truncate">{title}</span>
+        <span className="block text-xs text-white/45 truncate">{subtitle}</span>
+      </span>
     </Link>
   );
 }
 
 export function MagazzinoFilterPanel({
-  title = "Filtri",
+  title: _title,
   children,
 }: {
   title?: string;
   children: ReactNode;
 }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-scz-dark p-4 space-y-3">
-      <div className="text-[10px] font-black uppercase tracking-wider text-white/50">{title}</div>
-      {children}
-    </div>
-  );
+  return <PageToolbar>{children}</PageToolbar>;
 }
 
 export function MagazzinoPagination({
@@ -202,24 +167,19 @@ export function MagazzinoPagination({
   if (pageCount <= 1) return null;
 
   return (
-    <div className="space-y-2">
-      {totalLabel ? <p className="text-xs text-white/45 text-center">{totalLabel}</p> : null}
-      <div className="flex items-center justify-between gap-3 px-1">
-        <button
-          type="button"
-          disabled={page <= 1}
-          className="px-3 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40 hover:bg-white/5"
-          onClick={onPrev}
-        >
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-white/45">
+      {totalLabel ? <p className="tabular-nums">{totalLabel}</p> : <span />}
+      <div className="flex items-center gap-2">
+        <button type="button" disabled={page <= 1} className={sczBtnGhost} onClick={onPrev}>
           Precedente
         </button>
-        <span className="text-xs text-white/50 tabular-nums">
+        <span className="tabular-nums px-1">
           {page} / {pageCount}
         </span>
         <button
           type="button"
           disabled={page >= pageCount}
-          className="px-3 py-2 rounded-lg text-sm font-semibold text-[#f3d8b6] border border-white/10 disabled:opacity-40 hover:bg-white/5"
+          className={sczBtnGhost}
           onClick={onNext}
         >
           Successiva
@@ -238,19 +198,17 @@ export function MagazzinoStatusBadge({
 }) {
   const cls =
     tone === "ok"
-      ? "bg-emerald-500/20 text-emerald-300"
+      ? "bg-emerald-500/15 text-emerald-300"
       : tone === "err"
-        ? "bg-red-500/20 text-red-300"
+        ? "bg-red-500/15 text-red-300"
         : tone === "warn"
-          ? "bg-amber-500/20 text-amber-200"
+          ? "bg-amber-500/15 text-amber-200"
           : tone === "info"
-            ? "bg-[#f3d8b6]/15 text-[#f3d8b6]"
+            ? "bg-[#f3d8b6]/12 text-[#f3d8b6]"
             : "bg-white/10 text-white/70";
 
   return (
-    <span
-      className={`inline-flex px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${cls}`}
-    >
+    <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-medium ${cls}`}>
       {label}
     </span>
   );
@@ -264,10 +222,10 @@ export function MagazzinoAlertBanner({
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-      <div className="text-sm text-amber-200/90">
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-3">
+      <div className="text-sm text-amber-100/90">
         <div className="font-semibold">{title}</div>
-        {children ? <div className="opacity-90 mt-0.5">{children}</div> : null}
+        {children ? <div className="opacity-90 mt-0.5 text-amber-100/80">{children}</div> : null}
       </div>
     </div>
   );
@@ -286,7 +244,7 @@ export function MagazzinoSearchInput({
 }) {
   return (
     <input
-      className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder:text-white/40 focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
+      className={sczField}
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -299,10 +257,7 @@ export function MagazzinoSearchInput({
 
 export function MagazzinoBackLink({ href, label = "Indietro" }: { href: string; label?: string }) {
   return (
-    <Link
-      href={href}
-      className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 bg-black/30 border border-white/10 text-[#f3d8b6] text-sm font-semibold hover:bg-black/40 transition"
-    >
+    <Link href={href} className={sczBtnGhost}>
       {label}
     </Link>
   );

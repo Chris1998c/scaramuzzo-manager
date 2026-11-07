@@ -292,15 +292,15 @@ export default function CustomerSearchField({
             <p className="px-3 text-xs text-white/45 leading-9">Ricerca…</p>
           ) : displayRows.length === 0 ? (
             <p className="px-3 text-xs text-white/50 leading-9">Nessun cliente trovato</p>
-          ) : (
-            displayRows.map((c, idx) => {
-              const active = String(c.id) === String(selectedCustomerId);
-              const highlighted = idx === highlightIndex;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  role="option"
+ ) : (
+ displayRows.map((c, idx) => {
+ const active = String(c.id) === String(selectedCustomerId);
+ const highlighted = idx === highlightIndex;
+ return (
+ <button
+ key={c.id}
+ type="button"
+ role="option"
                   aria-selected={active || highlighted}
                   onMouseEnter={() => setHighlightIndex(idx)}
                   onMouseDown={(e) => e.preventDefault()}

@@ -22,7 +22,7 @@ type Props = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/15 p-3">
-      <p className="text-[10px] font-black uppercase tracking-wider text-white/35">{title}</p>
+      <p className="text-xs font-medium text-white/35">{title}</p>
       <div className="mt-2">{children}</div>
     </div>
   );
@@ -90,7 +90,7 @@ export default function ReportStaffDrillDownPanel({
               {formatReportPct(drillDown.periodComparison.delta_pct)}
             </p>
             <p className="text-[11px] text-white/35">
-              {formatReportMoney(drillDown.periodComparison.previous_incassato)} →{" "}
+ {formatReportMoney(drillDown.periodComparison.previous_incassato)} →{" "}
               {formatReportMoney(drillDown.periodComparison.current_incassato)}
             </p>
           </div>
@@ -98,22 +98,22 @@ export default function ReportStaffDrillDownPanel({
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-        <Section title="Top servizi">
-          <ItemList items={drillDown.topServices} empty="Nessun servizio nel periodo." />
-        </Section>
-        <Section title="Top prodotti">
-          <ItemList items={drillDown.topProducts} empty="Nessun prodotto venduto." />
-        </Section>
-        <Section title="Retail dettagliato">
+ <Section title="Top servizi">
+ <ItemList items={drillDown.topServices} empty="Nessun servizio nel periodo." />
+ </Section>
+ <Section title="Top prodotti">
+ <ItemList items={drillDown.topProducts} empty="Nessun prodotto venduto." />
+ </Section>
+ <Section title="Retail dettagliato">
           <ul className="space-y-1 text-xs text-white/60">
-            <li>Retail venduto: {formatReportMoney(drillDown.retailSold)}</li>
-            <li>Penetrazione: {formatRetailPenetrationPct(row.retail_penetration_pct)}</li>
-            <li>Prodotti qty: {drillDown.productsQty}</li>
-            <li>Clienti senza retail: {row.customers_without_retail}</li>
-          </ul>
-        </Section>
+ <li>Retail venduto: {formatReportMoney(drillDown.retailSold)}</li>
+ <li>Penetrazione: {formatRetailPenetrationPct(row.retail_penetration_pct)}</li>
+ <li>Prodotti qty: {drillDown.productsQty}</li>
+ <li>Clienti senza retail: {row.customers_without_retail}</li>
+ </ul>
+ </Section>
 
-        <Section title="Ultimi clienti serviti">
+ <Section title="Ultimi clienti serviti">
           {drillDown.recentCustomers.length === 0 ? (
             <p className="text-xs text-white/40">Nessun cliente collegato agli scontrini.</p>
           ) : (
@@ -124,15 +124,15 @@ export default function ReportStaffDrillDownPanel({
                     {c.customer_name ?? `Cliente #${c.customer_id}`}
                   </span>
                   <span className="text-white/45">
-                    {c.last_day} · {formatReportMoney(c.gross)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
+ {c.last_day} · {formatReportMoney(c.gross)}
+ </span>
+ </li>
+ ))}
+ </ul>
+ )}
+ </Section>
 
-        <Section title="Clienti senza prodotti">
+ <Section title="Clienti senza prodotti">
           {drillDown.customersWithoutRetail.length === 0 ? (
             <p className="text-xs text-white/40">Tutti i clienti con almeno un prodotto.</p>
           ) : (
@@ -141,15 +141,15 @@ export default function ReportStaffDrillDownPanel({
                 <li
                   key={c.customer_id}
                   className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-white/55"
-                >
-                  {c.customer_name ?? `Cliente #${c.customer_id}`}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
+ >
+ {c.customer_name ?? `Cliente #${c.customer_id}`}
+ </li>
+ ))}
+ </ul>
+ )}
+ </Section>
 
-        <Section title="Scontrini & volumi">
+ <Section title="Scontrini & volumi">
           <ul className="space-y-1 text-xs text-white/60">
             <li>
               Scontati: {drillDown.discountedReceipts} / {drillDown.totalReceipts}
@@ -159,13 +159,13 @@ export default function ReportStaffDrillDownPanel({
           </ul>
           {drillDown.receiptsWithoutCustomer > 0 ? (
             <p className="mt-2 text-[11px] text-amber-200/75">
-              Alcuni scontrini senza cliente — clienti serviti possono essere sottostimati.
-            </p>
-          ) : null}
-        </Section>
-      </div>
+ Alcuni scontrini senza cliente — clienti serviti possono essere sottostimati.
+ </p>
+ ) : null}
+ </Section>
+ </div>
 
-      <Section title="Andamento giornaliero">
+ <Section title="Andamento giornaliero">
         {drillDown.dailyTrend.length === 0 ? (
           <p className="text-xs text-white/40">Nessuna vendita giornaliera nel periodo.</p>
         ) : (

@@ -227,14 +227,14 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
           <div>
             <div className="text-[#f3d8b6] font-black text-lg">Nuovo Walk-In</div>
             <p className="text-white/50 text-sm mt-1">
-              Cliente senza appuntamento — entra subito in sala.
-            </p>
-          </div>
-          <button
-            type="button"
+ Cliente senza appuntamento — entra subito in sala.
+ </p>
+ </div>
+ <button
+ type="button"
             onClick={close}
             className="rounded-lg p-2 text-white/50 hover:bg-white/10 hover:text-white"
-            aria-label="Chiudi"
+ aria-label="Chiudi"
           >
             <X className="h-5 w-5" />
           </button>
@@ -244,33 +244,33 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
           <OperationalDayBanner salonDay={operationalSnapshot.salonDay} />
 
           <section>
-            <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
+            <label className="text-xs font-medium text-white/40">
               Cliente
             </label>
             <div className="mt-1">
-              <CustomerSearchField
-                supabase={supabase}
-                enabled={isOpen && !!activeSalonId}
-                preloadSalonId={activeSalonId}
-                selectedCustomerId={customerId}
-                onSelectCustomerId={setCustomerId}
-                disabled={saving}
-                placeholder="Cerca nome o telefono..."
-                dropdownZIndexClass="z-[60]"
+ <CustomerSearchField
+ supabase={supabase}
+ enabled={isOpen && !!activeSalonId}
+ preloadSalonId={activeSalonId}
+ selectedCustomerId={customerId}
+ onSelectCustomerId={setCustomerId}
+ disabled={saving}
+ placeholder="Cerca nome o telefono..."
+ dropdownZIndexClass="z-[60]"
               />
             </div>
           </section>
 
           <section>
-            <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
+            <label className="text-xs font-medium text-white/40">
               Collaboratore
             </label>
             <select
               value={staffId}
               onChange={(e) => setStaffId(e.target.value)}
               className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 p-3 text-white text-sm outline-none focus:border-[#f3d8b6]/40"
-            >
-              <option value="">— Seleziona —</option>
+ >
+ <option value="">— Seleziona —</option>
               {staffListForDay.map((s) => (
                 <option key={s.id} value={String(s.id)}>
                   {staffSelectLabelForOperationalDate(
@@ -292,7 +292,7 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
 
           <section>
             <div className="flex items-center justify-between gap-2">
-              <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
+              <label className="text-xs font-medium text-white/40">
                 Servizi
               </label>
               {selectedServiceIds.length > 0 && (
@@ -303,21 +303,21 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
             </div>
             <div className="relative mt-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-              <input
-                value={qService}
-                onChange={(e) => setQService(e.target.value)}
-                placeholder="Filtra servizi..."
+ <input
+ value={qService}
+ onChange={(e) => setQService(e.target.value)}
+ placeholder="Filtra servizi..."
                 className="w-full rounded-xl border border-white/10 bg-black/40 py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-[#f3d8b6]/40"
               />
             </div>
             <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/10 bg-black/30 divide-y divide-white/5">
-              {filteredServices.map((s) => {
-                const selected = selectedServiceIds.includes(s.id);
-                const dur = Math.max(SLOT_MINUTES, Number(s.duration) || SLOT_MINUTES);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
+ {filteredServices.map((s) => {
+ const selected = selectedServiceIds.includes(s.id);
+ const dur = Math.max(SLOT_MINUTES, Number(s.duration) || SLOT_MINUTES);
+ return (
+ <button
+ key={s.id}
+ type="button"
                     onClick={() => toggleService(s.id)}
                     className={`w-full px-3 py-2 text-left text-sm flex justify-between gap-2 hover:bg-white/5 ${
                       selected ? "bg-[#f3d8b6]/15 text-[#f3d8b6]" : "text-white/80"
@@ -332,7 +332,7 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
           </section>
 
           <section>
-            <label className="text-[10px] font-black uppercase tracking-wider text-white/40">
+            <label className="text-xs font-medium text-white/40">
               Note (opzionale)
             </label>
             <textarea
@@ -347,21 +347,21 @@ export default function WalkInModal({ isOpen, close, onCreated }: Props) {
         </div>
 
         <div className="mt-6 flex gap-2 justify-end">
-          <button
-            type="button"
+ <button
+ type="button"
             onClick={close}
             disabled={saving}
             className="rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-white/5 disabled:opacity-50"
-          >
-            Annulla
-          </button>
-          <button
-            type="button"
+ >
+ Annulla
+ </button>
+ <button
+ type="button"
             onClick={submit}
             disabled={saving || salonClosed}
             className="rounded-xl bg-[#f3d8b6] px-4 py-2 text-sm font-extrabold text-black hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? "Creazione..." : salonClosed ? "Giorno chiuso" : "Crea walk-in"}
+ >
+ {saving ? "Creazione..." : salonClosed ? "Giorno chiuso" : "Crea walk-in"}
           </button>
         </div>
       </div>

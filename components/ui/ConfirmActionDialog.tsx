@@ -88,11 +88,11 @@ export function ConfirmActionDialog({
           <AlertDialogCancel
             disabled={busy}
             className="rounded-xl border border-white/10 bg-black/30 text-white/90 hover:bg-black/40"
-          >
-            {cancelLabel}
-          </AlertDialogCancel>
-          <button
-            type="button"
+ >
+ {cancelLabel}
+ </AlertDialogCancel>
+ <button
+ type="button"
             disabled={busy}
             onClick={() => void handleConfirm()}
             className={cn(

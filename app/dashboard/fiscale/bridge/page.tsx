@@ -45,38 +45,28 @@ export default async function BridgeMonitorPage({ searchParams }: PageProps) {
   const showSalonFilter = canPickSalonFilterOnFiscalJobs(access.role);
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-4 pb-4">
-      <header className="flex flex-wrap items-center justify-between gap-3 py-1">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="shrink-0 rounded-xl p-2 bg-black/30 border border-white/10">
-            <Radio className="text-[#f3d8b6]" size={22} strokeWidth={1.7} />
-          </div>
-          <h1 className="text-xl md:text-2xl font-extrabold text-[#f3d8b6] tracking-tight">
-            Stato stampanti e casse
+    <div className="max-w-[1600px] mx-auto px-3 py-4 md:px-5 space-y-4 pb-6">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-semibold text-[#f3d8b6] tracking-tight inline-flex items-center gap-2">
+            <Radio className="shrink-0 text-[#f3d8b6]/80" size={18} strokeWidth={1.85} aria-hidden />
+            Bridge stampa
           </h1>
+          {showSalonFilter ? (
+            <p className="text-sm text-white/50 mt-0.5">
+              {salonFilter != null ? `Salone ${salonFilter}` : "Tutti i saloni"}
+            </p>
+          ) : salonFilter != null ? (
+            <p className="text-sm text-white/50 mt-0.5">Salone {salonFilter}</p>
+          ) : null}
         </div>
         <Link
           href="/dashboard/fiscale"
-          className="rounded-xl border border-white/10 px-3 py-1.5 text-sm text-[#f3d8b6] hover:bg-white/5"
+          className="rounded-lg border border-white/10 px-3 py-2 text-sm text-[#f3d8b6] hover:bg-white/[0.06]"
         >
-          ← Job fiscali
+          Job fiscali
         </Link>
       </header>
-
-      {showSalonFilter ? (
-        <p className="text-sm text-[#c9b299]">
-          Stai visualizzando:{" "}
-          {salonFilter != null ? (
-            <strong className="text-[#f3d8b6]">salone {salonFilter}</strong>
-          ) : (
-            <strong className="text-[#f3d8b6]">tutti i saloni</strong>
-          )}
-        </p>
-      ) : salonFilter != null ? (
-        <p className="text-sm text-[#c9b299]">
-          Il tuo salone: <strong className="text-[#f3d8b6]">{salonFilter}</strong>
-        </p>
-      ) : null}
 
       <BridgeEnterpriseMonitor
         initialRows={rows}

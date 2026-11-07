@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Receipt, Radio } from "lucide-react";
+import { Radio } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 import {
@@ -96,63 +96,52 @@ export default async function FiscalePage({ searchParams }: PageProps) {
   const completedCount = rows.filter((r) => r.status === "completed").length;
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-6 pb-4">
-      <section className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
-        <div className="flex flex-col gap-5 p-5 md:p-7 bg-black/20 border-b border-white/10 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4 min-w-0">
-            <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
-              <Receipt className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
-                Modulo
-              </div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                Job fiscali
-              </h1>
-              <p className="text-[#c9b299] mt-1 text-sm md:text-base leading-relaxed">
-                Monitoraggio job fiscali e documenti collegati
-                {canAct ? " · azioni operative per coordinator/magazzino" : ""}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 sm:justify-end items-center">
-            <Link
-              href="/dashboard/fiscale/bridge"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-white/5"
-            >
-              <Radio size={14} />
-              Bridge stampa
-            </Link>
-            <StatChip label="Righe" value={rows.length} />
-            <StatChip label="Pending" value={pendingCount} variant="warn" />
-            <StatChip label="Failed" value={failedCount} variant="err" />
-            <StatChip label="Completed" value={completedCount} variant="ok" />
-          </div>
+    <div className="max-w-[1600px] mx-auto px-3 py-4 md:px-5 space-y-4 pb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-semibold text-[#f3d8b6] tracking-tight">
+            Job fiscali
+          </h1>
+          <p className="text-sm text-white/50 mt-0.5">
+            Coda stampa e documenti
+            {canAct ? " · puoi riprovare o annullare i job" : ""}
+          </p>
         </div>
-      </section>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Link
+            href="/dashboard/fiscale/bridge"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-[#f3d8b6] hover:bg-white/[0.06]"
+          >
+            <Radio size={14} />
+            Bridge stampa
+          </Link>
+          <StatChip label="Righe" value={rows.length} />
+          <StatChip label="In coda" value={pendingCount} variant="warn" />
+          <StatChip label="Falliti" value={failedCount} variant="err" />
+          <StatChip label="Completati" value={completedCount} variant="ok" />
+        </div>
+      </div>
 
-      <FiscalHealthPanel
-        metrics={healthResult.metrics}
-        bridge={bridge}
-        warnings={warnings}
-        metricsError={healthResult.error}
-      />
+ <FiscalHealthPanel
+ metrics={healthResult.metrics}
+ bridge={bridge}
+ warnings={warnings}
+ metricsError={healthResult.error}
+ />
 
-      <Suspense fallback={null}>
-        <FiscalJobsFilters
-          salonId={salonId != null && salonId > 0 ? salonId : null}
-          status={statusRaw}
-          kind={kindRaw}
-          salonOptions={salonOptions}
-          showSalonFilter={showSalonFilter}
-        />
-      </Suspense>
+ <Suspense fallback={null}>
+ <FiscalJobsFilters
+ salonId={salonId != null && salonId > 0 ? salonId : null}
+ status={statusRaw}
+ kind={kindRaw}
+ salonOptions={salonOptions}
+ showSalonFilter={showSalonFilter}
+ />
+ </Suspense>
 
-      <FiscalJobsTable rows={rows} loadError={error} canAct={canAct} />
-    </div>
-  );
+ <FiscalJobsTable rows={rows} loadError={error} canAct={canAct} />
+ </div>
+ );
 }
 
 function StatChip({
@@ -172,13 +161,9 @@ function StatChip({
   };
 
   return (
-    <div
-      className={`rounded-2xl border px-4 py-2.5 text-center min-w-[88px] ${styles[variant]}`}
-    >
-      <div className="text-[10px] font-black uppercase tracking-wider opacity-70">
-        {label}
-      </div>
-      <div className="text-xl font-extrabold tabular-nums">{value}</div>
+    <div className={`rounded-lg border px-2.5 py-1.5 text-center min-w-[72px] ${styles[variant]}`}>
+      <div className="text-[11px] text-white/50">{label}</div>
+      <div className="text-base font-semibold tabular-nums">{value}</div>
     </div>
   );
 }

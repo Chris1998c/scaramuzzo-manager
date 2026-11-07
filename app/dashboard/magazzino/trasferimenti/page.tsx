@@ -397,14 +397,14 @@ export default function TrasferimentiPage() {
   return (
     <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white space-y-6">
       {/* HERO */}
-      <div className="rounded-3xl border border-white/10 bg-scz-dark shadow-[0_0_60px_rgba(0,0,0,0.25)] overflow-hidden">
+      <div className="rounded-3xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 md:p-7 bg-black/20 border-b border-white/10">
           <div className="flex items-start gap-4">
             <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
               <Repeat className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+              <div className="text-xs font-medium text-white/50 mb-1">
                 Magazzino
               </div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
@@ -414,14 +414,14 @@ export default function TrasferimentiPage() {
                 Sposta merce da <span className="font-semibold text-white/90">{fromName}</span> verso la destinazione scelta.
               </p>
               <p className="text-white/50 text-sm mt-1">
-                {isWarehouse
-                  ? "Cambia salone Da dallo switcher in alto."
-                  : "Il tuo salone è fisso come origine. Scegli solo la destinazione."}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/dashboard/magazzino"
+ {isWarehouse
+ ? "Cambia salone Da dallo switcher in alto."
+ : "Il tuo salone è fisso come origine. Scegli solo la destinazione."}
+ </p>
+ </div>
+ </div>
+ <Link
+ href="/dashboard/magazzino"
             className="shrink-0 self-start sm:self-center inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
           >
             <ArrowLeft size={18} />
@@ -432,7 +432,7 @@ export default function TrasferimentiPage() {
 
       {/* DA / A */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
-        <div className="text-[10px] font-black uppercase tracking-wider text-white/50">
+        <div className="text-xs font-medium text-white/50">
           Percorso
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -445,7 +445,7 @@ export default function TrasferimentiPage() {
             ) : (
               <select
                 className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-white focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30 disabled:opacity-60"
-                value={fromSalon ?? ""}
+ value={fromSalon ?? ""}
                 disabled={disableFromSelect}
                 onChange={async (e) => {
                   const v = Number(e.target.value);
@@ -490,7 +490,7 @@ export default function TrasferimentiPage() {
           <div className="p-4 border-b border-white/10 space-y-3">
             <div className="flex items-center gap-2">
               <Package className="text-[#f3d8b6]" size={20} strokeWidth={1.7} />
-              <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+              <span className="text-xs font-medium text-white/50">
                 Disponibili
               </span>
             </div>
@@ -498,7 +498,7 @@ export default function TrasferimentiPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={16} />
               <input
                 className="w-full pl-9 pr-3 py-2 rounded-lg bg-black/30 border border-white/10 text-white text-sm placeholder:text-white/40"
-                placeholder="Nome o barcode…"
+ placeholder="Nome o barcode…"
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
               />
@@ -512,12 +512,12 @@ export default function TrasferimentiPage() {
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-white truncate">{p.name}</p>
                       <p className="text-xs text-white/50 mt-0.5">
-                        {p.quantity} disponibili
-                        {p.barcode ? ` · ${p.barcode}` : ""}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
+ {p.quantity} disponibili
+ {p.barcode ? ` · ${p.barcode}` : ""}
+ </p>
+ </div>
+ <button
+ type="button"
                       className="shrink-0 px-3 py-1.5 rounded-lg bg-[#f3d8b6]/20 border border-[#f3d8b6]/40 text-[#f3d8b6] text-sm font-semibold hover:bg-[#f3d8b6]/30 transition"
                       onClick={() => add(p)}
                     >
@@ -539,7 +539,7 @@ export default function TrasferimentiPage() {
         <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
           <div className="p-4 border-b border-white/10 flex items-center gap-2">
             <ArrowRightCircle className="text-[#f3d8b6]" size={20} strokeWidth={1.7} />
-            <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+            <span className="text-xs font-medium text-white/50">
               In trasferimento
             </span>
           </div>
@@ -554,9 +554,9 @@ export default function TrasferimentiPage() {
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-white truncate">{s.name}</p>
                           <p className="text-xs text-white/50">max {max}</p>
-                        </div>
-                        <input
-                          type="number"
+ </div>
+ <input
+ type="number"
                           min={1}
                           max={max}
                           className="w-20 px-2 py-1.5 rounded-lg bg-black/30 border border-white/10 text-white text-sm text-right focus:border-[#f3d8b6]/50 focus:outline-none focus:ring-1 focus:ring-[#f3d8b6]/30"
@@ -568,22 +568,22 @@ export default function TrasferimentiPage() {
                   })}
                 </ul>
                 <p className="rounded-xl border border-[#f3d8b6]/25 bg-[#f3d8b6]/10 px-4 py-3 text-sm text-[#f3d8b6]">
-                  Riepilogo: {selected.length} articol
-                  {selected.length === 1 ? "o" : "i"} ·{" "}
-                  {selected.reduce((a, s) => a + s.qty, 0)} unità totali → {toName}
-                </p>
-                <button
-                  type="button"
+ Riepilogo: {selected.length} articol
+ {selected.length === 1 ? "o" : "i"} ·{" "}
+ {selected.reduce((a, s) => a + s.qty, 0)} unità totali → {toName}
+ </p>
+ <button
+ type="button"
                   className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base transition disabled:opacity-40 disabled:cursor-not-allowed"
-                  onClick={completa}
-                  disabled={
-                    submitting ||
-                    !selected.length ||
-                    fromSalon === toSalon ||
-                    role === "cliente"
-                  }
-                >
-                  {submitting ? "Completamento…" : `Completa Trasferimento → ${toName}`}
+ onClick={completa}
+ disabled={
+ submitting ||
+ !selected.length ||
+ fromSalon === toSalon ||
+ role === "cliente"
+ }
+ >
+ {submitting ? "Completamento…" : `Completa Trasferimento → ${toName}`}
                 </button>
                 {isReception && (
                   <p className="text-xs text-white/50">
@@ -606,7 +606,7 @@ export default function TrasferimentiPage() {
       <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="p-4 border-b border-white/10 flex items-center gap-2">
           <History className="text-[#f3d8b6]" size={20} strokeWidth={1.7} />
-          <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+          <span className="text-xs font-medium text-white/50">
             Ultimi trasferimenti
           </span>
           {!historyLoading && historyTotal > 0 && (
@@ -621,12 +621,12 @@ export default function TrasferimentiPage() {
           <p className="p-6 text-sm text-white/50">Nessun trasferimento per questo salone.</p>
         ) : (
           <div className="divide-y divide-white/10">
-            {history.map((t) => {
-              const expanded = expandedTransferId === t.id;
-              return (
-                <div key={t.id}>
-                  <button
-                    type="button"
+ {history.map((t) => {
+ const expanded = expandedTransferId === t.id;
+ return (
+ <div key={t.id}>
+ <button
+ type="button"
                     className="w-full text-left p-4 hover:bg-white/[0.03] transition flex flex-wrap items-center gap-x-4 gap-y-2"
                     onClick={() => toggleTransferDetails(t.id)}
                   >
@@ -645,8 +645,8 @@ export default function TrasferimentiPage() {
                     </span>
                     <span className="text-xs text-white/50">{t.item_count} righe</span>
                     <span className="text-xs text-white/40 ml-auto">
-                      creato {formatDt(t.created_at)}
-                      {t.executed_at ? ` · eseguito ${formatDt(t.executed_at)}` : ""}
+ creato {formatDt(t.created_at)}
+ {t.executed_at ? ` · eseguito ${formatDt(t.executed_at)}` : ""}
                     </span>
                     {expanded ? (
                       <ChevronUp size={16} className="text-white/40" />
@@ -681,8 +681,8 @@ export default function TrasferimentiPage() {
         )}
         {historyPageCount > 1 && !historyLoading && (
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-white/10 bg-black/20">
-            <button
-              type="button"
+ <button
+ type="button"
               disabled={historyPage <= 1}
               className="px-3 py-1.5 rounded-lg text-sm text-[#f3d8b6] border border-white/10 disabled:opacity-40"
               onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
@@ -690,10 +690,10 @@ export default function TrasferimentiPage() {
               Precedente
             </button>
             <span className="text-xs text-white/50">
-              {historyPage} / {historyPageCount}
-            </span>
-            <button
-              type="button"
+ {historyPage} / {historyPageCount}
+ </span>
+ <button
+ type="button"
               disabled={historyPage >= historyPageCount}
               className="px-3 py-1.5 rounded-lg text-sm text-[#f3d8b6] border border-white/10 disabled:opacity-40"
               onClick={() => setHistoryPage((p) => Math.min(historyPageCount, p + 1))}

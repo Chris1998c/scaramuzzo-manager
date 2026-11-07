@@ -55,16 +55,16 @@ export default function FiscalJobsTable({ rows, loadError, canAct }: Props) {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)]">
+    <section className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark">
       <div className="border-b border-white/10 bg-black/20 px-5 py-3.5">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+        <div className="text-xs font-medium text-white/40">
           Ultimi job ({rows.length})
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <table className="min-w-[1200px] w-full text-sm">
-          <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.2em] text-[#c9b299]/80">
+          <thead className="bg-black/30 text-xs font-medium text-[#c9b299]/80">
             <tr>
               <th className="px-4 py-3 text-left">ID</th>
               <th className="px-4 py-3 text-left">Creato</th>
@@ -105,13 +105,13 @@ export default function FiscalJobsTable({ rows, loadError, canAct }: Props) {
                   <StatusBadge status={row.status} />
                 </td>
                 <td className="px-4 py-3 tabular-nums text-[#c9b299]">
-                  {row.sale_id ?? "—"}
+ {row.sale_id ?? "—"}
                 </td>
                 <td className="px-4 py-3 tabular-nums text-[#c9b299]">
-                  {row.cash_session_id ?? "—"}
+ {row.cash_session_id ?? "—"}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-[#c9b299]">
-                  {row.attempts ?? "—"}
+ {row.attempts ?? "—"}
                 </td>
                 <td className="px-4 py-3 text-[#c9b299] whitespace-nowrap text-xs">
                   {formatDateTime(row.locked_at)}
@@ -120,19 +120,19 @@ export default function FiscalJobsTable({ rows, loadError, canAct }: Props) {
                   {formatDateTime(row.completed_at)}
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-[#f3d8b6]">
-                  {row.document?.fiscal_receipt_number ?? "—"}
+ {row.document?.fiscal_receipt_number ?? "—"}
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-[#c9b299]">
-                  {row.document?.z_rep_number ?? "—"}
+ {row.document?.z_rep_number ?? "—"}
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-[#c9b299]">
-                  {row.document?.printer_serial ?? "—"}
+ {row.document?.printer_serial ?? "—"}
                 </td>
                 <td
                   className="px-4 py-3 max-w-[220px] truncate text-xs text-red-200/80"
-                  title={row.error_message ?? undefined}
-                >
-                  {row.error_message ?? "—"}
+ title={row.error_message ?? undefined}
+ >
+ {row.error_message ?? "—"}
                 </td>
                 <td className="px-4 py-3 align-top">
                   <FiscalJobRowActions

@@ -29,34 +29,34 @@ function GrowthBadge({ value }: { value: number | null }) {
 function HeroKpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-4 md:p-5">
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">{label}</p>
+      <p className="text-xs font-medium text-white/40">{label}</p>
       <p className="mt-2 text-2xl md:text-3xl font-extrabold text-white">{value}</p>
       {sub ? <p className="mt-1 text-xs text-white/40">{sub}</p> : null}
-    </div>
-  );
+ </div>
+ );
 }
 
 export default function ReportDirectionView({ data, salonLabel }: Props) {
-  const [vatMode, setVatMode] = useReportVatModeUrl();
+ const [vatMode, setVatMode] = useReportVatModeUrl();
 
-  const money = vatMode === "gross" ? data.today.money.gross : data.today.money.net;
-  const monthMoney = vatMode === "gross" ? data.month.money.gross : data.month.money.net;
-  const ticket =
-    vatMode === "gross" ? data.today.avg_ticket_gross : data.today.avg_ticket_net;
-  const monthPct =
-    vatMode === "gross"
-      ? data.monthComparison.gross_real_pct
-      : data.monthComparison.net_real_pct;
-  const vsYesterdayPct =
-    vatMode === "gross" ? data.vsYesterday.pct_gross : data.vsYesterday.pct_net;
-  const vsLastWeekPct =
-    vatMode === "gross"
-      ? data.vsLastWeekSameDay.pct_gross
-      : data.vsLastWeekSameDay.pct_net;
-  const yesterdayAmt =
-    vatMode === "gross" ? data.vsYesterday.amount_gross : data.vsYesterday.amount_net;
-  const lastWeekAmt =
-    vatMode === "gross"
+ const money = vatMode === "gross" ? data.today.money.gross : data.today.money.net;
+ const monthMoney = vatMode === "gross" ? data.month.money.gross : data.month.money.net;
+ const ticket =
+ vatMode === "gross" ? data.today.avg_ticket_gross : data.today.avg_ticket_net;
+ const monthPct =
+ vatMode === "gross"
+ ? data.monthComparison.gross_real_pct
+ : data.monthComparison.net_real_pct;
+ const vsYesterdayPct =
+ vatMode === "gross" ? data.vsYesterday.pct_gross : data.vsYesterday.pct_net;
+ const vsLastWeekPct =
+ vatMode === "gross"
+ ? data.vsLastWeekSameDay.pct_gross
+ : data.vsLastWeekSameDay.pct_net;
+ const yesterdayAmt =
+ vatMode === "gross" ? data.vsYesterday.amount_gross : data.vsYesterday.amount_net;
+ const lastWeekAmt =
+ vatMode === "gross"
       ? data.vsLastWeekSameDay.amount_gross
       : data.vsLastWeekSameDay.amount_net;
 
@@ -64,14 +64,14 @@ export default function ReportDirectionView({ data, salonLabel }: Props) {
     <section className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-scz-gold/80">
+          <p className="text-xs font-medium text-scz-gold/80">
             Cockpit di oggi e mese corrente
           </p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-white md:text-3xl">
             Riepilogo
           </h2>
           <p className="mt-1 text-sm text-white/45">
-            {salonLabel ? `${salonLabel} · ` : ""}
+ {salonLabel ? `${salonLabel} · ` : ""}
             Oggi e mese in corso — non usa il periodo filtrato in alto
           </p>
           <p className="mt-2 text-xs text-white/35">
@@ -82,7 +82,7 @@ export default function ReportDirectionView({ data, salonLabel }: Props) {
       </div>
 
       <div className="rounded-2xl border border-scz-gold/35 bg-gradient-to-br from-scz-gold/10 via-black/20 to-transparent p-6 md:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+        <p className="text-xs font-medium text-white/40">
           Incasso reale · oggi
         </p>
         <p className="mt-2 text-4xl md:text-5xl font-extrabold text-scz-gold">
@@ -100,24 +100,24 @@ export default function ReportDirectionView({ data, salonLabel }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <HeroKpi label="Scontrini" value={formatReportInt(data.today.receipts_count)} />
-        <HeroKpi label="Scontrino medio" value={formatReportMoney(ticket)} />
-        <HeroKpi label="Sconti dati" value={formatReportMoney(money.discount)} />
-        <HeroKpi
-          label="Mese corrente"
-          value={formatReportMoney(monthMoney.real)}
-          sub={monthPct != null ? `${formatReportPct(monthPct)} vs mese prec.` : undefined}
-        />
-        <HeroKpi
-          label="Valore a listino"
-          value={formatReportMoney(money.full)}
-          sub="Listino senza sconti oggi"
+ <HeroKpi label="Scontrini" value={formatReportInt(data.today.receipts_count)} />
+ <HeroKpi label="Scontrino medio" value={formatReportMoney(ticket)} />
+ <HeroKpi label="Sconti dati" value={formatReportMoney(money.discount)} />
+ <HeroKpi
+ label="Mese corrente"
+ value={formatReportMoney(monthMoney.real)}
+ sub={monthPct != null ? `${formatReportPct(monthPct)} vs mese prec.` : undefined}
+ />
+ <HeroKpi
+ label="Valore a listino"
+ value={formatReportMoney(money.full)}
+ sub="Listino senza sconti oggi"
         />
       </div>
 
       {data.alerts.length > 0 ? (
         <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200/80">
+          <p className="text-xs font-medium text-amber-200/80">
             Da controllare oggi
           </p>
           <ul className="mt-4 space-y-3">
@@ -146,7 +146,7 @@ export default function ReportDirectionView({ data, salonLabel }: Props) {
 
       <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="border-b border-white/10 bg-black/25 px-6 py-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-scz-gold/80">
+          <p className="text-xs font-medium text-scz-gold/80">
             Da fare ora
           </p>
           <p className="mt-1 text-sm text-white/50">Massimo 5 clienti prioritari</p>

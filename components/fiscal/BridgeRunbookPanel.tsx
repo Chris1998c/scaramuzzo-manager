@@ -51,7 +51,7 @@ export default function BridgeRunbookPanel({ warningCodes }: Props) {
       </div>
       {contextual.length > 0 ? (
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-white/40 mb-2">
+          <p className="text-xs font-medium text-white/40 mb-2">
             Situazioni attive ora
           </p>
           <div className="grid gap-3 md:grid-cols-2">

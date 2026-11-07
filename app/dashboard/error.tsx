@@ -21,15 +21,15 @@ export default function DashboardError({
             Riprova. Se il problema persiste, contatta l’amministratore.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <button
-              type="button"
+ <button
+ type="button"
               onClick={() => reset()}
               className="rounded-xl bg-white/10 border border-white/10 px-4 py-2 font-bold hover:bg-white/15 transition"
-            >
-              Riprova
-            </button>
-            <a
-              href="/dashboard"
+ >
+ Riprova
+ </button>
+ <a
+ href="/dashboard"
               className="rounded-xl bg-black/30 border border-white/10 px-4 py-2 font-bold hover:bg-black/40 transition"
             >
               Torna alla dashboard
@@ -42,7 +42,7 @@ export default function DashboardError({
             Dettagli tecnici
           </summary>
           <pre className="mt-3 whitespace-pre-wrap break-words">
-            {error?.message ?? "unknown"}
+ {error?.message ?? "unknown"}
           </pre>
         </details>
       </div>
