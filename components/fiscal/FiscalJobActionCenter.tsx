@@ -112,7 +112,7 @@ export default function FiscalJobActionCenter({
                           className="text-white/35 max-w-[140px]"
                           title={requeue.reason}
                         >
-                          Requeue N/D
+                          Coda non disponibile
                         </span>
                       ) : null}
                     </div>

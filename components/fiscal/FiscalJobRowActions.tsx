@@ -46,13 +46,13 @@ function confirmCopy(
 
   if (extraZ && job.kind === "z_report") {
     return {
-      title: action === "requeue" ? "Requeue Z-REPORT" : "Annulla Z-REPORT",
+      title: action === "requeue" ? "Rimetti in coda Z-REPORT" : "Annulla Z-REPORT",
       description: `${base}\n\nAttenzione: impatto possibile sulla sessione cassa. Conferma solo se sei sicuro.`,
     };
   }
 
   return {
-    title: action === "requeue" ? "Requeue job fiscale" : "Annulla job fiscale",
+    title: action === "requeue" ? "Rimetti in coda job fiscale" : "Annulla job fiscale",
     description: base,
   };
 }
@@ -137,14 +137,14 @@ export default function FiscalJobRowActions({ job, canAct }: Props) {
  onClick={() => beginRun("requeue", actions.requeueNeedsZConfirm)}
             className="rounded-lg border border-[#f3d8b6]/25 bg-[#f3d8b6]/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#f3d8b6] hover:bg-[#f3d8b6]/20 disabled:opacity-40"
  >
- {busy === "requeue" ? "…" : "Requeue"}
+ {busy === "requeue" ? "…" : "Rimetti in coda"}
           </button>
         ) : actions.requeueDisabledReason ? (
           <span
             className="text-[9px] text-amber-200/70 leading-snug"
  title={actions.requeueDisabledReason}
  >
- Requeue N/D
+ Coda non disponibile
  </span>
  ) : null}
 
@@ -175,7 +175,7 @@ export default function FiscalJobRowActions({ job, canAct }: Props) {
  }}
  title={dialogCopy.title}
  description={dialogCopy.description}
- confirmLabel={pendingRun.kind === "requeue" ? "Requeue" : "Annulla job"}
+ confirmLabel={pendingRun.kind === "requeue" ? "Rimetti in coda" : "Annulla job"}
  variant={pendingRun.kind === "cancel" ? "warning" : "default"}
  loading={busy != null}
  onConfirm={afterFirstConfirm}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabaseClient";
+import { authUserFacingMessage } from "@/lib/authUserFacingError";
 
 export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false);
@@ -41,7 +42,7 @@ export default function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setErr(error.message);
+      setErr(authUserFacingMessage(error, "update_password"));
       return;
     }
 

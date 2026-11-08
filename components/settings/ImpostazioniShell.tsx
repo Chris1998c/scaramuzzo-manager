@@ -83,7 +83,7 @@ const SECTIONS: Array<{
   {
     key: "clienti",
     label: "Clienti",
-    hint: "Audit dominio dati — gestione in modulo Clienti",
+    hint: "Gestione anagrafiche nel modulo Clienti",
     icon: Users,
     ready: true,
   },
@@ -104,7 +104,7 @@ const SECTIONS: Array<{
   {
     key: "aspetto",
     label: "Interfaccia",
-    hint: "Interfaccia standard; preferenze UI locali (es. sidebar)",
+    hint: "Preferenze locali (es. sidebar)",
     icon: Palette,
     ready: true,
   },

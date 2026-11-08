@@ -77,7 +77,7 @@ export function getFiscalJobUiActions(
       requeue: false,
       cancel: false,
       requeueDisabledReason:
-        "Requeue non disponibile: la RPC requeue_fiscal_print_job non accetta job cancelled.",
+        "Rimessa in coda non disponibile: i job annullati non possono essere rimessi in coda.",
       cancelDisabledReason: null,
       requeueNeedsZConfirm: false,
       cancelNeedsZConfirm: false,

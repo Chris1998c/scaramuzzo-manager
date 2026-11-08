@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     });
 
     if (error) {
-      const msg = error.message ?? "Errore requeue job fiscale";
+      const msg = error.message ?? "Errore rimessa in coda job fiscale";
       if (/non trovato/i.test(msg)) {
         return NextResponse.json({ error: msg }, { status: 404 });
       }
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, job: updated });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Errore requeue";
+    const msg = e instanceof Error ? e.message : "Errore rimessa in coda";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

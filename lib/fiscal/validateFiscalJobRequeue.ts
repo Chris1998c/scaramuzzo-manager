@@ -19,7 +19,7 @@ export function validateRequeueFiscalJob(
       ok: false,
       status: 409,
       message:
-        "Requeue non supportato per job cancelled (manca RPC domain-aware).",
+        "Rimessa in coda non supportata per job annullati (manca RPC dedicata).",
     };
   }
 
@@ -27,7 +27,7 @@ export function validateRequeueFiscalJob(
     return {
       ok: false,
       status: 409,
-      message: "Job già pending: requeue non necessario.",
+      message: "Job già in coda: rimessa in coda non necessaria.",
     };
   }
 
@@ -36,7 +36,7 @@ export function validateRequeueFiscalJob(
       ok: false,
       status: 400,
       message:
-        "Conferma esplicita richiesta per requeue di job z_report (confirm_z_report).",
+        "Conferma esplicita richiesta per rimettere in coda un job Z-REPORT (confirm_z_report).",
     };
   }
 
@@ -49,13 +49,13 @@ export function validateRequeueFiscalJob(
       ok: false,
       status: 409,
       message:
-        "Per processing bloccato usa Annulla dalla dashboard; requeue processing solo via RPC con force (non esposto).",
+        "Per una stampa bloccata usa Annulla dalla dashboard; la rimessa in coda in processing è solo via RPC con force (non esposta).",
     };
   }
 
   return {
     ok: false,
     status: 409,
-    message: `Requeue non consentito per stato "${job.status}".`,
+    message: `Rimessa in coda non consentita per stato "${job.status}".`,
   };
 }

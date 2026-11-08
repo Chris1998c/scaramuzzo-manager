@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabaseClient";
+import { authUserFacingMessage } from "@/lib/authUserFacingError";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -21,7 +22,7 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(authUserFacingMessage(error, "login"));
       return;
     }
 
@@ -44,7 +45,7 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(authUserFacingMessage(error, "reset_email"));
       return;
     }
 

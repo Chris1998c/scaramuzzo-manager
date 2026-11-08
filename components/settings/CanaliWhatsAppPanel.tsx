@@ -352,7 +352,7 @@ export default function CanaliWhatsAppPanel({
               <div>
                 <div className="text-xs font-bold text-[#f3d8b6]">Reminder automatico attivo</div>
                 <div className="text-[10px] text-[#c9b299]/85 mt-0.5">
- Disattiva solo i messaggi promesso appuntamento; il canale resta regolato da &quot;WhatsApp
+ Disattiva solo i messaggi di promemoria appuntamento; il canale resta regolato da &quot;WhatsApp
  attivo&quot; sopra.
  </div>
  </div>

@@ -86,7 +86,7 @@ export default function AgendaReportPdf(props: Props) {
             <Text style={s.kpiValue}>{String(t.missed)}</Text>
           </View>
           <View style={s.kpiCard}>
-            <Text style={s.kpiLabel}>Completion rate</Text>
+            <Text style={s.kpiLabel}>Completamento</Text>
             <Text style={s.kpiValue}>{pdfPct(t.completion_rate)}</Text>
           </View>
         </View>
@@ -113,7 +113,7 @@ export default function AgendaReportPdf(props: Props) {
                 Appunt.
               </Text>
               <Text style={{ width: "15%", fontSize: 7, fontFamily: "Helvetica-Bold", textAlign: "right" }}>
-                Done
+                Completati
               </Text>
               <Text style={{ width: "15%", fontSize: 7, fontFamily: "Helvetica-Bold", textAlign: "right" }}>
                 No-show

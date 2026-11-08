@@ -86,7 +86,7 @@ export function canManualRequeueJob(
     return {
       allowed: false,
       reason:
-        "Requeue vietato su processing: lo scontrino potrebbe essere già partito verso FPMate.",
+        "Rimessa in coda non consentita durante la stampa: lo scontrino potrebbe essere già partito verso FPMate.",
     };
   }
   const reconcile =
@@ -106,7 +106,7 @@ export function canManualRequeueJob(
     return {
       allowed: false,
       reason:
-        "Riconciliazione richiesta: verificare stampante/documento prima di un requeue.",
+        "Riconciliazione richiesta: verificare stampante/documento prima di rimettere in coda.",
     };
   }
   if (actions.requeue) {
@@ -114,6 +114,7 @@ export function canManualRequeueJob(
   }
   return {
     allowed: false,
-    reason: actions.requeueDisabledReason ?? "Requeue non disponibile per questo stato.",
+    reason:
+      actions.requeueDisabledReason ?? "Rimessa in coda non disponibile per questo stato.",
   };
 }

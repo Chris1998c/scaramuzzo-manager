@@ -34,10 +34,10 @@ export default function ReportAgendaNoShowTable({ rows }: { rows: Row[] }) {
             <tr className="bg-black/30">
               <th className={`${thBase} ${thPrimary} text-left`}>Giorno</th>
               <th className={`${thBase} ${thPrimary} text-right`}>Appunt.</th>
-              <th className={`${thBase} ${thSecondary} text-right`}>Done</th>
+              <th className={`${thBase} ${thSecondary} text-right`}>Completati</th>
               <th className={`${thBase} ${thSecondary} text-right`}>No-show</th>
-              <th className={`${thBase} ${thSecondary} text-right`}>Cancel</th>
-              <th className={`${thBase} ${thPrimary} text-right`}>Completion</th>
+              <th className={`${thBase} ${thSecondary} text-right`}>Annullati</th>
+              <th className={`${thBase} ${thPrimary} text-right`}>Completamento</th>
             </tr>
           </thead>
 
@@ -95,7 +95,7 @@ export default function ReportAgendaNoShowTable({ rows }: { rows: Row[] }) {
 
       <div className="border-t border-white/10 bg-black/20 px-6 py-3">
         <p className="text-xs text-white/40">
-          Completion = Done ÷ Appuntamenti totali (nel giorno).
+          Completamento = Completati ÷ Appuntamenti totali (nel giorno).
         </p>
       </div>
     </div>
