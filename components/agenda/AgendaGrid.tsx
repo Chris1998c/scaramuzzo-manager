@@ -784,7 +784,10 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
         {/* HEADER COLONNE */}
         <div className="relative z-30 flex flex-shrink-0 border-b border-white/[0.12] bg-gradient-to-b from-[#2a1610]/95 via-[#1c0f0a]/75 to-[#160a06]/55 backdrop-blur-[2px]">
           <div className="w-[4.25rem] flex-shrink-0 border-r border-white/[0.1] bg-white/[0.02]" />
-          <div ref={headerRef} className="flex-1 overflow-hidden">
+          <div
+            ref={headerRef}
+            className="flex-1 overflow-hidden pr-[6px]"
+          >
             <div className={`flex ${shouldScrollX ? "w-max" : "w-full"}`}>
               {view === "day"
                 ? dayGridStaff.map((s: any, idx: number) => (
@@ -910,7 +913,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
           <div
             ref={gridContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-auto custom-scrollbar relative bg-gradient-to-br from-[#1c0f0a] via-scz-dark to-[#180b07]"
+            className="flex-1 overflow-x-auto overflow-y-scroll custom-scrollbar relative bg-gradient-to-br from-[#1c0f0a] via-scz-dark to-[#180b07]"
           >
             <div
               className={`flex relative ${shouldScrollX ? "w-max" : "w-full"
