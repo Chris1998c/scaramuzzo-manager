@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compactJobTimeLabel,
   computeBridgeFleetKpis,
   deriveFiscalCassaStatus,
+  formatJobActivity,
   humanProblemsFromRow,
   isBridgeDevEnvironment,
   partitionBridgeRows,
@@ -102,5 +104,34 @@ describe("bridgeDashboardUi", () => {
       }),
     );
     expect(problems[0].title).toMatch(/cassa/i);
+  });
+
+  it("traduce cancelled e non ripete titolo=corpo su warning grezzi", () => {
+    const cancelledJob = {
+      id: 1,
+      kind: "z_report",
+      status: "cancelled",
+      created_at: "2026-11-07T10:00:00Z",
+      completed_at: null,
+      error_message: null,
+      sale_id: null,
+      document_id: null,
+    };
+    expect(formatJobActivity(cancelledJob, "—").primary).toBe("Annullato");
+    expect(compactJobTimeLabel(cancelledJob, "—")).toBe("Annullato");
+
+    const raw = humanProblemsFromRow(
+      row({
+        warnings: [
+          {
+            severity: "red",
+            code: "manager_api_timeout",
+            message: "Manager API timeout 15000ms",
+          },
+        ],
+      }),
+    );
+    expect(raw[0].title).toBe("Manager API timeout 15000ms");
+    expect(raw[0].detail).toBe("");
   });
 });

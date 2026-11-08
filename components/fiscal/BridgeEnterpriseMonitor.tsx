@@ -520,7 +520,9 @@ function ExpandedCassaDetails({
                 className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs"
               >
                 <p className="font-bold text-[#f3d8b6]">{p.title}</p>
-                <p className="text-[#c9b299] mt-0.5">{p.detail}</p>
+                {p.detail && p.detail !== p.title ? (
+                  <p className="text-[#c9b299] mt-0.5">{p.detail}</p>
+                ) : null}
               </li>
             ))}
           </ul>

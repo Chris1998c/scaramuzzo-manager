@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { salonLabel } from "@/lib/constants";
 
 type DailySummaryRow = {
   staff_id: number;
@@ -117,9 +118,6 @@ export default async function PresenzePage() {
               <ClipboardList className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-medium text-white/50 mb-1">
-                Modulo
-              </div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
                 Presenze
               </h1>
@@ -174,7 +172,9 @@ export default async function PresenzePage() {
                     <td className="px-5 py-4 align-middle font-semibold text-[#f3d8b6]">
  {row.staff_name ?? "-"}
                     </td>
-                    <td className="px-5 py-4 align-middle text-[#c9b299]">#{row.salon_id}</td>
+                    <td className="px-5 py-4 align-middle text-[#c9b299]">
+                      {salonLabel(row.salon_id)}
+                    </td>
                     <td className="px-5 py-4 align-middle text-[#c9b299]">
                       {formatDateTime(row.first_clock_in_at)}
                     </td>

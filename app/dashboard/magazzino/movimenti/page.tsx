@@ -338,7 +338,7 @@ export default function MovimentiPage() {
             }
           >
             <RefreshCw size={18} />
-            Aggiorna
+            Aggiorna pagina
           </button>
         </div>
       </div>
@@ -415,7 +415,7 @@ export default function MovimentiPage() {
               }}
             >
               <RefreshCw size={16} />
-              Aggiorna
+              Applica filtri
             </button>
           </div>
         </div>

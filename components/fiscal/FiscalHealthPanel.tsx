@@ -38,10 +38,10 @@ export default function FiscalHealthPanel({
         </div>
         <div>
           <h2 className="text-lg font-extrabold text-[#f3d8b6] tracking-tight">
-            Deep Fiscal Health
+            Stato coda fiscale
           </h2>
           <p className="text-xs text-[#c9b299]">
-            Stato operativo pre-pilota · aggiornato al caricamento pagina
+            Monitoraggio operativo · aggiornato al caricamento pagina
           </p>
         </div>
       </div>
@@ -55,7 +55,7 @@ export default function FiscalHealthPanel({
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-5 md:p-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
  <KpiCard
- label="Pending"
+ label="In attesa"
  value={String(metrics.pendingCount)}
  hint={
  metrics.oldestPendingAgeMinutes != null
@@ -65,7 +65,7 @@ export default function FiscalHealthPanel({
  tone={metrics.pendingCount > 0 ? "warn" : "neutral"}
  />
  <KpiCard
- label="Processing"
+ label="In elaborazione"
  value={String(metrics.processingCount)}
  hint={
  metrics.oldestProcessingAgeMinutes != null
@@ -75,17 +75,17 @@ export default function FiscalHealthPanel({
  tone={metrics.processingCount > 0 ? "warn" : "neutral"}
  />
  <KpiCard
- label="Failed 24h"
+ label="Falliti 24h"
  value={String(metrics.failedLast24h)}
  tone={metrics.failedLast24h > 0 ? "err" : "neutral"}
  />
  <KpiCard
- label="Completed 24h"
+ label="Completati 24h"
  value={String(metrics.completedLast24h)}
  tone={metrics.completedLast24h > 0 ? "ok" : "neutral"}
  />
  <KpiCard
- label="Pending max età"
+ label="Attesa max età"
  value={formatAge(metrics.oldestPendingAgeMinutes)}
  tone={
  metrics.oldestPendingAgeMinutes != null &&
@@ -95,7 +95,7 @@ export default function FiscalHealthPanel({
  }
  />
  <KpiCard
- label="Processing max età"
+ label="Elaboraz. max età"
  value={formatAge(metrics.oldestProcessingAgeMinutes)}
  tone={
  metrics.oldestProcessingAgeMinutes != null &&

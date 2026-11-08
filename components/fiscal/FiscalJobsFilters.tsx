@@ -14,6 +14,21 @@ const STATUSES = [
 
 const KINDS = ["", "sale_receipt", "void_receipt", "z_report"] as const;
 
+/** Solo etichette UI — i value option restano gli stati/kind API. */
+const STATUS_LABELS: Record<string, string> = {
+  pending: "In attesa",
+  processing: "In elaborazione",
+  completed: "Completato",
+  failed: "Fallito",
+  cancelled: "Annullato",
+};
+
+const KIND_LABELS: Record<string, string> = {
+  sale_receipt: "Scontrino vendita",
+  void_receipt: "Scontrino annullo",
+  z_report: "Report Z",
+};
+
 type SalonOption = { id: number; name: string };
 
 type Props = {
@@ -86,7 +101,7 @@ export default function FiscalJobsFilters({
  >
  {STATUSES.map((s) => (
  <option key={s || "all"} value={s}>
- {s === "" ? "Tutti" : s}
+ {s === "" ? "Tutti" : (STATUS_LABELS[s] ?? s)}
               </option>
             ))}
           </select>
@@ -104,7 +119,7 @@ export default function FiscalJobsFilters({
  >
  {KINDS.map((k) => (
  <option key={k || "all"} value={k}>
- {k === "" ? "Tutti" : k}
+ {k === "" ? "Tutti" : (KIND_LABELS[k] ?? k)}
               </option>
             ))}
           </select>

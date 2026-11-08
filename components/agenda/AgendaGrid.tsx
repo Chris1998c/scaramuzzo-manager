@@ -804,7 +804,14 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
                       minWidth: shouldScrollX ? colWidth : undefined,
                     }}
                   >
-                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#f3d8b6]/95 truncate text-center leading-tight max-w-full px-1">
+                    <span
+                      className={
+                        s.is_virtual
+                          ? "text-[11px] font-bold text-[#f3d8b6]/95 text-center leading-snug max-w-full px-1 whitespace-normal break-words"
+                          : "text-xs font-bold uppercase tracking-[0.12em] text-[#f3d8b6]/95 truncate text-center leading-tight max-w-full px-1"
+                      }
+                      title={String(s.name ?? "")}
+                    >
                       {s.name}
                     </span>
                     <span className="w-8 h-px rounded-full bg-gradient-to-r from-transparent via-[#f3d8b6]/35 to-transparent" aria-hidden />

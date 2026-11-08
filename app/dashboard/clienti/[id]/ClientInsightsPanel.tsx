@@ -89,7 +89,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-6">
         <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-4">
           <Lightbulb className="text-[#f3d8b6]" size={20} />
-          <h2 className="text-lg font-bold text-[#f3d8b6]">Insights Cliente</h2>
+          <h2 className="text-lg font-bold text-[#f3d8b6]">Suggerimenti sul cliente</h2>
         </div>
         <p className="text-sm text-white/50">Seleziona un salone per vedere suggerimenti e insights.</p>
       </div>
@@ -102,7 +102,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
         <div className="border-b border-white/10 pb-3 mb-4">
           <div className="flex items-center gap-2">
             <Lightbulb className="text-[#f3d8b6]" size={20} />
-            <h2 className="text-lg font-bold text-[#f3d8b6]">Insights Cliente</h2>
+            <h2 className="text-lg font-bold text-[#f3d8b6]">Suggerimenti sul cliente</h2>
           </div>
           <p className="text-[10px] font-medium uppercase tracking-wider text-white/45 mt-1">Suggerimenti basati sui dati del salone attivo</p>
         </div>
@@ -116,7 +116,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-6">
         <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-4">
           <Lightbulb className="text-[#f3d8b6]" size={20} />
-          <h2 className="text-lg font-bold text-[#f3d8b6]">Insights Cliente</h2>
+          <h2 className="text-lg font-bold text-[#f3d8b6]">Suggerimenti sul cliente</h2>
         </div>
         <p className="text-sm text-red-300/90">{error}</p>
       </div>
@@ -129,7 +129,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Lightbulb className="text-[#f3d8b6]" size={20} />
-            <h2 className="text-lg font-bold text-[#f3d8b6]">Insights Cliente</h2>
+            <h2 className="text-lg font-bold text-[#f3d8b6]">Suggerimenti sul cliente</h2>
  </div>
  <button
  type="button"

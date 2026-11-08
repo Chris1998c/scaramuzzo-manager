@@ -85,8 +85,8 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
           >
             Clienti <ExternalLink size={12} />
           </Link>
-          . In Impostazioni mostriamo solo lo <strong className="text-[#e8dcc8]">stato sintetico</strong>{" "}
-          del dominio dati (conteggi visibili secondo i permessi Supabase).
+          . Qui trovi solo i <strong className="text-[#e8dcc8]">conteggi</strong> di
+          anagrafiche e schede visibili con i tuoi permessi.
         </p>
       </div>
 
@@ -100,7 +100,7 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#c9b299]/70">
-            Dominio dati — conteggi
+            Conteggi anagrafiche e schede
           </p>
           <p className="text-sm text-[#c9b299]/80 mt-1">Aggiornato: {when}</p>
  </div>

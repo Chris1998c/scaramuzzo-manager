@@ -110,10 +110,13 @@ export function humanProblemsFromRow(row: BridgeDashboardEnrichedRow): HumanProb
     if (seen.has(w.code)) continue;
     seen.add(w.code);
     const h = WARNING_HUMAN[w.code];
+    const title = h?.title ?? w.message;
+    // Evita titolo=corpo identici su warning grezzi (es. timeout API).
+    const detail = h?.detail ?? (h ? w.message : "");
     out.push({
       code: w.code,
-      title: h?.title ?? w.message,
-      detail: h?.detail ?? w.message,
+      title,
+      detail,
       tone: w.severity,
     });
   }
@@ -198,7 +201,9 @@ export function formatJobActivity(
           ? "In elaborazione"
           : job.status === "pending"
             ? "In attesa"
-            : job.status;
+            : job.status === "cancelled"
+              ? "Annullato"
+              : job.status;
   return {
     primary: statusIt,
     secondary: when ? when : null,

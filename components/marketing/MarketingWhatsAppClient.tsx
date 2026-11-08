@@ -239,45 +239,40 @@ const READY_ACTIONS: Array<{
   {
     key: "no_return_60",
     title: "Riattiva clienti inattivi",
-    description:
-      "Prepara rapidamente un messaggio per i clienti che non tornano da almeno 60 giorni.",
-    cta: "Prepara invio",
+    description: "Senza visita da almeno 60 giorni.",
+    cta: "Seleziona inattivi",
     message:
       "Ciao! È un po’ che non ci vediamo, se vuoi possiamo organizzare il tuo prossimo appuntamento quando preferisci.",
   },
   {
     key: "high_spend_inactive",
     title: "Alto spendente inattivo",
-    description:
-      "Prepara rapidamente un messaggio per recuperare clienti con alto valore che risultano inattivi.",
-    cta: "Prepara invio",
+    description: "Alto storico spesa e lunga assenza dal salone.",
+    cta: "Seleziona alto spendente",
     message:
       "Ciao! Ci farebbe piacere rivederti in salone. Se vuoi possiamo riservarti un appuntamento dedicato in base alle tue esigenze.",
   },
   {
     key: "retail",
     title: "Retail potenziale",
-    description:
-      "Prepara rapidamente un messaggio per proporre prodotti adatti al tuo percorso.",
-    cta: "Prepara invio",
+    description: "Clienti adatti a una proposta prodotti domiciliare.",
+    cta: "Seleziona retail",
     message:
       "Ciao! Abbiamo selezionato alcuni prodotti che potrebbero essere perfetti per il tuo percorso. Se vuoi, possiamo consigliarti quelli più adatti a te.",
   },
   {
     key: "declining",
     title: "Clienti in calo",
-    description:
-      "Prepara rapidamente un messaggio per riattivare la frequenza e tornare a vedere il cliente in salone.",
-    cta: "Prepara invio",
+    description: "Frequenza in diminuzione rispetto al periodo precedente.",
+    cta: "Seleziona in calo",
     message:
       "Ciao! Potrebbe essere il momento giusto per un piccolo ritocco o trattamento. Se vuoi possiamo organizzare il tuo prossimo appuntamento con calma.",
   },
   {
     key: "frequent",
     title: "Clienti frequenti",
-    description:
-      "Prepara rapidamente un messaggio per fidelizzare e programmare il prossimo appuntamento.",
-    cta: "Prepara invio",
+    description: "Clienti abituali da fidelizzare sul prossimo appuntamento.",
+    cta: "Seleziona frequenti",
     message:
       "Ciao! Grazie per la tua fiducia. Se vuoi possiamo già programmare il tuo prossimo appuntamento oppure consigliarti un servizio adatto al tuo percorso.",
   },
@@ -925,7 +920,7 @@ export default function MarketingWhatsAppClient({
     <div className="space-y-8 max-w-5xl">
       <div>
         <h1 className="text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-          WhatsApp — invio manuale
+          WhatsApp manuale
         </h1>
         <p className="text-[#c9b299] mt-2 text-sm leading-relaxed">
           <strong className="text-[#e8dcc8] font-semibold">Ambito attuale:</strong> prepari il testo,

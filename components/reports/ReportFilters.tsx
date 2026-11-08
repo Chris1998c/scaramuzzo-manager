@@ -185,25 +185,25 @@ export default function ReportFilters({
           Il riepilogo usa oggi e mese corrente. Le date sotto valgono per Vendite, Team e Clienti.
         </p>
       ) : (
-        <div className="grid md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
  <input
  type="date"
  value={dateFrom}
  onChange={(e) => updateParam("date_from", e.target.value)}
-          className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
  />
 
  <input
  type="date"
  value={dateTo}
  onChange={(e) => updateParam("date_to", e.target.value)}
-          className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
  />
 
  <select
  value={staffId ?? ""}
  onChange={(e) => updateParam("staff_id", e.target.value || null)}
-          className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
  >
  <option value="">Tutti Staff</option>
  {staffOptions.map((s) => (
@@ -216,7 +216,7 @@ export default function ReportFilters({
  <select
  value={paymentMethod ?? ""}
  onChange={(e) => updateParam("payment_method", e.target.value || null)}
-          className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
  >
  <option value="">Pagamento</option>
  <option value="cash">Contanti</option>
@@ -226,7 +226,7 @@ export default function ReportFilters({
  <select
  value={itemType ?? ""}
  onChange={(e) => updateParam("item_type", e.target.value || null)}
-          className="px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
  >
  <option value="">Tipo</option>
  <option value="service">Servizi</option>

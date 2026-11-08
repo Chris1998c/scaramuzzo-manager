@@ -10,12 +10,13 @@ type Totals = {
 };
 
 export default function ReportAgendaKpiRow({ totals }: { totals: Totals }) {
-  const card = "p-4 rounded-2xl bg-black/20 border border-white/10";
-  const label = "text-[10px] font-black tracking-[0.25em] uppercase text-white/35";
+  const card = "p-4 rounded-2xl bg-black/20 border border-white/10 min-w-0";
+  const label =
+    "text-[10px] font-black tracking-wide uppercase text-white/35 break-words leading-snug";
 
   return (
     <div className="bg-scz-dark border border-white/10 rounded-2xl p-6">
-      <div className="grid md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
         <div className={card}>
           <div className={label}>Appuntamenti</div>
           <div className="text-2xl font-extrabold text-white mt-1">
@@ -44,7 +45,7 @@ export default function ReportAgendaKpiRow({ totals }: { totals: Totals }) {
           </div>
         </div>
 
-        <div className={card}>
+        <div className={`${card} col-span-2 sm:col-span-1`}>
           <div className={label}>Appuntamenti chiusi</div>
           <div className="text-2xl font-extrabold text-white mt-1">
             {Math.round(totals.completion_rate)}%

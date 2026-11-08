@@ -18,6 +18,8 @@ function getTitleFromPath(pathname: string): string {
  if (pathname.startsWith("/dashboard/clienti")) return "Clienti";
  if (pathname.startsWith("/dashboard/impostazioni")) return "Impostazioni";
  if (pathname.startsWith("/dashboard/cassa")) return "Check-out cassa";
+ if (pathname.startsWith("/dashboard/fiscale/bridge")) return "Bridge stampa";
+ if (pathname.startsWith("/dashboard/fiscale")) return "Job fiscali";
  if (pathname === "/dashboard/magazzino") return "Magazzino";
  if (pathname.startsWith("/dashboard/magazzino/inventario")) return "Inventario";
  if (pathname.startsWith("/dashboard/magazzino/carico")) return "Carico";

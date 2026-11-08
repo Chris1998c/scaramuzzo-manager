@@ -7,6 +7,21 @@ function formatDateTime(value: string | null): string {
   return formatRomeDateTime(value);
 }
 
+/** Etichette UI allineate a FiscalDocumentCard — value DB/API invariati. */
+const STATUS_LABELS: Record<string, string> = {
+  pending: "In attesa",
+  processing: "In elaborazione",
+  completed: "Completato",
+  failed: "Fallito",
+  cancelled: "Annullato",
+};
+
+const KIND_LABELS: Record<string, string> = {
+  sale_receipt: "Scontrino vendita",
+  void_receipt: "Scontrino annullo",
+  z_report: "Report Z",
+};
+
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
   const styles: Record<string, string> = {
@@ -26,7 +41,7 @@ function StatusBadge({ status }: { status: string }) {
     <span
       className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${cls}`}
     >
-      {status || "—"}
+      {(STATUS_LABELS[s] ?? status) || "—"}
     </span>
   );
 }
@@ -97,8 +112,8 @@ export default function FiscalJobsTable({ rows, loadError, canAct }: Props) {
                 </td>
                 <td className="px-4 py-3 text-[#c9b299]">#{row.salon_id}</td>
                 <td className="px-4 py-3">
-                  <span className="font-mono text-xs text-[#f3d8b6]/90">
-                    {row.kind}
+                  <span className="text-xs text-[#f3d8b6]/90">
+                    {KIND_LABELS[row.kind] ?? row.kind}
                   </span>
                 </td>
                 <td className="px-4 py-3">
