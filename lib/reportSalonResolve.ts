@@ -82,14 +82,15 @@ const LEGACY_TAB_TO_NAV: Record<string, Partial<ReportNavigation>> = {
   team: { macro: "team", exportTab: "staff" },
   staff: { macro: "team", exportTab: "staff" },
   clienti: { macro: "clienti", exportTab: "clienti" },
-  vendite: { macro: "vendite", venditeSubtab: "totali", exportTab: "turnover" },
+  // Macro moderne: nessun sottotab fisso — la query `subtab` vince via pickSubtab.
+  vendite: { macro: "vendite" },
   turnover: { macro: "vendite", venditeSubtab: "totali", exportTab: "turnover" },
   daily: { macro: "vendite", venditeSubtab: "giorni", exportTab: "daily" },
   top: { macro: "vendite", venditeSubtab: "totali", exportTab: "top" },
   servizi: { macro: "vendite", venditeSubtab: "servizi", exportTab: "servizi" },
   prodotti: { macro: "vendite", venditeSubtab: "prodotti", exportTab: "prodotti" },
   dettaglio: { macro: "vendite", venditeSubtab: "dettaglio", exportTab: "turnover" },
-  cassa_audit: { macro: "cassa_audit", cassaAuditSubtab: "cassa", exportTab: "cassa" },
+  cassa_audit: { macro: "cassa_audit" },
   cassa: { macro: "cassa_audit", cassaAuditSubtab: "cassa", exportTab: "cassa" },
   agenda: { macro: "cassa_audit", cassaAuditSubtab: "agenda", exportTab: "agenda" },
   whatsapp: { macro: "cassa_audit", cassaAuditSubtab: "whatsapp", exportTab: null },
@@ -129,18 +130,13 @@ export function resolveReportNavigation(
   const partial = LEGACY_TAB_TO_NAV[tab];
   const macro = partial?.macro ?? "riepilogo";
 
-  let venditeSubtab: VenditeSubtabKey =
+  // Sottotab da query se valido; altrimenti valore legacy del tab (es. daily→giorni)
+  // o default della macro (vendite→totali, cassa_audit→cassa).
+  const venditeSubtab: VenditeSubtabKey =
     partial?.venditeSubtab ?? pickSubtab(rawSubtab, VENDITE_SUBTAB_KEYS, "totali");
-  let cassaAuditSubtab: CassaAuditSubtabKey =
+  const cassaAuditSubtab: CassaAuditSubtabKey =
     partial?.cassaAuditSubtab ??
     pickSubtab(rawSubtab, CASSA_AUDIT_SUBTAB_KEYS, "cassa");
-
-  if (macro === "vendite" && partial?.venditeSubtab == null) {
-    venditeSubtab = pickSubtab(rawSubtab, VENDITE_SUBTAB_KEYS, "totali");
-  }
-  if (macro === "cassa_audit" && partial?.cassaAuditSubtab == null) {
-    cassaAuditSubtab = pickSubtab(rawSubtab, CASSA_AUDIT_SUBTAB_KEYS, "cassa");
-  }
 
   let exportTab = partial?.exportTab ?? null;
   if (macro === "vendite") {
