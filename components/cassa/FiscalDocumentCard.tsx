@@ -5,6 +5,10 @@ import { FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import type { FiscalDocumentBySaleResponse } from "@/lib/fiscal/fiscalDocumentTypes";
+import {
+  uncertainFiscalVoidBannerCopy,
+  type UncertainFiscalVoidOutcome,
+} from "@/lib/fiscal/uncertainFiscalVoid";
 
 type Props = {
   saleId: number;
@@ -117,6 +121,17 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
  const [voidModalOpen, setVoidModalOpen] = useState(false);
  const [voidReason, setVoidReason] = useState("");
  const [voidSubmitting, setVoidSubmitting] = useState(false);
+ const [uncertainVoid, setUncertainVoid] = useState(false);
+ const [canResolveUncertain, setCanResolveUncertain] = useState(false);
+ const [resolveOpen, setResolveOpen] = useState(false);
+ const [resolveOutcome, setResolveOutcome] =
+   useState<UncertainFiscalVoidOutcome>("void_not_printed");
+ const [resolveNote, setResolveNote] = useState("");
+ const [resolveReceipt, setResolveReceipt] = useState("");
+ const [resolveZ, setResolveZ] = useState("");
+ const [resolveDate, setResolveDate] = useState("");
+ const [resolveSerial, setResolveSerial] = useState("");
+ const [resolveSubmitting, setResolveSubmitting] = useState(false);
 
  const load = useCallback(
  async (opts?: { silent?: boolean }) => {
@@ -140,6 +155,8 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
  setSaleStatus(data.sale_status ?? null);
  setCanVoidFiscal(!!data.can_void_fiscal);
  setVoidBlockedReason(data.void_blocked_reason ?? null);
+ setUncertainVoid(!!data.uncertain_fiscal_void);
+ setCanResolveUncertain(!!data.can_resolve_uncertain_void);
  setDocument(data.document ?? null);
  } catch (e) {
  setError(e instanceof Error ? e.message : "Errore di rete");
@@ -198,6 +215,62 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
  setVoidSubmitting(false);
  }
  }
+
+ async function submitResolveUncertain() {
+   const note = resolveNote.trim();
+   if (note.length < 10) {
+     toast.error("Nota di conferma obbligatoria (minimo 10 caratteri)");
+     return;
+   }
+   if (resolveOutcome === "void_printed") {
+     if (
+       !resolveReceipt.trim() ||
+       !resolveZ.trim() ||
+       !resolveDate.trim() ||
+       !resolveSerial.trim()
+     ) {
+       toast.error(
+         "Per annullo stampato inserisci n. scontrino, Z, data e matricola letti sulla Epson",
+       );
+       return;
+     }
+   }
+
+   setResolveSubmitting(true);
+   try {
+     const res = await fetch("/api/cassa/resolve-uncertain-void", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         sale_id: saleId,
+         outcome: resolveOutcome,
+         confirmation_note: note,
+         void_fiscal_receipt_number: resolveReceipt.trim() || null,
+         void_z_rep_number: resolveZ.trim() || null,
+         void_fiscal_receipt_date: resolveDate.trim() || null,
+         void_printer_serial: resolveSerial.trim() || null,
+       }),
+     });
+     const data = (await res.json()) as { ok?: boolean; error?: string };
+     if (!res.ok || !data.ok) {
+       throw new Error(data.error ?? "Errore riconciliazione");
+     }
+     setResolveOpen(false);
+     setResolveNote("");
+     toast.success(
+       resolveOutcome === "void_printed"
+         ? "Annullo confermato: ledger aggiornato e stock stornato se dovuto"
+         : "Annullo non stampato: vendita ripristinata senza storno stock",
+     );
+     await load({ silent: true });
+   } catch (e) {
+     toast.error(e instanceof Error ? e.message : "Errore riconciliazione");
+   } finally {
+     setResolveSubmitting(false);
+   }
+ }
+
+ const uncertainCopy = uncertainFiscalVoidBannerCopy();
 
  const fiscalMeta = metaFor(
  FISCAL_STATUS_META,
@@ -279,6 +352,26 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
  </p>
  )}
 
+ {!loading && !error && uncertainVoid && (
+   <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-5 py-4 space-y-3">
+     <div className="text-sm font-bold text-amber-100">{uncertainCopy.title}</div>
+     <p className="text-xs text-amber-100/80 leading-relaxed">{uncertainCopy.detail}</p>
+     {canResolveUncertain ? (
+       <button
+         type="button"
+         onClick={() => setResolveOpen(true)}
+         className="min-h-[40px] px-4 rounded-xl border border-amber-400/40 bg-amber-500/20 text-amber-50 text-[10px] font-black uppercase tracking-[0.14em] hover:bg-amber-500/30"
+       >
+         Risolvi dopo verifica Epson
+       </button>
+     ) : (
+       <p className="text-xs text-amber-100/60">
+         Solo il coordinator può chiudere il caso dopo controllo fisico.
+       </p>
+     )}
+   </div>
+ )}
+
  {!loading && !error && !document && (
  <div className="rounded-xl border border-dashed border-white/15 bg-black/20 px-5 py-6 text-center">
  <p className="text-sm font-medium text-white/55">
@@ -352,6 +445,125 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
  </div>
  </div>
  </div>
+
+ {resolveOpen && (
+   <div
+     className="fixed inset-0 z-[300] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4"
+     onClick={() => {
+       if (!resolveSubmitting) setResolveOpen(false);
+     }}
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="resolve-uncertain-void-title"
+   >
+     <div
+       className="w-full max-w-lg rounded-2xl border border-white/10 bg-scz-dark overflow-hidden text-white"
+       onClick={(e) => e.stopPropagation()}
+     >
+       <div className="px-6 py-5 border-b border-white/10 bg-black/20 space-y-3">
+         <h2
+           id="resolve-uncertain-void-title"
+           className="text-lg font-bold text-[#f3d8b6]"
+         >
+           {uncertainCopy.title}
+         </h2>
+         <p className="text-sm text-white/70">
+           Vendita #{saleId}. Controlla sulla Epson se è uscito lo scontrino di
+           annullo, poi seleziona l’esito. Nessun comando viene inviato alla
+           stampante.
+         </p>
+         <div className="space-y-2">
+           <label className="flex items-start gap-2 text-sm text-white/80">
+             <input
+               type="radio"
+               name="void-outcome"
+               checked={resolveOutcome === "void_not_printed"}
+               onChange={() => setResolveOutcome("void_not_printed")}
+               disabled={resolveSubmitting}
+               className="mt-1"
+             />
+             <span>
+               Annullo <strong>non</strong> stampato → ripristina vendita, nessuno
+               storno stock
+             </span>
+           </label>
+           <label className="flex items-start gap-2 text-sm text-white/80">
+             <input
+               type="radio"
+               name="void-outcome"
+               checked={resolveOutcome === "void_printed"}
+               onChange={() => setResolveOutcome("void_printed")}
+               disabled={resolveSubmitting}
+               className="mt-1"
+             />
+             <span>
+               Annullo <strong>stampato</strong> → chiudi come voided e storna stock
+               (inserisci coordinate dallo scontrino)
+             </span>
+           </label>
+         </div>
+         {resolveOutcome === "void_printed" && (
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+             <input
+               value={resolveReceipt}
+               onChange={(e) => setResolveReceipt(e.target.value)}
+               placeholder="N. scontrino annullo"
+               disabled={resolveSubmitting}
+               className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+             />
+             <input
+               value={resolveZ}
+               onChange={(e) => setResolveZ(e.target.value)}
+               placeholder="Z rep."
+               disabled={resolveSubmitting}
+               className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+             />
+             <input
+               value={resolveDate}
+               onChange={(e) => setResolveDate(e.target.value)}
+               placeholder="Data (es. 2026-11-11)"
+               disabled={resolveSubmitting}
+               className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+             />
+             <input
+               value={resolveSerial}
+               onChange={(e) => setResolveSerial(e.target.value)}
+               placeholder="Matricola Epson"
+               disabled={resolveSubmitting}
+               className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+             />
+           </div>
+         )}
+         <textarea
+           value={resolveNote}
+           onChange={(e) => setResolveNote(e.target.value)}
+           rows={3}
+           disabled={resolveSubmitting}
+           placeholder="Nota di verifica (obbligatoria, min 10 caratteri)"
+           className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm resize-y min-h-[80px]"
+         />
+       </div>
+       <div className="px-6 py-4 flex justify-end gap-3">
+         <button
+           type="button"
+           disabled={resolveSubmitting}
+           onClick={() => setResolveOpen(false)}
+           className="px-4 py-2.5 rounded-xl border border-white/10 bg-black/30 text-white/90 font-medium disabled:opacity-50"
+         >
+           Chiudi
+         </button>
+         <button
+           type="button"
+           disabled={resolveSubmitting || resolveNote.trim().length < 10}
+           onClick={() => void submitResolveUncertain()}
+           className="px-4 py-2.5 rounded-xl bg-[#f3d8b6] text-scz-dark font-bold disabled:opacity-40"
+         >
+           {resolveSubmitting ? "Salvataggio…" : "Conferma esito"}
+         </button>
+       </div>
+     </div>
+   </div>
+ )}
 
  {voidModalOpen && (
  <div

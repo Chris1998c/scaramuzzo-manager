@@ -32,6 +32,10 @@ export type FiscalDocumentBySaleResponse = {
   sale_status?: string | null;
   document: FiscalDocumentView | null;
   void_void_job?: VoidVoidJobInfo | null;
+  /** Ultimo void_receipt cancelled/failed (per recovery dopo cancel processing). */
+  cancelled_void_job?: VoidVoidJobInfo | null;
+  uncertain_fiscal_void?: boolean;
+  can_resolve_uncertain_void?: boolean;
   can_void_fiscal?: boolean;
   void_blocked_reason?: string | null;
 };

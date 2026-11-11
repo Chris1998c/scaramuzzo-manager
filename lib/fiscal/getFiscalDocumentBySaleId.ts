@@ -13,6 +13,7 @@ export async function getFiscalDocumentBySaleId(
   sale_status: string | null;
   document: FiscalDocumentView | null;
   void_void_job: VoidVoidJobInfo | null;
+  cancelled_void_job: VoidVoidJobInfo | null;
 }> {
   const { data: saleRow, error: saleErr } = await supabaseAdmin
     .from("sales")
@@ -27,6 +28,7 @@ export async function getFiscalDocumentBySaleId(
       sale_status: null,
       document: null,
       void_void_job: null,
+      cancelled_void_job: null,
     };
   }
 
@@ -59,6 +61,28 @@ export async function getFiscalDocumentBySaleId(
     };
   }
 
+  const { data: cancelledRows, error: cancelledErr } = await supabaseAdmin
+    .from("fiscal_print_jobs")
+    .select("id, status")
+    .eq("sale_id", saleId)
+    .eq("kind", "void_receipt")
+    .in("status", ["cancelled", "failed"])
+    .order("id", { ascending: false })
+    .limit(1);
+
+  if (cancelledErr) throw cancelledErr;
+
+  let cancelled_void_job: VoidVoidJobInfo | null = null;
+  const cancelledRaw = (cancelledRows ?? [])[0] as
+    | { id?: unknown; status?: unknown }
+    | undefined;
+  if (cancelledRaw?.id != null) {
+    cancelled_void_job = {
+      job_id: Number(cancelledRaw.id),
+      status: String(cancelledRaw.status ?? "cancelled"),
+    };
+  }
+
   const { data: docRows, error: docErr } = await supabaseAdmin
     .from("fiscal_documents")
     .select(
@@ -86,7 +110,13 @@ export async function getFiscalDocumentBySaleId(
 
   const raw = (docRows ?? [])[0] as Record<string, unknown> | undefined;
   if (!raw) {
-    return { fiscal_status, sale_status, document: null, void_void_job };
+    return {
+      fiscal_status,
+      sale_status,
+      document: null,
+      void_void_job,
+      cancelled_void_job,
+    };
   }
 
   const job = raw.fiscal_print_jobs as { status?: unknown } | null;
@@ -123,5 +153,11 @@ export async function getFiscalDocumentBySaleId(
     created_at: raw.created_at != null ? String(raw.created_at) : null,
   };
 
-  return { fiscal_status, sale_status, document, void_void_job };
+  return {
+    fiscal_status,
+    sale_status,
+    document,
+    void_void_job,
+    cancelled_void_job,
+  };
 }

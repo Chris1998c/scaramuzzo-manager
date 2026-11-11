@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getFiscalDocumentBySaleId } from "@/lib/fiscal/getFiscalDocumentBySaleId";
 import { computeVoidFiscalEligibility } from "@/lib/fiscal/voidFiscalEligibility";
+import { isUncertainFiscalVoid } from "@/lib/fiscal/uncertainFiscalVoid";
 import { getUserAccess } from "@/lib/getUserAccess";
 
 export const runtime = "nodejs";
@@ -64,15 +65,27 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
     }
 
-    const { fiscal_status, sale_status, document, void_void_job } =
-      await getFiscalDocumentBySaleId(saleId);
+    const {
+      fiscal_status,
+      sale_status,
+      document,
+      void_void_job,
+      cancelled_void_job,
+    } = await getFiscalDocumentBySaleId(saleId);
 
+    const isCoordinator = access.role === "coordinator";
     const voidEligibility = computeVoidFiscalEligibility({
-      isCoordinator: access.role === "coordinator",
+      isCoordinator,
       fiscalStatus: fiscal_status,
       saleStatus: sale_status,
       document,
       voidVoidJob: void_void_job,
+    });
+
+    const uncertain = isUncertainFiscalVoid({
+      saleStatus: sale_status,
+      voidVoidJob: void_void_job,
+      latestCancelledVoidJobId: cancelled_void_job?.job_id ?? null,
     });
 
     return NextResponse.json({
@@ -82,8 +95,13 @@ export async function GET(req: Request) {
       sale_status,
       document,
       void_void_job,
+      cancelled_void_job,
+      uncertain_fiscal_void: uncertain,
+      can_resolve_uncertain_void: uncertain && isCoordinator,
       can_void_fiscal: voidEligibility.canVoid,
-      void_blocked_reason: voidEligibility.reason,
+      void_blocked_reason: uncertain
+        ? "Esito fiscale da verificare sulla stampante Epson (void processing cancellato)."
+        : voidEligibility.reason,
     });
   } catch (e) {
     console.error("GET /api/cassa/fiscal-document", e);
