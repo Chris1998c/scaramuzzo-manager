@@ -22,11 +22,11 @@ import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar
 import {
   assertBatchInternalStaffSlotsFree,
   assertStaffSlotFree,
-  computeLineEndTime,
   isStaffSlotConflictFromDbError,
   isStaffSlotConflictOrDbError,
   STAFF_SLOT_CONFLICT_MESSAGE,
 } from "@/lib/agenda/assertStaffSlotFree";
+import { buildContiguousAgendaLines } from "@/lib/agenda/buildContiguousAgendaLines";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 
 export const runtime = "nodejs";
@@ -183,27 +183,15 @@ export async function POST(req: Request) {
           )
         : undefined;
 
-    let cursorMs = parseLocal(snappedStart).getTime();
-    const batchLines: Array<{
-      staffId: number | null;
-      startTime: string;
-      durationMinutes: number;
-      duration_active: number;
-      duration_processing: number;
-      need_processing: boolean;
-    }> = [];
-    for (const line of normalizedLines) {
-      const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
-      batchLines.push({
-        staffId: line.staff_id,
-        startTime: lineStart,
-        durationMinutes: line.duration_minutes,
-        duration_active: line.duration_active,
-        duration_processing: line.duration_processing,
-        need_processing: line.need_processing,
-      });
-      cursorMs += line.duration_minutes * 60_000;
-    }
+    const timedLines = buildContiguousAgendaLines(snappedStart, normalizedLines);
+    const batchLines = timedLines.map((line) => ({
+      staffId: line.staff_id,
+      startTime: line.start_time,
+      durationMinutes: line.duration_minutes,
+      duration_active: line.duration_active,
+      duration_processing: line.duration_processing,
+      need_processing: line.need_processing,
+    }));
 
     try {
       assertBatchInternalStaffSlotsFree(batchLines);
@@ -214,16 +202,13 @@ export async function POST(req: Request) {
       throw e;
     }
 
-    cursorMs = parseLocal(snappedStart).getTime();
-    for (const line of normalizedLines) {
+    for (const line of timedLines) {
       if (line.staff_id != null) {
-        const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
-        const lineEnd = computeLineEndTime(lineStart, line.duration_minutes);
         await assertStaffScheduledForStartTime({
           supabase: supabaseAdmin,
           salonId,
           staffId: line.staff_id,
-          startTime: lineStart,
+          startTime: line.start_time,
           durationMinutes: line.duration_minutes,
           scheduleMap,
           operationalSnapshot,
@@ -233,15 +218,14 @@ export async function POST(req: Request) {
           supabase: supabaseAdmin,
           salonId,
           staffId: line.staff_id,
-          startTime: lineStart,
-          endTime: lineEnd,
+          startTime: line.start_time,
+          endTime: line.end_time,
           durationMinutes: line.duration_minutes,
           duration_active: line.duration_active,
           duration_processing: line.duration_processing,
           need_processing: line.need_processing,
         });
       }
-      cursorMs += line.duration_minutes * 60_000;
     }
 
     const { data: appData, error: appErr } = await supabaseAdmin
@@ -265,13 +249,12 @@ export async function POST(req: Request) {
     }
     appointmentIdCreated = appointmentId;
 
-    cursorMs = parseLocal(snappedStart).getTime();
-    for (const line of normalizedLines) {
+    for (const line of timedLines) {
       const row = {
         appointment_id: appointmentId,
         service_id: line.service_id,
         staff_id: line.staff_id,
-        start_time: toNoZ(snapToAgendaSlot(new Date(cursorMs))),
+        start_time: line.start_time,
         duration_minutes: line.duration_minutes,
         duration_active: line.duration_active,
         duration_processing: line.duration_processing,
@@ -287,8 +270,6 @@ export async function POST(req: Request) {
         }
         throw new Error(lineErr.message);
       }
-
-      cursorMs += line.duration_minutes * 60_000;
     }
 
     const synced = await syncAppointmentHeaderFromDb(supabaseAdmin, appointmentId);

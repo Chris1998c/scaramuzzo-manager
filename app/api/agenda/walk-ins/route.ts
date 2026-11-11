@@ -15,11 +15,11 @@ import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar
 import {
   assertBatchInternalStaffSlotsFree,
   assertStaffSlotFree,
-  computeLineEndTime,
   isStaffSlotConflictFromDbError,
   isStaffSlotConflictOrDbError,
   STAFF_SLOT_CONFLICT_MESSAGE,
 } from "@/lib/agenda/assertStaffSlotFree";
+import { buildContiguousAgendaLines } from "@/lib/agenda/buildContiguousAgendaLines";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 import {
   normalizeStaffId,
@@ -133,29 +133,36 @@ export async function POST(req: Request) {
         ? await fetchOperationalCalendarSnapshot(supabaseAdmin, salonId, opIsoDate, [staffId])
         : undefined;
 
-    let cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
-    const batchLines: Array<{
-      staffId: number | null;
-      startTime: string;
-      durationMinutes: number;
-      duration_active: number;
-      duration_processing: number;
-      need_processing: boolean;
-    }> = [];
-    for (const serviceId of serviceIds) {
-      const resolved = resolvedServices.data.get(serviceId);
-      if (!resolved) continue;
-      const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
-      batchLines.push({
-        staffId,
-        startTime: lineStart,
-        durationMinutes: resolved.duration_minutes,
-        duration_active: resolved.duration_active,
-        duration_processing: resolved.duration_processing,
-        need_processing: resolved.need_processing,
-      });
-      cursorMs += resolved.duration_minutes * 60_000;
+    const walkInLines = serviceIds
+      .map((serviceId) => {
+        const resolved = resolvedServices.data.get(serviceId);
+        if (!resolved) return null;
+        return {
+          service_id: serviceId,
+          staff_id: staffId,
+          duration_minutes: resolved.duration_minutes,
+          duration_active: resolved.duration_active,
+          duration_processing: resolved.duration_processing,
+          need_processing: resolved.need_processing,
+          price: resolved.price,
+          vat_rate: resolved.vat_rate,
+        };
+      })
+      .filter((l): l is NonNullable<typeof l> => l != null);
+
+    if (walkInLines.length !== serviceIds.length) {
+      return NextResponse.json({ error: "Servizio non valido nel walk-in." }, { status: 400 });
     }
+
+    const timedLines = buildContiguousAgendaLines(snappedStart, walkInLines);
+    const batchLines = timedLines.map((line) => ({
+      staffId: line.staff_id,
+      startTime: line.start_time,
+      durationMinutes: line.duration_minutes,
+      duration_active: line.duration_active,
+      duration_processing: line.duration_processing,
+      need_processing: line.need_processing,
+    }));
 
     try {
       assertBatchInternalStaffSlotsFree(batchLines);
@@ -166,18 +173,13 @@ export async function POST(req: Request) {
       throw e;
     }
 
-    cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
-    for (const serviceId of serviceIds) {
-      const resolved = resolvedServices.data.get(serviceId);
-      if (!resolved) continue;
-      const lineStart = toNoZ(snapToAgendaSlot(new Date(cursorMs)));
-      const lineEnd = computeLineEndTime(lineStart, resolved.duration_minutes);
+    for (const line of timedLines) {
       await assertStaffScheduledForStartTime({
         supabase: supabaseAdmin,
         salonId,
         staffId,
-        startTime: lineStart,
-        durationMinutes: resolved.duration_minutes,
+        startTime: line.start_time,
+        durationMinutes: line.duration_minutes,
         scheduleMap,
         operationalSnapshot,
         operationalIsoDate: opIsoDate ?? undefined,
@@ -186,14 +188,13 @@ export async function POST(req: Request) {
         supabase: supabaseAdmin,
         salonId,
         staffId,
-        startTime: lineStart,
-        endTime: lineEnd,
-        durationMinutes: resolved.duration_minutes,
-        duration_active: resolved.duration_active,
-        duration_processing: resolved.duration_processing,
-        need_processing: resolved.need_processing,
+        startTime: line.start_time,
+        endTime: line.end_time,
+        durationMinutes: line.duration_minutes,
+        duration_active: line.duration_active,
+        duration_processing: line.duration_processing,
+        need_processing: line.need_processing,
       });
-      cursorMs += resolved.duration_minutes * 60_000;
     }
 
     const { data: appData, error: appErr } = await supabaseAdmin
@@ -221,24 +222,18 @@ export async function POST(req: Request) {
     }
     appointmentIdCreated = appointmentId;
 
-    cursorMs = snapToAgendaSlot(nowRomeLocalDate()).getTime();
-    for (const serviceId of serviceIds) {
-      const resolved = resolvedServices.data.get(serviceId);
-      if (!resolved) {
-        return NextResponse.json({ error: `Servizio non valido (id ${serviceId}).` }, { status: 400 });
-      }
-
+    for (const line of timedLines) {
       const lineRow = {
         appointment_id: appointmentId,
-        service_id: serviceId,
-        staff_id: staffId,
-        start_time: toNoZ(snapToAgendaSlot(new Date(cursorMs))),
-        duration_minutes: resolved.duration_minutes,
-        duration_active: resolved.duration_active,
-        duration_processing: resolved.duration_processing,
-        need_processing: resolved.need_processing,
-        price: resolved.price,
-        vat_rate: resolved.vat_rate,
+        service_id: line.service_id,
+        staff_id: line.staff_id,
+        start_time: line.start_time,
+        duration_minutes: line.duration_minutes,
+        duration_active: line.duration_active,
+        duration_processing: line.duration_processing,
+        need_processing: line.need_processing,
+        price: line.price,
+        vat_rate: line.vat_rate,
       };
 
       const { error: lineErr } = await supabaseAdmin.from("appointment_services").insert(lineRow);
@@ -248,8 +243,6 @@ export async function POST(req: Request) {
         }
         throw new Error(lineErr.message);
       }
-
-      cursorMs += resolved.duration_minutes * 60_000;
     }
 
     const synced = await syncAppointmentHeaderFromDb(supabaseAdmin, appointmentId);
