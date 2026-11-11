@@ -126,6 +126,11 @@ function resolveExistingIdempotencyRow(
   }
 
   if (row.status === "processing") {
+    // Create già riuscito ma complete fallito: response/booking_id presenti → replay.
+    const partialBooking = extractBookingFromResponse(row.response);
+    if (partialBooking) {
+      return { action: "replay", booking: partialBooking };
+    }
     if (isProcessingStale(row.created_at, nowMs)) {
       return { action: "retry" };
     }
@@ -188,6 +193,20 @@ export async function beginCustomerBookingIdempotency(
   }
 
   const resolved = resolveExistingIdempotencyRow(existing, input.requestHash, nowMs);
+  if (resolved.action === "replay") {
+    // Promote processing→success quando il booking era già stato creato (complete fallito).
+    if (existing.status === "processing") {
+      await admin
+        .from("customer_booking_idempotency_keys")
+        .update({
+          status: "success",
+          booking_id: resolved.booking.id,
+          response: { booking: resolved.booking },
+        })
+        .eq("id", existing.id);
+    }
+    return resolved;
+  }
   if (resolved.action !== "retry") {
     return resolved;
   }
@@ -244,6 +263,52 @@ export async function completeCustomerBookingIdempotency(
 
   if (error) {
     throw new Error(`completeCustomerBookingIdempotency: ${error.message}`);
+  }
+}
+
+/**
+ * Dopo create riuscita: completa la chiave; se fallisce, persiste comunque
+ * booking_id+response così un retry riplaya lo stesso booking (niente secondo insert).
+ */
+export async function finalizeCustomerBookingIdempotency(
+  admin: SupabaseClient,
+  recordId: string,
+  booking: CustomerAppBookingDto,
+): Promise<void> {
+  try {
+    await completeCustomerBookingIdempotency(admin, recordId, booking);
+    return;
+  } catch (completeErr) {
+    console.error(
+      "completeCustomerBookingIdempotency:",
+      completeErr instanceof Error ? completeErr.message : completeErr,
+    );
+  }
+
+  const { error } = await admin
+    .from("customer_booking_idempotency_keys")
+    .update({
+      booking_id: booking.id,
+      response: { booking },
+      // lascia processing se lo status update fallisce; begin riplaya da response
+      status: "success",
+    })
+    .eq("id", recordId);
+
+  if (error) {
+    // Ultimo tentativo: almeno response/booking_id senza forzare status
+    const { error: attachErr } = await admin
+      .from("customer_booking_idempotency_keys")
+      .update({
+        booking_id: booking.id,
+        response: { booking },
+      })
+      .eq("id", recordId);
+    if (attachErr) {
+      throw new Error(
+        `finalizeCustomerBookingIdempotency: ${error.message}; attach: ${attachErr.message}`,
+      );
+    }
   }
 }
 

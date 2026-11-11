@@ -11,7 +11,7 @@ import {
 } from "@/lib/customer-app/customerApiResponse";
 import {
   beginCustomerBookingIdempotency,
-  completeCustomerBookingIdempotency,
+  finalizeCustomerBookingIdempotency,
   hashCustomerBookingPayload,
   parseCustomerBookingIdempotencyKey,
   releaseCustomerBookingIdempotency,
@@ -106,16 +106,16 @@ export async function POST(req: Request) {
 
       if (idempotencyRecordId) {
         try {
-          await completeCustomerBookingIdempotency(
+          await finalizeCustomerBookingIdempotency(
             supabaseAdmin,
             idempotencyRecordId,
             booking,
           );
-        } catch (completeErr) {
-          // Booking già creato: non rilasciare la chiave (retry → replay/409, non secondo insert).
+        } catch (finalizeErr) {
+          // Booking già creato: non rilasciare; retry con stessa key deve riplayare.
           console.error(
-            "customer/v1/bookings idempotency complete:",
-            completeErr instanceof Error ? completeErr.message : completeErr,
+            "customer/v1/bookings idempotency finalize:",
+            finalizeErr instanceof Error ? finalizeErr.message : finalizeErr,
           );
         }
       }
