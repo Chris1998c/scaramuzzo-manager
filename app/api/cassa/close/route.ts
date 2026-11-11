@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { checkPrintBridgeReachable } from "@/lib/printBridgeHealth";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { mapCassaStockRpcError } from "@/lib/cassa/cassaStockError";
+import { appointmentCheckoutIdempotencyKey } from "@/lib/cassa/appointmentCheckoutIdempotency";
 import { allocateSaleGlobalDiscount } from "@/lib/reports/allocateSaleGlobalDiscount";
 
 export const runtime = "nodejs";
@@ -385,6 +386,7 @@ export async function POST(req: Request) {
     let appointmentHeaderStaffId: number | null = null;
     let customerId: string | null = null;
     let appointmentId: number | null = null;
+    let existingAppointmentSaleId: number | null = null;
     let appointmentServiceLines: AppointmentServiceLine[] = [];
     const operatorStaffId = normalizeOptionalStaffId(access.staffId);
 
@@ -404,18 +406,9 @@ export async function POST(req: Request) {
         );
       }
 
-      // blocca doppia chiusura / doppia vendita
-      if ((appt as { sale_id?: unknown }).sale_id != null) {
-        return NextResponse.json(
-          {
-            error: "Appuntamento già chiuso in cassa",
-            already_closed: true,
-            sale_id: (appt as { sale_id?: unknown }).sale_id ?? null,
-          },
-          { status: 409 }
-        );
-      }
-
+      existingAppointmentSaleId = coerceRpcBigintField(
+        (appt as { sale_id?: unknown }).sale_id,
+      );
       const apptStatus = String((appt as { status?: unknown }).status ?? "");
 
       if (apptStatus === "cancelled") {
@@ -425,18 +418,22 @@ export async function POST(req: Request) {
         );
       }
 
-      if (apptStatus === "done") {
-        return NextResponse.json(
-          { error: "Appuntamento già chiuso" },
-          { status: 400 }
-        );
-      }
+      // Replay: sale_id già presente → risposta idempotente dopo authz (niente nuova RPC).
+      // Nuovo checkout solo da in_sala; race concorrente chiusa in close_sale_atomic.
+      if (existingAppointmentSaleId == null) {
+        if (apptStatus === "done") {
+          return NextResponse.json(
+            { error: "Appuntamento già chiuso" },
+            { status: 400 }
+          );
+        }
 
-      if (apptStatus !== "in_sala") {
-        return NextResponse.json(
-          { error: "Appuntamento non in sala: chiusura cassa non consentita" },
-          { status: 400 }
-        );
+        if (apptStatus !== "in_sala") {
+          return NextResponse.json(
+            { error: "Appuntamento non in sala: chiusura cassa non consentita" },
+            { status: 400 }
+          );
+        }
       }
 
       const requestedSalonId = hasSalonIdInBody
@@ -519,6 +516,38 @@ export async function POST(req: Request) {
           { status: 403 }
         );
       }
+    }
+
+    if (appointmentId != null && existingAppointmentSaleId != null) {
+      const { data: existingJob, error: jobErr } = await supabaseAdmin
+        .from("fiscal_print_jobs")
+        .select("id")
+        .eq("kind", "sale_receipt")
+        .eq("sale_id", existingAppointmentSaleId)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (jobErr) {
+        return NextResponse.json(
+          { error: "Errore lettura job fiscale esistente" },
+          { status: 500 },
+        );
+      }
+
+      const fiscalPrintJobId = coerceRpcBigintField(
+        (existingJob as { id?: unknown } | null)?.id,
+      );
+
+      return NextResponse.json({
+        success: true,
+        ok: true,
+        sale_id: existingAppointmentSaleId,
+        ...(fiscalPrintJobId != null
+          ? { fiscal_print_job_id: fiscalPrintJobId }
+          : {}),
+        idempotent_replay: true as const,
+      });
     }
 
     // 5) CASSA APERTA
@@ -861,7 +890,9 @@ export async function POST(req: Request) {
         p_items: pItems,
         p_cash_session_id: cashSessionId,
         p_appointment_id: appointmentId ?? null,
-        p_idempotency_key: !appointmentId ? idempotencyKey : null,
+        p_idempotency_key: appointmentId
+          ? appointmentCheckoutIdempotencyKey(appointmentId)
+          : idempotencyKey,
         p_created_by: userId,
         p_fiscal_enabled: fiscalEnabled,
         p_fiscal_payload: fiscalPayload,
