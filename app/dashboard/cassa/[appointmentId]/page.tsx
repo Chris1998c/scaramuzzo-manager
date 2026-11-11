@@ -11,6 +11,7 @@ import {
   CASSA_STOCK_INSUFFICIENT_CODE,
   formatCassaStockInsufficientMessage,
 } from "@/lib/cassa/cassaStockError";
+import { cassaCloseSuccessToast } from "@/lib/cassa/cassaCloseSuccessToast";
 import { toast } from "sonner";
 import FiscalDocumentCard from "@/components/cassa/FiscalDocumentCard";
 import {
@@ -570,22 +571,27 @@ setProducts(cashProducts);
           : rawJob != null && !Number.isNaN(Number(rawJob))
             ? Number(rawJob)
             : undefined;
+      const printerEnabledRes =
+        typeof data?.printer_enabled === "boolean"
+          ? data.printer_enabled
+          : typeof printerEnabled === "boolean"
+            ? printerEnabled
+            : null;
 
-      if (data?.warning) {
-        toast.warning("Vendita registrata", {
-          description: String(data.warning),
+      const closeToast = cassaCloseSuccessToast({
+        warning: data?.warning != null ? String(data.warning) : null,
+        fiscalPrintJobId: jobId ?? null,
+        printerEnabled: printerEnabledRes,
+      });
+      if (closeToast.tone === "warning") {
+        toast.warning(closeToast.title, {
+          description: closeToast.description,
           duration: 12_000,
         });
-      } else if (jobId != null) {
-        toast.success("Vendita registrata", {
-          description: `Stampa fiscale in coda (job n. ${jobId}). Il Print Bridge locale elabora la coda verso Epson FP81 RT; lo stato si aggiorna al callback.`,
-          duration: 9500,
-        });
       } else {
-        toast.success("Vendita registrata", {
-          description:
-            "Stampante di sessione disattivata nel sistema: vendita salvata; nessuna stampa fiscale accodata da questa cassa.",
-          duration: 7000,
+        toast.success(closeToast.title, {
+          description: closeToast.description,
+          duration: jobId != null ? 9500 : 7000,
         });
       }
 
