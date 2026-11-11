@@ -4,6 +4,7 @@ import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { splitCassaReportItemGross } from "@/lib/cassa/cassaReportItemSplit";
+import { utcWallBoundsForRomeBusinessDate } from "@/lib/datetime/romeBusinessDate";
 import {
   SALES_LEDGER_OPERATION_TYPE,
   SALES_LEDGER_STATUS,
@@ -108,10 +109,9 @@ export async function GET(req: Request) {
     if (salonErr) return NextResponse.json({ error: salonErr.message }, { status: 500 });
     if (!salonRow) return NextResponse.json({ error: "Salone non trovato" }, { status: 404 });
 
-    // RANGE OGGI (Europe/Rome)
+    // RANGE OGGI operativo Europe/Rome su sales.date (UTC wall)
     const today = todayRomeISO();
-    const start = `${today}T00:00:00`;
-    const end = `${today}T23:59:59.999`;
+    const { startUtcWall, endUtcWallExclusive } = utcWallBoundsForRomeBusinessDate(today);
 
     // SALES di oggi
     const { data: sales, error: salesErr } = await supabaseAdmin
@@ -120,8 +120,8 @@ export async function GET(req: Request) {
       .eq("salon_id", salonId)
       .eq("status", SALES_LEDGER_STATUS)
       .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
-      .gte("date", start)
-      .lte("date", end)
+      .gte("date", startUtcWall)
+      .lt("date", endUtcWallExclusive)
       .order("date", { ascending: true });
 
     if (salesErr) return NextResponse.json({ error: salesErr.message }, { status: 500 });
@@ -181,7 +181,7 @@ export async function GET(req: Request) {
       ok: true,
       salon: { id: (salonRow as any).id, name: (salonRow as any).name ?? null },
       day: today,
-      range: { start, end },
+      range: { start: startUtcWall, end: endUtcWallExclusive },
       totals: {
         gross: round2(gross),
         cash: round2(cash),

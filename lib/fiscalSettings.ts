@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { utcWallBoundsForRomeBusinessDate } from "@/lib/datetime/romeBusinessDate";
 import { checkPrintBridgeReachable } from "@/lib/printBridgeHealth";
 import type {
   CashSessionFiscalRow,
@@ -30,11 +31,16 @@ export function todayRomeISO(): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Bounds su `sales.date` (timestamp UTC-wall) per il giorno operativo Rome odierno.
+ * `end` è esclusivo (usare `.lt`, non `.lte`).
+ */
 export function todayRomeBoundsIso(): { start: string; end: string } {
   const day = todayRomeISO();
+  const b = utcWallBoundsForRomeBusinessDate(day);
   return {
-    start: `${day}T00:00:00`,
-    end: `${day}T23:59:59.999`,
+    start: b.startUtcWall,
+    end: b.endUtcWallExclusive,
   };
 }
 
@@ -52,7 +58,7 @@ export async function fetchFiscalTodayStatusCounts(
     .select("fiscal_status")
     .eq("salon_id", salonId)
     .gte("date", start)
-    .lte("date", end);
+    .lt("date", end);
 
   if (error || !Array.isArray(data)) {
     return { by_status: {}, total: 0 };

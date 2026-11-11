@@ -1,3 +1,4 @@
+import { utcWallBoundsForRomeBusinessDate } from "@/lib/datetime/romeBusinessDate";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import {
   SALES_LEDGER_OPERATION_TYPE,
@@ -48,14 +49,17 @@ export async function fetchSaleIdsInRange(
   dateTo: string,
 ): Promise<number[]> {
   const supabase = await createServerSupabase();
+  const start = utcWallBoundsForRomeBusinessDate(dateFrom).startUtcWall;
+  const endExclusive = utcWallBoundsForRomeBusinessDate(dateTo).endUtcWallExclusive;
+
   const { data, error } = await supabase
     .from("sales")
     .select("id")
     .eq("salon_id", salonId)
     .eq("status", SALES_LEDGER_STATUS)
     .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
-    .gte("date", `${dateFrom}T00:00:00`)
-    .lte("date", `${dateTo}T23:59:59.999`);
+    .gte("date", start)
+    .lt("date", endExclusive);
 
   if (error) throw new Error(error.message);
 

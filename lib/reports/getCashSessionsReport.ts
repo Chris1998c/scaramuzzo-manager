@@ -12,14 +12,6 @@ export type CashSessionsFilters = {
   dateTo: string;   // YYYY-MM-DD
 };
 
-function isoStart(d: string) {
-  return `${d}T00:00:00`;
-}
-
-function isoEnd(d: string) {
-  return `${d}T23:59:59.999`;
-}
-
 function n(v: any) {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
@@ -30,13 +22,14 @@ export async function getCashSessionsReport(filters: CashSessionsFilters) {
 
   const { salonId, dateFrom, dateTo } = filters;
 
-  // 1) Cash sessions nel range (per opened_at)
+  // 1) Sessioni per session_date (giorno operativo Rome alla apertura), non opened_at UTC-wall.
+  //    Una sessione overnight resta sul giorno di apertura.
   const { data: sessions, error: sessionsErr } = await supabase
     .from("cash_sessions")
     .select("*")
     .eq("salon_id", salonId)
-    .gte("opened_at", isoStart(dateFrom))
-    .lte("opened_at", isoEnd(dateTo))
+    .gte("session_date", dateFrom)
+    .lte("session_date", dateTo)
     .order("opened_at", { ascending: false });
 
   if (sessionsErr) throw new Error(sessionsErr.message);

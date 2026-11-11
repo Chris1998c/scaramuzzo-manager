@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { utcWallBoundsForRomeBusinessDate } from "@/lib/datetime/romeBusinessDate";
 import { fetchFiscalTodayStatusCounts } from "@/lib/fiscalSettings";
 import { getUserAccess } from "@/lib/getUserAccess";
 import {
@@ -63,7 +64,8 @@ async function sumSalesByRange(args: {
   if (args.cashSessionId != null && args.cashSessionId > 0) {
     q = q.eq("cash_session_id", args.cashSessionId);
   } else {
-    q = q.gte("date", args.startIso).lte("date", args.endIso);
+    // endIso esclusivo (bounds UTC-wall del giorno Rome).
+    q = q.gte("date", args.startIso).lt("date", args.endIso);
   }
 
   const { data, error } = await q;
@@ -198,24 +200,23 @@ export async function GET(req: Request) {
       session_count_sales: number;
     } = null;
 
-    const todayStart = `${today}T00:00:00`;
-    const todayEnd = `${today}T23:59:59.999`;
+    const { startUtcWall, endUtcWallExclusive } = utcWallBoundsForRomeBusinessDate(today);
 
-    // oggi SEMPRE
+    // oggi SEMPRE (giorno operativo Europe/Rome su sales.date UTC-wall)
     const tDay = await sumSalesByRange({
       salonId,
-      startIso: todayStart,
-      endIso: todayEnd,
+      startIso: startUtcWall,
+      endIso: endUtcWallExclusive,
     });
 
-    // sessione SOLO se cassa aperta
+    // sessione SOLO se cassa aperta (totali per cash_session_id, overnight ok)
     let tSess = { gross: 0, cash: 0, card: 0, count: 0 };
     if (session) {
       const sessionId = Number((session as any).id);
       tSess = await sumSalesByRange({
         salonId,
         cashSessionId: Number.isFinite(sessionId) && sessionId > 0 ? sessionId : null,
-        startIso: String((session as any).opened_at ?? todayStart),
+        startIso: String((session as any).opened_at ?? startUtcWall),
         endIso: nowIso,
       });
     }
