@@ -11,7 +11,10 @@ import {
   rejectPoorGpsAccuracy,
 } from "@/lib/mobile/mobileAttendanceClockValidation";
 import { insertMobileAttendanceClock } from "@/lib/mobile/mobileAttendanceClockInsert";
-import { resolveStaffSalonIds } from "@/lib/mobile/mobileStaffSalons";
+import {
+  clockSalonIdsFromLiveAndToken,
+  loadMobileLiveStaff,
+} from "@/lib/mobile/mobileLiveStaffGate";
 import { verifyMobileBearerFromRequest } from "@/lib/mobileSession";
 
 export const runtime = "nodejs";
@@ -41,37 +44,22 @@ export async function POST(req: Request) {
     const staffId = auth.token.sid;
     const { lat, lng } = parsed.body;
 
-    const { data: staff, error: staffError } = await supabaseAdmin
-      .from("staff")
-      .select("id, salon_id, active, mobile_enabled")
-      .eq("id", staffId)
-      .maybeSingle();
-
-    if (staffError) {
-      throw staffError;
-    }
-
-    if (!staff || !staff.active) {
+    const live = await loadMobileLiveStaff(supabaseAdmin, staffId);
+    if (!live.ok) {
+      if (live.reason === "db_error") {
+        throw new Error(live.message ?? "staff lookup failed");
+      }
+      if (live.reason === "mobile_disabled") {
+        return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
+      }
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    if (!staff.mobile_enabled) {
-      return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
-    }
+    const salonIdsToLoad = clockSalonIdsFromLiveAndToken(auth.token, live.liveSalonIds);
 
-    const authorizedSalonIds = await resolveStaffSalonIds(
-      supabaseAdmin,
-      staffId,
-      staff.salon_id as number | null,
-    );
-
-    if (!authorizedSalonIds.length) {
+    if (!salonIdsToLoad.length) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-
-    const tokenSalonSet = new Set(auth.token.salon_ids);
-    const effectiveIds = authorizedSalonIds.filter((id) => tokenSalonSet.has(id));
-    const salonIdsToLoad = effectiveIds.length ? effectiveIds : authorizedSalonIds;
 
     const { data: salonRows, error: salonsError } = await supabaseAdmin
       .from("salons")

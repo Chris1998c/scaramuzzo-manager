@@ -1,7 +1,11 @@
-// Agenda giornaliera Team: Bearer JWT + salon_id opzionale (deve essere in salon_ids del token).
+// Agenda giornaliera Team: Bearer JWT + salon_id opzionale (JWT ∩ assegnazioni live).
 import { NextResponse } from "next/server";
+import {
+  loadMobileLiveStaff,
+  resolveLiveMobileSalonId,
+} from "@/lib/mobile/mobileLiveStaffGate";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { resolveMobileSalonIdFromBody, resolveMobileStaffId } from "@/lib/mobileSession";
+import { resolveMobileStaffId } from "@/lib/mobileSession";
 
 type Body = {
   staff_id?: number;
@@ -69,26 +73,26 @@ export async function POST(req: Request) {
     if (!idRes.ok) return idRes.response;
 
     const staffId = idRes.staffId;
-    const filterSalonId = resolveMobileSalonIdFromBody(body.salon_id, idRes.token);
-    if (filterSalonId == null) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
-    const { data: staffRow, error: staffErr } = await supabaseAdmin
-      .from("staff")
-      .select("id, active, mobile_enabled")
-      .eq("id", staffId)
-      .maybeSingle();
-
-    if (staffErr) {
-      console.error("my-appointments staff lookup:", staffErr.message);
-      return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
-    }
-    if (!staffRow || !staffRow.active) {
+    const live = await loadMobileLiveStaff(supabaseAdmin, staffId);
+    if (!live.ok) {
+      if (live.reason === "db_error") {
+        console.error("my-appointments staff lookup:", live.message);
+        return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
+      }
+      if (live.reason === "mobile_disabled") {
+        return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
+      }
       return NextResponse.json({ error: "Staff not found" }, { status: 404 });
     }
-    if (!staffRow.mobile_enabled) {
-      return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
+
+    const filterSalonId = resolveLiveMobileSalonId(
+      body.salon_id,
+      idRes.token,
+      live.liveSalonIds,
+    );
+    if (filterSalonId == null) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const startFrom = startOfTodayRomeLocal();

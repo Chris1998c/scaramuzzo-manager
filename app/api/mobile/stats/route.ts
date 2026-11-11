@@ -2,7 +2,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
-  resolveMobileSalonIdFromBody,
+  loadMobileLiveStaff,
+  resolveLiveMobileSalonId,
+} from "@/lib/mobile/mobileLiveStaffGate";
+import {
   romeDayKeyFromIso,
   verifyMobileBearerFromRequest,
 } from "@/lib/mobileSession";
@@ -224,26 +227,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid period: from must be <= to" }, { status: 400 });
     }
 
-    const salonId = resolveMobileSalonIdFromBody(body.salon_id, auth.token);
+    const live = await loadMobileLiveStaff(supabaseAdmin, staffId);
+    if (!live.ok) {
+      if (live.reason === "db_error") {
+        console.error("mobile stats staff lookup:", live.message);
+        return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
+      }
+      if (live.reason === "mobile_disabled") {
+        return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
+      }
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const salonId = resolveLiveMobileSalonId(body.salon_id, auth.token, live.liveSalonIds);
     if (salonId == null) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { data: staffRow, error: staffErr } = await supabaseAdmin
-      .from("staff")
-      .select("id, active, mobile_enabled")
-      .eq("id", staffId)
-      .maybeSingle();
-
-    if (staffErr) {
-      console.error("mobile stats staff lookup:", staffErr.message);
-      return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
-    }
-    if (!staffRow || !staffRow.active) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-    if (!staffRow.mobile_enabled) {
-      return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
     }
 
     const { data: salonRow, error: salonErr } = await supabaseAdmin

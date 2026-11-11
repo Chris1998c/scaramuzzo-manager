@@ -1,5 +1,6 @@
 // Stato in/out da attendance_logs (allineato a clock + GET presenze).
 import { NextResponse } from "next/server";
+import { loadMobileLiveStaff } from "@/lib/mobile/mobileLiveStaffGate";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveMobileStaffId } from "@/lib/mobileSession";
 
@@ -15,21 +16,16 @@ export async function POST(req: Request) {
 
     const staffId = idRes.staffId;
 
-    const { data: staffRow, error: staffErr } = await supabaseAdmin
-      .from("staff")
-      .select("id, active, mobile_enabled")
-      .eq("id", staffId)
-      .maybeSingle();
-
-    if (staffErr) {
-      console.error("mobile attendance status staff:", staffErr.message);
-      return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
-    }
-    if (!staffRow || !staffRow.active) {
+    const live = await loadMobileLiveStaff(supabaseAdmin, staffId);
+    if (!live.ok) {
+      if (live.reason === "db_error") {
+        console.error("mobile attendance status staff:", live.message);
+        return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
+      }
+      if (live.reason === "mobile_disabled") {
+        return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
+      }
       return NextResponse.json({ error: "Staff not found" }, { status: 404 });
-    }
-    if (!staffRow.mobile_enabled) {
-      return NextResponse.json({ error: "Mobile access disabled" }, { status: 403 });
     }
 
     const { data: latestLog, error: latestLogError } = await supabaseAdmin
