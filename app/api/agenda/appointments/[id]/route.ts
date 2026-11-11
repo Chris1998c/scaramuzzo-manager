@@ -10,6 +10,7 @@ import {
 } from "@/lib/agenda/assertStaffSchedule";
 import { fetchOperationalCalendarSnapshot } from "@/lib/salonOperationalCalendar";
 import {
+  assertBatchInternalStaffSlotsFree,
   assertStaffSlotFree,
   computeLineEndTime,
   isStaffSlotConflictFromDbError,
@@ -17,6 +18,11 @@ import {
   STAFF_SLOT_CONFLICT_MESSAGE,
 } from "@/lib/agenda/assertStaffSlotFree";
 import { canModifyAppointmentHeader } from "@/lib/agenda/appointmentLifecycle";
+import {
+  patchAppointmentServiceLinesAtomic,
+  type AppointmentServiceLineAtomicPatch,
+} from "@/lib/agenda/patchAppointmentServiceLinesAtomic";
+import { shiftAppointmentLineStart } from "@/lib/agenda/shiftAppointmentLineStarts";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 import {
   clampDurationMinutes,
@@ -30,12 +36,19 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type ServiceLineStaffPatch = {
+  line_id: number;
+  staff_id: number | null;
+};
+
 type PatchBody = Partial<{
   customer_id: string | number | null;
   notes: string | null;
   start_time: string;
   end_time: string;
   staff_id: number | null;
+  /** Batch per-riga: applicato atomicamente con eventuale shift orario. */
+  service_line_staff: ServiceLineStaffPatch[];
 }>;
 
 function toInt(v: unknown): number | null {
@@ -138,12 +151,24 @@ export async function PATCH(
     const timeChanged = hasStartInput && deltaMs !== 0;
     const staffChanged = hasStaffInput && staffNorm !== normalizeStaffId((appt as { staff_id?: unknown }).staff_id);
 
+    const rawLineStaff = Array.isArray(body.service_line_staff) ? body.service_line_staff : [];
+    const perLineStaff = new Map<number, number | null>();
+    for (const entry of rawLineStaff) {
+      const lineId = toInt((entry as ServiceLineStaffPatch)?.line_id);
+      if (!lineId || lineId <= 0) {
+        return NextResponse.json({ error: "service_line_staff.line_id non valido" }, { status: 400 });
+      }
+      perLineStaff.set(lineId, normalizeStaffId((entry as ServiceLineStaffPatch).staff_id));
+    }
+    const hasPerLineStaff = perLineStaff.size > 0;
+
     const hasPatchPayload =
       body.customer_id !== undefined ||
       body.notes !== undefined ||
       hasStartInput ||
       hasEndInput ||
-      hasStaffInput;
+      hasStaffInput ||
+      hasPerLineStaff;
 
     if (hasPatchPayload) {
       const headerGuard = canModifyAppointmentHeader({
@@ -165,24 +190,118 @@ export async function PATCH(
       .order("id", { ascending: true });
     if (linesErr) return NextResponse.json({ error: linesErr.message }, { status: 500 });
 
-    if (staffChanged && staffNorm != null) {
-      const staffGate = await assertStaffBelongsToSalon(supabaseAdmin, staffNorm, salonId);
+    if (hasPerLineStaff) {
+      const knownIds = new Set(
+        (lineRows ?? [])
+          .map((l) => toInt((l as { id?: unknown }).id))
+          .filter((id): id is number => id != null && id > 0),
+      );
+      for (const lineId of perLineStaff.keys()) {
+        if (!knownIds.has(lineId)) {
+          return NextResponse.json(
+            { error: `Riga servizio ${lineId} non appartiene all'appuntamento` },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
+    const staffIdsToGate = new Set<number>();
+    if (staffChanged && staffNorm != null) staffIdsToGate.add(staffNorm);
+    for (const sid of perLineStaff.values()) {
+      if (sid != null) staffIdsToGate.add(sid);
+    }
+    for (const sid of staffIdsToGate) {
+      const staffGate = await assertStaffBelongsToSalon(supabaseAdmin, sid, salonId);
       if (!staffGate.ok) {
         return NextResponse.json({ error: staffGate.error }, { status: staffGate.status });
       }
     }
 
-    if (lineRows?.length && (timeChanged || staffChanged)) {
+    type ProposedLine = {
+      id: number;
+      start_time: string;
+      duration_minutes: number;
+      staff_id: number | null;
+      duration_active: number | null | undefined;
+      duration_processing: number | null | undefined;
+      need_processing: boolean | null | undefined;
+      startChanged: boolean;
+      staffChanged: boolean;
+    };
+
+    const proposedLines: ProposedLine[] = [];
+    for (const l of lineRows ?? []) {
+      const lineId = toInt((l as { id?: unknown }).id);
+      if (!lineId || lineId <= 0) continue;
+      const currentStart = String((l as { start_time?: unknown }).start_time ?? "");
+      const duration = Number((l as { duration_minutes?: unknown }).duration_minutes);
+      if (!currentStart || !Number.isFinite(duration) || duration <= 0) continue;
+
+      const currentStaff = normalizeStaffId((l as { staff_id?: unknown }).staff_id);
+      let nextStaff = currentStaff;
+      let lineStaffChanged = false;
+      if (perLineStaff.has(lineId)) {
+        nextStaff = perLineStaff.get(lineId) ?? null;
+        lineStaffChanged = nextStaff !== currentStaff;
+      } else if (staffChanged) {
+        nextStaff = staffNorm;
+        lineStaffChanged = nextStaff !== currentStaff;
+      }
+
+      const nextStart = timeChanged
+        ? shiftAppointmentLineStart(currentStart, deltaMs)
+        : currentStart;
+
+      proposedLines.push({
+        id: lineId,
+        start_time: nextStart,
+        duration_minutes: duration,
+        staff_id: nextStaff,
+        duration_active: (l as { duration_active?: unknown }).duration_active as
+          | number
+          | null
+          | undefined,
+        duration_processing: (l as { duration_processing?: unknown }).duration_processing as
+          | number
+          | null
+          | undefined,
+        need_processing: (l as { need_processing?: unknown }).need_processing as
+          | boolean
+          | null
+          | undefined,
+        startChanged: timeChanged,
+        staffChanged: lineStaffChanged,
+      });
+    }
+
+    const linesNeedingWrite = proposedLines.filter((l) => l.startChanged || l.staffChanged);
+
+    if (linesNeedingWrite.length) {
+      try {
+        assertBatchInternalStaffSlotsFree(
+          proposedLines.map((l) => ({
+            staffId: l.staff_id,
+            startTime: l.start_time,
+            durationMinutes: l.duration_minutes,
+            duration_active: l.duration_active,
+            duration_processing: l.duration_processing,
+            need_processing: l.need_processing,
+          })),
+        );
+      } catch (e) {
+        if (isStaffSlotConflictOrDbError(e)) {
+          return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
+        }
+        throw e;
+      }
+
       const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
       const opIsoDate = isoDateFromAgendaStartTime(toNoZ(newStart));
       const staffIdsForOp = [
         ...new Set(
-          (lineRows ?? [])
-            .map((l) =>
-              staffChanged
-                ? staffNorm
-                : normalizeStaffId((l as { staff_id?: unknown }).staff_id),
-            )
+          proposedLines
+            .map((l) => l.staff_id)
             .filter((id): id is number => id != null),
         ),
       ];
@@ -196,58 +315,34 @@ export async function PATCH(
             )
           : undefined;
 
-      for (const l of lineRows) {
-        const lineId = toInt((l as { id?: unknown }).id);
-        if (!lineId || lineId <= 0) continue;
-
-        const currentStart = String((l as { start_time?: unknown }).start_time ?? "");
-        const duration = Number((l as { duration_minutes?: unknown }).duration_minutes);
-        const mergedStaff = staffChanged
-          ? staffNorm
-          : normalizeStaffId((l as { staff_id?: unknown }).staff_id);
-        if (mergedStaff == null || !currentStart || !Number.isFinite(duration) || duration <= 0) {
-          continue;
-        }
-
-        let mergedStart = currentStart;
-        if (timeChanged) {
-          const ls = parseLocal(currentStart);
-          mergedStart = toNoZ(snapToAgendaSlot(new Date(ls.getTime() + deltaMs)));
-        }
+      for (const l of proposedLines) {
+        if (l.staff_id == null) continue;
+        if (!l.startChanged && !l.staffChanged) continue;
 
         await assertStaffScheduledForStartTime({
           supabase: supabaseAdmin,
           salonId,
-          staffId: mergedStaff,
-          startTime: mergedStart,
-          durationMinutes: duration,
+          staffId: l.staff_id,
+          startTime: l.start_time,
+          durationMinutes: l.duration_minutes,
           scheduleMap,
           operationalSnapshot,
           operationalIsoDate: opIsoDate ?? undefined,
         });
 
-        const lineEnd = computeLineEndTime(mergedStart, duration);
+        const lineEnd = computeLineEndTime(l.start_time, l.duration_minutes);
         await assertStaffSlotFree({
           supabase: supabaseAdmin,
           salonId,
-          staffId: mergedStaff,
-          startTime: mergedStart,
+          staffId: l.staff_id,
+          startTime: l.start_time,
           endTime: lineEnd,
-          durationMinutes: duration,
-          duration_active: (l as { duration_active?: unknown }).duration_active as
-            | number
-            | null
-            | undefined,
-          duration_processing: (l as { duration_processing?: unknown }).duration_processing as
-            | number
-            | null
-            | undefined,
-          need_processing: (l as { need_processing?: unknown }).need_processing as
-            | boolean
-            | null
-            | undefined,
+          durationMinutes: l.duration_minutes,
+          duration_active: l.duration_active,
+          duration_processing: l.duration_processing,
+          need_processing: l.need_processing,
           excludeAppointmentId: appointmentId,
-          excludeLineId: lineId,
+          excludeLineId: l.id,
         });
       }
     }
@@ -306,25 +401,22 @@ export async function PATCH(
     }
 
     if (lineRows?.length) {
-      if (timeChanged || staffChanged) {
-        for (const l of lineRows) {
-          const patch: Record<string, unknown> = {};
-          if (staffChanged) patch.staff_id = staffNorm;
-          if (timeChanged) {
-            const ls = parseLocal(String((l as { start_time?: string }).start_time ?? ""));
-            patch.start_time = toNoZ(snapToAgendaSlot(new Date(ls.getTime() + deltaMs)));
+      if (linesNeedingWrite.length) {
+        const atomicLines: AppointmentServiceLineAtomicPatch[] = linesNeedingWrite.map((l) => ({
+          id: l.id,
+          ...(l.startChanged ? { start_time: l.start_time } : {}),
+          ...(l.staffChanged ? { staff_id: l.staff_id, staff_id_set: true } : {}),
+        }));
+
+        const written = await patchAppointmentServiceLinesAtomic(supabaseAdmin, {
+          appointmentId,
+          lines: atomicLines,
+        });
+        if (!written.ok) {
+          if (isStaffSlotConflictFromDbError(written.error)) {
+            return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
           }
-          if (!Object.keys(patch).length) continue;
-          const { error: uErr } = await supabaseAdmin
-            .from("appointment_services")
-            .update(patch)
-            .eq("id", (l as { id: number }).id);
-          if (uErr) {
-            if (isStaffSlotConflictFromDbError(uErr)) {
-              return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
-            }
-            return NextResponse.json({ error: uErr.message }, { status: 500 });
-          }
+          return NextResponse.json({ error: written.error.message }, { status: 500 });
         }
       }
 

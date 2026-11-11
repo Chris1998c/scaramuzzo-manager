@@ -53,7 +53,10 @@ export function collectChangedLineStaffPatches(args: {
   return out;
 }
 
-/** Messaggio per salvataggio multi-PATCH non atomico (successi + fallimento). */
+/**
+ * Messaggio legacy per salvataggio multi-PATCH non atomico.
+ * L'edit modale ora usa PATCH atomico su appointments/[id] + service_line_staff.
+ */
 export function formatLineStaffSaveFailureMessage(args: {
   succeeded: Array<{ serviceName: string }>;
   failedServiceName: string;

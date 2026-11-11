@@ -21,7 +21,6 @@ import { resolveGridStartTime } from "@/lib/agenda/appointmentModalForm";
 import { useModalFieldTouches } from "@/lib/agenda/appointmentModalSession";
 import {
   clampDurationMinutes,
-  commitLinePatch,
   parseLocal,
   snapToAgendaSlot,
   toNoZ,
@@ -29,7 +28,6 @@ import {
 import type { AgendaAppointment, AgendaCustomer } from "@/lib/agenda/agendaContract";
 import {
   collectChangedLineStaffPatches,
-  formatLineStaffSaveFailureMessage,
   seedLineStaffDraft,
 } from "@/lib/agenda/editAppointmentLineStaff";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -268,22 +266,7 @@ export default function EditAppointmentModal({
       const timeChanged = deltaMs !== 0;
 
       // Mai staff_id sull'appuntamento: aggiornerebbe tutte le righe e annullerebbe assegnazioni miste.
-      const payload: Record<string, unknown> = {
-        customer_id,
-        notes: notes?.trim() || null,
-      };
-      if (timeChanged) payload.start_time = toNoZ(newStart);
-
-      const res = await fetch(`/api/agenda/appointments/${appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = (await res.json().catch(() => ({}))) as { error?: string; details?: string };
-      if (!res.ok) {
-        throw new Error(json.error || json.details || "Errore salvataggio");
-      }
-
+      // Collaboratori per-riga + orario in un solo PATCH atomico (RPC).
       const linePatches = collectChangedLineStaffPatches({
         lines: (appointment.appointment_services ?? []).map((l) => ({
           id: l.id,
@@ -293,30 +276,28 @@ export default function EditAppointmentModal({
         draftByLineId: lineStaffDraft,
       });
 
-      const succeeded: Array<{ serviceName: string }> = [];
-      for (let i = 0; i < linePatches.length; i++) {
-        const p = linePatches[i]!;
-        const lineRes = await commitLinePatch(supabase, {
-          appointmentId: Number(appointment.id),
-          lineId: p.lineId,
-          patch: { staff_id: p.staff_id },
-        });
-        if (!lineRes.ok) {
-          const remainingCount = linePatches.length - i - 1;
-          pendingReloadFromKeyRef.current = linesStaffKey;
-          setNeedsServerReload(true);
-          setErr(
-            formatLineStaffSaveFailureMessage({
-              succeeded,
-              failedServiceName: p.serviceName,
-              failedMessage: lineRes.error.message,
-              remainingCount,
-            }),
-          );
-          onUpdated?.();
-          return;
-        }
-        succeeded.push({ serviceName: p.serviceName });
+      const payload: Record<string, unknown> = {
+        customer_id,
+        notes: notes?.trim() || null,
+      };
+      if (timeChanged) payload.start_time = toNoZ(newStart);
+      if (linePatches.length) {
+        payload.service_line_staff = linePatches.map((p) => ({
+          line_id: p.lineId,
+          staff_id: p.staff_id,
+        }));
+      }
+
+      const res = await fetch(`/api/agenda/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; details?: string };
+      if (!res.ok) {
+        pendingReloadFromKeyRef.current = linesStaffKey;
+        setNeedsServerReload(true);
+        throw new Error(json.error || json.details || "Errore salvataggio");
       }
 
       onUpdated?.();
