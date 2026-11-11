@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
 const CANCEL_MIGRATION =
-  "supabase/migrations/20261111160000_cancel_void_receipt_restores_sale_ledger.sql";
+  "supabase/migrations/20261111170000_cancel_void_receipt_restore_only_pending.sql";
 
 function dockerPsql(container: string, sql: string): string {
   return execFileSync(
@@ -183,12 +183,12 @@ describe("stock e2e consistency (isolated Postgres)", () => {
 });
 
 describe("cancel void_receipt migration (static)", () => {
-  it("restores posted/printed without calling reverse_sale_stock", () => {
+  it("restores posted/printed only for pending, without reverse_sale_stock", () => {
     const sql = readFileSync(join(ROOT, CANCEL_MIGRATION), "utf8");
     expect(sql).toMatch(/void_receipt/);
+    expect(sql).toMatch(/AND v_status = 'pending'/);
     expect(sql).toMatch(/fiscal_void_pending/);
     expect(sql).toMatch(/status = 'posted'/);
-    expect(sql).toMatch(/fiscal_status = 'printed'/);
     expect(sql).not.toMatch(/PERFORM public\.reverse_sale_stock_for_void/);
   });
 });
