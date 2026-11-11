@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { splitCassaReportItemGross } from "@/lib/cassa/cassaReportItemSplit";
 import {
   SALES_LEDGER_OPERATION_TYPE,
   SALES_LEDGER_STATUS,
@@ -142,7 +143,7 @@ export async function GET(req: Request) {
       if (pm === "card") card += amt;
     }
 
-    // SALE_ITEMS (solo per split servizi/prodotti)
+    // SALE_ITEMS: split servizi/prodotti con ripartizione sconto globale (come report_rows).
     let countItems = 0;
     let servicesGross = 0;
     let productsGross = 0;
@@ -158,17 +159,22 @@ export async function GET(req: Request) {
       const saleItems = Array.isArray(items) ? items : [];
       countItems = saleItems.length;
 
-      for (const it of saleItems as any[]) {
-        const qty = Math.max(0, toNum(it?.quantity, 0));
-        const unitPrice = toNum(it?.price, 0);
-        const discountAmount = toNum(it?.discount, 0);
-        const lineTotal = Math.max(0, round2(unitPrice * qty - discountAmount));
-
-        const hasService = it?.service_id != null;
-        const hasProduct = it?.product_id != null;
-        if (hasService) servicesGross += lineTotal;
-        if (hasProduct) productsGross += lineTotal;
-      }
+      const split = splitCassaReportItemGross({
+        sales: (Array.isArray(sales) ? sales : []).map((s: any) => ({
+          id: Number(s.id),
+          total_amount: toNum(s.total_amount, 0),
+        })),
+        items: saleItems.map((it: any) => ({
+          sale_id: Number(it.sale_id),
+          service_id: it.service_id ?? null,
+          product_id: it.product_id ?? null,
+          quantity: toNum(it.quantity, 0),
+          price: toNum(it.price, 0),
+          discount: toNum(it.discount, 0),
+        })),
+      });
+      servicesGross = split.services_gross;
+      productsGross = split.products_gross;
     }
 
     return NextResponse.json({
