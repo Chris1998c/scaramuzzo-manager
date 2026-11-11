@@ -11,6 +11,11 @@ import {
   pickLatestBotanicalCard,
 } from "@/lib/customers/reuseBotanicalCard";
 import {
+  SCHEDE_HISTORY_PAGE_SIZE,
+  schedeHistoryHasMore,
+  schedeHistoryRange,
+} from "@/lib/customers/schedeTecnicheHistory";
+import {
   Plus,
   Sparkles,
   CalendarDays,
@@ -43,8 +48,6 @@ type CardRow = {
   appointment_id: number | null;
   created_at: string;
 };
-
-const LEGACY_FETCH_LIMIT = 20;
 
 type BossLegacyCardData = {
   source?: string;
@@ -287,13 +290,21 @@ export default function SchedeTecniche({
 }) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
   const [cards, setCards] = useState<CardRow[]>([]);
+  const [modernPage, setModernPage] = useState(1);
+  const [modernHasMore, setModernHasMore] = useState(false);
   const [legacyCards, setLegacyCards] = useState<LegacyCardRow[]>([]);
+  const [legacyPage, setLegacyPage] = useState(1);
+  const [legacyHasMore, setLegacyHasMore] = useState(false);
   const [legacyLoading, setLegacyLoading] = useState(true);
+  const [latestBotanicalCard, setLatestBotanicalCard] = useState<CardRow | null>(
+    null,
+  );
 
   const [type, setType] = useState<ServiceType>("oxidation_color");
   const [data, setData] = useState<AnyCardData>(emptyPayloadFor("oxidation_color"));
@@ -301,12 +312,7 @@ export default function SchedeTecniche({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [reuseConfirmOpen, setReuseConfirmOpen] = useState(false);
 
-  const latestBotanicalCard = useMemo(
-    () => pickLatestBotanicalCard(cards),
-    [cards],
-  );
-  const showBotanicalReuse =
-    type === "botanicals" && latestBotanicalCard != null && !loading;
+  const showBotanicalReuse = type === "botanicals" && latestBotanicalCard != null;
 
   function applyBotanicalReuseFromLatest() {
     if (!latestBotanicalCard) return;
@@ -333,11 +339,19 @@ export default function SchedeTecniche({
     let cancelled = false;
 
     (async () => {
-      setLoading(true);
+      setHistoryLoading(true);
       setLegacyLoading(true);
       setErr("");
+      setCards([]);
+      setLegacyCards([]);
+      setModernPage(1);
+      setLegacyPage(1);
+      setLatestBotanicalCard(null);
 
-      const [modernRes, legacyRes] = await Promise.all([
+      const modernRange = schedeHistoryRange(1);
+      const legacyRange = schedeHistoryRange(1);
+
+      const [modernRes, legacyRes, botanicalRes] = await Promise.all([
         supabase
           .from("customer_service_cards")
           .select(
@@ -345,14 +359,26 @@ export default function SchedeTecniche({
           )
           .eq("customer_id", customerId)
           .neq("service_type", "legacy_note")
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .range(modernRange.from, modernRange.to),
         supabase
           .from("customer_service_cards")
           .select("id, customer_id, service_type, data, created_at")
           .eq("customer_id", customerId)
           .eq("service_type", "legacy_note")
           .order("created_at", { ascending: false })
-          .limit(LEGACY_FETCH_LIMIT),
+          .range(legacyRange.from, legacyRange.to),
+        // Dedicato al riuso: non dipende dalla paginazione dello storico.
+        supabase
+          .from("customer_service_cards")
+          .select(
+            "id, customer_id, service_type, data, salon_id, staff_id, appointment_id, created_at",
+          )
+          .eq("customer_id", customerId)
+          .eq("service_type", "botanicals")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       if (cancelled) return;
@@ -360,8 +386,11 @@ export default function SchedeTecniche({
       if (modernRes.error) {
         setErr(modernRes.error.message);
         setCards([]);
+        setModernHasMore(false);
       } else {
-        setCards((modernRes.data ?? []) as CardRow[]);
+        const rows = (modernRes.data ?? []) as CardRow[];
+        setCards(rows);
+        setModernHasMore(schedeHistoryHasMore(rows.length));
       }
 
       if (legacyRes.error) {
@@ -369,11 +398,20 @@ export default function SchedeTecniche({
           setErr((prev) => prev || legacyRes.error!.message);
         }
         setLegacyCards([]);
+        setLegacyHasMore(false);
       } else {
-        setLegacyCards(sortLegacyBossCards((legacyRes.data ?? []) as LegacyCardRow[]));
+        const rows = sortLegacyBossCards((legacyRes.data ?? []) as LegacyCardRow[]);
+        setLegacyCards(rows);
+        setLegacyHasMore(schedeHistoryHasMore((legacyRes.data ?? []).length));
       }
 
-      setLoading(false);
+      if (!botanicalRes.error && botanicalRes.data) {
+        setLatestBotanicalCard(botanicalRes.data as CardRow);
+      } else {
+        setLatestBotanicalCard(null);
+      }
+
+      setHistoryLoading(false);
       setLegacyLoading(false);
     })();
 
@@ -381,6 +419,65 @@ export default function SchedeTecniche({
       cancelled = true;
     };
   }, [customerId, supabase]);
+
+  async function loadMoreModernHistory() {
+    if (historyLoadingMore || !modernHasMore) return;
+    setHistoryLoadingMore(true);
+    const nextPage = modernPage + 1;
+    const range = schedeHistoryRange(nextPage);
+    const { data, error } = await supabase
+      .from("customer_service_cards")
+      .select(
+        "id, customer_id, service_type, data, salon_id, staff_id, appointment_id, created_at",
+      )
+      .eq("customer_id", customerId)
+      .neq("service_type", "legacy_note")
+      .order("created_at", { ascending: false })
+      .range(range.from, range.to);
+    if (error) {
+      setErr(error.message);
+      setHistoryLoadingMore(false);
+      return;
+    }
+    const rows = (data ?? []) as CardRow[];
+    setCards((prev) => {
+      const seen = new Set(prev.map((c) => c.id));
+      return [...prev, ...rows.filter((r) => !seen.has(r.id))];
+    });
+    setModernPage(nextPage);
+    setModernHasMore(schedeHistoryHasMore(rows.length));
+    setHistoryLoadingMore(false);
+  }
+
+  async function loadMoreLegacyHistory() {
+    if (historyLoadingMore || !legacyHasMore) return;
+    setHistoryLoadingMore(true);
+    const nextPage = legacyPage + 1;
+    const range = schedeHistoryRange(nextPage);
+    const { data, error } = await supabase
+      .from("customer_service_cards")
+      .select("id, customer_id, service_type, data, created_at")
+      .eq("customer_id", customerId)
+      .eq("service_type", "legacy_note")
+      .order("created_at", { ascending: false })
+      .range(range.from, range.to);
+    if (error) {
+      setErr(error.message);
+      setHistoryLoadingMore(false);
+      return;
+    }
+    const incoming = (data ?? []) as LegacyCardRow[];
+    setLegacyCards((prev) => {
+      const seen = new Set(prev.map((c) => c.id));
+      return sortLegacyBossCards([
+        ...prev,
+        ...incoming.filter((r) => !seen.has(r.id)),
+      ]);
+    });
+    setLegacyPage(nextPage);
+    setLegacyHasMore(schedeHistoryHasMore(incoming.length));
+    setHistoryLoadingMore(false);
+  }
 
   useEffect(() => {
     setData(emptyPayloadFor(type));
@@ -518,7 +615,19 @@ export default function SchedeTecniche({
       return;
     }
 
-    setCards((prev) => [saved as CardRow, ...prev]);
+    const savedRow = saved as CardRow;
+    setCards((prev) => [savedRow, ...prev]);
+    if (savedRow.service_type === "botanicals") {
+      setLatestBotanicalCard((prev) => {
+        const latest = pickLatestBotanicalCard([
+          savedRow,
+          ...(prev ? [prev] : []),
+        ]);
+        if (!latest) return null;
+        if (latest.id === savedRow.id) return savedRow;
+        return prev;
+      });
+    }
     setData(emptyPayloadFor(type));
     setSaving(false);
   }
@@ -700,30 +809,54 @@ export default function SchedeTecniche({
         </div>
       </section>
 
-      {/* HISTORY */}
+      {/* HISTORY — paginato: form già utilizzabile senza attendere tutto lo storico */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-extrabold text-[#f3d8b6] tracking-tight">
             Storico schede (globale)
           </h3>
-          {loading && <div className="text-xs text-[#f3d8b6]/60">Caricamento…</div>}
+          {historyLoading && (
+            <div className="text-xs text-[#f3d8b6]/60">Caricamento…</div>
+          )}
         </div>
 
-        {!loading && cards.length === 0 && (
+        {!historyLoading && cards.length === 0 && (
           <div className="rounded-3xl bg-black/20 border border-[#5c3a21]/60 p-6 text-white/60">
             Nessuna scheda tecnica registrata.
           </div>
         )}
 
         <div className="space-y-4">
- {cards.map((c) => (
- <HistoryCard key={c.id} row={c} />
- ))}
- </div>
- </section>
+          {cards.map((c) => (
+            <HistoryCard key={c.id} row={c} />
+          ))}
+        </div>
 
- {/* BOSS LEGACY (read-only) */}
- <BossLegacyHistorySection loading={legacyLoading} cards={legacyCards} />
+        {modernHasMore && (
+          <button
+            type="button"
+            onClick={() => void loadMoreModernHistory()}
+            disabled={historyLoadingMore}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
+ border border-[#5c3a21]/60 bg-[#24140e]/50 text-sm font-medium text-[#f3d8b6]
+ hover:bg-[#2a1810]/80 disabled:opacity-50 transition"
+          >
+            <History size={16} />
+            {historyLoadingMore
+              ? "Caricamento…"
+              : `Carica altre schede (${SCHEDE_HISTORY_PAGE_SIZE})`}
+          </button>
+        )}
+      </section>
+
+      {/* BOSS LEGACY (read-only) */}
+      <BossLegacyHistorySection
+        loading={legacyLoading}
+        cards={legacyCards}
+        hasMore={legacyHasMore}
+        loadingMore={historyLoadingMore}
+        onLoadMore={() => void loadMoreLegacyHistory()}
+      />
 
       <ConfirmDialog
         isOpen={reuseConfirmOpen}
@@ -1311,15 +1444,21 @@ function sortLegacyBossCards(rows: LegacyCardRow[]): LegacyCardRow[] {
 }
 
 function BossLegacyHistorySection({
- loading,
- cards,
+  loading,
+  cards,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: {
- loading: boolean;
- cards: LegacyCardRow[];
+  loading: boolean;
+  cards: LegacyCardRow[];
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 }) {
- const [showOlder, setShowOlder] = useState(false);
- const bossCards = cards.filter(
- (c) => c.data?.source === "boss" || c.data?.source == null,
+  const [showOlder, setShowOlder] = useState(false);
+  const bossCards = cards.filter(
+    (c) => c.data?.source === "boss" || c.data?.source == null,
   );
   const latestCard = bossCards[0];
   const olderCards = bossCards.slice(1);
@@ -1352,12 +1491,12 @@ function BossLegacyHistorySection({
 
       {!loading && latestCard && (
         <div className="space-y-4">
- <BossLegacyCard row={latestCard} />
+          <BossLegacyCard row={latestCard} />
 
- {olderCount > 0 && (
- <>
- <button
- type="button"
+          {olderCount > 0 && (
+            <>
+              <button
+                type="button"
                 onClick={() => setShowOlder((v) => !v)}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
  border border-[#5c3a21]/60 bg-[#24140e]/50 text-sm font-medium text-[#f3d8b6]
@@ -1379,17 +1518,33 @@ function BossLegacyHistorySection({
 
               {showOlder && (
                 <div className="space-y-4 pt-1">
- {olderCards.map((c) => (
- <BossLegacyCard key={c.id} row={c} />
- ))}
- </div>
- )}
- </>
- )}
- </div>
- )}
- </section>
- );
+                  {olderCards.map((c) => (
+                    <BossLegacyCard key={c.id} row={c} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {hasMore && (
+            <button
+              type="button"
+              onClick={onLoadMore}
+              disabled={loadingMore}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
+ border border-[#5c3a21]/60 bg-[#24140e]/50 text-sm font-medium text-[#f3d8b6]
+ hover:bg-[#2a1810]/80 disabled:opacity-50 transition"
+            >
+              <Archive size={16} />
+              {loadingMore
+                ? "Caricamento…"
+                : `Carica altre note Boss (${SCHEDE_HISTORY_PAGE_SIZE})`}
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function BossLegacyCard({ row }: { row: LegacyCardRow }) {
