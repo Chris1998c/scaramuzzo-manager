@@ -9,6 +9,7 @@ import SchedeTecniche from "./schede-tecniche";
 import ClientInsightsPanel from "./ClientInsightsPanel";
 import ClientTimelinePanel from "./ClientTimelinePanel";
 import ClienteAnagraficaForm from "./ClienteAnagraficaForm";
+import { mapCustomerMarketingToInitial } from "@/lib/customers/clienteAnagraficaMarketing";
 
 type Params = { id: string };
 
@@ -32,7 +33,9 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
 
   const { data: customer, error: fetchError } = await supabase
     .from("customers")
-    .select("id, customer_code, first_name, last_name, phone, email, address, notes")
+    .select(
+      "id, customer_code, first_name, last_name, phone, email, address, notes, marketing_whatsapp_opt_in, marketing_consent_at",
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -98,8 +101,10 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
           email: c.email,
           address: c.address,
           notes: c.notes,
-          marketing_whatsapp_opt_in: false,
-          marketing_consent_at: null,
+          ...mapCustomerMarketingToInitial({
+            marketing_whatsapp_opt_in: c.marketing_whatsapp_opt_in,
+            marketing_consent_at: c.marketing_consent_at,
+          }),
         }}
       />
 

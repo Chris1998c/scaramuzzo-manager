@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { buildClienteAnagraficaUpdatePayload } from "@/lib/customers/clienteAnagraficaMarketing";
 import { Save } from "lucide-react";
 
 export type ClienteAnagraficaInitial = {
@@ -52,32 +53,24 @@ export default function ClienteAnagraficaForm({ initial }: Props) {
     }
 
     const prevOptIn = lastSavedOptInRef.current;
-    let nextConsentAt: string | null = form.marketing_consent_at;
-
-    if (form.marketing_whatsapp_opt_in) {
-      if (!prevOptIn || !form.marketing_consent_at) {
-        nextConsentAt = new Date().toISOString();
-      } else {
-        nextConsentAt = form.marketing_consent_at;
-      }
-    } else {
-      nextConsentAt = form.marketing_consent_at;
-    }
+    const updatePayload = buildClienteAnagraficaUpdatePayload({
+      first_name: fn,
+      last_name: ln,
+      phone: ph,
+      email: form.email?.trim() ? form.email.trim() : null,
+      address: form.address?.trim() ? form.address.trim() : null,
+      notes: form.notes?.trim() ? form.notes.trim() : null,
+      marketing_whatsapp_opt_in: form.marketing_whatsapp_opt_in,
+      marketing_consent_at: form.marketing_consent_at,
+      previousOptIn: prevOptIn,
+      nowIso: new Date().toISOString(),
+    });
 
     setSaving(true);
     try {
       const { data, error: upErr } = await supabase
         .from("customers")
-        .update({
-          first_name: fn,
-          last_name: ln,
-          phone: ph,
-          email: form.email?.trim() ? form.email.trim() : null,
-          address: form.address?.trim() ? form.address.trim() : null,
-          notes: form.notes?.trim() ? form.notes.trim() : null,
-          marketing_whatsapp_opt_in: form.marketing_whatsapp_opt_in,
-          marketing_consent_at: nextConsentAt,
-        })
+        .update(updatePayload)
         .eq("id", initial.id)
         .select(
           "id, customer_code, first_name, last_name, phone, email, address, notes, marketing_whatsapp_opt_in, marketing_consent_at",
