@@ -2,6 +2,14 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import {
+  botanicalFormHasTechnicalContent,
+  buildBotanicalPrefillFromReuse,
+  extractBotanicalReuseTechnicalPayload,
+  formatBotanicalReuseSourceDate,
+  pickLatestBotanicalCard,
+} from "@/lib/customers/reuseBotanicalCard";
 import {
   Plus,
   Sparkles,
@@ -15,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   Stethoscope,
+  History,
 } from "lucide-react";
 
 type ServiceType =
@@ -290,6 +299,35 @@ export default function SchedeTecniche({
   const [data, setData] = useState<AnyCardData>(emptyPayloadFor("oxidation_color"));
   /** Solo UI: chiuso di default. I valori avanzati restano in `data` anche se la sezione non è montata. */
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [reuseConfirmOpen, setReuseConfirmOpen] = useState(false);
+
+  const latestBotanicalCard = useMemo(
+    () => pickLatestBotanicalCard(cards),
+    [cards],
+  );
+  const showBotanicalReuse =
+    type === "botanicals" && latestBotanicalCard != null && !loading;
+
+  function applyBotanicalReuseFromLatest() {
+    if (!latestBotanicalCard) return;
+    const technical = extractBotanicalReuseTechnicalPayload(latestBotanicalCard);
+    const next = buildBotanicalPrefillFromReuse({
+      currentPayload: (data as AnyCardData).payload as Record<string, unknown>,
+      technical,
+    });
+    setData(next as AnyCardData);
+    setReuseConfirmOpen(false);
+  }
+
+  function requestBotanicalReuse() {
+    if (!latestBotanicalCard) return;
+    const payload = (data as AnyCardData).payload as Record<string, unknown>;
+    if (botanicalFormHasTechnicalContent(payload)) {
+      setReuseConfirmOpen(true);
+      return;
+    }
+    applyBotanicalReuseFromLatest();
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -528,6 +566,28 @@ export default function SchedeTecniche({
               ))}
             </select>
 
+            {showBotanicalReuse && latestBotanicalCard ? (
+              <div className="mt-3 rounded-2xl border border-[#5c3a21]/50 bg-black/20 px-3 py-2.5 space-y-1.5">
+                <button
+                  type="button"
+                  onClick={requestBotanicalReuse}
+                  className="inline-flex items-center gap-2 text-left text-xs font-semibold text-[#f3d8b6] hover:text-white transition"
+                >
+                  <History size={14} className="shrink-0 opacity-80" />
+                  Riusa ultima scheda botanica
+                </button>
+                <p className="text-[11px] text-[#c9b299]/85 leading-snug">
+                  Sorgente:{" "}
+                  <span className="font-mono text-[#f3d8b6]/90">
+                    {formatBotanicalReuseSourceDate(latestBotanicalCard.created_at)}
+                  </span>
+                  . Prefilla solo protocollo tecnico (diretta, miscela, calore, posa,
+                  risciacquo, R/L/P). R/L/P va confermato per questa visita. Non salva
+                  finché non premi «Salva scheda tecnica».
+                </p>
+              </div>
+            ) : null}
+
             <div className="mt-4 grid grid-cols-1 gap-3">
  <RlpSelect
  value={(data as any).payload?.rlp ?? ""}
@@ -664,6 +724,15 @@ export default function SchedeTecniche({
 
  {/* BOSS LEGACY (read-only) */}
  <BossLegacyHistorySection loading={legacyLoading} cards={legacyCards} />
+
+      <ConfirmDialog
+        isOpen={reuseConfirmOpen}
+        onClose={() => setReuseConfirmOpen(false)}
+        onConfirm={() => applyBotanicalReuseFromLatest()}
+        title="Sostituire i campi tecnici?"
+        description="Il modulo ha già dati tecnici compilati. Confermi di sovrascrivere diretta, miscela, calore, posa, risciacquo e R/L/P con l’ultima scheda botanica? Obiettivo, esito e diagnosi restano invariati. Nessun salvataggio finché non premi «Salva scheda tecnica»."
+        confirmLabel="Riusa e sostituisci"
+      />
  </div>
  );
 }
