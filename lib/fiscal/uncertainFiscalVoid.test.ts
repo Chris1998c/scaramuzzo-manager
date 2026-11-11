@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isUncertainFiscalVoid,
   uncertainFiscalVoidBannerCopy,
+  uncertainFiscalVoidModalCopy,
 } from "@/lib/fiscal/uncertainFiscalVoid";
 
 describe("isUncertainFiscalVoid", () => {
@@ -41,10 +42,22 @@ describe("isUncertainFiscalVoid", () => {
 });
 
 describe("uncertainFiscalVoidBannerCopy", () => {
-  it("asks to verify Epson without auto-resend", () => {
+  it("requires Epson registration check, not paper-only, and blocks if uncertain", () => {
     const c = uncertainFiscalVoidBannerCopy();
     expect(c.title).toMatch(/Esito fiscale da verificare/i);
-    expect(c.detail).toMatch(/Epson/i);
+    expect(c.detail).toMatch(/registrazioni|memoria fiscale/i);
+    expect(c.detail).toMatch(/non solo/i);
+    expect(c.detail).toMatch(/tecnico della cassa/i);
     expect(c.detail).toMatch(/Non viene reinviato/i);
+  });
+});
+
+describe("uncertainFiscalVoidModalCopy", () => {
+  it("labels not-printed as registration absence and keeps uncertain blocked", () => {
+    const m = uncertainFiscalVoidModalCopy();
+    expect(m.notPrintedLabel).toMatch(/registrazioni Epson/i);
+    expect(m.notPrintedLabel).not.toMatch(/carta/i);
+    expect(m.uncertainHint).toMatch(/tecnico della cassa/i);
+    expect(m.uncertainHint).toMatch(/Non confermare/i);
   });
 });

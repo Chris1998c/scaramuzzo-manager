@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { FiscalDocumentBySaleResponse } from "@/lib/fiscal/fiscalDocumentTypes";
 import {
   uncertainFiscalVoidBannerCopy,
+  uncertainFiscalVoidModalCopy,
   type UncertainFiscalVoidOutcome,
 } from "@/lib/fiscal/uncertainFiscalVoid";
 
@@ -271,6 +272,7 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
  }
 
  const uncertainCopy = uncertainFiscalVoidBannerCopy();
+ const uncertainModal = uncertainFiscalVoidModalCopy();
 
  const fiscalMeta = metaFor(
  FISCAL_STATUS_META,
@@ -468,9 +470,10 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
            {uncertainCopy.title}
          </h2>
          <p className="text-sm text-white/70">
-           Vendita #{saleId}. Controlla sulla Epson se è uscito lo scontrino di
-           annullo, poi seleziona l’esito. Nessun comando viene inviato alla
-           stampante.
+           Vendita #{saleId}. {uncertainModal.intro}
+         </p>
+         <p className="text-xs text-amber-100/80 leading-relaxed">
+           {uncertainModal.uncertainHint}
          </p>
          <div className="space-y-2">
            <label className="flex items-start gap-2 text-sm text-white/80">
@@ -482,10 +485,7 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
                disabled={resolveSubmitting}
                className="mt-1"
              />
-             <span>
-               Annullo <strong>non</strong> stampato → ripristina vendita, nessuno
-               storno stock
-             </span>
+             <span>{uncertainModal.notPrintedLabel}</span>
            </label>
            <label className="flex items-start gap-2 text-sm text-white/80">
              <input
@@ -496,10 +496,7 @@ export default function FiscalDocumentCard({ saleId, className = "" }: Props) {
                disabled={resolveSubmitting}
                className="mt-1"
              />
-             <span>
-               Annullo <strong>stampato</strong> → chiudi come voided e storna stock
-               (inserisci coordinate dallo scontrino)
-             </span>
+             <span>{uncertainModal.printedLabel}</span>
            </label>
          </div>
          {resolveOutcome === "void_printed" && (
