@@ -368,9 +368,11 @@ export function computeHeaderFromLines(lines: HeaderLineInput[]): {
   if (!lines.length) {
     throw new Error("computeHeaderFromLines: no lines");
   }
+  // Non snappare gli start riga prima del MAX end: con durate non-15 (es. 20+20)
+  // lo snap indietro (10:20→10:15) accorciava l'header rispetto a busy reale / availability.
   const normalized = lines.map((ln) => ({
     ...ln,
-    start_time: toNoZ(snapToAgendaSlot(parseLocal(ln.start_time))),
+    start_time: toNoZ(parseLocal(ln.start_time)),
     duration_minutes: clampDurationMinutes(ln.duration_minutes),
   }));
   const sorted = [...normalized].sort((a, b) => {
@@ -389,7 +391,7 @@ export function computeHeaderFromLines(lines: HeaderLineInput[]): {
   }
   return {
     start_time: toNoZ(snapToAgendaSlot(new Date(minStartMs))),
-    end_time: toNoZ(snapToAgendaSlot(new Date(maxEndMs))),
+    end_time: toNoZ(new Date(maxEndMs)),
     staff_id: normalizeStaffId(first.staff_id),
   };
 }

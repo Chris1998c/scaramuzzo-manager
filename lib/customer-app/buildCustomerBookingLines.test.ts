@@ -48,8 +48,21 @@ describe("buildCustomerBookingLines", () => {
     expect(built).toHaveLength(2);
     expect(built[0].start_time).toBe("2026-06-15T10:00:00");
     expect(built[1].start_time).toBe("2026-06-15T10:20:00");
+    expect(built[0].end_time).toBe("2026-06-15T10:20:00");
+    expect(built[1].end_time).toBe("2026-06-15T10:50:00");
 
     expect(() => assertCustomerBookingLinesInternallyFree(built)).not.toThrow();
+  });
+
+  it("20+20: end riga = start+duration (allineato ad availability/header)", () => {
+    const built = buildCustomerBookingLines("2026-06-15T10:00:00", [
+      lineInput(1, 20),
+      lineInput(2, 20),
+    ]);
+    expect(built[0].end_time).toBe("2026-06-15T10:20:00");
+    expect(built[1].start_time).toBe("2026-06-15T10:20:00");
+    expect(built[1].end_time).toBe("2026-06-15T10:40:00");
+    expect(totalDurationMinutesFromLines(built)).toBe(40);
   });
 
   it("colore 60 + piega 20: seconda riga parte alla fine reale della prima", () => {

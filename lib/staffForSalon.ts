@@ -51,7 +51,7 @@ export async function fetchActiveStaffIdsForSalon(
       const id = Number((r as { id: unknown }).id);
       if (Number.isInteger(id) && id > 0) ids.add(id);
     }
-    return Array.from(ids);
+    return filterActiveStaffIds(supabase, Array.from(ids));
   }
 
   const staffWithAnyLink = new Set<number>();
@@ -75,7 +75,24 @@ export async function fetchActiveStaffIdsForSalon(
     if (!staffWithAnyLink.has(id)) ids.add(id);
   }
 
-  return Array.from(ids);
+  return filterActiveStaffIds(supabase, Array.from(ids));
+}
+
+/** Junction staff_salons non filtra active: esclude collaboratori disattivati. */
+async function filterActiveStaffIds(
+  supabase: SupabaseClient,
+  candidateIds: number[],
+): Promise<number[]> {
+  if (!candidateIds.length) return [];
+  const { data, error } = await supabase
+    .from("staff")
+    .select("id")
+    .in("id", candidateIds)
+    .eq("active", true);
+  if (error) throw error;
+  return (data ?? [])
+    .map((r) => Number((r as { id: unknown }).id))
+    .filter((id) => Number.isInteger(id) && id > 0);
 }
 
 export async function fetchActiveStaffForSalon(

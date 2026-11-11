@@ -274,15 +274,25 @@ export async function createCustomerAppBooking(
     };
   } catch (e) {
     if (appointmentIdCreated != null) {
-      try {
-        await admin.from("appointment_services").delete().eq("appointment_id", appointmentIdCreated);
-      } catch {
-        /* cleanup best-effort */
+      const { error: linesCleanupErr } = await admin
+        .from("appointment_services")
+        .delete()
+        .eq("appointment_id", appointmentIdCreated);
+      if (linesCleanupErr) {
+        console.error(
+          "createCustomerAppBooking cleanup lines:",
+          linesCleanupErr.message,
+        );
       }
-      try {
-        await admin.from("appointments").delete().eq("id", appointmentIdCreated);
-      } catch {
-        /* cleanup best-effort */
+      const { error: headerCleanupErr } = await admin
+        .from("appointments")
+        .delete()
+        .eq("id", appointmentIdCreated);
+      if (headerCleanupErr) {
+        console.error(
+          "createCustomerAppBooking cleanup header:",
+          headerCleanupErr.message,
+        );
       }
     }
     throw e;

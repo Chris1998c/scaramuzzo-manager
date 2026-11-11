@@ -20,6 +20,12 @@ describe("parseBookingServiceIds", () => {
       expect(r.error).toContain(String(MAX_CUSTOMER_APP_SERVICE_IDS));
     }
   });
+
+  it("rifiuta service_ids duplicati", () => {
+    const r = parseBookingServiceIds([1, 2, 1]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/duplicat/i);
+  });
 });
 
 describe("parseCustomerAppBookingBody", () => {

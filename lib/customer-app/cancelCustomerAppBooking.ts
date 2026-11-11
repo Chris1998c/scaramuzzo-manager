@@ -35,10 +35,12 @@ export async function cancelCustomerAppBooking(
   customerId: string,
   bookingId: number,
 ): Promise<CustomerAppCancelledBookingDto> {
+  // Filtra per customer_id: booking altrui → 404 (niente oracle 403 vs 404).
   const { data: appt, error: fetchErr } = await admin
     .from("appointments")
     .select("id, customer_id, status, sale_id, source, start_time")
     .eq("id", bookingId)
+    .eq("customer_id", customerId)
     .maybeSingle();
 
   if (fetchErr) {
@@ -47,12 +49,6 @@ export async function cancelCustomerAppBooking(
 
   if (!appt) {
     throw new CustomerAppBookingCancelNotFoundError();
-  }
-
-  const ownerId =
-    appt.customer_id != null ? String(appt.customer_id).trim() : "";
-  if (ownerId !== customerId) {
-    throw new CustomerAppBookingCancelForbiddenError();
   }
 
   const cancelCheck = canCustomerCancelBooking({

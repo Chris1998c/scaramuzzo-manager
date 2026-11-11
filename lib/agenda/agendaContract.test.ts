@@ -451,6 +451,25 @@ describe("computeHeaderFromLines", () => {
   it("righe vuote: throw", () => {
     expect(() => computeHeaderFromLines([])).toThrow(/no lines/);
   });
+
+  it("20+20 contigue non-15: header end = fine reale 10:40 (niente snap indietro)", () => {
+    const h = computeHeaderFromLines([
+      {
+        id: 1,
+        start_time: "2026-06-15T10:00:00",
+        duration_minutes: 20,
+        staff_id: 1,
+      },
+      {
+        id: 2,
+        start_time: "2026-06-15T10:20:00",
+        duration_minutes: 20,
+        staff_id: 1,
+      },
+    ]);
+    expect(h.start_time).toBe("2026-06-15T10:00:00");
+    expect(h.end_time).toBe("2026-06-15T10:40:00");
+  });
 });
 
 describe("commitLinePatch guard", () => {

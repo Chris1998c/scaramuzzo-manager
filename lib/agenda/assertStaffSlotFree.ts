@@ -5,7 +5,6 @@ import {
   absoluteIntervalsOverlapAny,
   appointmentServiceBusyAbsoluteIntervals,
   parseLocal,
-  snapToAgendaSlot,
   toNoZ,
   type AgendaAbsoluteMsInterval,
 } from "@/lib/agenda/agendaContract";
@@ -42,9 +41,13 @@ export type AssertStaffSlotFreeInput = {
   excludeLineId?: number | null;
 };
 
+/**
+ * Fine logica riga = start + duration (senza snap).
+ * Lo snap arrotondato rompeva multi-servizio non multiplo di 15 (es. 20′ → end prima del start successivo).
+ */
 export function computeLineEndTime(startTime: string, durationMinutes: number): string {
   const startMs = parseLocal(startTime).getTime();
-  return toNoZ(snapToAgendaSlot(new Date(startMs + durationMinutes * 60_000)));
+  return toNoZ(new Date(startMs + durationMinutes * 60_000));
 }
 
 /** [startA, endA) vs [startB, endB) */

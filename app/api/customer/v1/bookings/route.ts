@@ -105,11 +105,19 @@ export async function POST(req: Request) {
       );
 
       if (idempotencyRecordId) {
-        await completeCustomerBookingIdempotency(
-          supabaseAdmin,
-          idempotencyRecordId,
-          booking,
-        );
+        try {
+          await completeCustomerBookingIdempotency(
+            supabaseAdmin,
+            idempotencyRecordId,
+            booking,
+          );
+        } catch (completeErr) {
+          // Booking già creato: non rilasciare la chiave (retry → replay/409, non secondo insert).
+          console.error(
+            "customer/v1/bookings idempotency complete:",
+            completeErr instanceof Error ? completeErr.message : completeErr,
+          );
+        }
       }
 
       return NextResponse.json({ booking }, { status: 201 });

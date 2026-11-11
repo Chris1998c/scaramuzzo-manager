@@ -36,11 +36,16 @@ export function parseBookingServiceIds(raw: unknown): { ok: true; ids: number[] 
   }
 
   const ids: number[] = [];
+  const seen = new Set<number>();
   for (const v of raw) {
     const n = typeof v === "number" ? v : Number(String(v).trim());
     if (!Number.isInteger(n) || n <= 0) {
       return { ok: false, error: "service_id non valido" };
     }
+    if (seen.has(n)) {
+      return { ok: false, error: "service_ids: servizi duplicati non consentiti" };
+    }
+    seen.add(n);
     ids.push(n);
   }
 
