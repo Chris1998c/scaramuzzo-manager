@@ -86,12 +86,29 @@ export default function TrasferimentiPage() {
   const isReception = role === "reception";
   const disableFromSelect = !isWarehouse; // reception: "Da" fisso
 
+  const fromOptions = useMemo(() => {
+    if (role === "magazzino") {
+      return SALONS.filter((s) => allowedSalons.some((a) => a.id === s.id));
+    }
+    return SALONS;
+  }, [role, allowedSalons]);
+
   const toOptions = useMemo(() => {
-    if (fromSalon === null) return SALONS.filter((s) => s.id !== MAGAZZINO_CENTRALE_ID);
+    // Magazzino hub: destinazioni sedi 1–4 (anche se non in user_salons).
+    // Reception/coordinator: niente centrale come destinazione tipica reception;
+    // warehouse coordinator può destinare a qualsiasi altro salone incluso hub se serve.
+    if (fromSalon === null) {
+      return SALONS.filter((s) => s.id !== MAGAZZINO_CENTRALE_ID);
+    }
+    if (role === "magazzino") {
+      return SALONS.filter(
+        (s) => s.id !== fromSalon && s.id !== MAGAZZINO_CENTRALE_ID,
+      );
+    }
     return SALONS.filter(
-      (s) => s.id !== fromSalon && (isWarehouse || s.id !== MAGAZZINO_CENTRALE_ID)
+      (s) => s.id !== fromSalon && (isWarehouse || s.id !== MAGAZZINO_CENTRALE_ID),
     );
-  }, [fromSalon, isWarehouse]);
+  }, [fromSalon, isWarehouse, role]);
 
   function pickDefaultTo(from: number | null) {
     if (from === null) return 1;
@@ -456,7 +473,7 @@ export default function TrasferimentiPage() {
                   await fetchProducts(v, productSearch);
                 }}
               >
-                {SALONS.map((s) => (
+                {fromOptions.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>

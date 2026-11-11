@@ -8,6 +8,7 @@ import {
   idempotentTransferResponse,
   requireClientRequestIdResponse,
 } from "@/lib/magazzino/idempotency";
+import { canTransferBetweenSalons } from "@/lib/magazzino/transferAccess";
 import { parseCreateTransferRpcResult } from "@/lib/magazzino/transferRpc";
 
 type TransferItem = { id: number | string; qty: number | string };
@@ -98,10 +99,17 @@ export async function POST(req: Request) {
       }
     }
     if (isWarehouse) {
-      if (!access.allowedSalonIds.includes(fromSalon) || !access.allowedSalonIds.includes(toSalon)) {
+      if (
+        !canTransferBetweenSalons({
+          role,
+          allowedSalonIds: access.allowedSalonIds,
+          fromSalon,
+          toSalon,
+        })
+      ) {
         return NextResponse.json(
           { error: "fromSalon/toSalon non consentiti per questo utente" },
-          { status: 403 }
+          { status: 403 },
         );
       }
     }
