@@ -20,12 +20,14 @@ import {
 import { canModifyAppointmentHeader } from "@/lib/agenda/appointmentLifecycle";
 import {
   patchAppointmentServiceLinesAtomic,
+  type AppointmentHeaderAtomicPatch,
   type AppointmentServiceLineAtomicPatch,
 } from "@/lib/agenda/patchAppointmentServiceLinesAtomic";
 import { shiftAppointmentLineStart } from "@/lib/agenda/shiftAppointmentLineStarts";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
 import {
   clampDurationMinutes,
+  computeHeaderFromLines,
   normalizeStaffId,
   parseLocal,
   snapToAgendaSlot,
@@ -392,14 +394,6 @@ export async function PATCH(
       });
     }
 
-    if (Object.keys(metaPatch).length) {
-      const { error: metaErr } = await supabaseAdmin
-        .from("appointments")
-        .update(metaPatch)
-        .eq("id", appointmentId);
-      if (metaErr) return NextResponse.json({ error: metaErr.message }, { status: 500 });
-    }
-
     if (lineRows?.length) {
       if (linesNeedingWrite.length) {
         const atomicLines: AppointmentServiceLineAtomicPatch[] = linesNeedingWrite.map((l) => ({
@@ -408,9 +402,32 @@ export async function PATCH(
           ...(l.staffChanged ? { staff_id: l.staff_id, staff_id_set: true } : {}),
         }));
 
+        // Header (orari da righe + eventuale customer/notes) nella stessa TX delle righe.
+        const computed = computeHeaderFromLines(
+          proposedLines.map((l) => ({
+            id: l.id,
+            start_time: l.start_time,
+            duration_minutes: l.duration_minutes,
+            staff_id: l.staff_id,
+          })),
+        );
+        const header: AppointmentHeaderAtomicPatch = {
+          start_time: computed.start_time,
+          end_time: computed.end_time,
+          staff_id: computed.staff_id,
+          staff_id_set: true,
+        };
+        if (metaPatch.customer_id !== undefined) {
+          header.customer_id = String(metaPatch.customer_id);
+        }
+        if (metaPatch.notes !== undefined) {
+          header.notes = metaPatch.notes as string | null;
+        }
+
         const written = await patchAppointmentServiceLinesAtomic(supabaseAdmin, {
           appointmentId,
           lines: atomicLines,
+          header,
         });
         if (!written.ok) {
           if (isStaffSlotConflictFromDbError(written.error)) {
@@ -418,11 +435,29 @@ export async function PATCH(
           }
           return NextResponse.json({ error: written.error.message }, { status: 500 });
         }
+        return NextResponse.json({ ok: true });
+      }
+
+      // Solo meta (customer/notes), senza cambio orario/staff righe: update header semplice.
+      if (Object.keys(metaPatch).length) {
+        const { error: metaErr } = await supabaseAdmin
+          .from("appointments")
+          .update(metaPatch)
+          .eq("id", appointmentId);
+        if (metaErr) return NextResponse.json({ error: metaErr.message }, { status: 500 });
       }
 
       const synced = await syncAppointmentHeaderFromDb(supabaseAdmin, appointmentId);
       if (!synced.ok) return NextResponse.json({ error: synced.error.message }, { status: 500 });
       return NextResponse.json({ ok: true });
+    }
+
+    if (Object.keys(metaPatch).length) {
+      const { error: metaErr } = await supabaseAdmin
+        .from("appointments")
+        .update(metaPatch)
+        .eq("id", appointmentId);
+      if (metaErr) return NextResponse.json({ error: metaErr.message }, { status: 500 });
     }
 
     const headerPatch: Record<string, unknown> = {};

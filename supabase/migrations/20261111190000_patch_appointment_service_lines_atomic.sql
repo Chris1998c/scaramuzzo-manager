@@ -80,6 +80,8 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.patch_appointment_service_lines_atomic(bigint, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.patch_appointment_service_lines_atomic(bigint, jsonb) FROM anon;
+REVOKE ALL ON FUNCTION public.patch_appointment_service_lines_atomic(bigint, jsonb) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.patch_appointment_service_lines_atomic(bigint, jsonb) TO service_role;
 
 COMMENT ON FUNCTION public.patch_appointment_service_lines_atomic(bigint, jsonb) IS
