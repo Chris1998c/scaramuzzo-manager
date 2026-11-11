@@ -17,7 +17,7 @@ export async function POST(req: Request) {
 
     const { data: staffRow, error: staffErr } = await supabaseAdmin
       .from("staff")
-      .select("id, mobile_enabled")
+      .select("id, active, mobile_enabled")
       .eq("id", staffId)
       .maybeSingle();
 
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       console.error("mobile attendance status staff:", staffErr.message);
       return NextResponse.json({ error: "Failed to verify staff" }, { status: 500 });
     }
-    if (!staffRow) {
+    if (!staffRow || !staffRow.active) {
       return NextResponse.json({ error: "Staff not found" }, { status: 404 });
     }
     if (!staffRow.mobile_enabled) {

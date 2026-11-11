@@ -10,6 +10,7 @@ import {
   rejectMockedLocation,
   rejectPoorGpsAccuracy,
 } from "@/lib/mobile/mobileAttendanceClockValidation";
+import { insertMobileAttendanceClock } from "@/lib/mobile/mobileAttendanceClockInsert";
 import { resolveStaffSalonIds } from "@/lib/mobile/mobileStaffSalons";
 import { verifyMobileBearerFromRequest } from "@/lib/mobileSession";
 
@@ -119,39 +120,36 @@ export async function POST(req: Request) {
 
     const salonId = detected.salonId;
 
-    const { data: last, error: lastErr } = await supabaseAdmin
-      .from("attendance_logs")
-      .select("type")
-      .eq("staff_id", staffId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (lastErr) {
-      throw lastErr;
-    }
-
-    const newType: "in" | "out" = last?.type === "in" ? "out" : "in";
-
-    const { error: insertError } = await supabaseAdmin.from("attendance_logs").insert({
-      staff_id: staffId,
-      salon_id: salonId,
-      type: newType,
-      latitude: lat,
-      longitude: lng,
-      accuracy_m: parsed.body.accuracyM,
-      is_mocked: false,
-      device_id: parsed.body.deviceId,
-      app_version: parsed.body.appVersion,
+    // Identità e salone da JWT/GPS DB — body.staff_id / body.salon_id non usati per l'insert.
+    const written = await insertMobileAttendanceClock(supabaseAdmin, {
+      staffId,
+      salonId,
+      lat,
+      lng,
+      accuracyM: parsed.body.accuracyM,
+      deviceId: parsed.body.deviceId,
+      appVersion: parsed.body.appVersion,
     });
 
-    if (insertError) {
-      throw insertError;
+    if (!written.ok) {
+      if (written.code === "too_soon") {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Timbratura troppo ravvicinata, riprova tra qualche secondo",
+            ...(written.retryAfterSec != null
+              ? { retry_after_seconds: written.retryAfterSec }
+              : {}),
+          },
+          { status: 429 },
+        );
+      }
+      throw new Error(written.message);
     }
 
     return NextResponse.json({
       success: true,
-      new_status: newType,
+      new_status: written.newStatus,
       salon_id: salonId,
       detected_salon_id: salonId,
       detected_salon_name: detected.salonName,
