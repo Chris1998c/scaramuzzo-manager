@@ -10,15 +10,28 @@ import ClientInsightsPanel from "./ClientInsightsPanel";
 import ClientTimelinePanel from "./ClientTimelinePanel";
 import ClienteAnagraficaForm from "./ClienteAnagraficaForm";
 import { mapCustomerMarketingToInitial } from "@/lib/customers/clienteAnagraficaMarketing";
+import {
+  parseAppointmentIdSearchParam,
+  resolveClienteSchedaAppointmentContext,
+  type VerifiedSchedaAppointmentContext,
+} from "@/lib/customers/clienteSchedaAppointmentContext";
 
 type Params = { id: string };
+type SearchParams = { appointment_id?: string | string[] };
 
 function canAccessClientiModule(role: string) {
   return role === "coordinator" || role === "reception" || role === "magazzino";
 }
 
-export default async function ClientePage({ params }: { params: Promise<Params> }) {
+export default async function ClientePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<Params>;
+  searchParams?: Promise<SearchParams>;
+}) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -76,6 +89,50 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
 
   const c = customer;
 
+  const requested = parseAppointmentIdSearchParam(sp.appointment_id);
+  let schedaAppointment: VerifiedSchedaAppointmentContext | null = null;
+  let schedaAppointmentWarning: string | null = null;
+
+  if (requested.present) {
+    let appointmentRow: {
+      id: number;
+      customer_id: string | null;
+      salon_id: number | null;
+      staff_id: number | null;
+    } | null = null;
+
+    if (requested.appointmentId != null) {
+      const { data: appt } = await supabase
+        .from("appointments")
+        .select("id, customer_id, salon_id, staff_id")
+        .eq("id", requested.appointmentId)
+        .maybeSingle();
+      appointmentRow = appt
+        ? {
+            id: Number(appt.id),
+            customer_id: appt.customer_id == null ? null : String(appt.customer_id),
+            salon_id: appt.salon_id == null ? null : Number(appt.salon_id),
+            staff_id: appt.staff_id == null ? null : Number(appt.staff_id),
+          }
+        : null;
+    }
+
+    const resolved = resolveClienteSchedaAppointmentContext({
+      pageCustomerId: String(c.id),
+      requested,
+      appointment: appointmentRow,
+      role: access.role,
+      allowedSalonIds: access.allowedSalonIds,
+      staffSalonId: access.staffSalonId,
+    });
+
+    if (resolved.status === "ok") {
+      schedaAppointment = resolved.context;
+    } else if (resolved.status === "error") {
+      schedaAppointmentWarning = resolved.message;
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -90,6 +147,18 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
           Scheda cliente globale (tutti i saloni)
         </span>
       </div>
+
+      {schedaAppointmentWarning ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          {schedaAppointmentWarning}
+        </div>
+      ) : null}
+      {schedaAppointment ? (
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          Contesto appuntamento #{schedaAppointment.appointmentId}: le nuove schede
+          tecniche verranno collegate a questo appuntamento.
+        </div>
+      ) : null}
 
       <ClienteAnagraficaForm
         initial={{
@@ -117,7 +186,12 @@ export default async function ClientePage({ params }: { params: Promise<Params> 
         </div>
 
         <div className="xl:col-span-2 space-y-6">
-          <SchedeTecniche customerId={customer.id} />
+          <SchedeTecniche
+            customerId={customer.id}
+            appointmentId={schedaAppointment?.appointmentId ?? null}
+            salonId={schedaAppointment?.salonId ?? null}
+            staffId={schedaAppointment?.staffId ?? null}
+          />
         </div>
       </div>
     </div>

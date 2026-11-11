@@ -30,6 +30,7 @@ import {
   normalizeStaffId,
 } from "@/lib/agenda/agendaContract";
 import type { AgendaAppointment } from "@/lib/agenda/agendaContract";
+import { buildClienteSchedeTecnicheHref } from "@/lib/customers/clienteSchedaAppointmentContext";
 
 /** Altezza minima card: ~1.35 slot o 56px — leggibilità senza blocchi enormi. */
 const CARD_MIN_HEIGHT_SLOTS = 1.35;
@@ -748,7 +749,9 @@ function ServiceBox({
  toast.error("Nessun cliente collegato.");
                   return;
                 }
-                router.push(`/dashboard/clienti/${cid}#schede-tecniche`);
+                router.push(
+                  buildClienteSchedeTecnicheHref(String(cid), Number(appointment.id)),
+                );
               }}
               className="w-full px-2.5 py-2 text-left text-[11px] font-semibold text-white/90 hover:bg-white/[0.06] border-t border-white/[0.06]"
  >

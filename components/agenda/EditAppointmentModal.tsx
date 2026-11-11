@@ -34,6 +34,7 @@ import {
 } from "@/lib/agenda/editAppointmentLineStaff";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { toast } from "sonner";
+import { buildClienteSchedeTecnicheHref } from "@/lib/customers/clienteSchedaAppointmentContext";
 import {
   canSetAppointmentLifecycleStatus,
   canShowLifecycleActions,
@@ -449,8 +450,13 @@ export default function EditAppointmentModal({
       );
       return;
     }
+    const appointmentId = Number(appointment?.id);
+    if (!Number.isInteger(appointmentId) || appointmentId <= 0) {
+      toast.error("Appuntamento non valido.");
+      return;
+    }
     close();
-    router.push(`/dashboard/clienti/${cid}#schede-tecniche`);
+    router.push(buildClienteSchedeTecnicheHref(cid, appointmentId));
   }
 
   const headerCustomer = appointment?.customers ? safeName(appointment.customers) : "Appuntamento";

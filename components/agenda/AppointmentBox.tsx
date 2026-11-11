@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { SLOT_MINUTES } from "./utils";
 import { agendaVisualFromServiceRow } from "@/lib/agendaServiceVisual";
 import { useAgendaSlotPx } from "./AgendaSlotPxContext";
+import { buildClienteSchedeTecnicheHref } from "@/lib/customers/clienteSchedaAppointmentContext";
 
 type Segment = { name: string; color: string; duration: number };
 
@@ -441,7 +442,9 @@ export default function AppointmentBox({
  toast.error("Nessun cliente collegato all’appuntamento.");
                   return;
                 }
-                router.push(`/dashboard/clienti/${cid}#schede-tecniche`);
+                router.push(
+                  buildClienteSchedeTecnicheHref(String(cid), Number(appointment.id)),
+                );
               }}
               className="w-full px-4 py-2.5 text-left text-xs text-white/90 hover:bg-white/5"
             >
