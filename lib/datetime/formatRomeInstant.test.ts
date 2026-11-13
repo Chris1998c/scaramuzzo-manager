@@ -36,4 +36,27 @@ describe("formatRomeInstant", () => {
     const d = parseInstantUtcAware("2026-11-07T14:53:11.605");
     expect(d?.toISOString()).toBe("2026-11-07T14:53:11.605Z");
   });
+
+  it("Presenze SARA 13/11 CET: timestamptz UTC → wall Rome (entrata)", () => {
+    // DB: 2026-11-13 17:42:41.847647+00 → Rome 18:42:41 (bug UI: toLocaleString UTC = 17:42:41)
+    expect(formatRomeDateTime("2026-11-13 17:42:41.847647+00")).toBe(
+      "13/11/2026, 18:42:41",
+    );
+    expect(formatRomeDateTime("2026-11-13T17:42:41.847647+00")).toBe(
+      "13/11/2026, 18:42:41",
+    );
+    expect(formatRomeDateTime("2026-11-13T17:42:41.847647")).toBe(
+      "13/11/2026, 18:42:41",
+    );
+  });
+
+  it("Presenze uscita CET/CEST: stesso formatter, niente ora fissa", () => {
+    expect(formatRomeDateTime("2026-11-13T18:05:00.000Z")).toBe(
+      "13/11/2026, 19:05:00",
+    );
+    expect(formatRomeDateTime("2026-07-13T16:42:41.000Z")).toBe(
+      "13/07/2026, 18:42:41",
+    );
+  });
 });
+

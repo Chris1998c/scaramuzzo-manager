@@ -4,6 +4,7 @@ import { ClipboardList } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { salonLabel } from "@/lib/constants";
+import { formatRomeDateTime } from "@/lib/datetime/formatRomeInstant";
 
 type DailySummaryRow = {
   staff_id: number;
@@ -28,11 +29,11 @@ type LatestAttendanceRow = {
   created_at: string;
 };
 
+/** Entrata/uscita: timestamptz assoluto → wall Europe/Rome (no TZ del server). */
 function formatDateTime(value: string | null): string {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("it-IT");
+  const formatted = formatRomeDateTime(value);
+  return formatted === "—" ? "-" : formatted;
 }
 
 function getLiveStatusFromType(attendanceType: string | undefined): LiveStatus {

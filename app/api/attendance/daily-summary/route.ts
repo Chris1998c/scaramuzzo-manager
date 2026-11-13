@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { romeDayKeyFromIso } from "@/lib/mobileSession";
+import { parseInstantUtcAware } from "@/lib/datetime/formatRomeInstant";
+import { romeBusinessDateFromUtcWall } from "@/lib/datetime/romeBusinessDate";
 import {
   requireAttendanceWebAccess,
   salonIdsForAttendanceFilter,
@@ -61,13 +62,11 @@ export async function GET() {
     for (const event of events) {
       staffIds.add(event.staff_id);
 
-      const day = romeDayKeyFromIso(event.created_at);
+      // Giorno operativo Europe/Rome (naive senza offset = UTC wall, come timestamptz PostgREST).
+      const day = romeBusinessDateFromUtcWall(event.created_at);
+      const createdAtDate = parseInstantUtcAware(event.created_at);
+      if (!day || !createdAtDate) continue;
       const key = `${event.staff_id}:${event.salon_id}:${day}`;
-      const createdAtDate = new Date(event.created_at);
-
-      if (Number.isNaN(createdAtDate.getTime())) {
-        continue;
-      }
 
       let summary = summaryByKey.get(key);
       if (!summary) {
