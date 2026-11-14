@@ -37,6 +37,7 @@ function multiServiceApp(
     status: "scheduled",
     sale_id: null,
     notes: null,
+    source: null,
     staff_id: lines[0]?.staff_id ?? 56,
     customer_id: "c1",
     customers: { first_name: "A", last_name: "B" },
@@ -50,6 +51,7 @@ function multiServiceApp(
       duration_processing: ln.duration_processing ?? null,
       need_processing: ln.need_processing ?? null,
       staff_id: ln.staff_id ?? 56,
+      is_customer_composition_companion: false,
       services: {
         id: i + 1,
         name: `S${i}`,

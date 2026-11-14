@@ -8,6 +8,7 @@ export const AGENDA_LIST_SELECT = `
   status,
   sale_id,
   notes,
+  source,
   staff_id,
   customer_id,
   customer:customer_id (
@@ -24,6 +25,7 @@ export const AGENDA_LIST_SELECT = `
     duration_processing,
     need_processing,
     staff_id,
+    is_customer_composition_companion,
     services:service_id (
       id,
       name,
@@ -54,6 +56,11 @@ export type AgendaServiceLine = {
   duration_processing: number | null;
   need_processing: boolean | null;
   staff_id: number | null;
+  /**
+   * true = riga aggiunta dalla composizione App Clienti (es. Shampoo companion).
+   * Resta in dati/durata/cassa; nascosta solo in griglia Agenda.
+   */
+  is_customer_composition_companion: boolean;
   services: AgendaServiceEmbed;
 };
 
@@ -64,6 +71,7 @@ export type AgendaAppointment = {
   status: string;
   sale_id: number | null;
   notes: string | null;
+  source: string | null;
   staff_id: number | null;
   customer_id: string | number | null;
   customers: AgendaCustomer;
@@ -420,6 +428,8 @@ export function normalizeAgendaRows(raw: unknown[] | null): AgendaAppointment[] 
         return Number.isFinite(n) && n > 0 ? n : null;
       })(),
       notes: row.notes == null || row.notes === "" ? null : String(row.notes),
+      source:
+        row.source == null || row.source === "" ? null : String(row.source),
       staff_id: normalizeStaffId(row.staff_id),
       customer_id: (row.customer_id as string | number | null) ?? null,
       customers: {
@@ -452,6 +462,8 @@ export function normalizeAgendaRows(raw: unknown[] | null): AgendaAppointment[] 
               ? null
               : ln.need_processing === true,
           staff_id: normalizeStaffId(ln.staff_id),
+          is_customer_composition_companion:
+            ln.is_customer_composition_companion === true,
           services: {
             id: Number(svc?.id ?? sid ?? 0),
             name: String(svc?.name ?? "Servizio"),

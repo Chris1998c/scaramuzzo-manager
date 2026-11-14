@@ -207,6 +207,7 @@ export async function createCustomerAppBooking(
     appointmentIdCreated = appointmentId;
 
     const serviceDtos: CustomerAppBookingServiceDto[] = [];
+    const companionIdSet = new Set(normalized.companionIds);
 
     for (const built of builtLines) {
       const { error: lineErr } = await admin.from("appointment_services").insert({
@@ -220,6 +221,7 @@ export async function createCustomerAppBooking(
         need_processing: built.need_processing,
         price: built.price,
         vat_rate: built.vat_rate,
+        is_customer_composition_companion: companionIdSet.has(built.service_id),
       });
 
       if (lineErr) {

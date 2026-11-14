@@ -369,6 +369,54 @@ describe("normalizeAgendaRows", () => {
     expect(a.status).toBe("scheduled");
     expect(a.notes).toBeNull();
   });
+
+  it("source e is_customer_composition_companion: normalizzati", () => {
+    const [a] = normalizeAgendaRows([
+      {
+        ...baseRow,
+        source: "customer_app",
+        appointment_services: [
+          {
+            id: 1,
+            appointment_id: 100,
+            service_id: 62,
+            start_time: "2026-04-03T10:00:00",
+            duration_minutes: 15,
+            staff_id: 7,
+            is_customer_composition_companion: true,
+            services: {
+              id: 62,
+              name: "Shampoo",
+              duration: 15,
+              color_code: "#fff",
+            },
+          },
+          {
+            id: 2,
+            appointment_id: 100,
+            service_id: 66,
+            start_time: "2026-04-03T10:15:00",
+            duration_minutes: 80,
+            staff_id: 7,
+            is_customer_composition_companion: false,
+            services: {
+              id: 66,
+              name: "Erbe",
+              duration: 80,
+              color_code: "#fff",
+            },
+          },
+        ],
+      },
+    ] as unknown[]);
+    expect(a.source).toBe("customer_app");
+    expect(a.appointment_services[0].is_customer_composition_companion).toBe(
+      true,
+    );
+    expect(a.appointment_services[1].is_customer_composition_companion).toBe(
+      false,
+    );
+  });
 });
 
 describe("computeHeaderFromLines", () => {

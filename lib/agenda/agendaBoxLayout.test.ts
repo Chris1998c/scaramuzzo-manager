@@ -23,6 +23,7 @@ function multiServiceAppointment(): AgendaAppointment {
     status: "scheduled",
     sale_id: null,
     notes: null,
+    source: null,
     staff_id: 56,
     customer_id: "c1",
     customers: { first_name: "Mario", last_name: "Rossi" },
@@ -37,6 +38,7 @@ function multiServiceAppointment(): AgendaAppointment {
         duration_processing: null,
         need_processing: null,
         staff_id: 56,
+        is_customer_composition_companion: false,
         services: { id: 1, name: "Colore", duration: 35, color_code: "#a8754f" },
       },
       {
@@ -49,6 +51,7 @@ function multiServiceAppointment(): AgendaAppointment {
         duration_processing: null,
         need_processing: null,
         staff_id: 56,
+        is_customer_composition_companion: false,
         services: { id: 2, name: "Piega", duration: 45, color_code: "#a8754f" },
       },
     ],

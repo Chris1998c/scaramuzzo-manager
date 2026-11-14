@@ -9,14 +9,30 @@ function sortLinesByStart(lines: AgendaServiceLine[]): AgendaServiceLine[] {
 }
 
 /**
- * Righe da renderizzare in AgendaGrid: un blocco per ogni appointment_services valido.
+ * Companion di composizione App Clienti (es. Shampoo auto): resta in
+ * appointment_services / durata / busy / cassa, ma non come card in griglia.
+ * Solo flag esplicito — non nasconde tutti i servizi con lo stesso service_id.
+ */
+export function isAgendaHiddenCompositionCompanionLine(
+  line: Pick<AgendaServiceLine, "is_customer_composition_companion">,
+): boolean {
+  return line.is_customer_composition_companion === true;
+}
+
+/**
+ * Righe da renderizzare in AgendaGrid: un blocco per ogni appointment_services valido
+ * esclusi i companion di composizione cliente.
  * Usa start_time / duration_minutes / staff_id della riga (niente collapse né somma durate).
  */
 export function getAgendaDisplayServiceLines(
   app: AgendaAppointment,
 ): AgendaServiceLine[] {
   const lines = (app.appointment_services ?? []).filter(
-    (ln) => ln.id != null && Number.isFinite(Number(ln.id)) && Number(ln.id) > 0,
+    (ln) =>
+      ln.id != null &&
+      Number.isFinite(Number(ln.id)) &&
+      Number(ln.id) > 0 &&
+      !isAgendaHiddenCompositionCompanionLine(ln),
   );
 
   if (!lines.length) {
@@ -27,7 +43,7 @@ export function getAgendaDisplayServiceLines(
 }
 
 /**
- * Solo la prima riga (start minimo, poi id) mostra azioni a livello appuntamento
+ * Solo la prima riga display (start minimo, poi id) mostra azioni a livello appuntamento
  * (in sala, cassa, annullamento), per evitare menu duplicati sui box fratelli.
  */
 export function isAgendaAppointmentActionsLine(
