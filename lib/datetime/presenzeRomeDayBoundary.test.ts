@@ -7,14 +7,17 @@ import { romeBusinessDateFromUtcWall } from "@/lib/datetime/romeBusinessDate";
 const DAILY_SUMMARY = "app/api/attendance/daily-summary/route.ts";
 
 describe("Presenze day boundary Europe/Rome (CET/CEST)", () => {
-  it("daily-summary query non esclude istanti: nessun range su created_at", () => {
+  it("daily-summary usa bounds Rome-aware (timestamptzBounds) via load condiviso", () => {
     const src = readFileSync(join(process.cwd(), DAILY_SUMMARY), "utf8");
-    // Solo filtro salone opzionale; confini CET/CEST restano nella result set.
-    expect(src).toMatch(/\.from\("attendance_logs"\)/);
-    expect(src).not.toMatch(
-      /\.from\("attendance_logs"\)[\s\S]*?\.(gte|gt|lte|lt|filter)\(\s*["']created_at["']/,
+    expect(src).toMatch(/loadAttendanceDailySummary/);
+    expect(src).toMatch(/resolveAttendanceQuery/);
+    const load = readFileSync(
+      join(process.cwd(), "lib/attendance/loadAttendanceDailySummary.ts"),
+      "utf8",
     );
-    expect(src).toMatch(/romeBusinessDateFromUtcWall/);
+    expect(load).toMatch(/timestamptzBoundsForRomeDateRange/);
+    expect(load).toMatch(/\.gte\("created_at"/);
+    expect(load).toMatch(/\.lt\("created_at"/);
   });
 
   it("CET: mezzanotte Rome — 22:30Z resta 13/11, 23:30Z passa al 14/11", () => {

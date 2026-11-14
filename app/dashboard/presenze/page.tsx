@@ -1,117 +1,141 @@
-import { headers } from "next/headers";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { ClipboardList } from "lucide-react";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { salonLabel } from "@/lib/constants";
 import { formatRomeDateTime } from "@/lib/datetime/formatRomeInstant";
+import {
+  countStaffLiveInside,
+  hoursFromMinutes,
+  liveStatusForRow,
+  todayRomeBusinessDate,
+} from "@/lib/attendance/attendanceDailySummary";
+import { loadAttendanceDailySummary } from "@/lib/attendance/loadAttendanceDailySummary";
+import { resolveAttendanceQuery } from "@/lib/attendance/resolveAttendanceQuery";
+import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import PresenzeSalonSync from "./PresenzeSalonSync";
+import PresenzeFilters from "./PresenzeFilters";
 
-type DailySummaryRow = {
-  staff_id: number;
-  staff_name: string | null;
-  salon_id: number;
-  day: string;
-  first_clock_in_at: string | null;
-  last_clock_out_at: string | null;
-  worked_minutes: number;
-  is_incomplete: boolean;
-};
+type SearchParams = Record<string, string | string[] | undefined>;
 
-type DailySummaryResponse = {
-  success: boolean;
-  rows?: DailySummaryRow[];
-};
+function firstParam(sp: SearchParams, key: string): string | undefined {
+  const raw = sp[key];
+  if (Array.isArray(raw)) return raw[0];
+  return raw;
+}
 
-type LiveStatus = "inside" | "outside";
-type LatestAttendanceRow = {
-  staff_id: number;
-  type: string;
-  created_at: string;
-};
-
-/** Entrata/uscita: timestamptz assoluto → wall Europe/Rome (no TZ del server). */
 function formatDateTime(value: string | null): string {
   if (!value) return "-";
   const formatted = formatRomeDateTime(value);
   return formatted === "—" ? "-" : formatted;
 }
 
-function getLiveStatusFromType(attendanceType: string | undefined): LiveStatus {
-  return attendanceType === "in" ? "inside" : "outside";
-}
-
-export default async function PresenzePage() {
+export default async function PresenzePage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams> | SearchParams;
+}) {
   const access = await getUserAccess();
   if (access.role !== "coordinator" && access.role !== "reception") {
     redirect("/dashboard");
   }
 
-  const h = await headers();
-  const protocol = h.get("x-forwarded-proto") ?? "http";
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-
-  if (!host) {
-    throw new Error("Unable to resolve host for attendance summary fetch.");
-  }
-
-  const cookie = h.get("cookie") ?? "";
-  const response = await fetch(`${protocol}://${host}/api/attendance/daily-summary`, {
-    method: "GET",
-    cache: "no-store",
-    headers: cookie ? { cookie } : undefined,
+  const sp = (await Promise.resolve(searchParams ?? {})) as SearchParams;
+  const todayRome = todayRomeBusinessDate();
+  const resolved = resolveAttendanceQuery({
+    access,
+    salonIdRaw: firstParam(sp, "salon_id"),
+    staffIdRaw: firstParam(sp, "staff_id"),
+    dateFromRaw: firstParam(sp, "date_from"),
+    dateToRaw: firstParam(sp, "date_to"),
+    todayRome,
   });
 
-  let rows: DailySummaryRow[] = [];
-  let hasError = false;
+  // URL canonico: salon/date (refresh diretto e switch header)
+  const needsSalon =
+    resolved.canChooseSalon &&
+    !firstParam(sp, "salon_id") &&
+    resolved.salonId != null;
+  const needsDates =
+    !firstParam(sp, "date_from") ||
+    !firstParam(sp, "date_to") ||
+    resolved.dateRange.needsRedirect;
 
-  if (response.ok) {
-    const payload = (await response.json()) as DailySummaryResponse;
-    rows = payload.success ? payload.rows ?? [] : [];
-    hasError = !payload.success;
-  } else {
+  if (needsSalon || needsDates) {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) {
+      const first = Array.isArray(v) ? v[0] : v;
+      if (first) p.set(k, String(first));
+    }
+    if (resolved.salonId != null) p.set("salon_id", String(resolved.salonId));
+    else if (resolved.canChooseSalon) p.set("salon_id", "all");
+    p.set("date_from", resolved.dateRange.dateFrom);
+    p.set("date_to", resolved.dateRange.dateTo);
+    redirect(`/dashboard/presenze?${p.toString()}`);
+  }
+
+  let rows = [] as Awaited<ReturnType<typeof loadAttendanceDailySummary>>;
+  let hasError = false;
+  try {
+    if (resolved.querySalonIds !== null && resolved.querySalonIds.length === 0) {
+      rows = [];
+    } else {
+      rows = await loadAttendanceDailySummary({
+        querySalonIds: resolved.querySalonIds,
+        salonId: resolved.salonId,
+        staffId: resolved.staffId,
+        dateFrom: resolved.dateRange.dateFrom,
+        dateTo: resolved.dateRange.dateTo,
+      });
+    }
+  } catch (e) {
+    console.error("presenze page load:", e);
     hasError = true;
   }
 
-  const uniqueStaffIds = Array.from(new Set(rows.map((row) => row.staff_id)));
-  const latestEventByStaffId = new Map<number, string>();
-
-  if (uniqueStaffIds.length > 0) {
-    let liveQ = supabaseAdmin
-      .from("attendance_logs")
-      .select("staff_id,type,created_at")
-      .in("staff_id", uniqueStaffIds)
-      .order("created_at", { ascending: false });
-
-    if (access.role === "reception") {
-      const opSid = access.staffSalonId;
-      if (opSid != null && opSid > 0) {
-        liveQ = liveQ.eq("salon_id", opSid);
-      }
+  let staffOptions: { id: number; name: string }[] = [];
+  if (resolved.salonId != null) {
+    try {
+      const staffRows = await fetchActiveStaffForSalon(
+        supabaseAdmin,
+        resolved.salonId,
+        "id,name",
+      );
+      staffOptions = staffRows
+        .map((r) => ({
+          id: Number(r.id),
+          name: String(r.name ?? "").trim() || `Staff #${r.id}`,
+        }))
+        .filter((s) => Number.isInteger(s.id) && s.id > 0);
+    } catch (e) {
+      console.error("presenze staff options:", e);
     }
-
-    const { data: latestEvents, error: latestEventsError } = await liveQ;
-
-    if (latestEventsError) {
-      throw latestEventsError;
-    }
-
-    for (const row of (latestEvents ?? []) as LatestAttendanceRow[]) {
-      if (!latestEventByStaffId.has(row.staff_id)) {
-        latestEventByStaffId.set(row.staff_id, row.type);
-      }
+  } else {
+    const ids = Array.from(new Set(rows.map((r) => r.staff_id)));
+    if (ids.length) {
+      const { data } = await supabaseAdmin
+        .from("staff")
+        .select("id,name")
+        .in("id", ids)
+        .order("name", { ascending: true });
+      staffOptions = (data ?? []).map((r) => ({
+        id: Number((r as { id: number }).id),
+        name: String((r as { name: string | null }).name ?? "").trim() || `Staff`,
+      }));
     }
   }
 
-  const totalRows = rows.length;
   const okCount = rows.filter((row) => !row.is_incomplete).length;
   const incompleteCount = rows.filter((row) => row.is_incomplete).length;
-  const insideNowCount = rows.filter(
-    (row) => getLiveStatusFromType(latestEventByStaffId.get(row.staff_id)) === "inside"
-  ).length;
+  const insideNowCount = countStaffLiveInside(rows);
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-4">
-      {/* Hero — allineato a Magazzino / hub operativi */}
+      <Suspense fallback={null}>
+        <PresenzeSalonSync canChooseSalon={resolved.canChooseSalon} />
+      </Suspense>
+
       <section className="rounded-3xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="flex flex-col gap-5 p-5 md:p-7 bg-black/20 border-b border-white/10 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4 min-w-0">
@@ -123,25 +147,38 @@ export default async function PresenzePage() {
                 Presenze
               </h1>
               <p className="text-[#c9b299] mt-1 text-sm md:text-base leading-relaxed">
-                Monitoraggio giornaliero timbrature collaboratori (Team App)
+                Timbrature Team App · giorno operativo Europe/Rome
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2 sm:justify-end">
- <StatChip label="Righe" value={totalRows} variant="neutral" />
- <StatChip label="OK" value={okCount} variant="ok" />
- <StatChip label="Incomplete" value={incompleteCount} variant="warn" />
- <StatChip label="Dentro ora" value={insideNowCount} variant="live" />
+            <StatChip label="Righe" value={rows.length} variant="neutral" />
+            <StatChip label="OK" value={okCount} variant="ok" />
+            <StatChip label="Incomplete" value={incompleteCount} variant="warn" />
+            <StatChip label="Dentro ora" value={insideNowCount} variant="live" />
           </div>
         </div>
       </section>
 
-      {/* Tabella — card operativa Cassa / Impostazioni */}
+      <Suspense fallback={null}>
+        <PresenzeFilters
+          salonId={resolved.salonId}
+          canChooseSalon={resolved.canChooseSalon}
+          allowedSalonIds={resolved.allowedSalonIds}
+          dateFrom={resolved.dateRange.dateFrom}
+          dateTo={resolved.dateRange.dateTo}
+          staffId={resolved.staffId}
+          staffOptions={staffOptions}
+          periodSpanDays={resolved.dateRange.spanDays}
+        />
+      </Suspense>
+
       <section className="overflow-hidden rounded-2xl border border-white/10 bg-scz-dark">
         <div className="border-b border-white/10 bg-black/20 px-5 py-3.5">
           <div className="text-xs font-medium text-white/40">
-            Riepilogo giornaliero
+            Riepilogo {resolved.dateRange.dateFrom} → {resolved.dateRange.dateTo}
+            {resolved.salonId != null ? ` · ${salonLabel(resolved.salonId)}` : " · Tutti i saloni"}
           </div>
         </div>
 
@@ -162,16 +199,17 @@ export default async function PresenzePage() {
             </thead>
             <tbody className="divide-y divide-[#5c3a21]/30">
               {rows.map((row) => {
-                const liveStatus = getLiveStatusFromType(latestEventByStaffId.get(row.staff_id));
-
+                const liveStatus = liveStatusForRow(row);
                 return (
                   <tr
                     key={`${row.staff_id}-${row.salon_id}-${row.day}`}
                     className="text-[#e8dcc8] transition-colors duration-150 hover:bg-white/[0.03]"
                   >
-                    <td className="px-5 py-4 align-middle text-[#c9b299] tabular-nums">{row.day}</td>
+                    <td className="px-5 py-4 align-middle text-[#c9b299] tabular-nums">
+                      {row.day}
+                    </td>
                     <td className="px-5 py-4 align-middle font-semibold text-[#f3d8b6]">
- {row.staff_name ?? "-"}
+                      {row.staff_name ?? "-"}
                     </td>
                     <td className="px-5 py-4 align-middle text-[#c9b299]">
                       {salonLabel(row.salon_id)}
@@ -186,7 +224,7 @@ export default async function PresenzePage() {
                       {row.worked_minutes}
                     </td>
                     <td className="px-5 py-4 text-right align-middle tabular-nums text-[#c9b299]">
-                      {(row.worked_minutes / 60).toFixed(2)}
+                      {hoursFromMinutes(row.worked_minutes)}
                     </td>
                     <td className="px-5 py-4 align-middle">
                       {row.is_incomplete ? (
@@ -200,7 +238,7 @@ export default async function PresenzePage() {
                       )}
                     </td>
                     <td className="px-5 py-4 align-middle">
- {liveStatus === "inside" ? (
+                      {liveStatus === "inside" ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f3d8b6]/35 bg-[#f3d8b6]/10 px-2.5 py-1 text-[11px] font-bold text-[#f3d8b6] shadow-[0_0_12px_rgba(243,216,182,0.12)]">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
                           Dentro ora
@@ -235,37 +273,36 @@ export default async function PresenzePage() {
                           : "Nessuna presenza trovata"}
                       </p>
                       <p className="mt-1.5 text-xs text-[#c9b299] leading-relaxed">
- {hasError
- ? "Riprova tra pochi secondi. Se il problema persiste, verifica la connessione."
- : "I riepiloghi compariranno qui dopo le timbrature dalla Team App."}
- </p>
- </div>
- </td>
- </tr>
- )}
- </tbody>
- </table>
- </div>
- </section>
- </div>
- );
+                        {hasError
+                          ? "Riprova tra pochi secondi. Se il problema persiste, verifica la connessione."
+                          : "Prova un altro salone o amplia il periodo."}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function StatChip({
- label,
- value,
- variant,
+  label,
+  value,
+  variant,
 }: {
- label: string;
- value: number;
- variant: "neutral" | "ok" | "warn" | "live";
+  label: string;
+  value: number;
+  variant: "neutral" | "ok" | "warn" | "live";
 }) {
- const styles = {
- neutral:
- "border-[#5c3a21]/50 bg-black/25 text-[#c9b299]",
- ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200/95",
- warn: "border-amber-500/30 bg-amber-500/10 text-amber-200/95",
- live: "border-[#f3d8b6]/30 bg-[#f3d8b6]/10 text-[#f3d8b6]",
+  const styles = {
+    neutral: "border-[#5c3a21]/50 bg-black/25 text-[#c9b299]",
+    ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200/95",
+    warn: "border-amber-500/30 bg-amber-500/10 text-amber-200/95",
+    live: "border-[#f3d8b6]/30 bg-[#f3d8b6]/10 text-[#f3d8b6]",
   } as const;
 
   return (

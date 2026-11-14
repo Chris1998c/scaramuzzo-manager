@@ -445,12 +445,20 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
 
  {macro === "team" && salonId > 0 && (
         <section className="space-y-6">
-          <div>
-            <h2 className="text-xl font-extrabold tracking-tight text-white md:text-2xl">Team</h2>
-            <p className="mt-1 text-sm text-white/50">
- Performance collaboratori nel periodo filtrato
- </p>
- </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-xl font-extrabold tracking-tight text-white md:text-2xl">Team</h2>
+              <p className="mt-1 text-sm text-white/50">
+                Performance collaboratori nel periodo filtrato
+              </p>
+            </div>
+            <a
+              href={`/dashboard/presenze?salon_id=${salonId}&date_from=${dateFrom}&date_to=${dateTo}${staffId ? `&staff_id=${staffId}` : ""}`}
+              className="inline-flex items-center justify-center rounded-xl border border-[#f3d8b6]/30 bg-[#f3d8b6]/10 px-4 py-2 text-sm font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/15 transition"
+            >
+              Apri Presenze / export
+            </a>
+          </div>
  <PeriodChips
  dateFrom={dateFrom}
  dateTo={dateTo}
