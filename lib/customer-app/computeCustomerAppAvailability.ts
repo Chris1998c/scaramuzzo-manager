@@ -24,6 +24,10 @@ import {
 } from "@/lib/salonOperationalCalendar";
 import { fetchStaffScheduleForSalon, salonDefaultScheduleWindow } from "@/lib/staffSchedule";
 import { fetchActiveStaffIdsForSalon } from "@/lib/staffForSalon";
+import {
+  fetchCustomerAppCompositionCatalog,
+  normalizeCustomerAppBookingServiceIds,
+} from "@/lib/customer-app/customerBookingServiceRules";
 
 export type CustomerAppAvailabilitySlot = {
   start_time: string;
@@ -133,33 +137,17 @@ export type ComputeCustomerAppAvailabilityInput = {
 export async function computeCustomerAppAvailability(
   input: ComputeCustomerAppAvailabilityInput,
 ): Promise<CustomerAppAvailabilitySlot[]> {
-  const { admin, salonId, isoDate, serviceIds, staffId } = input;
+  const { admin, salonId, isoDate, staffId } = input;
 
-  const { data: bookableRows, error: bookableErr } = await admin
-    .from("services")
-    .select("id")
-    .in("id", serviceIds)
-    .eq("active", true)
-    .eq("visible_in_customer_app", true);
-
-  if (bookableErr) {
-    throw new Error(`computeCustomerAppAvailability(services): ${bookableErr.message}`);
-  }
-
-  const bookableIds = new Set(
-    (bookableRows ?? [])
-      .map((r) => Number((r as { id: unknown }).id))
-      .filter((id) => Number.isInteger(id) && id > 0),
+  const compositionCatalog = await fetchCustomerAppCompositionCatalog(admin);
+  const normalized = normalizeCustomerAppBookingServiceIds(
+    compositionCatalog,
+    input.serviceIds,
   );
-
-  for (const id of serviceIds) {
-    if (!bookableIds.has(id)) {
-      throw new CustomerAppAvailabilityResolveError(
-        `Servizio non prenotabile dall'app (id ${id}).`,
-        400,
-      );
-    }
+  if (!normalized.ok) {
+    throw new CustomerAppAvailabilityResolveError(normalized.message, 400);
   }
+  const serviceIds = normalized.serviceIds;
 
   const resolved = await resolveAgendaServiceLines(admin, salonId, serviceIds);
   if (!resolved.ok) {

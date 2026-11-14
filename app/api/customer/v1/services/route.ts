@@ -6,7 +6,7 @@ import {
   customerContextErrorResponse,
   customerServerError,
 } from "@/lib/customer-app/customerApiResponse";
-import { fetchCustomerAppServices } from "@/lib/customer-app/fetchCustomerAppServices";
+import { fetchCustomerAppServicesPayload } from "@/lib/customer-app/fetchCustomerAppServices";
 import {
   parseCustomerAppSalonId,
   salonIdInvalidMessage,
@@ -27,8 +27,8 @@ export async function GET(req: Request) {
       return customerBadRequest(salonIdInvalidMessage());
     }
 
-    const services = await fetchCustomerAppServices(supabaseAdmin, salonId);
-    return NextResponse.json({ services });
+    const payload = await fetchCustomerAppServicesPayload(supabaseAdmin, salonId);
+    return NextResponse.json(payload);
   } catch (e) {
     const authRes = customerContextErrorResponse(e);
     if (authRes) return authRes;

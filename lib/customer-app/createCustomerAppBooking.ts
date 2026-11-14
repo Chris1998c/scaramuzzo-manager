@@ -24,7 +24,11 @@ import {
   buildCustomerBookingLines,
   totalDurationMinutesFromLines,
 } from "@/lib/customer-app/buildCustomerBookingLines";
-import { loadAndEvaluateCustomerBookingPiegaRule } from "@/lib/customer-app/customerBookingServiceRules";
+import {
+  fetchCustomerAppCompositionCatalog,
+  loadAndEvaluateCustomerBookingPiegaRule,
+  normalizeCustomerAppBookingServiceIds,
+} from "@/lib/customer-app/customerBookingServiceRules";
 import type { ParsedCustomerAppBookingBody } from "@/lib/customer-app/parseCustomerAppBookingBody";
 
 export type CustomerAppBookingServiceDto = {
@@ -64,45 +68,22 @@ export class CustomerAppBookingValidationError extends Error {
   }
 }
 
-async function assertServicesBookableForCustomerApp(
-  admin: SupabaseClient,
-  serviceIds: number[],
-): Promise<void> {
-  const unique = [...new Set(serviceIds)];
-  const { data, error } = await admin
-    .from("services")
-    .select("id")
-    .in("id", unique)
-    .eq("active", true)
-    .eq("visible_in_customer_app", true);
-
-  if (error) {
-    throw new Error(`services: ${error.message}`);
-  }
-
-  const found = new Set(
-    (data ?? [])
-      .map((r) => Number((r as { id: unknown }).id))
-      .filter((id) => Number.isInteger(id) && id > 0),
-  );
-
-  for (const id of unique) {
-    if (!found.has(id)) {
-      throw new CustomerAppBookingValidationError(
-        `Servizio non prenotabile dall'app (id ${id}).`,
-      );
-    }
-  }
-}
-
 export async function createCustomerAppBooking(
   admin: SupabaseClient,
   customerId: string,
   input: ParsedCustomerAppBookingBody,
 ): Promise<CustomerAppBookingDto> {
-  const { salonId, serviceIds, staffId, startTime, notes } = input;
+  const { salonId, staffId, startTime, notes } = input;
 
-  await assertServicesBookableForCustomerApp(admin, serviceIds);
+  const compositionCatalog = await fetchCustomerAppCompositionCatalog(admin);
+  const normalized = normalizeCustomerAppBookingServiceIds(
+    compositionCatalog,
+    input.serviceIds,
+  );
+  if (!normalized.ok) {
+    throw new CustomerAppBookingValidationError(normalized.message);
+  }
+  const serviceIds = normalized.serviceIds;
 
   const piegaRule = await loadAndEvaluateCustomerBookingPiegaRule(admin, serviceIds);
   if (!piegaRule.ok) {
