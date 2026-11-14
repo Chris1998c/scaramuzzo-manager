@@ -159,8 +159,12 @@ describe("normalizeCustomerAppBookingServiceIds", () => {
   it("erbe sola → stessi ID composti senza doppioni", () => {
     const a = normalizeCustomerAppBookingServiceIds(catalog, [66]);
     const b = normalizeCustomerAppBookingServiceIds(catalog, [62, 66, 58]);
-    expect(a).toEqual({ ok: true, serviceIds: [62, 66, 58] });
-    expect(b).toEqual({ ok: true, serviceIds: [62, 66, 58] });
+    expect(a).toEqual({
+      ok: true,
+      serviceIds: [62, 66, 58],
+      companionIds: [62],
+    });
+    expect(b).toEqual(a);
   });
 
   it("shampoo da solo → rifiuto", () => {
@@ -173,6 +177,7 @@ describe("normalizeCustomerAppBookingServiceIds", () => {
     expect(composed.ok).toBe(true);
     if (!composed.ok) return;
     expect(composed.serviceIds).toEqual([62, 66, 58]);
+    expect(composed.companionIds).toEqual([62]);
     expect(new Set(composed.serviceIds).size).toBe(3);
   });
 });

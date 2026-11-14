@@ -52,19 +52,33 @@ export async function assertStaffBelongsToSalon(
   return { ok: true, data: null };
 }
 
+export type ResolveAgendaServiceLinesOptions = {
+  /**
+   * ID ammessi anche con `visible_in_agenda = false` (es. companion App Clienti
+   * dalla composizione canonica). Non allenta il gate per Agenda/walk-in.
+   */
+  allowWithoutAgendaVisibilityIds?: ReadonlySet<number>;
+};
+
 /**
  * Risolve duration/prezzo/IVA da DB per righe agenda/walk-in.
  * Prezzo obbligatorio in service_prices per salon_id (allineato alla cassa).
+ * Di default richiede `visible_in_agenda`; gli ID in
+ * `allowWithoutAgendaVisibilityIds` possono saltare solo quel check.
  */
 export async function resolveAgendaServiceLines(
   admin: SupabaseClient,
   salonId: number,
   serviceIds: number[],
+  options?: ResolveAgendaServiceLinesOptions,
 ): Promise<ValidationOk<Map<number, ResolvedAgendaServiceLine>> | ValidationFail> {
   const unique = [...new Set(serviceIds.filter((id) => Number.isInteger(id) && id > 0))];
   if (!unique.length) {
     return { ok: false, error: "service_id non valido", status: 400 };
   }
+
+  const allowWithoutAgendaVisibility =
+    options?.allowWithoutAgendaVisibilityIds ?? new Set<number>();
 
   const { data: svcRows, error: svcErr } = await admin
     .from("services")
@@ -93,7 +107,10 @@ export async function resolveAgendaServiceLines(
     if (row.active === false) {
       return { ok: false, error: `Servizio non attivo (id ${id}).`, status: 400 };
     }
-    if (row.visible_in_agenda === false) {
+    if (
+      row.visible_in_agenda === false &&
+      !allowWithoutAgendaVisibility.has(id)
+    ) {
       return { ok: false, error: `Servizio non visibile in agenda (id ${id}).`, status: 400 };
     }
   }

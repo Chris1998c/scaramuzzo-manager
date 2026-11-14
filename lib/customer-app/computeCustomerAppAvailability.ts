@@ -25,6 +25,7 @@ import {
 import { fetchStaffScheduleForSalon, salonDefaultScheduleWindow } from "@/lib/staffSchedule";
 import { fetchActiveStaffIdsForSalon } from "@/lib/staffForSalon";
 import {
+  agendaVisibilityBypassIdsForCustomerComposition,
   fetchCustomerAppCompositionCatalog,
   normalizeCustomerAppBookingServiceIds,
 } from "@/lib/customer-app/customerBookingServiceRules";
@@ -149,7 +150,10 @@ export async function computeCustomerAppAvailability(
   }
   const serviceIds = normalized.serviceIds;
 
-  const resolved = await resolveAgendaServiceLines(admin, salonId, serviceIds);
+  const resolved = await resolveAgendaServiceLines(admin, salonId, serviceIds, {
+    allowWithoutAgendaVisibilityIds:
+      agendaVisibilityBypassIdsForCustomerComposition(normalized),
+  });
   if (!resolved.ok) {
     throw new CustomerAppAvailabilityResolveError(resolved.error, resolved.status);
   }

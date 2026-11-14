@@ -25,6 +25,7 @@ import {
   totalDurationMinutesFromLines,
 } from "@/lib/customer-app/buildCustomerBookingLines";
 import {
+  agendaVisibilityBypassIdsForCustomerComposition,
   fetchCustomerAppCompositionCatalog,
   loadAndEvaluateCustomerBookingPiegaRule,
   normalizeCustomerAppBookingServiceIds,
@@ -84,6 +85,8 @@ export async function createCustomerAppBooking(
     throw new CustomerAppBookingValidationError(normalized.message);
   }
   const serviceIds = normalized.serviceIds;
+  const allowWithoutAgendaVisibility =
+    agendaVisibilityBypassIdsForCustomerComposition(normalized);
 
   const piegaRule = await loadAndEvaluateCustomerBookingPiegaRule(admin, serviceIds);
   if (!piegaRule.ok) {
@@ -95,7 +98,9 @@ export async function createCustomerAppBooking(
     throw new CustomerAppBookingValidationError(staffGate.error, staffGate.status);
   }
 
-  const resolved = await resolveAgendaServiceLines(admin, salonId, serviceIds);
+  const resolved = await resolveAgendaServiceLines(admin, salonId, serviceIds, {
+    allowWithoutAgendaVisibilityIds: allowWithoutAgendaVisibility,
+  });
   if (!resolved.ok) {
     throw new CustomerAppBookingValidationError(resolved.error, resolved.status);
   }

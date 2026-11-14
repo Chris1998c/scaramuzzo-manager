@@ -380,6 +380,15 @@ export async function fetchCustomerAppBookableCatalog(
   return fetchCustomerAppCompositionCatalog(admin);
 }
 
+export type NormalizeCustomerAppBookingServiceIdsResult =
+  | {
+      ok: true;
+      serviceIds: number[];
+      /** Companion non selezionabili (es. Shampoo) aggiunti dalla compose. */
+      companionIds: number[];
+    }
+  | { ok: false; message: string };
+
 /**
  * Normalizza gli ID client in composizione canonica.
  * Seed = solo servizi `visible_in_customer_app` (Piega ok; Shampoo no).
@@ -389,7 +398,7 @@ export async function fetchCustomerAppBookableCatalog(
 export function normalizeCustomerAppBookingServiceIds(
   catalog: CustomerAppServiceCatalogRow[],
   inputServiceIds: number[],
-): { ok: true; serviceIds: number[] } | { ok: false; message: string } {
+): NormalizeCustomerAppBookingServiceIdsResult {
   const byId = new Map(catalog.map((row) => [row.id, row]));
 
   for (const id of inputServiceIds) {
@@ -421,5 +430,19 @@ export function normalizeCustomerAppBookingServiceIds(
     }
   }
 
-  return { ok: true, serviceIds: composed };
+  const companionIds = composed.filter(
+    (id) => byId.get(id)?.visible_in_customer_app !== true,
+  );
+
+  return { ok: true, serviceIds: composed, companionIds };
+}
+
+/**
+ * Allowlist per `resolveAgendaServiceLines`: solo companion della composizione
+ * (non selezionabili in app) possono saltare `visible_in_agenda`.
+ */
+export function agendaVisibilityBypassIdsForCustomerComposition(
+  result: Extract<NormalizeCustomerAppBookingServiceIdsResult, { ok: true }>,
+): ReadonlySet<number> {
+  return new Set(result.companionIds);
 }

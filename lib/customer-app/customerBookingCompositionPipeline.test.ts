@@ -83,7 +83,11 @@ describe("customer booking composition pipeline", () => {
       62, 66, 58,
     ]);
     expect(fromPrimary).toEqual(fromAlreadyComposed);
-    expect(fromPrimary).toEqual({ ok: true, serviceIds: [62, 66, 58] });
+    expect(fromPrimary).toEqual({
+      ok: true,
+      serviceIds: [62, 66, 58],
+      companionIds: [62],
+    });
     if (!fromPrimary.ok) return;
 
     const ids = fromPrimary.serviceIds;
@@ -128,7 +132,11 @@ describe("customer booking composition pipeline", () => {
       catalog,
       once.ok ? once.serviceIds : [],
     );
-    expect(once).toEqual({ ok: true, serviceIds: [62, 66, 58] });
+    expect(once).toEqual({
+      ok: true,
+      serviceIds: [62, 66, 58],
+      companionIds: [62],
+    });
     expect(twice).toEqual(once);
   });
 
