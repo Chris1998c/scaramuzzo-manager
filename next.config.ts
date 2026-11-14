@@ -12,6 +12,15 @@ const teamHtmlRoutes = [
   "stats",
   "_sitemap",
 ] as const;
+const clientHtmlRoutes = [
+  "login",
+  "claim",
+  "book",
+  "book-step-2",
+  "book-confirm",
+  "bookings",
+  "_sitemap",
+] as const;
 
 const nextConfig: NextConfig = {
   trailingSlash: false,
@@ -26,6 +35,16 @@ const nextConfig: NextConfig = {
       ...teamHtmlRoutes.map((route) => ({
         source: `/team/${route}/`,
         destination: `/team/${route}.html`,
+      })),
+      { source: "/app-clienti", destination: "/app-clienti/index.html" },
+      { source: "/app-clienti/", destination: "/app-clienti/index.html" },
+      ...clientHtmlRoutes.map((route) => ({
+        source: `/app-clienti/${route}`,
+        destination: `/app-clienti/${route}.html`,
+      })),
+      ...clientHtmlRoutes.map((route) => ({
+        source: `/app-clienti/${route}/`,
+        destination: `/app-clienti/${route}.html`,
       })),
     ];
   },

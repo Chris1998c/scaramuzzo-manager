@@ -1,0 +1,16 @@
+{
+  "name": "Scaramuzzo Clienti",
+  "short_name": "Scaramuzzo Clienti",
+  "description": "Prenotazioni e servizi dei saloni Scaramuzzo",
+  "lang": "it",
+  "start_url": "/app-clienti",
+  "scope": "/app-clienti",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#140905",
+  "theme_color": "#140905",
+  "icons": [
+    { "src": "/app-clienti/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/app-clienti/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
