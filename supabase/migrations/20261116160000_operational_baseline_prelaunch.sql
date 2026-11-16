@@ -49,7 +49,7 @@ $$;
 COMMENT ON FUNCTION public.operational_baseline_ts() IS
   'Timestamp wall UTC without tz used to filter operational sales/appointments.';
 
-REVOKE ALL ON FUNCTION public.operational_baseline_ts() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.operational_baseline_ts() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION public.operational_baseline_ts() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.operational_baseline_ts() TO service_role;
 
