@@ -161,11 +161,6 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
             </div>
 
             <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
-              <p className="text-xs text-[#c9b299] leading-relaxed">
-                Prezzo di vendita del prodotto (valido per tutti i saloni).
-                Giacenze e movimenti magazzino restano gestiti altrove.
-              </p>
-
               <label className="block space-y-1.5">
                 <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">
                   Nome *
@@ -208,16 +203,19 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
               <div className="grid grid-cols-2 gap-3">
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">
- Prezzo vendita (€) *
- </span>
- <input
- type="text"
- inputMode="decimal"
+                    Prezzo vendita (€) *
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
                     className={fieldClass}
                     value={form.price}
                     onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
                     required
                   />
+                  <span className="text-[11px] text-[#c9b299]/75">
+                    Prezzo di vendita. Le giacenze si gestiscono in Magazzino.
+                  </span>
                 </label>
                 <label className="block space-y-1.5">
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#c9b299]/80">

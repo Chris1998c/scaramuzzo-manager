@@ -323,14 +323,13 @@ export default function ImpostazioniShell({
 
       <div className="min-w-0 flex-1 rounded-[2rem] border border-[#5c3a21]/50 bg-[#24140e]/70 backdrop-blur-md p-6 md:p-8 shadow-2xl">
  {section === "servizi" ? (
- <ServiziPrezziPanel
- rows={serviceRows}
- salonLabel={salonLabel}
- canChooseSalonFromHeader={canChooseSalon}
- canManageServices={canManageServices}
- onCreate={openServiceCreate}
- onEdit={openServiceEdit}
- />
+          <ServiziPrezziPanel
+            rows={serviceRows}
+            salonLabel={salonLabel}
+            canManageServices={canManageServices}
+            onCreate={openServiceCreate}
+            onEdit={openServiceEdit}
+          />
  ) : section === "prodotti" ? (
  <ProdottiPanel
  rows={productRows}
@@ -418,14 +417,12 @@ export default function ImpostazioniShell({
 function ServiziPrezziPanel({
   rows,
   salonLabel,
-  canChooseSalonFromHeader,
   canManageServices,
   onCreate,
   onEdit,
 }: {
   rows: ServiceSettingsRow[];
   salonLabel: string | null;
-  canChooseSalonFromHeader: boolean;
   canManageServices: boolean;
   onCreate: () => void;
   onEdit: (row: ServiceSettingsRow) => void;
@@ -433,25 +430,13 @@ function ServiziPrezziPanel({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-[#c9b299]">
-        <span className="font-bold text-emerald-300/95">Listino salone</span>
-        <span className="mx-2 text-white/25">·</span>
-        Prezzi del listino per il salone operativo
+        <span className="font-bold text-emerald-300/95">Prezzi dei servizi</span>
         {salonLabel ? (
           <>
-            {" "}
+            <span className="mx-2 text-white/25">·</span>
             <span className="text-[#f3d8b6] font-semibold">{salonLabel}</span>
           </>
         ) : null}
-        .{" "}
-        {canChooseSalonFromHeader ? (
-          <>
-            Cambiando salone dall&apos;intestazione, il listino si aggiorna automaticamente.
-          </>
-        ) : (
-          <>
-            Il tuo accesso è legato a un salone: vedi sempre il listino di quella sede.
-          </>
-        )}
       </div>
 
       {!canManageServices ? (
@@ -559,10 +544,7 @@ function ProdottiPanel({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-[#c9b299]">
-        <span className="font-bold text-amber-200/95">Catalogo prodotti</span>
-        <span className="mx-2 text-white/25">·</span>
-        Anagrafica <strong className="text-[#f3d8b6]">condivisa</strong>: il prezzo di vendita si
-        imposta qui. Le giacenze si gestiscono in Magazzino.
+        <span className="font-bold text-amber-200/95">Prodotti, codici e prezzi</span>
       </div>
 
       {!canManageProducts ? (
@@ -672,11 +654,7 @@ function CollaboratoriPanel({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm text-[#c9b299] leading-relaxed">
-        <span className="font-bold text-sky-200/95">Personale operativo</span>
-        <span className="mx-2 text-white/25">·</span>
-        Anagrafica per agenda, cassa, report e app Team. Ogni collaboratore ha un salone
-        primario e può essere associato ad altre sedi. Gli account di accesso al gestionale
-        si gestiscono a parte.
+        <span className="font-bold text-sky-200/95">Collaboratori, sedi e turni</span>
       </div>
 
       {!canManageStaff ? (

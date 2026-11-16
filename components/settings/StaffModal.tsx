@@ -483,8 +483,7 @@ export default function StaffModal({
                     ))}
                   </select>
                   <span className="text-[11px] text-[#c9b299]/75">
-                    Salvato anche come <span className="font-mono">staff.salon_id</span> (legacy
-                    per agenda e cassa).
+                    Sede principale del collaboratore.
                   </span>
                 </label>
 
@@ -525,7 +524,7 @@ export default function StaffModal({
                     })}
                   </div>
                   <span className="text-[11px] text-[#c9b299]/75">
-                    Le sedi selezionate determinano la visibilità in agenda e nei report.
+                    Sedi aggiuntive dove può lavorare.
                   </span>
                 </div>
               </div>

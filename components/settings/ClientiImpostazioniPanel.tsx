@@ -1,8 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { ExternalLink, Info } from "lucide-react";
-
 import type { CustomersDomainSnapshot } from "@/lib/customersDomainTypes";
 
 function fmtCount(n: number | null) {
@@ -64,42 +61,11 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/[0.06] px-4 py-3 text-sm text-[#c9b299] leading-relaxed">
-        <span className="inline-flex items-center gap-2 font-bold text-sky-200/95">
-          <Info size={16} className="shrink-0" />
-          Scopo di questa sezione
-        </span>
-        <p className="mt-2">
-          Qui non si gestiscono i clienti: l&apos;operatività resta in{" "}
-          <Link
-            href="/dashboard/clienti"
-            className="font-semibold text-[#f3d8b6] underline underline-offset-2 hover:text-white inline-flex items-center gap-1"
-          >
-            Clienti <ExternalLink size={12} />
-          </Link>
-          . Qui trovi solo i <strong className="text-[#e8dcc8]">conteggi</strong> di
-          anagrafiche e schede visibili con i tuoi permessi.
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-[#c9b299]/70">
+          Conteggi anagrafiche e schede
         </p>
-      </div>
-
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-3 text-sm text-[#c9b299]">
-        Qui trovi solo i conteggi. Per gestire i clienti apri il modulo Clienti.
-      </div>
-
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#c9b299]/70">
-            Conteggi anagrafiche e schede
-          </p>
-          <p className="text-sm text-[#c9b299]/80 mt-1">Aggiornato: {when}</p>
-        </div>
-        <Link
-          href="/dashboard/clienti"
-          className="inline-flex items-center gap-2 rounded-xl border border-[#f3d8b6]/30 bg-[#f3d8b6]/10 px-4 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/15"
-        >
-          Apri modulo Clienti
-          <ExternalLink size={14} />
-        </Link>
+        <p className="text-sm text-[#c9b299]/80 mt-1">Aggiornato: {when}</p>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-[#5c3a21]/40">
