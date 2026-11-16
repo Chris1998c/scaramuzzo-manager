@@ -49,7 +49,7 @@ function escCsv(v: any) {
 }
 function toCsv(rows: Record<string, any>[]) {
   if (rows.length === 0) return "sep=;\n";
-  const headers = Object.keys(rows[0]);
+  const headers = [...new Set(rows.flatMap((r) => Object.keys(r)))];
   const lines = [
     "sep=;",
     headers.map(escCsv).join(";"),

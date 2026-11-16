@@ -9,8 +9,8 @@ export type Row = {
 };
 
 export type Totals = {
-  net_total: number;
-  vat_total: number;
+  net_total: number | null;
+  vat_total: number | null;
   gross_total: number;
   [key: string]: any;
 };
@@ -213,8 +213,8 @@ export default function SalonTurnoverPdf({
   totals,
   rows,
 }: Props) {
-  const net = Number(totals?.net_total ?? 0) || 0;
-  const vat = Number(totals?.vat_total ?? 0) || 0;
+  const net = totals?.net_total == null ? null : Number(totals.net_total);
+  const vat = totals?.vat_total == null ? null : Number(totals.vat_total);
   const gross = Number(totals?.gross_total ?? 0) || 0;
 
   const docTitle = "Report Fatturato Salone";
@@ -260,12 +260,12 @@ export default function SalonTurnoverPdf({
         <View style={styles.kpiGrid}>
           <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>Netto</Text>
-            <Text style={styles.kpiValue}>{money(net)}</Text>
+            <Text style={styles.kpiValue}>{net == null ? "—" : money(net)}</Text>
             <Text style={styles.kpiHint}>Imponibile (vendite)</Text>
           </View>
           <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>IVA</Text>
-            <Text style={styles.kpiValue}>{money(vat)}</Text>
+            <Text style={styles.kpiValue}>{vat == null ? "—" : money(vat)}</Text>
             <Text style={styles.kpiHint}>Totale imposta</Text>
           </View>
           <View style={styles.kpiCard}>
@@ -274,6 +274,10 @@ export default function SalonTurnoverPdf({
             <Text style={styles.kpiHint}>Netto + IVA</Text>
           </View>
         </View>
+
+        {Number(totals?.historical_days ?? 0) > 0 ? (
+          <Text style={styles.kpiHint}>Incasso storico IVA inclusa: imponibile, IVA e dettaglio scontrini non disponibili per quei giorni.</Text>
+        ) : null}
 
         {/* TABLE TITLE */}
         <View style={styles.sectionTitleRow}>

@@ -520,6 +520,12 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
  itemType={itemType}
  />
 
+ {(salesAnalytics as typeof salesAnalytics & { historicalDaysCount?: number }).historicalDaysCount ? (
+   <p className="text-sm text-white/60">Il totale include incassi storici IVA inclusa. Per quei giorni non sono disponibili scontrini, imponibile, IVA e sconti; i dettagli e i dati per collaboratore derivano dalle vendite del gestionale.</p>
+ ) : (staffId || paymentMethod || itemType) && dateFrom <= "2026-10-31" && salonId === 1 ? (
+   <p className="text-sm text-white/60">I filtri per collaboratore, pagamento e tipo mostrano solo le vendite dettagliate; lo storico giornaliero non dispone di queste informazioni.</p>
+ ) : null}
+
  {venditeSubtab === "totali" && (
  <>
  <ReportKpiRow totals={totals} />

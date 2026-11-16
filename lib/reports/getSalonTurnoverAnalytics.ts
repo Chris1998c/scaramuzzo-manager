@@ -3,6 +3,7 @@
 import { getSalonTurnover, TurnoverFilters } from "./getSalonTurnover";
 import { buildStaffKpiFromRows } from "./buildStaffKpiFromRows";
 import { fetchCustomerIdsForRows } from "./reportSaleCustomers";
+import { combineLegacyTurnover, fetchLegacyTurnoverDays } from "./legacyTurnover";
 
 function shiftPeriod(dateFrom: string, dateTo: string) {
   const from = new Date(dateFrom);
@@ -26,6 +27,11 @@ function n(v: any) {
 
 export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
   const { totals, rows } = await getSalonTurnover(filters);
+  const unfiltered = !filters.staffId && !filters.paymentMethod && !filters.itemType;
+  const legacy = unfiltered
+    ? await fetchLegacyTurnoverDays(filters.salonId, filters.dateFrom, filters.dateTo)
+    : [];
+  const combined = combineLegacyTurnover(rows, legacy);
 
   // =========================
   // GIORNALIERO
@@ -67,7 +73,8 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
     x.discount += n((r as any).item_discount);
   }
 
-  const daily = Array.from(dailyMap.values())
+  const liveDaily = Array.from(dailyMap.values())
+    .filter((r) => !combined.historicalDays.has(r.day))
     .sort((a, b) => (a.day < b.day ? -1 : 1))
     .map((x) => ({
       day: x.day,
@@ -77,6 +84,32 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
       vat_total: x.vat,
       discount_total: x.discount,
     }));
+  const daily = [
+    ...liveDaily,
+    ...legacy.map((r) => ({
+      day: r.day,
+      receipts_count: null,
+      gross_total: r.total_gross,
+      net_total: null,
+      vat_total: null,
+      discount_total: null,
+    })),
+  ].sort((a, b) => a.day.localeCompare(b.day));
+  const combinedTotals = legacy.length
+    ? {
+        ...totals,
+        gross_total: combined.gross_total,
+        receipts_count: null,
+        net_total: null,
+        vat_total: null,
+        discount_total: null,
+        gross_cash: null,
+        gross_card: null,
+        gross_services: null,
+        gross_products: null,
+        historical_days: legacy.length,
+      }
+    : totals;
 
   // =========================
   // TOP ITEMS
@@ -151,6 +184,18 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
     dateFrom: prevFrom,
     dateTo: prevTo,
   });
+  const previousLegacy = unfiltered
+    ? await fetchLegacyTurnoverDays(filters.salonId, prevFrom, prevTo)
+    : [];
+  const previousCombined = combineLegacyTurnover(previousRows, previousLegacy);
+  const combinedPreviousTotals = previousLegacy.length
+    ? {
+        ...previousTotals,
+        gross_total: previousCombined.gross_total,
+        receipts_count: null,
+        net_total: null,
+      }
+    : previousTotals;
 
   const previousCustomerBySale = await fetchCustomerIdsForRows(previousRows);
   const previousStaffPerformance = buildStaffKpiFromRows(previousRows, previousCustomerBySale);
@@ -161,12 +206,13 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
   }
 
   return {
-    totals,
+    totals: combinedTotals,
     rows,
     daily,
     topItems,
     staffPerformance,
-    previousTotals,
+    previousTotals: combinedPreviousTotals,
+    historicalDaysCount: legacy.length,
     previousStaffPerformance,
     customerBySaleId,
   };

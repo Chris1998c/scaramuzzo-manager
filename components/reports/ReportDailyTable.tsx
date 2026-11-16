@@ -2,14 +2,15 @@
 
 type DailyRow = {
   day: string;
-  receipts_count: number;
+  receipts_count: number | null;
   gross_total: number;
-  net_total: number;
-  vat_total: number;
-  discount_total: number;
+  net_total: number | null;
+  vat_total: number | null;
+  discount_total: number | null;
 };
 
 function money(n: any) {
+  if (n == null) return "—";
   const v = Number(n);
   if (!Number.isFinite(v)) return "0,00 €";
   return v.toFixed(2).replace(".", ",") + " €";
@@ -70,7 +71,7 @@ export default function ReportDailyTable({
                 >
                   <td className={`${tdBase} font-medium text-white`}>{r.day}</td>
                   <td className={`${tdBase} ${tdSecondary} text-right`}>
-                    {r.receipts_count}
+                    {r.receipts_count ?? "—"}
                   </td>
                   <td className={`${tdBase} ${tdHero} text-right`}>
                     {money(r.gross_total)}

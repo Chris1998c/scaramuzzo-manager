@@ -1,16 +1,17 @@
 // components/reports/ReportKpiRow.tsx
 
 type Totals = {
-  receipts_count: number;
+  receipts_count: number | null;
   gross_total: number;
-  net_total: number;
-  vat_total: number;
-  discount_total: number;
-  gross_services: number;
-  gross_products: number;
+  net_total: number | null;
+  vat_total: number | null;
+  discount_total: number | null;
+  gross_services: number | null;
+  gross_products: number | null;
 };
 
 function money(n: any) {
+  if (n == null) return "—";
   const v = Number(n);
   if (!Number.isFinite(v)) return "0,00 €";
   return v.toFixed(2).replace(".", ",") + " €";
@@ -39,7 +40,7 @@ export default function ReportKpiRow({ totals }: { totals: Totals }) {
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className={card}>
           <div className={label}>Scontrini</div>
-          <div className={`${valueSecondary} mt-1`}>{totals.receipts_count}</div>
+          <div className={`${valueSecondary} mt-1`}>{totals.receipts_count ?? "—"}</div>
         </div>
         <div className={card}>
           <div className={label}>Imponibile</div>

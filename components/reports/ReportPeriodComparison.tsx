@@ -2,17 +2,19 @@
 
 type Totals = {
   gross_total: number;
-  net_total: number;
-  receipts_count: number;
+  net_total: number | null;
+  receipts_count: number | null;
 };
 
 function money(n: any) {
+  if (n == null) return "—";
   const v = Number(n);
   if (!Number.isFinite(v)) return "0,00 €";
   return v.toFixed(2).replace(".", ",") + " €";
 }
 
-function pct(current: number, previous: number): number | null {
+function pct(current: number | null, previous: number | null): number | null {
+  if (current == null || previous == null) return null;
   if (!Number.isFinite(previous) || previous === 0) return null;
   return ((current - previous) / previous) * 100;
 }
@@ -98,7 +100,7 @@ export default function ReportPeriodComparison({
           </div>
           <div className="mt-2 flex flex-wrap items-baseline gap-1">
             <span className="text-xl font-extrabold text-white">
-              {current.receipts_count}
+              {current.receipts_count ?? "—"}
             </span>
             <GrowthBadge value={receiptsGrowth} />
           </div>
