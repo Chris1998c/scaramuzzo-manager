@@ -1,0 +1,5 @@
+*.sql.dump
+.git/
+node_modules/
+scripts/cleanup/backups/
+tmp/
