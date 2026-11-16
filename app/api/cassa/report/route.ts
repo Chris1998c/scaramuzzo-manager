@@ -113,8 +113,13 @@ export async function GET(req: Request) {
     const today = todayRomeISO();
     const { startUtcWall, endUtcWallExclusive } = utcWallBoundsForRomeBusinessDate(today);
 
-    // SALES di oggi
-    const { data: sales, error: salesErr } = await supabaseAdmin
+    const { getOperationalBaselineTs } = await import(
+      "@/lib/ops/operationalBaseline"
+    );
+    const baselineTs = await getOperationalBaselineTs();
+
+    // SALES di oggi (post-baseline)
+    let salesQuery = supabaseAdmin
       .from("sales")
       .select("id, total_amount, payment_method, date")
       .eq("salon_id", salonId)
@@ -123,6 +128,8 @@ export async function GET(req: Request) {
       .gte("date", startUtcWall)
       .lt("date", endUtcWallExclusive)
       .order("date", { ascending: true });
+    if (baselineTs) salesQuery = salesQuery.gte("date", baselineTs);
+    const { data: sales, error: salesErr } = await salesQuery;
 
     if (salesErr) return NextResponse.json({ error: salesErr.message }, { status: 500 });
 

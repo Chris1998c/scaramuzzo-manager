@@ -97,13 +97,19 @@ export async function getDirectionCrmActions(
     if (prev == null || ms > prev) lastVisitMs.set(cid, ms);
   }
 
-  const { data: sales, error: salesErr } = await supabase
+  const { getOperationalBaselineTs } = await import(
+    "@/lib/ops/operationalBaseline"
+  );
+  const baselineTs = await getOperationalBaselineTs();
+  let salesQuery = supabase
     .from("sales")
     .select("id, customer_id, total_amount, date")
     .eq("salon_id", salonId)
     .eq("status", SALES_LEDGER_STATUS)
     .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
     .gte("date", isoStart(lookbackFrom));
+  if (baselineTs) salesQuery = salesQuery.gte("date", baselineTs);
+  const { data: sales, error: salesErr } = await salesQuery;
 
   if (salesErr) throw new Error(salesErr.message);
 

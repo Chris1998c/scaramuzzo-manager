@@ -62,12 +62,18 @@ export async function getCashSessionsReport(filters: CashSessionsFilters) {
       const end = closedAt ?? new Date().toISOString();
       const sessionId = s.id != null ? Number(s.id) : null;
 
+      const { getOperationalBaselineTs } = await import(
+        "@/lib/ops/operationalBaseline"
+      );
+      const baselineTs = await getOperationalBaselineTs();
+
       let salesQuery = supabase
         .from("sales")
         .select("total_amount, payment_method, date")
         .eq("salon_id", salonId)
         .eq("status", SALES_LEDGER_STATUS)
         .eq("operation_type", SALES_LEDGER_OPERATION_TYPE);
+      if (baselineTs) salesQuery = salesQuery.gte("date", baselineTs);
 
       if (sessionId != null && Number.isFinite(sessionId) && sessionId > 0) {
         salesQuery = salesQuery.eq("cash_session_id", sessionId);

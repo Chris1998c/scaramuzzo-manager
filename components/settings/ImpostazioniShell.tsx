@@ -564,9 +564,8 @@ function ProdottiPanel({
       <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-[#c9b299]">
         <span className="font-bold text-amber-200/95">Catalogo prodotti</span>
         <span className="mx-2 text-white/25">·</span>
-        Anagrafica <strong className="text-[#f3d8b6]">globale</strong>: prezzo da{" "}
-        <code className="text-[#f3d8b6]/90">products.price</code>. Magazzino e giacenze non si
-        modificano da qui.
+        Anagrafica <strong className="text-[#f3d8b6]">condivisa</strong>: il prezzo di vendita si
+        imposta qui. Le giacenze si gestiscono in Magazzino.
       </div>
 
       {!canManageProducts ? (

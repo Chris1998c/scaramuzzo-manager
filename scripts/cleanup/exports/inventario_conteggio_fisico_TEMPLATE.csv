@@ -1,0 +1,402 @@
+salon_id,salon_name,product_id,barcode,product_name,qty_sistema,qty_fisica,delta,motivo
+1,Scaramuzzo- Roma,22,,24 KERATS KIT,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,24,,BICCHIERI,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,25,,BOND REPAIR 500ML,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,27,,BUSTE SPAZZATURA 55X62,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,28,,BUSTE SPAZZATURA 70X110,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,33,,CONDITIONER DISTRICANTE 1000ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,34,,CONF. GUANTI BLACK NITRO M,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,35,,COTONE 400GR,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,36,,crema mani estratto liquirizia 50ml,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,38,,DIRECT COLOR SCARAMUZZO HNB N 5,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,39,,DIRECT COLOR SCARAMUZZO HNB N¦2,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,40,,DIRECT COLOR SCARAMUZZO HNB N7,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,41,,DIVINE MASK 1000ML,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,21,,E2E reception Roma 1778932841976,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,48,,GADGET OLIO SUPER ABBRONZANTE PER IL CORPO 50ML,5.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,49,,GEL SCRUB 250ML,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,54,,HENNE EMOLLIENTE SCARAMUZZO,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,55,,HENNE' NOCE MALLO SCARAMUZZO,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,56,,HENNE' ROSSO SCARAMUZZO,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,57,,INEBRYA 10VOL,5.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,58,,INEBRYA 30 VOL,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,59,,INEBRYA 40VOL,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,60,,INEBRYA 7VOL,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,69,,Luxury Hair Color Green Light Biondo Chiaro Copertura Ultra 8.000 100ml,9.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,71,,Luxury Hair Color Green Light Biondo Scuro Copertura Ultra 6.000 100ml,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,73,,Luxury Hair Color Green Light Castano Copertura Ultra 4.000 100ml,8.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,74,,luxury hair pro oxidant milk 15 vol,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,75,,luxury hair pro oxidant milk 2 5 vol,6.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,76,,luxury hair pro oxidant milk 25 vol,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,80,,MASCHERA DOPOSOLE 250ML,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,81,,MASCHERA GOLD 250ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,82,,MASCHERA LIQUIDA CON ESTRATTO DI MANDARINO 150ML,5.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,84,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 250ML,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,85,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 500ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,86,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 250ML,8.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,87,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 500ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,88,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,89,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 500 ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,95,,OIL DEMI 5 0,6.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,96,,OIL DEMI 5 3,5.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,97,,OIL DEMI 6 13,9.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,98,,OIL DEMI 6 4,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,100,,OIL DEMI 7 0,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,101,,OIL DEMI 8 3,5.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,103,,OIL DEMI ATTIVATORE 6 vol,6.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,104,,OIL DEMI TITANIUM,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,105,,OLIO IDRATANTE CON ESTR MANDARINO 150ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,106,,OLIO SOLARE SUPER ABBRONZANTE 150ML,16.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,107,,OP COLOR DECO CREMA NERA 500ML,5.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,115,,PENNELLI CHRMT CS TINT BRUSH,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,116,,PERMESSE CREMA SUPERSCHIARENTE 11SS,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,118,,pettine mareb,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,119,,PHON GAMMA PIU' 2300 W,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,126,,ROTOLO STAGNOLA,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,131,,Scrub Viso 150ml,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,16,,shampoo,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,20,,shampoo,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,133,,SHAMPOO EMOLLIENTE 1000ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,134,,SHAMPOO EMOLLIENTE 250ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,135,,SHAMPOO ENERGIZZANTE- STIMOLANTE 1000ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,136,,SHAMPOO ENERGIZZANTE-STIMOLANTE 250ML,8.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,137,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 1000ML,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,138,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 250ML,5.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,139,,SHAMPOO RIFLESSANTE CON ESTRATTO DI HENNE' 1000ML,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,140,,SHAMPOO RIFLESSANTE CON ESTRATTO HENNE'250ML,7.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,141,,SHAMPOO RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,3.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,142,,SHAMPOO WAVES CURL DAILY 250ML,4.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,143,,SOLVENTE PARISIENNE 125ML,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,144,,STYLING CREAM CURL 150ML,5.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,145,,TRATTAMENTO INTENSIVO ALLA KERATINA VEGETALE 500 ml,2.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,146,,TRATTAMENTO INTENSIVO KERATINA VEGETALE 150 ML,6.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,147,,TRATTAMENTO RIGENERAZIONE SPA DOPO SOLE,1.00,,,inventario_iniziale_prelaunch
+1,Scaramuzzo- Roma,149,,TRUGEL COLOR TOTALLY TROPICAL 14ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,22,,24 KERATS KIT,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,23,,AGHI ELETTRODEPILAZIONE,14.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,24,,BICCHIERI,5.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,25,,BOND REPAIR 500ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,26,,BORSA 1,17.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,27,,BUSTE SPAZZATURA 55X62,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,28,,BUSTE SPAZZATURA 70X110,8.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,29,,CATERINA MORO PantalonI,4.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,31,,COLLANT RETE BLU E FUCSIA,59.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,32,,COLLANT RETE VERDE E CORALLO,60.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,33,,CONDITIONER DISTRICANTE 1000ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,34,,CONF. GUANTI BLACK NITRO M,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,35,,COTONE 400GR,4.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,36,,crema mani estratto liquirizia 50ml,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,38,,DIRECT COLOR SCARAMUZZO HNB N 5,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,39,,DIRECT COLOR SCARAMUZZO HNB N¦2,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,40,,DIRECT COLOR SCARAMUZZO HNB N7,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,41,,DIVINE MASK 1000ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,42,,EMIN PAUL Pantaloni,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,47,,gadget estivo,31.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,48,,GADGET OLIO SUPER ABBRONZANTE PER IL CORPO 50ML,95.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,50,,helix serum 30ml,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,52,,HELIX SPRAY 100ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,54,,HENNE EMOLLIENTE SCARAMUZZO,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,55,,HENNE' NOCE MALLO SCARAMUZZO,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,56,,HENNE' ROSSO SCARAMUZZO,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,57,,INEBRYA 10VOL,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,58,,INEBRYA 30 VOL,4.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,59,,INEBRYA 40VOL,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,60,,INEBRYA 7VOL,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,61,,LAMA CREDO,4.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,62,,LAMA SGORBIA,85.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,63,,LAQUERING GEL TEINT THE NEIGE,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,64,,LAQUERING GEL TEINT THE NEIGE -,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,66,,LAQUERING GEL TOP COAT -,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,68,,LAQUERING GEL ZERO -,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,69,,Luxury Hair Color Green Light Biondo Chiaro Copertura Ultra 8.000 100ml,6.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,70,,Luxury Hair Color Green Light Biondo Copertura Ultra 7.000 100ml,8.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,71,,Luxury Hair Color Green Light Biondo Scuro Copertura Ultra 6.000 100ml,7.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,72,,Luxury Hair Color Green Light Castano Chiaro Copertura Ultra 5.000 100ml,9.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,73,,Luxury Hair Color Green Light Castano Copertura Ultra 4.000 100ml,10.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,74,,luxury hair pro oxidant milk 15 vol,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,75,,luxury hair pro oxidant milk 2 5 vol,6.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,76,,luxury hair pro oxidant milk 25 vol,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,77,,LUXURY HAIR VOLUME MOUSSE 300ML,5.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,80,,MASCHERA DOPOSOLE 250ML,9.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,81,,MASCHERA GOLD 250ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,82,,MASCHERA LIQUIDA CON ESTRATTO DI MANDARINO 150ML,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,84,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 250ML,7.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,85,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 500ML,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,86,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 250ML,4.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,87,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 500ML,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,88,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,89,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 500 ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,90,,MIAHATAMI Pantaloni,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,91,,MISCELE ERBE RIFLESSANTI 100g,52.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,92,,MOLECOLAR PLUS,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,93,,OCCHIALI GIADA VARI,54.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,94,,OCCHIALI OTTOVOLANTE VARI,22.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,95,,OIL DEMI 5 0,5.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,96,,OIL DEMI 5 3,9.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,97,,OIL DEMI 6 13,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,99,,OIL DEMI 6 4-,6.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,100,,OIL DEMI 7 0,5.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,102,,OIL DEMI 8 3-,4.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,103,,OIL DEMI ATTIVATORE 6 vol,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,104,,OIL DEMI TITANIUM,4.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,105,,OLIO IDRATANTE CON ESTR MANDARINO 150ML,5.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,106,,OLIO SOLARE SUPER ABBRONZANTE 150ML,23.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,107,,OP COLOR DECO CREMA NERA 500ML,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,108,,PANTALONI 30 MILANO PARIGI,23.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,109,,PANTALONI 35 MILANO PARIGI,11.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,110,,PANTALONI COLORATI,8.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,111,,PANTALONI UNISEX,6.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,112,,PANTALONI VARI LCA,22.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,113,,PANTALONI VARI UOMO,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,114,,PENNA MULTICOLORE,21.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,115,,PENNELLI CHRMT CS TINT BRUSH,15.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,116,,PERMESSE CREMA SUPERSCHIARENTE 11SS,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,117,,PETTINE CODA FERRO JANEK,5.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,118,,pettine mareb,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,119,,PHON GAMMA PIU' 2300 W,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,120,,PHON gammapiu 2300w,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,121,,POCHETTE 1,62.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,122,,PONCIO COLORATI,45.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,125,,remedial mask 50ml,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,126,,ROTOLO STAGNOLA,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,127,,SACCHETTO NATALIZIO,70.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,128,,SALVIETTE CORPO-VISO CADEY1,192.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,129,,SCATOLA PICCOLA ROSSA,80.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,133,,SHAMPOO EMOLLIENTE 1000ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,134,,SHAMPOO EMOLLIENTE 250ML,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,135,,SHAMPOO ENERGIZZANTE- STIMOLANTE 1000ML,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,136,,SHAMPOO ENERGIZZANTE-STIMOLANTE 250ML,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,137,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 1000ML,1.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,138,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 250ML,6.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,139,,SHAMPOO RIFLESSANTE CON ESTRATTO DI HENNE' 1000ML,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,140,,SHAMPOO RIFLESSANTE CON ESTRATTO HENNE'250ML,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,141,,SHAMPOO RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,4.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,142,,SHAMPOO WAVES CURL DAILY 250ML,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,143,,SOLVENTE PARISIENNE 125ML,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,144,,STYLING CREAM CURL 150ML,3.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,145,,TRATTAMENTO INTENSIVO ALLA KERATINA VEGETALE 500 ml,2.00,,,inventario_iniziale_prelaunch
+2,Scaramuzzo - Corigliano,146,,TRATTAMENTO INTENSIVO KERATINA VEGETALE 150 ML,5.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,22,,24 KERATS KIT,6.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,24,,BICCHIERI,5.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,25,,BOND REPAIR 500ML,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,28,,BUSTE SPAZZATURA 70X110,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,30,,CIOTOLA BAREX,6.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,33,,CONDITIONER DISTRICANTE 1000ML,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,34,,CONF. GUANTI BLACK NITRO M,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,35,,COTONE 400GR,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,36,,crema mani estratto liquirizia 50ml,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,38,,DIRECT COLOR SCARAMUZZO HNB N 5,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,39,,DIRECT COLOR SCARAMUZZO HNB N¦2,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,40,,DIRECT COLOR SCARAMUZZO HNB N7,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,41,,DIVINE MASK 1000ML,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,43,,FASCE TNT 100 PZ,11.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,48,,GADGET OLIO SUPER ABBRONZANTE PER IL CORPO 50ML,19.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,51,,helix spray 100 ml,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,53,,HELIXSERUM 30 ML,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,54,,HENNE EMOLLIENTE SCARAMUZZO,7.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,55,,HENNE' NOCE MALLO SCARAMUZZO,6.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,56,,HENNE' ROSSO SCARAMUZZO,6.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,57,,INEBRYA 10VOL,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,58,,INEBRYA 30 VOL,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,59,,INEBRYA 40VOL,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,60,,INEBRYA 7VOL,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,61,,LAMA CREDO,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,62,,LAMA SGORBIA,9.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,65,,LAQUERING GEL TOP COAT,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,67,,LAQUERING GEL ZERO,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,70,,Luxury Hair Color Green Light Biondo Copertura Ultra 7.000 100ml,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,71,,Luxury Hair Color Green Light Biondo Scuro Copertura Ultra 6.000 100ml,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,72,,Luxury Hair Color Green Light Castano Chiaro Copertura Ultra 5.000 100ml,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,73,,Luxury Hair Color Green Light Castano Copertura Ultra 4.000 100ml,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,74,,luxury hair pro oxidant milk 15 vol,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,75,,luxury hair pro oxidant milk 2 5 vol,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,76,,luxury hair pro oxidant milk 25 vol,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,77,,LUXURY HAIR VOLUME MOUSSE 300ML,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,78,,LUXURY LATTE OSSIDANTE 20VOL,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,79,,LUXURY LATTE OSSIDANTE 20VOL -,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,80,,MASCHERA DOPOSOLE 250ML,5.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,81,,MASCHERA GOLD 250ML,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,85,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 500ML,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,86,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 250ML,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,87,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 500ML,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,88,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,89,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 500 ML,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,92,,MOLECOLAR PLUS,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,95,,OIL DEMI 5 0,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,96,,OIL DEMI 5 3,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,99,,OIL DEMI 6 4-,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,100,,OIL DEMI 7 0,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,103,,OIL DEMI ATTIVATORE 6 vol,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,104,,OIL DEMI TITANIUM,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,105,,OLIO IDRATANTE CON ESTR MANDARINO 150ML,10.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,106,,OLIO SOLARE SUPER ABBRONZANTE 150ML,17.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,107,,OP COLOR DECO CREMA NERA 500ML,5.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,115,,PENNELLI CHRMT CS TINT BRUSH,9.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,116,,PERMESSE CREMA SUPERSCHIARENTE 11SS,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,117,,PETTINE CODA FERRO JANEK,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,118,,pettine mareb,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,124,,remedial mask 50 ml,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,126,,ROTOLO STAGNOLA,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,130,,scrub viso 150 ml,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,133,,SHAMPOO EMOLLIENTE 1000ML,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,134,,SHAMPOO EMOLLIENTE 250ML,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,135,,SHAMPOO ENERGIZZANTE- STIMOLANTE 1000ML,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,136,,SHAMPOO ENERGIZZANTE-STIMOLANTE 250ML,5.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,138,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 250ML,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,139,,SHAMPOO RIFLESSANTE CON ESTRATTO DI HENNE' 1000ML,2.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,140,,SHAMPOO RIFLESSANTE CON ESTRATTO HENNE'250ML,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,141,,SHAMPOO RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,142,,SHAMPOO WAVES CURL DAILY 250ML,1.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,143,,SOLVENTE PARISIENNE 125ML,4.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,144,,STYLING CREAM CURL 150ML,7.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,145,,TRATTAMENTO INTENSIVO ALLA KERATINA VEGETALE 500 ml,3.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,146,,TRATTAMENTO INTENSIVO KERATINA VEGETALE 150 ML,6.00,,,inventario_iniziale_prelaunch
+3,Scaramuzzo - Castrovillari,148,,TRUGEL COLOR TOTALLY TROPICAL 14 ML,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,22,,24 KERATS KIT,8.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,24,,BICCHIERI,6.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,25,,BOND REPAIR 500ML,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,27,,BUSTE SPAZZATURA 55X62,11.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,28,,BUSTE SPAZZATURA 70X110,16.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,30,,CIOTOLA BAREX,6.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,33,,CONDITIONER DISTRICANTE 1000ML,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,34,,CONF. GUANTI BLACK NITRO M,2.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,35,,COTONE 400GR,9.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,36,,crema mani estratto liquirizia 50ml,8.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,38,,DIRECT COLOR SCARAMUZZO HNB N 5,8.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,39,,DIRECT COLOR SCARAMUZZO HNB N¦2,8.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,40,,DIRECT COLOR SCARAMUZZO HNB N7,9.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,41,,DIVINE MASK 1000ML,2.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,43,,FASCE TNT 100 PZ,10.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,54,,HENNE EMOLLIENTE SCARAMUZZO,18.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,55,,HENNE' NOCE MALLO SCARAMUZZO,8.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,56,,HENNE' ROSSO SCARAMUZZO,10.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,57,,INEBRYA 10VOL,5.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,58,,INEBRYA 30 VOL,2.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,59,,INEBRYA 40VOL,3.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,60,,INEBRYA 7VOL,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,61,,LAMA CREDO,6.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,62,,LAMA SGORBIA,20.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,69,,Luxury Hair Color Green Light Biondo Chiaro Copertura Ultra 8.000 100ml,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,70,,Luxury Hair Color Green Light Biondo Copertura Ultra 7.000 100ml,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,71,,Luxury Hair Color Green Light Biondo Scuro Copertura Ultra 6.000 100ml,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,72,,Luxury Hair Color Green Light Castano Chiaro Copertura Ultra 5.000 100ml,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,73,,Luxury Hair Color Green Light Castano Copertura Ultra 4.000 100ml,5.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,74,,luxury hair pro oxidant milk 15 vol,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,75,,luxury hair pro oxidant milk 2 5 vol,5.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,76,,luxury hair pro oxidant milk 25 vol,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,77,,LUXURY HAIR VOLUME MOUSSE 300ML,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,80,,MASCHERA DOPOSOLE 250ML,7.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,81,,MASCHERA GOLD 250ML,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,82,,MASCHERA LIQUIDA CON ESTRATTO DI MANDARINO 150ML,8.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,84,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 250ML,5.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,85,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 500ML,6.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,86,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 250ML,9.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,87,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 500ML,6.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,88,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,5.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,89,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 500 ML,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,91,,MISCELE ERBE RIFLESSANTI 100g,70.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,95,,OIL DEMI 5 0,3.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,96,,OIL DEMI 5 3,3.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,97,,OIL DEMI 6 13,5.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,99,,OIL DEMI 6 4-,5.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,100,,OIL DEMI 7 0,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,102,,OIL DEMI 8 3-,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,103,,OIL DEMI ATTIVATORE 6 vol,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,104,,OIL DEMI TITANIUM,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,105,,OLIO IDRATANTE CON ESTR MANDARINO 150ML,8.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,106,,OLIO SOLARE SUPER ABBRONZANTE 150ML,10.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,107,,OP COLOR DECO CREMA NERA 500ML,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,116,,PERMESSE CREMA SUPERSCHIARENTE 11SS,8.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,117,,PETTINE CODA FERRO JANEK,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,118,,pettine mareb,2.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,126,,ROTOLO STAGNOLA,2.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,20,,shampoo,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,133,,SHAMPOO EMOLLIENTE 1000ML,7.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,134,,SHAMPOO EMOLLIENTE 250ML,1.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,135,,SHAMPOO ENERGIZZANTE- STIMOLANTE 1000ML,5.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,137,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 1000ML,3.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,138,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 250ML,2.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,139,,SHAMPOO RIFLESSANTE CON ESTRATTO DI HENNE' 1000ML,3.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,140,,SHAMPOO RIFLESSANTE CON ESTRATTO HENNE'250ML,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,141,,SHAMPOO RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,2.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,142,,SHAMPOO WAVES CURL DAILY 250ML,3.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,143,,SOLVENTE PARISIENNE 125ML,13.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,144,,STYLING CREAM CURL 150ML,3.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,145,,TRATTAMENTO INTENSIVO ALLA KERATINA VEGETALE 500 ml,4.00,,,inventario_iniziale_prelaunch
+4,Scaramuzzo - Cosenza,146,,TRATTAMENTO INTENSIVO KERATINA VEGETALE 150 ML,4.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,23,,AGHI ELETTRODEPILAZIONE,80.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,24,,BICCHIERI,4.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,25,,BOND REPAIR 500ML,4.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,27,,BUSTE SPAZZATURA 55X62,10.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,28,,BUSTE SPAZZATURA 70X110,34.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,30,,CIOTOLA BAREX,8.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,33,,CONDITIONER DISTRICANTE 1000ML,6.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,34,,CONF. GUANTI BLACK NITRO M,6.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,35,,COTONE 400GR,8.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,36,,crema mani estratto liquirizia 50ml,8.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,37,,CUFFIETNT MONOUSO,165.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,38,,DIRECT COLOR SCARAMUZZO HNB N 5,11.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,39,,DIRECT COLOR SCARAMUZZO HNB N¦2,54.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,40,,DIRECT COLOR SCARAMUZZO HNB N7,57.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,41,,DIVINE MASK 1000ML,11.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,43,,FASCE TNT 100 PZ,10.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,44,,FIRMING TREATMENT 50ML,41.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,45,,FOULARD GRANDE CON LOGO,251.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,46,,FOULARD PICCOLO CON LOGO,162.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,49,,GEL SCRUB 250ML,26.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,54,,HENNE EMOLLIENTE SCARAMUZZO,28.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,55,,HENNE' NOCE MALLO SCARAMUZZO,23.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,56,,HENNE' ROSSO SCARAMUZZO,46.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,57,,INEBRYA 10VOL,3.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,58,,INEBRYA 30 VOL,7.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,59,,INEBRYA 40VOL,8.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,60,,INEBRYA 7VOL,4.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,61,,LAMA CREDO,12.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,62,,LAMA SGORBIA,11.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,74,,luxury hair pro oxidant milk 15 vol,2.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,75,,luxury hair pro oxidant milk 2 5 vol,5.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,76,,luxury hair pro oxidant milk 25 vol,3.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,77,,LUXURY HAIR VOLUME MOUSSE 300ML,2.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,80,,MASCHERA DOPOSOLE 250ML,30.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,81,,MASCHERA GOLD 250ML,7.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,82,,MASCHERA LIQUIDA CON ESTRATTO DI MANDARINO 150ML,15.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,83,,MASCHERA NUTRIENTE 250ML,63.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,84,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 250ML,10.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,85,,MASCHERA NUTRIENTE E IDRATANTE CON OLIO DI OLIVA 500ML,6.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,86,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 250ML,8.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,87,,MASCHERA RIFLESSANTE CON ESTRATTO DI HENNE' 500ML,1.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,88,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,7.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,89,,MASCHERA RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 500 ML,8.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,92,,MOLECOLAR PLUS,19.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,95,,OIL DEMI 5 0,9.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,99,,OIL DEMI 6 4-,3.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,102,,OIL DEMI 8 3-,3.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,103,,OIL DEMI ATTIVATORE 6 vol,9.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,104,,OIL DEMI TITANIUM,2.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,105,,OLIO IDRATANTE CON ESTR MANDARINO 150ML,13.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,107,,OP COLOR DECO CREMA NERA 500ML,2.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,115,,PENNELLI CHRMT CS TINT BRUSH,5.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,116,,PERMESSE CREMA SUPERSCHIARENTE 11SS,10.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,117,,PETTINE CODA FERRO JANEK,8.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,118,,pettine mareb,9.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,123,,QUICKTREAT 50ML,101.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,126,,ROTOLO STAGNOLA,9.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,16,,shampoo,9.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,132,,SHAMPOO DOPOSOLE 250ML,30.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,133,,SHAMPOO EMOLLIENTE 1000ML,13.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,134,,SHAMPOO EMOLLIENTE 250ML,13.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,135,,SHAMPOO ENERGIZZANTE- STIMOLANTE 1000ML,7.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,136,,SHAMPOO ENERGIZZANTE-STIMOLANTE 250ML,12.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,137,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 1000ML,10.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,138,,SHAMPOO PURIFICANTE SEBO-REGOLATORE 250ML,12.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,139,,SHAMPOO RIFLESSANTE CON ESTRATTO DI HENNE' 1000ML,15.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,140,,SHAMPOO RIFLESSANTE CON ESTRATTO HENNE'250ML,12.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,141,,SHAMPOO RISTRUTTURANTE CON ESTRATTO DI BERGAMOTTO 250ML,16.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,142,,SHAMPOO WAVES CURL DAILY 250ML,9.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,143,,SOLVENTE PARISIENNE 125ML,12.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,144,,STYLING CREAM CURL 150ML,20.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,145,,TRATTAMENTO INTENSIVO ALLA KERATINA VEGETALE 500 ml,32.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,146,,TRATTAMENTO INTENSIVO KERATINA VEGETALE 150 ML,4.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,147,,TRATTAMENTO RIGENERAZIONE SPA DOPO SOLE,19.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,150,,VOL BEACH ENVY DUOPKT,18.00,,,inventario_iniziale_prelaunch
+5,Magazzino ,151,,VOL HIGH RISE DUO PKT,18.00,,,inventario_iniziale_prelaunch

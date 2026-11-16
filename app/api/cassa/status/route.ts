@@ -54,6 +54,11 @@ async function sumSalesByRange(args: {
   startIso: string;
   endIso: string;
 }): Promise<{ gross: number; cash: number; card: number; count: number }> {
+  const { getOperationalBaselineTs } = await import(
+    "@/lib/ops/operationalBaseline"
+  );
+  const baselineTs = await getOperationalBaselineTs();
+
   let q = supabaseAdmin
     .from("sales")
     .select("total_amount, payment_method")
@@ -67,6 +72,7 @@ async function sumSalesByRange(args: {
     // endIso esclusivo (bounds UTC-wall del giorno Rome).
     q = q.gte("date", args.startIso).lt("date", args.endIso);
   }
+  if (baselineTs) q = q.gte("date", baselineTs);
 
   const { data, error } = await q;
 

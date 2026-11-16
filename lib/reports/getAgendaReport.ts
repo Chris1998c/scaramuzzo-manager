@@ -25,14 +25,20 @@ export async function getAgendaReport(filters: AgendaReportFilters) {
   const supabase = await createServerSupabase();
   const { salonId, dateFrom, dateTo } = filters;
 
-  // Prendiamo appuntamenti nel range (start_time)
-  // Nota: qui assumiamo start_time/end_time come da tua “regola d’oro”
-  const { data: appts, error } = await supabase
+  const { getOperationalBaselineTs } = await import(
+    "@/lib/ops/operationalBaseline"
+  );
+  const baselineTs = await getOperationalBaselineTs();
+
+  // Appuntamenti nel range (post-baseline operativo)
+  let apptsQuery = supabase
     .from("appointments")
     .select("id, salon_id, staff_id, start_time, end_time, status")
     .eq("salon_id", salonId)
     .gte("start_time", isoStart(dateFrom))
     .lte("start_time", isoEnd(dateTo));
+  if (baselineTs) apptsQuery = apptsQuery.gte("start_time", baselineTs);
+  const { data: appts, error } = await apptsQuery;
 
   if (error) throw new Error(error.message);
 

@@ -162,7 +162,7 @@ export default function ProductModal({ open, mode, row, onClose, onSaved }: Prop
 
             <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
               <p className="text-xs text-[#c9b299] leading-relaxed">
-                Anagrafica globale: prezzo vendita da <code className="text-[#f3d8b6]/90">products.price</code>.
+                Prezzo di vendita del prodotto (valido per tutti i saloni).
                 Giacenze e movimenti magazzino restano gestiti altrove.
               </p>
 

@@ -68,20 +68,11 @@ export default async function ClientePage({
           <ArrowLeft size={16} />
           Torna ai clienti
         </Link>
-        <div
-          className="rounded-2xl border-4 border-red-500 bg-red-950/80 p-6 font-mono text-sm space-y-3
- text-red-100"
-        >
-          <div className="text-lg font-black uppercase tracking-wide text-red-300">
-            CLIENTE NON TROVATO O FETCH FALLITO
-          </div>
-          <div>
-            <span className="text-red-400/90">requestedId:</span> {id}
-          </div>
-          <div>
-            <span className="text-red-400/90">fetchError.message:</span>{" "}
- {fetchError?.message ?? "(nessun errore PostgREST — riga assente)"}
-          </div>
+        <div className="rounded-2xl border border-red-500/40 bg-red-950/50 p-6 text-sm text-red-100 space-y-3">
+          <div className="text-lg font-bold text-red-200">Cliente non trovato</div>
+          <p className="text-red-100/90 leading-relaxed">
+            Non è stato possibile caricare questa scheda. Torna all&apos;elenco clienti e riprova.
+          </p>
         </div>
       </div>
     );

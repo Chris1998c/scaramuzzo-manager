@@ -45,3 +45,7 @@ next-env.d.ts
 data/imports/*.csv
 data/
 data/imports/products-boss/*
+
+# Pre-launch DB backups (PII)
+scripts/cleanup/backups/
+tmp/

@@ -18,8 +18,7 @@ export function validateRequeueFiscalJob(
     return {
       ok: false,
       status: 409,
-      message:
-        "Rimessa in coda non supportata per job annullati (manca RPC dedicata).",
+      message: "I job annullati non possono essere rimessi in coda.",
     };
   }
 
@@ -36,7 +35,7 @@ export function validateRequeueFiscalJob(
       ok: false,
       status: 400,
       message:
-        "Conferma esplicita richiesta per rimettere in coda un job Z-REPORT (confirm_z_report).",
+        "Per rimettere in coda una chiusura Z conferma esplicitamente l’operazione.",
     };
   }
 
@@ -49,7 +48,7 @@ export function validateRequeueFiscalJob(
       ok: false,
       status: 409,
       message:
-        "Per una stampa bloccata usa Annulla dalla dashboard; la rimessa in coda in processing è solo via RPC con force (non esposta).",
+        "Stampa in corso o bloccata: usa Annulla dalla dashboard oppure contatta l’assistenza. Non ristampare senza verifica.",
     };
   }
 

@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
+import {
+  clampRangeStartToBaseline,
+  fetchOperationalBaselineTs,
+} from "@/lib/ops/operationalBaselineClient";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Props {
@@ -104,11 +108,18 @@ export default function CalendarModal({
         "0"
       )}T23:59:59`;
 
+      const baselineTs = await fetchOperationalBaselineTs(supabase);
+      const effectiveStart = clampRangeStartToBaseline(start, baselineTs);
+      if (effectiveStart > end) {
+        setAppointmentsByDay({});
+        return;
+      }
+
       const { data, error } = await supabase
         .from("appointments")
         .select("start_time")
         .eq("salon_id", Number(activeSalonId))
-        .gte("start_time", start)
+        .gte("start_time", effectiveStart)
         .lte("start_time", end);
 
       // se nel frattempo hai cambiato mese/salone, ignora

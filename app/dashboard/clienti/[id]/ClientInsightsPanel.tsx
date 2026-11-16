@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import {
   Lightbulb,
@@ -9,7 +9,6 @@ import {
   Sparkles,
   Scissors,
   ListTodo,
-  Wand2,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -22,9 +21,6 @@ export default function ClientInsightsPanel({ customerId }: Props) {
   const [loading, setLoading] = useState(false);
   const [insights, setInsights] = useState<ClientInsightsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [aiApplied, setAiApplied] = useState(false);
   /** Chiuso di default: niente fetch in parallelo all’apertura della scheda tecnica. */
   const [open, setOpen] = useState(false);
   const [fetched, setFetched] = useState(false);
@@ -32,8 +28,6 @@ export default function ClientInsightsPanel({ customerId }: Props) {
   useEffect(() => {
     setInsights(null);
     setError(null);
-    setAiError(null);
-    setAiApplied(false);
     setFetched(false);
   }, [customerId, activeSalonId]);
 
@@ -55,7 +49,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
       `/api/client-intelligence?customerId=${encodeURIComponent(customerId)}&salonId=${encodeURIComponent(String(activeSalonId))}`,
     )
       .then((res) => {
-        if (!res.ok) throw new Error("Errore caricamento insights");
+        if (!res.ok) throw new Error("Errore caricamento suggerimenti");
         return res.json();
       })
       .then((json: { insights?: ClientInsightsResult }) => {
@@ -78,25 +72,6 @@ export default function ClientInsightsPanel({ customerId }: Props) {
     };
   }, [open, fetched, customerId, activeSalonId, isReady]);
 
-  const analyzeWithAi = useCallback(async () => {
-    if (activeSalonId == null || !Number.isFinite(Number(activeSalonId))) return;
-    setAiLoading(true);
-    setAiError(null);
-    try {
-      const res = await fetch(
-        `/api/client-intelligence?customerId=${encodeURIComponent(customerId)}&salonId=${encodeURIComponent(String(activeSalonId))}&ai=1`,
-      );
-      if (!res.ok) throw new Error("Analisi AI non disponibile");
-      const json = (await res.json()) as { insights?: ClientInsightsResult };
-      setInsights(json.insights ?? null);
-      setAiApplied(true);
-    } catch (e) {
-      setAiError(e instanceof Error ? e.message : "Errore analisi AI");
-    } finally {
-      setAiLoading(false);
-    }
-  }, [customerId, activeSalonId]);
-
   const hasSummary = Array.isArray(insights?.summary) && insights.summary.length > 0;
   const hasWarnings = Array.isArray(insights?.warnings) && insights.warnings.length > 0;
   const hasServices =
@@ -115,7 +90,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
           <h2 className="text-lg font-bold text-[#f3d8b6]">Suggerimenti sul cliente</h2>
         </div>
         <p className="text-sm text-white/50">
-          Seleziona un salone per vedere suggerimenti e insights.
+          Seleziona un salone per vedere i suggerimenti.
         </p>
       </div>
     );
@@ -137,7 +112,7 @@ export default function ClientInsightsPanel({ customerId }: Props) {
               <p className="text-[10px] font-medium uppercase tracking-wider text-white/45 mt-1">
                 {open
                   ? "Suggerimenti basati sui dati del salone attivo"
-                  : "Apri per caricare insights"}
+                  : "Apri per caricare i suggerimenti"}
               </p>
             </div>
           </div>
@@ -151,33 +126,6 @@ export default function ClientInsightsPanel({ customerId }: Props) {
 
       {open && (
         <>
-          <div className="px-6 pt-3 flex items-center justify-end">
-            <button
-              type="button"
-              onClick={() => void analyzeWithAi()}
-              disabled={aiLoading || loading}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-violet-400/35 bg-violet-500/10 px-3 py-1.5 text-xs font-bold text-violet-200/95 hover:bg-violet-500/20 disabled:opacity-45 disabled:pointer-events-none transition"
-            >
-              <Wand2
-                size={14}
-                className={aiLoading ? "animate-pulse shrink-0" : "shrink-0"}
-              />
-              {aiLoading
-                ? "Analisi AI…"
-                : aiApplied
-                  ? "Rianalizza con AI"
-                  : "Analizza con AI"}
-            </button>
-          </div>
-          {aiApplied && (
-            <p className="px-6 text-[10px] font-medium uppercase tracking-wider text-white/45 mt-1">
-              Analisi AI applicata · basata sui dati del salone attivo
-            </p>
-          )}
-          {aiError && (
-            <p className="px-6 text-[11px] text-amber-300/90 mt-1">{aiError}</p>
-          )}
-
           <div className="p-6 space-y-5">
             {loading ? (
               <p className="text-sm text-white/50">Caricamento...</p>

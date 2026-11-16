@@ -8,6 +8,10 @@ import {
   clientIntelligenceAiRateLimitKey,
   consumeClientIntelligenceAiRateLimit,
 } from "@/lib/client-intelligence/clientIntelligenceAiRateLimit";
+import {
+  AI_FEATURES_DISABLED_MESSAGE,
+  isAiFeaturesEnabled,
+} from "@/lib/ai/aiFeaturesGate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,9 +75,21 @@ export async function GET(request: NextRequest) {
   try {
     const data = await getClientIntelligenceData(customerId.trim(), requestedSalonId);
 
-    // Default (caricamento iniziale, senza ?ai=1): solo insight deterministici, nessuna chiamata OpenAI.
+    // Default: solo insight deterministici.
     if (!aiRequested) {
       return NextResponse.json({ insights: buildClientInsights(data) });
+    }
+
+    // ?ai=1: gated for launch — preserve handler code path behind explicit env enable.
+    if (!isAiFeaturesEnabled()) {
+      return NextResponse.json(
+        {
+          error: AI_FEATURES_DISABLED_MESSAGE,
+          insights: buildClientInsights(data),
+          ai_disabled: true,
+        },
+        { status: 403 },
+      );
     }
 
     // ?ai=1: analisi AI on-demand, con rate-limit per utente+cliente+salone.

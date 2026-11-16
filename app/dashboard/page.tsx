@@ -178,6 +178,9 @@ export default async function DashboardPage({
     month: "long",
   });
 
+  const { getOperationalBaselineTs } = await import("@/lib/ops/operationalBaseline");
+  const baselineTs = await getOperationalBaselineTs();
+
   const incassoBaseQuery = supabase
     .from("sales")
     .select("total_amount")
@@ -188,6 +191,7 @@ export default async function DashboardPage({
   let incassoUnavailable = false;
   try {
     let incassoQuery = incassoBaseQuery.gte("date", startOfDayLocal).lt("date", endOfDayLocal);
+    if (baselineTs) incassoQuery = incassoQuery.gte("date", baselineTs);
     if (activeSalonId) incassoQuery = incassoQuery.eq("salon_id", activeSalonId);
 
     const { data: incassoData, error: incassoErr } = await incassoQuery;
@@ -211,6 +215,7 @@ export default async function DashboardPage({
       .select("*", { count: "exact", head: true })
       .gte("start_time", startOfDayLocal)
       .lt("start_time", endOfDayLocal);
+    if (baselineTs) appQuery = appQuery.gte("start_time", baselineTs);
 
     if (activeSalonId) appQuery = appQuery.eq("salon_id", activeSalonId);
 
@@ -224,6 +229,7 @@ export default async function DashboardPage({
       .gte("start_time", startOfDayLocal)
       .lt("start_time", endOfDayLocal)
       .eq("status", "done");
+    if (baselineTs) compQuery = compQuery.gte("start_time", baselineTs);
 
     if (activeSalonId) compQuery = compQuery.eq("salon_id", activeSalonId);
 

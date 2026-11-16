@@ -18,6 +18,10 @@ import {
   normalizeAgendaRows,
   type AgendaAppointment,
 } from "@/lib/agenda/agendaContract";
+import {
+  clampRangeStartToBaseline,
+  fetchOperationalBaselineTs,
+} from "@/lib/ops/operationalBaselineClient";
 import { generateWeekDaysFromDate } from "./utils";
 
 type ViewMode = "day" | "week";
@@ -92,11 +96,19 @@ export function useAgendaData({
         endRange = `${weekDays[6].date}T23:59:59`;
       }
 
+      const baselineTs = await fetchOperationalBaselineTs(supabase);
+      const effectiveStart = clampRangeStartToBaseline(startRange, baselineTs);
+      if (effectiveStart > endRange) {
+        setAppointments([]);
+        if (!silent) setLoading(false);
+        return;
+      }
+
       const { data: raw, error } = await supabase
         .from("appointments")
         .select(AGENDA_LIST_SELECT)
         .eq("salon_id", salonId)
-        .gte("start_time", startRange)
+        .gte("start_time", effectiveStart)
         .lte("start_time", endRange)
         .order("start_time", { ascending: true })
         .order("start_time", {

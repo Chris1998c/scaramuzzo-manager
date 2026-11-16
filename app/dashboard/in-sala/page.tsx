@@ -91,7 +91,12 @@ export default function InSalaPage() {
       setErr("");
     }
 
-    const { data, error } = await supabase
+    const {
+      clampRangeStartToBaseline,
+      fetchOperationalBaselineTs,
+    } = await import("@/lib/ops/operationalBaselineClient");
+    const baselineTs = await fetchOperationalBaselineTs(supabase);
+    let q = supabase
       .from("appointments")
       .select(
         "id, customer_id, start_time, end_time, status, source, notes, sale_id, customers(id, first_name, last_name), staff(id, name)",
@@ -99,6 +104,10 @@ export default function InSalaPage() {
       .eq("salon_id", Number(activeSalonId))
       .eq("status", "in_sala")
       .order("start_time", { ascending: true });
+    if (baselineTs) {
+      q = q.gte("start_time", clampRangeStartToBaseline("1970-01-01T00:00:00", baselineTs));
+    }
+    const { data, error } = await q;
 
     if (!silent) setLoading(false);
 

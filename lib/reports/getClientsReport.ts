@@ -155,6 +155,11 @@ export async function getClientsReport(filters: ClientsReportFilters) {
   // 6) Top spender: basato su sales nel periodo (se sales ha customer_id)
   // Se customer_id non c’è su sales, lo collegheremo via appointment_id in un secondo step.
   const topSpenders: any[] = [];
+  const { getOperationalBaselineTs } = await import(
+    "@/lib/ops/operationalBaseline"
+  );
+  const baselineTs = await getOperationalBaselineTs();
+
   let salesQuery = supabase
     .from("sales")
     .select("id, customer_id, total_amount, date, payment_method")
@@ -163,6 +168,7 @@ export async function getClientsReport(filters: ClientsReportFilters) {
     .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
     .gte("date", isoStart(dateFrom))
     .lte("date", isoEnd(dateTo));
+  if (baselineTs) salesQuery = salesQuery.gte("date", baselineTs);
 
   if (paymentMethod) {
     salesQuery = salesQuery.eq("payment_method", paymentMethod);

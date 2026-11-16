@@ -1214,25 +1214,11 @@ export default function MarketingWhatsAppClient({
 
         <section className="lg:col-span-2 rounded-2xl border border-white/10 bg-black/20 p-4 flex flex-col gap-3">
           <h2 className="text-sm font-bold text-[#f3d8b6]">Messaggio</h2>
-          {!aiCopyAssistAvailable ? (
-            <div
-              className="rounded-xl border border-violet-500/25 bg-violet-500/[0.07] px-3 py-2.5 text-[11px] text-violet-100/90 leading-relaxed"
- role="status"
-            >
-              <span className="font-bold text-violet-200/95">Assistente testo (opzionale)</span>
-              <span className="block mt-1 text-violet-100/85">
-                Non attivo in questo ambiente: manca la configurazione server per l’AI (chiave OpenAI
-                lato deploy). Puoi comunque scrivere e inviare il messaggio normalmente; il pulsante
-                &quot;Migliora messaggio&quot; resta disabilitato finché non viene abilitato
-                l’amministratore di sistema.
-              </span>
-            </div>
-          ) : (
+          {aiCopyAssistAvailable ? (
             <p className="text-[10px] text-white/40 leading-relaxed">
- Opzionale: &quot;Migliora messaggio&quot; usa un servizio AI sul server per rifinire il
- tono (non sostituisce il tuo giudizio né le policy Meta).
- </p>
- )}
+              Opzionale: puoi rifinire il tono del testo prima dell&apos;invio.
+            </p>
+          ) : null}
  <textarea
  ref={messageTextareaRef}
  value={message}
@@ -1246,49 +1232,45 @@ export default function MarketingWhatsAppClient({
  placeholder="Testo del messaggio…"
             className="flex-1 min-h-[200px] rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-[#e8dcc8] placeholder:text-white/35 outline-none focus:border-[#f3d8b6]/40 resize-y disabled:opacity-70 disabled:cursor-not-allowed"
           />
-          <div className="flex flex-wrap items-center gap-2 gap-y-1">
- <button
- type="button"
- disabled={
- !aiCopyAssistAvailable ||
- aiCopyLoading ||
- !message.trim() ||
- salonId == null ||
- isCentrale ||
- showSendReview
- }
- title={
- !aiCopyAssistAvailable
- ? "Assistente AI non configurato in questo ambiente."
-                  : undefined
-              }
-              onClick={() => void handleImproveMessage()}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-violet-400/35 bg-violet-500/10 px-3 py-2 text-xs font-bold text-violet-200/95 hover:bg-violet-500/20 disabled:opacity-45 disabled:pointer-events-none transition"
-            >
-              {aiCopyLoading ? (
-                <Loader2 size={14} className="animate-spin shrink-0" />
-              ) : (
-                <Sparkles size={14} className="shrink-0" />
- )}
- Migliora messaggio
- </button>
- {messageBeforeAi != null ? (
- <button
- type="button"
-                disabled={showSendReview}
-                onClick={() => {
-                  setMessage(messageBeforeAi);
-                  setMessageBeforeAi(null);
-                  setAiCopyError(null);
-                  setMessageQualityIssues(null);
-                }}
-                className="text-xs font-bold text-[#f3d8b6]/90 underline-offset-2 hover:underline disabled:opacity-45 disabled:pointer-events-none"
+          {aiCopyAssistAvailable ? (
+            <div className="flex flex-wrap items-center gap-2 gap-y-1">
+              <button
+                type="button"
+                disabled={
+                  aiCopyLoading ||
+                  !message.trim() ||
+                  salonId == null ||
+                  isCentrale ||
+                  showSendReview
+                }
+                onClick={() => void handleImproveMessage()}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-violet-400/35 bg-violet-500/10 px-3 py-2 text-xs font-bold text-violet-200/95 hover:bg-violet-500/20 disabled:opacity-45 disabled:pointer-events-none transition"
               >
-                Ripristina originale
+                {aiCopyLoading ? (
+                  <Loader2 size={14} className="animate-spin shrink-0" />
+                ) : (
+                  <Sparkles size={14} className="shrink-0" />
+                )}
+                Migliora messaggio
               </button>
-            ) : null}
-          </div>
-          {aiCopyError ? (
+              {messageBeforeAi != null ? (
+                <button
+                  type="button"
+                  disabled={showSendReview}
+                  onClick={() => {
+                    setMessage(messageBeforeAi);
+                    setMessageBeforeAi(null);
+                    setAiCopyError(null);
+                    setMessageQualityIssues(null);
+                  }}
+                  className="text-xs font-bold text-[#f3d8b6]/90 underline-offset-2 hover:underline disabled:opacity-45 disabled:pointer-events-none"
+                >
+                  Ripristina originale
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {aiCopyAssistAvailable && aiCopyError ? (
             <p className="text-xs text-rose-300/95" role="alert">
               {aiCopyError}
             </p>

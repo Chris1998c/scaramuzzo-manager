@@ -165,8 +165,7 @@ export default async function ImpostazioniPage({
             Impostazioni
           </h1>
           <p className="text-[#c9b299] text-base md:text-lg leading-relaxed">
-            Configura listini, canali operativi e parametri del salone da un unico punto. Le sezioni
-            sono organizzate per dominio così ogni blocco può evolvere senza rifare il layout.
+            Configura listini, collaboratori, saloni e parametri operativi da un unico punto.
           </p>
         </div>
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#f3d8b6]/10 blur-[120px] rounded-full pointer-events-none" />

@@ -46,9 +46,7 @@ export default function AspettoPanel() {
           <span className="text-sm font-bold">Barra laterale (desktop)</span>
         </div>
         <p className="mt-2 text-xs text-[#c9b299]/90 leading-relaxed">
- Unica preferenza UI persistita oggi nel client: stato apertura sidebar in{" "}
-          <code className="text-white/50">localStorage</code> (store Zustand{" "}
-          <code className="text-white/50">scz-ui</code>). Vale per questa postazione browser.
+          Preferenza valida su questo computer: sidebar aperta o chiusa.
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm text-[#e8dcc8]">Sidebar aperta su desktop</span>

@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
+import {
+  AI_FEATURES_DISABLED_MESSAGE,
+  isAiFeaturesEnabled,
+} from "@/lib/ai/aiFeaturesGate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +76,13 @@ export async function POST(req: Request) {
 
   if (!canAccessMarketingWeb(access.role)) {
     return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
+  }
+
+  if (!isAiFeaturesEnabled()) {
+    return NextResponse.json(
+      { error: AI_FEATURES_DISABLED_MESSAGE, ai_disabled: true },
+      { status: 403 },
+    );
   }
 
   let body: Body;

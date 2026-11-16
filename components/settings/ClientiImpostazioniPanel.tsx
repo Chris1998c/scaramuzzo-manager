@@ -91,10 +91,7 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
       </div>
 
       <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-3 text-sm text-[#c9b299]">
-        <strong className="text-amber-200/95">Configurazione dedicata:</strong> al momento non esiste una
-        tabella o un namespace &quot;impostazioni clienti&quot; (privacy default, campi obbligatori, ecc.).
-        Eventuali regole di prodotto andrebbero modellate in DB in un passo successivo; qui non si inventano
-        colonne.
+        Qui trovi solo i conteggi. Per gestire i clienti apri il modulo Clienti.
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
