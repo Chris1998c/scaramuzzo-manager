@@ -3,7 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const CLI_RE = /^CLI-(\d+)$/;
 
 /**
- * Legge i codici esistenti e calcola il prossimo progressivo CLI-000001.
+ * Legge solo il codice più alto e calcola il prossimo progressivo CLI-000001.
+ * I codici sono tutti a sei cifre, perciò l'ordine lessicografico coincide
+ * con quello numerico. La query non dipende dal limite di 1000 righe PostgREST.
  * In caso di race su due insert paralleli, ritentare l'insert con un nuovo codice.
  */
 export async function allocateNextCustomerCode(
@@ -12,16 +14,16 @@ export async function allocateNextCustomerCode(
   const { data, error } = await supabase
     .from("customers")
     .select("customer_code")
-    .like("customer_code", "CLI-%");
+    .like("customer_code", "CLI-%")
+    .order("customer_code", { ascending: false })
+    .limit(1);
 
   if (error) throw error;
 
-  let max = 0;
-  for (const row of data ?? []) {
-    const code = String((row as { customer_code?: string }).customer_code ?? "");
-    const m = CLI_RE.exec(code);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
-  }
+  const code = String((data?.[0] as { customer_code?: string } | undefined)?.customer_code ?? "");
+  const match = CLI_RE.exec(code);
+  if (code && !match) throw new Error("Formato customer_code non valido.");
+  const max = match ? parseInt(match[1], 10) : 0;
 
   return `CLI-${String(max + 1).padStart(6, "0")}`;
 }
