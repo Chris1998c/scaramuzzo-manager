@@ -193,8 +193,7 @@ function BridgeCard({ bridge }: { bridge: PrintBridgeHealthProbe }) {
       ) : null}
       {!bridge.configured ? (
         <p className="mt-2 text-xs text-amber-200/80">
- Configura{" "}
-          <code className="text-white/50">PRINT_BRIDGE_HEALTH_URL</code> sul server.
+          Collegamento stampante non configurato. Contatta l&apos;assistenza tecnica.
         </p>
       ) : null}
     </div>

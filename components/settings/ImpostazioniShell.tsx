@@ -90,14 +90,14 @@ const SECTIONS: Array<{
   {
     key: "canali",
     label: "Canali",
-    hint: "WhatsApp per salone (config Meta, senza invii)",
+    hint: "WhatsApp Business per salone (promemoria)",
     icon: MessageCircle,
     ready: true,
   },
   {
     key: "fiscale",
     label: "Fiscale e stampante",
-    hint: "Bridge, sessione cassa e stati vendita",
+    hint: "Stampante fiscale, sessione cassa e stato vendite",
     icon: Receipt,
     ready: true,
   },
@@ -435,31 +435,28 @@ function ServiziPrezziPanel({
       <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-[#c9b299]">
         <span className="font-bold text-emerald-300/95">Listino salone</span>
         <span className="mx-2 text-white/25">·</span>
-        Prezzi da <code className="text-[#f3d8b6]/90">service_prices</code> per il salone operativo
- {salonLabel ? (
- <>
- {" "}
-            (<span className="text-[#f3d8b6] font-semibold">{salonLabel}</span>)
- </>
- ) : null}
- .{" "}
+        Prezzi del listino per il salone operativo
+        {salonLabel ? (
+          <>
+            {" "}
+            <span className="text-[#f3d8b6] font-semibold">{salonLabel}</span>
+          </>
+        ) : null}
+        .{" "}
         {canChooseSalonFromHeader ? (
           <>
-            Cambiando salone dall&apos;header, listino e URL si allineano automaticamente
-            (refresh listino).
+            Cambiando salone dall&apos;intestazione, il listino si aggiorna automaticamente.
           </>
         ) : (
           <>
-            Il tuo ruolo è legato a un salone fissato: non puoi cambiare sede dall&apos;header;
-            vedi sempre il listino di quel salone.
+            Il tuo accesso è legato a un salone: vedi sempre il listino di quella sede.
           </>
         )}
       </div>
 
       {!canManageServices ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-100/90">
- Modalità sola lettura: la modifica del catalogo servizi è riservata al ruolo{" "}
-          <strong>coordinator</strong>.
+          Modalità sola lettura: la modifica del catalogo servizi è riservata al coordinatore.
         </div>
       ) : null}
 
@@ -570,8 +567,8 @@ function ProdottiPanel({
 
       {!canManageProducts ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-100/90">
- Modalità sola lettura: creazione e modifica prodotti sono riservate al ruolo{" "}
-          <strong>coordinator</strong>.
+          Modalità sola lettura: creazione e modifica prodotti sono riservate al
+          coordinatore.
         </div>
       ) : null}
 
@@ -677,16 +674,15 @@ function CollaboratoriPanel({
       <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm text-[#c9b299] leading-relaxed">
         <span className="font-bold text-sky-200/95">Personale operativo</span>
         <span className="mx-2 text-white/25">·</span>
- Anagrafica per agenda, cassa, report e app Team. Salone primario in{" "}
-        <code className="text-white/50">staff.salon_id</code>; saloni aggiuntivi in{" "}
-        <code className="text-white/50">staff_salons</code>. Distinto dagli account gestionale (
-        <code className="text-white/50">users</code>).
+        Anagrafica per agenda, cassa, report e app Team. Ogni collaboratore ha un salone
+        primario e può essere associato ad altre sedi. Gli account di accesso al gestionale
+        si gestiscono a parte.
       </div>
 
       {!canManageStaff ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-100/90">
- Modalità sola lettura: creazione e modifica collaboratori sono riservate al ruolo{" "}
-          <strong>coordinator</strong>.
+          Modalità sola lettura: creazione e modifica collaboratori sono riservate al
+          coordinatore.
         </div>
       ) : null}
 
@@ -812,10 +808,8 @@ function SaloniPanel({ rows }: { rows: SalonSettingsRow[] }) {
       <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 px-4 py-3 text-sm text-[#c9b299]">
         <span className="font-bold text-violet-200/95">Unità operative</span>
         <span className="mx-2 text-white/25">·</span>
-        Elenco da <code className="text-[#f3d8b6]/90">public.salons</code> (oggi:{" "}
-        <code className="text-white/50">id</code>, <code className="text-white/50">name</code>,{" "}
-        <code className="text-white/50">created_at</code>). Modifica anagrafica sedi e parametri
-        avanzati in passi successivi, senza toccare il modello dati qui.
+        Elenco delle sedi attive. La modifica avanzata dell&apos;anagrafica saloni sarà
+        disponibile in un aggiornamento successivo.
       </div>
 
       {rows.length === 0 ? (
@@ -825,7 +819,7 @@ function SaloniPanel({ rows }: { rows: SalonSettingsRow[] }) {
           <table className="w-full min-w-[480px] text-left text-sm">
             <thead className="bg-black/30 text-xs font-medium text-[#c9b299]/80">
               <tr>
-                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">Codice</th>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Creato</th>
               </tr>

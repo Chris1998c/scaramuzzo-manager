@@ -856,12 +856,10 @@ export default function MarketingWhatsAppClient({
  }
 
  async function handleImproveMessage() {
- if (!aiCopyAssistAvailable) {
- setAiCopyError(
- "Assistente testo non disponibile su questo ambiente. Serve la configurazione lato server.",
- );
- return;
- }
+    if (!aiCopyAssistAvailable) {
+      setAiCopyError("Questa funzione non è disponibile in questa versione.");
+      return;
+    }
  const draft = message.trim();
  if (!draft || isCentrale) return;
  setAiCopyError(null);

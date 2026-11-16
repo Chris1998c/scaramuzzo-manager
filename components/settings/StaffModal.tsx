@@ -525,8 +525,7 @@ export default function StaffModal({
                     })}
                   </div>
                   <span className="text-[11px] text-[#c9b299]/75">
-                    Sincronizzati in <span className="font-mono">staff_salons</span> per visibilità
-                    in agenda e filtri report.
+                    Le sedi selezionate determinano la visibilità in agenda e nei report.
                   </span>
                 </div>
               </div>

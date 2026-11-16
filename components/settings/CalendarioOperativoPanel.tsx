@@ -281,7 +281,7 @@ export default function CalendarioOperativoPanel({
 
       {!canManage ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-100/90">
-          Sola lettura: creazione e modifica sono riservate al ruolo <strong>coordinator</strong>.
+          Sola lettura: creazione e modifica sono riservate al coordinatore.
         </div>
       ) : null}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, Info, Table2 } from "lucide-react";
+import { ExternalLink, Info } from "lucide-react";
 
 import type { CustomersDomainSnapshot } from "@/lib/customersDomainTypes";
 
@@ -13,50 +13,42 @@ function fmtCount(n: number | null) {
 const ROWS: Array<{
   key: keyof CustomersDomainSnapshot["counts"];
   label: string;
-  table: string;
   hint: string;
 }> = [
   {
     key: "customers",
     label: "Anagrafica",
-    table: "public.customers",
-    hint: "Nome, cognome, telefono (univoco), email, indirizzo, note.",
+    hint: "Nome, cognome, telefono, email, indirizzo e note.",
   },
   {
     key: "customer_profile",
     label: "Profilo tecnico capelli",
-    table: "public.customer_profile",
-    hint: "Texture, porosità, cuoio capelluto, ecc. (1:1 con cliente).",
+    hint: "Texture, porosità, cuoio capelluto e altri dettagli (uno per cliente).",
   },
   {
     key: "customer_notes",
     label: "Note testuali",
-    table: "public.customer_notes",
     hint: "Annotazioni libere collegate al cliente.",
   },
   {
     key: "customer_tech_notes",
     label: "Note tecniche",
-    table: "public.customer_tech_notes",
-    hint: "Storico note operative per salone/staff.",
+    hint: "Storico note operative per salone e collaboratore.",
   },
   {
     key: "technical_sheets",
     label: "Schede tecniche",
-    table: "public.technical_sheets",
-    hint: "Schede collegate a cliente, salone e staff.",
+    hint: "Schede collegate a cliente, salone e collaboratore.",
   },
   {
     key: "customer_technical_cards",
     label: "Schede colore / trattamento",
-    table: "public.customer_technical_cards",
-    hint: "Parametri colore e trattamenti (campi dedicati).",
+    hint: "Parametri colore e trattamenti dedicati.",
   },
   {
     key: "customer_service_cards",
-    label: "Schede servizio (JSON)",
-    table: "public.customer_service_cards",
-    hint: "Schede per tipo servizio con payload JSON.",
+    label: "Schede servizio",
+    hint: "Schede per tipo di servizio.",
   },
 ];
 
@@ -78,9 +70,9 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
           Scopo di questa sezione
         </span>
         <p className="mt-2">
- Qui non si gestiscono i clienti: l&apos;operatività resta in{" "}
- <Link
- href="/dashboard/clienti"
+          Qui non si gestiscono i clienti: l&apos;operatività resta in{" "}
+          <Link
+            href="/dashboard/clienti"
             className="font-semibold text-[#f3d8b6] underline underline-offset-2 hover:text-white inline-flex items-center gap-1"
           >
             Clienti <ExternalLink size={12} />
@@ -100,9 +92,9 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
             Conteggi anagrafiche e schede
           </p>
           <p className="text-sm text-[#c9b299]/80 mt-1">Aggiornato: {when}</p>
- </div>
- <Link
- href="/dashboard/clienti"
+        </div>
+        <Link
+          href="/dashboard/clienti"
           className="inline-flex items-center gap-2 rounded-xl border border-[#f3d8b6]/30 bg-[#f3d8b6]/10 px-4 py-2 text-xs font-bold text-[#f3d8b6] hover:bg-[#f3d8b6]/15"
         >
           Apri modulo Clienti
@@ -111,11 +103,10 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-[#5c3a21]/40">
-        <table className="w-full min-w-[560px] text-left text-sm">
+        <table className="w-full min-w-[480px] text-left text-sm">
           <thead className="bg-black/30 text-[10px] font-black uppercase tracking-[0.18em] text-[#c9b299]/80">
             <tr>
               <th className="px-4 py-3">Ambito</th>
-              <th className="px-4 py-3">Tabella</th>
               <th className="px-4 py-3 text-right tabular-nums">Righe</th>
             </tr>
           </thead>
@@ -125,12 +116,6 @@ export default function ClientiImpostazioniPanel({ snapshot }: Props) {
                 <td className="px-4 py-3 align-top">
                   <span className="font-semibold text-[#f3d8b6]">{r.label}</span>
                   <p className="text-xs text-[#c9b299]/75 mt-1 leading-snug">{r.hint}</p>
-                </td>
-                <td className="px-4 py-3 align-top">
-                  <span className="inline-flex items-center gap-1.5 font-mono text-xs text-[#c9b299]">
-                    <Table2 size={14} className="shrink-0 opacity-60" />
-                    {r.table}
-                  </span>
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-[#f3d8b6] tabular-nums">
                   {fmtCount(snapshot.counts[r.key])}

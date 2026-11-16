@@ -187,10 +187,9 @@ export default function ServiceModal({
 
             <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
               <p className="text-xs text-[#c9b299] leading-relaxed">
- Catalogo globale: il prezzo modifica il listino del salone attivo in{" "}
-                <code className="text-[#f3d8b6]/90">service_prices</code>. In creazione, lo stesso
-                importo viene copiato anche in <code className="text-white/50">services.price</code>{" "}
-                (vincolo DB); cassa e agenda usano i listini per salone.
+                Catalogo condiviso: il prezzo aggiorna il listino del salone attivo. In
+                creazione, lo stesso importo viene impostato come prezzo di riferimento;
+                cassa e agenda usano i listini per salone.
               </p>
 
               <label className="block space-y-1.5">

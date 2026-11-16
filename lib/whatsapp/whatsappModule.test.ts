@@ -26,7 +26,7 @@ describe("salonWhatsAppConfig", () => {
       envTemplateName: "tpl",
     });
     expect(r.ready).toBe(false);
-    expect(r.issues.some((i) => i.includes("Phone Number ID"))).toBe(true);
+    expect(r.issues.some((i) => i.includes("ID numero Business"))).toBe(true);
   });
 
   it("non richiede template se reminder disattivato", () => {

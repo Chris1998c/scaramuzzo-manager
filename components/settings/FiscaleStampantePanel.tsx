@@ -186,15 +186,13 @@ export default function FiscaleStampantePanel({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-[#c9b299] leading-relaxed">
-        <span className="font-bold text-amber-200/95">Comportamento sistema</span>
+        <span className="font-bold text-amber-200/95">Come funziona</span>
         <span className="mx-2 text-white/25">·</span>
- Con stampante abilitata per la sessione cassa, la chiusura vendita richiede Print Bridge
- raggiungibile: se il bridge non risponde, la vendita non viene registrata. Con stampante
- disattivata la vendita si registra e{" "}
-        <code className="text-[#f3d8b6]/90">sales.fiscal_status</code> resta{" "}
-        <code className="text-white/60">pending</code> fino a integrazioni successive. Il
-        callback fiscale aggiorna gli stati <code className="text-white/60">queued</code> →{" "}
-        <code className="text-white/60">printed</code> / <code className="text-white/60">error</code>.
+        Con stampante abilitata sulla sessione cassa, la chiusura vendita richiede che il
+        collegamento alla stampante sia raggiungibile: se non risponde, la vendita non viene
+        registrata. Con stampante disattivata la vendita si registra senza stampa fiscale
+        immediata; lo stato fiscale viene aggiornato quando la stampa viene completata o
+        segnala un errore.
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -221,11 +219,10 @@ export default function FiscaleStampantePanel({
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="flex items-center gap-2 text-amber-200/90">
             <Server size={18} />
-            <span className="text-sm font-bold">Print Bridge</span>
+            <span className="text-sm font-bold">Collegamento stampante</span>
           </div>
           <p className="mt-2 text-xs text-[#c9b299]/90">
-            Raggiungibilità dal server (env <code className="text-white/50">PRINT_BRIDGE_HEALTH_URL</code>
-            ).
+            Stato di raggiungibilità del collegamento di stampa dal gestionale.
           </p>
           <div className="mt-3">
             {snap == null && loading ? (
@@ -264,16 +261,11 @@ export default function FiscaleStampantePanel({
  })}`
  : ""}
               </p>
-              {snap.session.status ? (
-                <p className="text-xs text-[#c9b299]/80">
-                  Record: <code className="text-white/60">{snap.session.status}</code>
-                </p>
-              ) : null}
             </div>
           ) : (
             <p className="mt-2 text-sm text-[#c9b299]">
- Nessuna cassa aperta per questo salone. Apri turno dalla cassa per collegare{" "}
-              <code className="text-white/50">printer_enabled</code> alla sessione.
+              Nessuna cassa aperta per questo salone. Apri il turno dalla cassa per
+              impostare la stampante sulla sessione.
             </p>
           )}
         </div>
@@ -312,9 +304,8 @@ export default function FiscaleStampantePanel({
           )}
         </div>
         <p className="mt-2 text-xs text-[#c9b299]/85 leading-relaxed">
-          Allineato a <code className="text-white/50">cash_sessions.printer_enabled</code>: se
-          attivo, in cassa compare &quot;Registra e stampa&quot; e serve bridge OK; se disattivo,
-          &quot;Registra&quot; e <code className="text-white/50">fiscal_status = pending</code>.
+          Se attivo, in cassa compare &quot;Registra e stampa&quot; e serve il collegamento
+          raggiungibile. Se disattivo, compare solo &quot;Registra&quot; senza stampa immediata.
         </p>
         {!canUseSessionPrinter ? (
           <p className="mt-2 text-xs text-amber-200/70">

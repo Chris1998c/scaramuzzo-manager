@@ -102,8 +102,7 @@ export async function POST(req: Request) {
   if (!apiKey) {
     return NextResponse.json(
       {
-        error:
-          "Assistente testo non disponibile: l’ambiente non ha la configurazione necessaria. Contatta l’amministratore di sistema.",
+        error: "Questa funzione non è disponibile in questa versione.",
       },
       { status: 503 },
     );

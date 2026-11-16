@@ -18,7 +18,7 @@ export function evaluateSalonWhatsAppConfig(input: {
   }
 
   if (!String(input.phone_number_id ?? "").trim()) {
-    issues.push("Manca Meta Phone Number ID.");
+    issues.push("Manca l'ID numero Business.");
   }
 
   const remindersOn = input.appointment_reminder_enabled !== false;
@@ -28,7 +28,7 @@ export function evaluateSalonWhatsAppConfig(input: {
       String(input.envTemplateName ?? "").trim();
     if (!tpl) {
       issues.push(
-        "Reminder attivo: inserire nome template qui oppure impostare WHATSAPP_APPOINTMENT_REMINDER_TEMPLATE_NAME su server.",
+        "Promemoria attivo: inserisci il nome del modello qui oppure lascia che usi quello predefinito del sistema.",
       );
     }
   }
