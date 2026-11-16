@@ -34,14 +34,14 @@ function formatDateTime(value: string | null): string {
 export default async function PresenzePage({
   searchParams,
 }: {
-  searchParams?: Promise<SearchParams> | SearchParams;
+  searchParams?: Promise<SearchParams>;
 }) {
   const access = await getUserAccess();
   if (access.role !== "coordinator" && access.role !== "reception") {
     redirect("/dashboard");
   }
 
-  const sp = (await Promise.resolve(searchParams ?? {})) as SearchParams;
+  const sp = (await searchParams) ?? {};
   const todayRome = todayRomeBusinessDate();
   const resolved = resolveAttendanceQuery({
     access,
