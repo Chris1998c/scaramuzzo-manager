@@ -34,6 +34,10 @@ import {
   syncAppointmentHeaderFromDb,
   toNoZ,
 } from "@/lib/agenda/agendaContract";
+import {
+  CUSTOMER_APP_NO_HARD_DELETE_MESSAGE,
+  isCustomerAppAppointmentSource,
+} from "@/lib/agenda/appointmentDeletePolicy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -526,7 +530,7 @@ export async function DELETE(
 
     const { data: appt, error: apptErr } = await supabaseAdmin
       .from("appointments")
-      .select("id, status, sale_id, salon_id")
+      .select("id, status, sale_id, salon_id, source")
       .eq("id", appointmentId)
       .maybeSingle();
     if (apptErr) return NextResponse.json({ error: apptErr.message }, { status: 500 });
@@ -552,23 +556,93 @@ export async function DELETE(
     }
 
     const status = String((appt as { status?: unknown }).status ?? "").trim();
+    const source = (appt as { source?: unknown }).source;
+    const actorId = authData.user.id;
+
+    // customer_app: soft-cancel + audit (mai hard-delete).
+    if (isCustomerAppAppointmentSource(source)) {
+      const statusLower = status.toLowerCase();
+      if (
+        NON_DELETABLE_STATUSES.has(statusLower) ||
+        statusLower === "cancelled" ||
+        statusLower === "no_show" ||
+        statusLower === "noshow"
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              statusLower === "cancelled"
+                ? "Già segnato come annullato."
+                : DELETE_BLOCKED_MESSAGE,
+          },
+          { status: 409 },
+        );
+      }
+
+      const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc(
+        "cancel_appointment_with_audit",
+        {
+          p_appointment_id: appointmentId,
+          p_actor_id: actorId,
+          p_reason: "agenda_delete_soft_customer_app",
+        },
+      );
+      if (rpcErr) {
+        return NextResponse.json({ error: rpcErr.message }, { status: 500 });
+      }
+      const rpc = rpcData as { ok?: boolean; error?: string; status?: string } | null;
+      if (!rpc?.ok) {
+        if (rpc?.error === "not_found") {
+          return NextResponse.json({ error: "Appuntamento non trovato" }, { status: 404 });
+        }
+        return NextResponse.json(
+          {
+            error:
+              rpc?.error === "sale_locked" || rpc?.error === "terminal_status"
+                ? DELETE_BLOCKED_MESSAGE
+                : CUSTOMER_APP_NO_HARD_DELETE_MESSAGE,
+          },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        soft_cancelled: true,
+        appointment_id: appointmentId,
+        status: "cancelled",
+      });
+    }
+
     if (NON_DELETABLE_STATUSES.has(status)) {
       return NextResponse.json({ error: DELETE_BLOCKED_MESSAGE }, { status: 409 });
     }
 
-    const { error: delLinesErr } = await supabaseAdmin
-      .from("appointment_services")
-      .delete()
-      .eq("appointment_id", appointmentId);
-    if (delLinesErr) return NextResponse.json({ error: delLinesErr.message }, { status: 500 });
+    const { data: delData, error: delErr } = await supabaseAdmin.rpc(
+      "hard_delete_appointment_with_audit",
+      {
+        p_appointment_id: appointmentId,
+        p_actor_id: actorId,
+        p_reason: "agenda_hard_delete",
+      },
+    );
+    if (delErr) {
+      return NextResponse.json({ error: delErr.message }, { status: 500 });
+    }
+    const del = delData as { ok?: boolean; error?: string } | null;
+    if (!del?.ok) {
+      if (del?.error === "not_found") {
+        return NextResponse.json({ error: "Appuntamento non trovato" }, { status: 404 });
+      }
+      if (del?.error === "customer_app_no_hard_delete") {
+        return NextResponse.json(
+          { error: CUSTOMER_APP_NO_HARD_DELETE_MESSAGE },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ error: DELETE_BLOCKED_MESSAGE }, { status: 409 });
+    }
 
-    const { error: delAppErr } = await supabaseAdmin
-      .from("appointments")
-      .delete()
-      .eq("id", appointmentId);
-    if (delAppErr) return NextResponse.json({ error: delAppErr.message }, { status: 500 });
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, deleted: true });
   } catch (e) {
     return NextResponse.json(
       { error: "Errore DELETE /api/agenda/appointments/[id]", details: errMsg(e) },

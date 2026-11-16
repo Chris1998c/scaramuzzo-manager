@@ -45,6 +45,7 @@ export async function DELETE(
       supabaseAdmin,
       customerCtx.customerId,
       bookingId,
+      customerCtx.authUserId,
     );
 
     return NextResponse.json({ booking });

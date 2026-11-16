@@ -12,6 +12,10 @@ export const MAX_CUSTOMER_BOOKING_IDEMPOTENCY_KEY_LENGTH = 128;
 /** Record processing più vecchio → considerato abbandonato, si può riprovare. */
 export const CUSTOMER_BOOKING_IDEMPOTENCY_STALE_MS = 5 * 60 * 1000;
 
+/** Messaggio sicuro quando la response salvata punta a un appointment sparito/annullato. */
+export const CUSTOMER_BOOKING_IDEMPOTENCY_GONE_MESSAGE =
+  "La prenotazione non è più disponibile. Controlla «Le mie prenotazioni» oppure ripeti la richiesta con una nuova chiave.";
+
 export type ParseIdempotencyKeyResult =
   | { ok: true; key: string | null }
   | { ok: false; error: string };
@@ -102,7 +106,8 @@ async function loadIdempotencyRow(
   return (data as IdempotencyRow | null) ?? null;
 }
 
-function resolveExistingIdempotencyRow(
+/** Esportato per test: decide replay/conflict/retry senza I/O. */
+export function resolveExistingIdempotencyRow(
   row: IdempotencyRow,
   requestHash: string,
   nowMs: number,
@@ -142,6 +147,52 @@ function resolveExistingIdempotencyRow(
 
   // failed o stato sconosciuto → permette retry
   return { action: "retry" };
+}
+
+/**
+ * Replay consentito solo se l'appointment esiste, è del cliente e non è terminale.
+ * Evita 201 con ID fantasma (#142/#143).
+ */
+export async function verifyIdempotencyReplayBooking(
+  admin: SupabaseClient,
+  booking: CustomerAppBookingDto,
+  customerId: string,
+): Promise<{ ok: true } | { ok: false }> {
+  const bookingId = Number(booking.id);
+  if (!Number.isFinite(bookingId) || bookingId <= 0) {
+    return { ok: false };
+  }
+
+  const { data, error } = await admin
+    .from("appointments")
+    .select("id, customer_id, status")
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { ok: false };
+  }
+
+  const rowCustomer = String(
+    (data as { customer_id?: unknown }).customer_id ?? "",
+  ).trim();
+  if (rowCustomer !== customerId) {
+    return { ok: false };
+  }
+
+  const status = String((data as { status?: unknown }).status ?? "")
+    .trim()
+    .toLowerCase();
+  if (
+    status === "cancelled" ||
+    status === "no_show" ||
+    status === "noshow" ||
+    status === "done"
+  ) {
+    return { ok: false };
+  }
+
+  return { ok: true };
 }
 
 export async function beginCustomerBookingIdempotency(
@@ -194,6 +245,17 @@ export async function beginCustomerBookingIdempotency(
 
   const resolved = resolveExistingIdempotencyRow(existing, input.requestHash, nowMs);
   if (resolved.action === "replay") {
+    const verified = await verifyIdempotencyReplayBooking(
+      admin,
+      resolved.booking,
+      input.customerId,
+    );
+    if (!verified.ok) {
+      return {
+        action: "conflict",
+        message: CUSTOMER_BOOKING_IDEMPOTENCY_GONE_MESSAGE,
+      };
+    }
     // Promote processing→success quando il booking era già stato creato (complete fallito).
     if (existing.status === "processing") {
       await admin
@@ -233,6 +295,20 @@ export async function beginCustomerBookingIdempotency(
     const again = await loadIdempotencyRow(admin, input.userId, input.idempotencyKey);
     if (again) {
       const againResolved = resolveExistingIdempotencyRow(again, input.requestHash, nowMs);
+      if (againResolved.action === "replay") {
+        const verified = await verifyIdempotencyReplayBooking(
+          admin,
+          againResolved.booking,
+          input.customerId,
+        );
+        if (!verified.ok) {
+          return {
+            action: "conflict",
+            message: CUSTOMER_BOOKING_IDEMPOTENCY_GONE_MESSAGE,
+          };
+        }
+        return againResolved;
+      }
       if (againResolved.action !== "retry") {
         return againResolved;
       }

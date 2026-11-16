@@ -84,6 +84,33 @@ export async function PATCH(
       return NextResponse.json({ error: gate.reason ?? "Azione non consentita" }, { status: 409 });
     }
 
+    // Soft-cancel con audit atomico (stesso percorso usato da DELETE customer_app).
+    if (target === "cancelled") {
+      const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc(
+        "cancel_appointment_with_audit",
+        {
+          p_appointment_id: appointmentId,
+          p_actor_id: authData.user.id,
+          p_reason: "agenda_status_cancelled",
+        },
+      );
+      if (rpcErr) {
+        return NextResponse.json({ error: rpcErr.message }, { status: 500 });
+      }
+      const rpc = rpcData as { ok?: boolean; error?: string } | null;
+      if (!rpc?.ok) {
+        return NextResponse.json(
+          { error: gate.reason ?? "Azione non consentita" },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        appointment_id: appointmentId,
+        status: "cancelled",
+      });
+    }
+
     const { data: updated, error: updErr } = await supabaseAdmin
       .from("appointments")
       .update({ status: target })
@@ -95,6 +122,16 @@ export async function PATCH(
     if (!updated) {
       return NextResponse.json({ error: "Aggiornamento stato non applicato" }, { status: 404 });
     }
+
+    const { writeSystemLog } = await import("@/lib/audit/systemLog");
+    await writeSystemLog({
+      userId: authData.user.id,
+      salonId,
+      action: "appointment_status",
+      tableName: "appointments",
+      referenceId: String(appointmentId),
+      payload: { status: target, reason: "agenda_status_patch" },
+    });
 
     return NextResponse.json({ ok: true, appointment_id: appointmentId, status: target });
   } catch (e) {

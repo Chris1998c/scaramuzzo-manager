@@ -325,13 +325,21 @@ export default function EditAppointmentModal({
       const res = await fetch(`/api/agenda/appointments/${appointment.id}`, {
         method: "DELETE",
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string; details?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        details?: string;
+        soft_cancelled?: boolean;
+      };
       if (!res.ok) {
         throw new Error(json.error || json.details || "Errore eliminazione");
       }
 
       setShowDeleteConfirm(false);
-      toast.success("Appuntamento eliminato.");
+      toast.success(
+        json.soft_cancelled
+          ? "Prenotazione annullata (storico conservato)."
+          : "Appuntamento eliminato.",
+      );
       onUpdated?.();
       close();
     } catch (e: unknown) {

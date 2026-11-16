@@ -34,6 +34,7 @@ export async function cancelCustomerAppBooking(
   admin: SupabaseClient,
   customerId: string,
   bookingId: number,
+  actorId?: string | null,
 ): Promise<CustomerAppCancelledBookingDto> {
   // Filtra per customer_id: booking altrui → 404 (niente oracle 403 vs 404).
   const { data: appt, error: fetchErr } = await admin
@@ -62,27 +63,30 @@ export async function cancelCustomerAppBooking(
     throw new CustomerAppBookingCancelConflictError(cancelCheck.reason);
   }
 
-  const { data: updated, error: updErr } = await admin
-    .from("appointments")
-    .update({ status: "cancelled" })
-    .eq("id", bookingId)
-    .eq("customer_id", customerId)
-    .eq("status", "scheduled")
-    .select("id, status")
-    .maybeSingle();
+  const { data: rpcData, error: rpcErr } = await admin.rpc(
+    "cancel_appointment_with_audit",
+    {
+      p_appointment_id: bookingId,
+      p_actor_id: actorId ?? null,
+      p_reason: "customer_app_self_cancel",
+    },
+  );
 
-  if (updErr) {
-    throw new Error(`cancelCustomerAppBooking update: ${updErr.message}`);
+  if (rpcErr) {
+    throw new Error(`cancelCustomerAppBooking rpc: ${rpcErr.message}`);
   }
 
-  if (!updated) {
+  const rpc = rpcData as { ok?: boolean; error?: string } | null;
+  if (!rpc?.ok) {
     throw new CustomerAppBookingCancelConflictError(
-      "Impossibile annullare: lo stato della prenotazione è cambiato.",
+      rpc?.error === "terminal_status" || rpc?.error === "sale_locked"
+        ? "Impossibile annullare: lo stato della prenotazione è cambiato."
+        : "Impossibile annullare: lo stato della prenotazione è cambiato.",
     );
   }
 
   return {
-    id: Number(updated.id),
+    id: bookingId,
     status: "cancelled",
   };
 }
