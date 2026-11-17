@@ -32,6 +32,7 @@ import { getDirectionReport } from "@/lib/reports/getDirectionReport";
 import { getDirectionCrmActions } from "@/lib/reports/getDirectionCrmActions";
 import { getColorAbsentCustomers } from "@/lib/reports/getColorAbsentCustomers";
 import { buildStaffDrillDownPayloadServer } from "@/lib/reports/buildStaffDrillDownPayloadServer";
+import { getLegacyStaffTurnover } from "@/lib/reports/getLegacyStaffTurnover";
 
 import ReportSalonSync from "./ReportSalonSync";
 import ReportFilters from "@/components/reports/ReportFilters";
@@ -45,6 +46,7 @@ import ReportRowsTable from "@/components/reports/ReportRowsTable";
 import ReportDailyTable from "@/components/reports/ReportDailyTable";
 import ReportTopItemsTable from "@/components/reports/ReportTopItemsTable";
 import ReportStaffEnterpriseTable from "@/components/reports/ReportStaffEnterpriseTable";
+import ReportLegacyStaffTurnover from "@/components/reports/ReportLegacyStaffTurnover";
 import ReportDirectionView from "@/components/reports/ReportDirectionView";
 import ReportClientiSection from "@/components/reports/ReportClientiSection";
 
@@ -390,6 +392,11 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
         })
       : {};
 
+  const legacyStaffTurnover =
+    salonId && macro === "team"
+      ? await getLegacyStaffTurnover({ salonId, dateFrom, dateTo })
+      : null;
+
   const venditeSubtabs = VENDITE_SUBTAB_KEYS.map((key) => ({
     key,
     label: VENDITE_SUBTAB_LABELS[key],
@@ -475,6 +482,9 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
  staffDrillDownByStaff={staffDrillDownByStaff}
  previousStaffRows={previousStaffPerformance ?? []}
  />
+ {legacyStaffTurnover ? (
+   <ReportLegacyStaffTurnover data={legacyStaffTurnover} />
+ ) : null}
  </section>
  )}
 

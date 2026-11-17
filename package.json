@@ -31,7 +31,8 @@
     "report:stock-ledger-links": "node --experimental-strip-types scripts/imports/report-stock-ledger-links.ts",
     "import:boss-customers:raw": "node --experimental-strip-types scripts/imports/load-boss-customers-raw.ts",
     "report:boss-customers-analysis": "node --experimental-strip-types scripts/imports/report-boss-customers-analysis.ts",
-    "import:boss-customers:ready": "node --experimental-strip-types scripts/imports/import-boss-customers-ready.ts"
+    "import:boss-customers:ready": "node --experimental-strip-types scripts/imports/import-boss-customers-ready.ts",
+    "import:boss-staff-turnover:roma": "node --experimental-strip-types scripts/imports/import-boss-staff-turnover-roma.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",
