@@ -14,11 +14,14 @@ import { formatReportMoney } from "@/components/reports/reportFormatMoney";
 import { formatRetailPenetrationPct } from "@/lib/reports/retailPenetration";
 import { computeTeamAvgTicket } from "@/lib/reports/staffKpiAlerts";
 import { isUnassignedStaffId, sortStaffKpiRows } from "@/lib/reports/staffKpiConstants";
+import type { BossLav002TeamRow } from "@/lib/reports/bossLav002TeamTypes";
 
 type Props = {
   rows: StaffKpiRow[];
   staffDrillDownByStaff?: StaffDrillDownByStaff;
   previousStaffRows?: StaffKpiRow[];
+  /** Nominativi LAV002: totali file, esclusi dai KPI Dal/Al. */
+  bossHistoricalRows?: BossLav002TeamRow[];
 };
 
 function rankClass(idx: number): string {
@@ -28,26 +31,43 @@ function rankClass(idx: number): string {
   return "text-white/45";
 }
 
+const BOSS_PERIOD_NOTE = "Periodo non disponibile nel file BOSS";
+
 export default function ReportStaffEnterpriseTable({
   rows,
   staffDrillDownByStaff = {},
   previousStaffRows = [],
+  bossHistoricalRows = [],
 }: Props) {
   const [vatMode, setVatMode] = useReportVatModeUrl();
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const displayRows = useMemo(() => sortStaffKpiRows(rows), [rows]);
+  const bossRows = useMemo(
+    () =>
+      [...bossHistoricalRows].sort(
+        (a, b) => b.file_amount_gross - a.file_amount_gross,
+      ),
+    [bossHistoricalRows],
+  );
+
+  // KPI sintesi: solo staff operativo del periodo — mai totali LAV002.
   const teamAvgTicket = useMemo(
     () => computeTeamAvgTicket(displayRows, vatMode),
     [displayRows, vatMode],
   );
-  const summary = useMemo(() => buildStaffTeamSummary(displayRows, vatMode), [displayRows, vatMode]);
+  const summary = useMemo(
+    () => buildStaffTeamSummary(displayRows, vatMode),
+    [displayRows, vatMode],
+  );
 
   const previousByStaff = useMemo(() => {
     const map = new Map<number, StaffKpiRow>();
     for (const r of previousStaffRows) map.set(r.staff_id, r);
     return map;
   }, [previousStaffRows]);
+
+  const emptyPeriod = displayRows.length === 0 && bossRows.length === 0;
 
   return (
     <div className="space-y-5">
@@ -77,86 +97,121 @@ export default function ReportStaffEnterpriseTable({
               </tr>
             </thead>
             <tbody>
-              {displayRows.length === 0 ? (
+              {emptyPeriod ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-12 text-center text-white/40">
                     Nessun dato nel periodo selezionato.
                   </td>
                 </tr>
               ) : (
-                (() => {
-                  let realRank = 0;
-                  return displayRows.map((r, idx) => {
-                  const m = pickStaffMoney(r, vatMode);
-                  const isOpen = expanded === r.staff_id;
-                  const virtual = isUnassignedStaffId(r.staff_id);
-                  if (!virtual) realRank += 1;
-                  const baseDrill = staffDrillDownByStaff[String(r.staff_id)];
-                  const drillDown =
-                    isOpen && baseDrill
-                      ? adjustStaffDrillDownVat(
-                          baseDrill,
-                          r,
-                          previousByStaff.get(r.staff_id),
-                          vatMode,
-                        )
-                      : null;
+                <>
+                  {(() => {
+                    let realRank = 0;
+                    return displayRows.map((r, idx) => {
+                      const m = pickStaffMoney(r, vatMode);
+                      const isOpen = expanded === r.staff_id;
+                      const virtual = isUnassignedStaffId(r.staff_id);
+                      if (!virtual) realRank += 1;
+                      const baseDrill = staffDrillDownByStaff[String(r.staff_id)];
+                      const drillDown =
+                        isOpen && baseDrill
+                          ? adjustStaffDrillDownVat(
+                              baseDrill,
+                              r,
+                              previousByStaff.get(r.staff_id),
+                              vatMode,
+                            )
+                          : null;
 
-                  return (
-                    <Fragment key={r.staff_id}>
-                      <tr
-                        className={`${idx % 2 === 0 ? "bg-black/10" : ""} cursor-pointer hover:bg-black/20 transition-colors`}
-                        onClick={() => setExpanded(isOpen ? null : r.staff_id)}
-                      >
-                        <td className="px-3 py-3 font-extrabold text-white">
-                          {virtual ? (
-                            <span className="mr-2 text-white/35">—</span>
-                          ) : (
-                            <span className={`mr-2 tabular-nums ${rankClass(realRank - 1)}`}>
-                              #{realRank}
-                            </span>
-                          )}
-                          <span className={virtual ? "italic text-white/55" : ""}>{r.staff_name}</span>
-                        </td>
-                        <td className="px-3 py-3 text-right font-extrabold text-scz-gold tabular-nums">
-                          {formatReportMoney(m.real)}
-                        </td>
-                        <td className="px-3 py-3 text-right text-white/80 tabular-nums">
-                          {formatReportMoney(m.full)}
-                        </td>
-                        <td className="px-3 py-3 text-right text-amber-200/90 tabular-nums">
-                          {formatReportMoney(m.discount)}
-                        </td>
-                        <td className="px-3 py-3 text-right tabular-nums">
-                          {m.discount_pct.toFixed(1)}%
-                        </td>
-                        <td className="px-3 py-3 text-right tabular-nums">{r.customers_served}</td>
-                        <td className="px-3 py-3 text-right tabular-nums">
-                          {formatRetailPenetrationPct(r.retail_penetration_pct)}
-                        </td>
-                        <td className="px-3 py-3 text-right tabular-nums">
-                          {formatReportMoney(m.avg_ticket_real)}
-                        </td>
-                        <td className="px-3 py-3 text-center text-white/30 text-xs">
- {isOpen ? "▲" : "▼"}
-                        </td>
-                      </tr>
-                      {isOpen && drillDown ? (
-                        <tr className="bg-black/25">
-                          <td colSpan={9} className="p-0">
-                            <ReportStaffDrillDownPanel
-                              row={r}
-                              drillDown={drillDown}
-                              teamAvgTicket={teamAvgTicket}
-                              vatMode={vatMode}
-                            />
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                });
-                })()
+                      return (
+                        <Fragment key={`staff-${r.staff_id}`}>
+                          <tr
+                            className={`${idx % 2 === 0 ? "bg-black/10" : ""} cursor-pointer hover:bg-black/20 transition-colors`}
+                            onClick={() => setExpanded(isOpen ? null : r.staff_id)}
+                          >
+                            <td className="px-3 py-3 font-extrabold text-white">
+                              {virtual ? (
+                                <span className="mr-2 text-white/35">—</span>
+                              ) : (
+                                <span
+                                  className={`mr-2 tabular-nums ${rankClass(realRank - 1)}`}
+                                >
+                                  #{realRank}
+                                </span>
+                              )}
+                              <span className={virtual ? "italic text-white/55" : ""}>
+                                {r.staff_name}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-right font-extrabold text-scz-gold tabular-nums">
+                              {formatReportMoney(m.real)}
+                            </td>
+                            <td className="px-3 py-3 text-right text-white/80 tabular-nums">
+                              {formatReportMoney(m.full)}
+                            </td>
+                            <td className="px-3 py-3 text-right text-amber-200/90 tabular-nums">
+                              {formatReportMoney(m.discount)}
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums">
+                              {m.discount_pct.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums">
+                              {r.customers_served}
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums">
+                              {formatRetailPenetrationPct(r.retail_penetration_pct)}
+                            </td>
+                            <td className="px-3 py-3 text-right tabular-nums">
+                              {formatReportMoney(m.avg_ticket_real)}
+                            </td>
+                            <td className="px-3 py-3 text-center text-white/30 text-xs">
+                              {isOpen ? "▲" : "▼"}
+                            </td>
+                          </tr>
+                          {isOpen && drillDown ? (
+                            <tr className="bg-black/25">
+                              <td colSpan={9} className="p-0">
+                                <ReportStaffDrillDownPanel
+                                  row={r}
+                                  drillDown={drillDown}
+                                  teamAvgTicket={teamAvgTicket}
+                                  vatMode={vatMode}
+                                />
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
+                      );
+                    });
+                  })()}
+
+                  {bossRows.map((b) => (
+                    <tr
+                      key={`boss-${b.boss_code}-${b.id}`}
+                      className="border-t border-white/5 bg-black/5"
+                    >
+                      <td className="px-3 py-3">
+                        <div className="font-extrabold text-white/90">{b.boss_name}</div>
+                        <div className="mt-0.5 text-xs text-white/45">
+                          <span className="font-mono text-white/55">#{b.boss_code}</span>
+                          <span className="mx-1.5 text-white/25">·</span>
+                          <span>{BOSS_PERIOD_NOTE}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums text-white/75">
+                        {formatReportMoney(b.file_amount_gross)}
+                        <div className="text-[10px] font-normal text-white/35">totale file</div>
+                      </td>
+                      <td className="px-3 py-3 text-right text-white/25">—</td>
+                      <td className="px-3 py-3 text-right text-white/25">—</td>
+                      <td className="px-3 py-3 text-right text-white/25">—</td>
+                      <td className="px-3 py-3 text-right text-white/25">—</td>
+                      <td className="px-3 py-3 text-right text-white/25">—</td>
+                      <td className="px-3 py-3 text-right text-white/25">—</td>
+                      <td className="px-3 py-3" />
+                    </tr>
+                  ))}
+                </>
               )}
             </tbody>
           </table>
@@ -164,7 +219,8 @@ export default function ReportStaffEnterpriseTable({
       </div>
 
       <p className="text-xs text-white/35">
-        Clicca un collaboratore per il dettaglio live — nessun reload, nessun export.
+        Clicca un collaboratore operativo per il dettaglio live. I nominativi BOSS mostrano solo il
+        totale del file e non entrano nei KPI del periodo Dal/Al.
       </p>
     </div>
   );

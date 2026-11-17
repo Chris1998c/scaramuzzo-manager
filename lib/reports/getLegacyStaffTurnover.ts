@@ -1,104 +1,63 @@
 import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { BossLav002TeamRow } from "@/lib/reports/bossLav002TeamTypes";
 
-export type LegacyStaffTurnoverRow = {
-  id: number;
-  salon_id: number;
-  period_from: string | null;
-  period_to: string | null;
-  period_confirmed: boolean;
-  boss_name: string;
-  boss_code: string;
-  staff_id: number | null;
-  amount_gross: number;
-  services_gross: number;
-  products_gross: number;
-  match_status: "historical";
-  source_batch: string;
-  period_note: string;
-};
-
-export type LegacyStaffTurnoverBundle = {
-  rows: LegacyStaffTurnoverRow[];
-  period_from: string | null;
-  period_to: string | null;
-  period_confirmed: boolean;
-  total_gross: number;
-  source_batch: string | null;
-  period_note: string | null;
-};
+export type { BossLav002TeamRow };
 
 /**
- * Storico BOSS LAV002 per salone.
- * - period_confirmed=false → storico da verificare (sempre visibile, mai nei totali data).
- * - period_confirmed=true → solo se il filtro date interseca period_from/to.
- * Mai collega staff operativo (staff_id deve restare null).
+ * Nominativi LAV002 del salone per la tabella Team.
+ * - period_confirmed=false → sempre in tabella come totale file (mai nei KPI Dal/Al).
+ * - period_confirmed=true → solo se period_from/to interseca il filtro (futuro).
+ * staff_id ignorato/forzato assente.
  */
-export async function getLegacyStaffTurnover(params: {
+export async function getBossLav002TeamRows(params: {
   salonId: number;
   dateFrom: string;
   dateTo: string;
-}): Promise<LegacyStaffTurnoverBundle> {
+}): Promise<BossLav002TeamRow[]> {
   const salonId = Math.floor(Number(params.salonId));
-  const empty: LegacyStaffTurnoverBundle = {
-    rows: [],
-    period_from: null,
-    period_to: null,
-    period_confirmed: false,
-    total_gross: 0,
-    source_batch: null,
-    period_note: null,
-  };
-  if (!Number.isFinite(salonId) || salonId <= 0) return empty;
+  if (!Number.isFinite(salonId) || salonId <= 0) return [];
 
   const { data, error } = await supabaseAdmin
     .from("legacy_staff_turnover")
     .select(
-      "id, salon_id, period_from, period_to, period_confirmed, boss_name, boss_code, staff_id, amount_gross, services_gross, products_gross, match_status, source_batch, period_note",
+      "id, boss_name, boss_code, amount_gross, period_confirmed, period_from, period_to, staff_id",
     )
     .eq("salon_id", salonId)
     .order("amount_gross", { ascending: false });
 
   if (error) {
-    console.warn("getLegacyStaffTurnover:", error.message);
-    return empty;
+    console.warn("getBossLav002TeamRows:", error.message);
+    return [];
   }
 
-  const mapped: LegacyStaffTurnoverRow[] = (data ?? []).map((r) => ({
-    id: Number(r.id),
-    salon_id: Number(r.salon_id),
-    period_from: r.period_from == null ? null : String(r.period_from),
-    period_to: r.period_to == null ? null : String(r.period_to),
-    period_confirmed: !!r.period_confirmed,
-    boss_name: String(r.boss_name),
-    boss_code: String(r.boss_code),
-    staff_id: r.staff_id == null ? null : Number(r.staff_id),
-    amount_gross: Number(r.amount_gross) || 0,
-    services_gross: Number(r.services_gross) || 0,
-    products_gross: Number(r.products_gross) || 0,
-    match_status: "historical",
-    source_batch: String(r.source_batch),
-    period_note: String(r.period_note ?? ""),
-  }));
+  const out: BossLav002TeamRow[] = [];
+  for (const r of data ?? []) {
+    const confirmed = !!r.period_confirmed;
+    if (confirmed) {
+      const from = r.period_from == null ? null : String(r.period_from);
+      const to = r.period_to == null ? null : String(r.period_to);
+      if (!from || !to) continue;
+      if (!(from <= params.dateTo && to >= params.dateFrom)) continue;
+    }
 
-  const rows = mapped.filter((r) => {
-    if (!r.period_confirmed) return true;
-    if (!r.period_from || !r.period_to) return false;
-    return r.period_from <= params.dateTo && r.period_to >= params.dateFrom;
-  });
+    out.push({
+      id: Number(r.id),
+      boss_name: String(r.boss_name),
+      boss_code: String(r.boss_code),
+      file_amount_gross: Number(r.amount_gross) || 0,
+      period_confirmed: confirmed,
+    });
+  }
+  return out;
+}
 
-  if (!rows.length) return empty;
-
-  const totalCents = rows.reduce((s, r) => s + Math.round(r.amount_gross * 100), 0);
-
-  return {
-    rows,
-    period_from: rows[0]?.period_from ?? null,
-    period_to: rows[0]?.period_to ?? null,
-    period_confirmed: rows.every((r) => r.period_confirmed),
-    total_gross: totalCents / 100,
-    source_batch: rows[0]?.source_batch ?? null,
-    period_note: rows[0]?.period_note ?? null,
-  };
+/** @deprecated alias — prefer getBossLav002TeamRows */
+export async function getLegacyStaffTurnover(params: {
+  salonId: number;
+  dateFrom: string;
+  dateTo: string;
+}): Promise<{ rows: BossLav002TeamRow[] }> {
+  return { rows: await getBossLav002TeamRows(params) };
 }
