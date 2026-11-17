@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  centsToEuros,
+  eurosToCents,
   parseBossCollaboratorHeader,
   parseBossLav002Sheet,
-  roundMoney2,
 } from "./bossLav002XlsParse";
-import { indexStaffByCode, matchLav002ByStaffCode } from "./bossLav002Match";
 
 describe("parseBossCollaboratorHeader", () => {
   it("estrae nome e codice con spazi multipli", () => {
@@ -26,8 +26,18 @@ describe("parseBossCollaboratorHeader", () => {
   });
 });
 
+describe("eurosToCents", () => {
+  it("arrotonda float Boss a centesimi senza scarto sulla somma", () => {
+    expect(eurosToCents(19813.607421875)).toBe(1981361);
+    expect(eurosToCents(13635.060546875)).toBe(1363506);
+    const parts = [19813.607421875, 14324.8017578125, 544, 13635.060546875];
+    const sumCents = parts.reduce((s, n) => s + eurosToCents(n), 0);
+    expect(centsToEuros(sumCents)).toBe(48317.47);
+  });
+});
+
 describe("parseBossLav002Sheet", () => {
-  it("aggrega un blocco collaboratore da Totali collaboratore", () => {
+  it("aggrega un blocco collaboratore in centesimi, senza staff match", () => {
     const rows = [
       ["Vendita Diretta", "", "", ""],
       ["Descrizione", "Qta", "% Qta", "Valore (€)"],
@@ -51,44 +61,18 @@ describe("parseBossLav002Sheet", () => {
     expect(parsed.collaborators[0]).toMatchObject({
       bossName: "Antonio",
       bossCode: "86",
-      servicesGross: 544,
-      productsGross: 0,
-      totalGross: 544,
+      servicesGrossCents: 54400,
+      productsGrossCents: 0,
+      totalGrossCents: 54400,
     });
     expect(parsed.collaborators[1]).toMatchObject({
       bossName: "DANIELA",
       bossCode: "204",
-      servicesGross: 13241.06,
-      productsGross: 394,
-      totalGross: 13635.06,
+      servicesGrossCents: 1324106,
+      productsGrossCents: 39400,
+      totalGrossCents: 1363506,
     });
-    expect(roundMoney2(parsed.grandTotalGross)).toBe(14179.06);
-  });
-});
-
-describe("matchLav002ByStaffCode", () => {
-  const index = indexStaffByCode([
-    { id: 74, staff_code: "86", name: "Antonio", active: true },
-    { id: 72, staff_code: "204", name: "Daniela", active: false },
-    { id: 1, staff_code: "999", name: "A", active: true },
-    { id: 2, staff_code: "999", name: "B", active: true },
-  ]);
-
-  it("match attivo univoco", () => {
-    expect(matchLav002ByStaffCode("86", index).status).toBe("matched_active");
-  });
-
-  it("match disattivo univoco (ex collaboratore)", () => {
-    const m = matchLav002ByStaffCode("204", index);
-    expect(m.status).toBe("matched_inactive");
-    expect(m.staffId).toBe(72);
-  });
-
-  it("unmatched senza inventare nome", () => {
-    expect(matchLav002ByStaffCode("556", index).status).toBe("unmatched");
-  });
-
-  it("ambiguous ferma la corrispondenza", () => {
-    expect(matchLav002ByStaffCode("999", index).status).toBe("ambiguous");
+    expect(parsed.grandTotalCents).toBe(54400 + 1363506);
+    expect(centsToEuros(parsed.grandTotalCents)).toBe(14179.06);
   });
 });

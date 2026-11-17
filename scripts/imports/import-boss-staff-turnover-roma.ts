@@ -1,10 +1,12 @@
 /**
  * Import fatturato collaboratori Boss LAV002 (solo Roma, IVA inclusa).
- * Non crea vendite/scontrini/servizi/appuntamenti. Default dry-run.
+ * Nominativi storici: boss_name + boss_code, staff_id sempre NULL.
+ * Periodo assente nel file → period_confirmed=false (non filtrare per data).
+ * Default dry-run.
  *
  * Usage:
  *   npm run import:boss-staff-turnover:roma -- --dry-run
- *   npm run import:boss-staff-turnover:roma -- --commit --period-from 2022-01-01 --period-to 2026-10-31
+ *   npm run import:boss-staff-turnover:roma -- --commit
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -12,16 +14,10 @@ import { join } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import XLSX from "xlsx";
 import {
+  BOSS_LAV002_ROMA_UNCONFIRMED_BATCH,
+  centsToEuros,
   parseBossLav002Sheet,
-  roundMoney2,
-  type BossLav002CollaboratorBlock,
 } from "../../lib/imports/bossLav002XlsParse.ts";
-import {
-  indexStaffByCode,
-  matchLav002ByStaffCode,
-  type Lav002MatchResult,
-  type StaffMatchCandidate,
-} from "../../lib/imports/bossLav002Match.ts";
 
 const REPO_ROOT = process.cwd();
 const DEFAULT_FILE = join(
@@ -30,17 +26,8 @@ const DEFAULT_FILE = join(
 );
 const SALON_ID = 1;
 const SALON_NAME = "Roma";
-
-type PreviewRow = {
-  boss_name: string;
-  boss_code: string;
-  amount_gross: number;
-  services_gross: number;
-  products_gross: number;
-  match: Lav002MatchResult;
-  importable: boolean;
-  exclude_reason: string | null;
-};
+const PERIOD_NOTE =
+  "Periodo assente nel file LAV002: storico da verificare, non attribuire a filtri data finché non confermato.";
 
 function loadEnvLocal() {
   const envPath = join(REPO_ROOT, ".env.local");
@@ -60,14 +47,14 @@ function loadEnvLocal() {
   }
 }
 
+function hasFlag(flag: string): boolean {
+  return process.argv.includes(flag);
+}
+
 function argValue(flag: string): string | null {
   const idx = process.argv.indexOf(flag);
   if (idx < 0) return null;
   return process.argv[idx + 1] ?? null;
-}
-
-function hasFlag(flag: string): boolean {
-  return process.argv.includes(flag);
 }
 
 function createServiceClient(): SupabaseClient {
@@ -93,168 +80,62 @@ function parseLav002File(path: string) {
   return parseBossLav002Sheet(rows, sheetName);
 }
 
-function buildSourceBatch(periodFrom: string, periodTo: string): string {
-  return `boss_lav002_roma_${periodFrom.replace(/-/g, "")}_${periodTo.replace(/-/g, "")}`;
-}
-
-async function loadStaff(supabase: SupabaseClient): Promise<StaffMatchCandidate[]> {
-  const { data, error } = await supabase.from("staff").select("id, staff_code, name, active");
-  if (error) throw new Error(`staff load: ${error.message}`);
-  return (data ?? []).map((r) => ({
-    id: Number(r.id),
-    staff_code: String(r.staff_code ?? ""),
-    name: String(r.name ?? ""),
-    active: !!r.active,
-  }));
-}
-
-function toPreviewRows(
-  blocks: BossLav002CollaboratorBlock[],
-  staffIndex: ReturnType<typeof indexStaffByCode>,
-): PreviewRow[] {
-  return blocks.map((b) => {
-    const match = matchLav002ByStaffCode(b.bossCode, staffIndex);
-    if (match.status === "ambiguous") {
-      return {
-        boss_name: b.bossName,
-        boss_code: b.bossCode,
-        amount_gross: roundMoney2(b.totalGross),
-        services_gross: roundMoney2(b.servicesGross),
-        products_gross: roundMoney2(b.productsGross),
-        match,
-        importable: false,
-        exclude_reason: match.reason,
-      };
-    }
-    // unmatched e matched_* sono importabili (unmatched → staff_id null, storico nominativo)
-    return {
-      boss_name: b.bossName,
-      boss_code: b.bossCode,
-      amount_gross: roundMoney2(b.totalGross),
-      services_gross: roundMoney2(b.servicesGross),
-      products_gross: roundMoney2(b.productsGross),
-      match,
-      importable: true,
-      exclude_reason: null,
-    };
-  });
-}
-
-async function reconcileAgainstLegacy(
-  supabase: SupabaseClient,
-  periodFrom: string,
-  periodTo: string,
-  attributedGross: number,
-) {
-  const pageSize = 1000;
-  const rows: Array<{ day: string; total_gross: number }> = [];
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from("legacy_turnover_daily")
-      .select("day, total_gross")
-      .eq("salon_id", SALON_ID)
-      .gte("day", periodFrom)
-      .lte("day", periodTo)
-      .order("day", { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) throw new Error(`legacy_turnover_daily: ${error.message}`);
-    const batch = data ?? [];
-    for (const r of batch) {
-      rows.push({ day: String(r.day), total_gross: Number(r.total_gross) || 0 });
-    }
-    if (batch.length < pageSize) break;
-  }
-
-  const byMonth = new Map<string, number>();
-  let salonGross = 0;
-  for (const r of rows) {
-    salonGross += r.total_gross;
-    const month = r.day.slice(0, 7);
-    byMonth.set(month, (byMonth.get(month) ?? 0) + r.total_gross);
-  }
-
-  return {
-    salon_days: rows.length,
-    salon_gross: roundMoney2(salonGross),
-    attributed_gross: roundMoney2(attributedGross),
-    unattributed_gross: roundMoney2(salonGross - attributedGross),
-    monthly_salon: [...byMonth.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, total]) => ({
-        month,
-        salon_gross: roundMoney2(total),
-        note: "file LAV002 senza granularità mese — nessun totale mensile collaboratori da confrontare",
-      })),
-  };
-}
-
 async function main() {
   const commit = hasFlag("--commit");
   const dryRun = !commit || hasFlag("--dry-run");
   const filePath = argValue("--file") ?? DEFAULT_FILE;
-  const periodFrom = argValue("--period-from");
-  const periodTo = argValue("--period-to");
 
   if (!existsSync(filePath)) {
     console.error(`File mancante: ${filePath}`);
     process.exit(1);
   }
-  if (!periodFrom || !periodTo || !/^\d{4}-\d{2}-\d{2}$/.test(periodFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(periodTo)) {
-    console.error(
-      "Obbligatori --period-from e --period-to (YYYY-MM-DD). Il file LAV002 non contiene il periodo.",
-    );
-    process.exit(1);
-  }
-  if (periodFrom > periodTo) {
-    console.error("period-from > period-to");
-    process.exit(1);
-  }
 
   const parsed = parseLav002File(filePath);
-  const supabase = createServiceClient();
-  const staff = await loadStaff(supabase);
-  const staffIndex = indexStaffByCode(staff);
-  const preview = toPreviewRows(parsed.collaborators, staffIndex);
-  const importable = preview.filter((p) => p.importable);
-  const excluded = preview.filter((p) => !p.importable);
-  const attributed = importable.reduce((s, r) => s + r.amount_gross, 0);
-  const reconciliation = await reconcileAgainstLegacy(
-    supabase,
-    periodFrom,
-    periodTo,
-    attributed,
-  );
-
-  const periodNote =
-    "Periodo NON presente nel file LAV002; dichiarato esplicitamente a CLI e usato solo per storicizzare/riconciliare contro legacy_turnover_daily Roma.";
-  const sourceBatch = buildSourceBatch(periodFrom, periodTo);
   const sourceFile = filePath.replace(REPO_ROOT + "/", "");
+  const sourceBatch = BOSS_LAV002_ROMA_UNCONFIRMED_BATCH;
+
+  const rows = parsed.collaborators.map((c) => ({
+    salon_id: SALON_ID,
+    period_from: null as string | null,
+    period_to: null as string | null,
+    period_confirmed: false,
+    boss_name: c.bossName,
+    boss_code: c.bossCode,
+    staff_id: null as number | null,
+    amount_gross: centsToEuros(c.totalGrossCents),
+    services_gross: centsToEuros(c.servicesGrossCents),
+    products_gross: centsToEuros(c.productsGrossCents),
+    qty_total: c.totalQty,
+    match_status: "historical" as const,
+    source_batch: sourceBatch,
+    source_file: sourceFile,
+    period_note: PERIOD_NOTE,
+    amount_cents: c.totalGrossCents,
+  }));
 
   const report = {
     salon_id: SALON_ID,
     salon: SALON_NAME,
     file: sourceFile,
     sheet: parsed.sheetName,
-    rows_in_sheet: parsed.rowCount,
-    collaborators: preview.length,
-    period_from: periodFrom,
-    period_to: periodTo,
-    period_note: periodNote,
+    collaborators: rows.length,
     period_in_file: false,
-    granularity: "period_total_per_collaborator",
-    vat: "gross_inc_vat_boss_valore",
-    services_imported: false,
-    sales_created: false,
+    period_confirmed: false,
+    staff_links: false,
     source_batch: sourceBatch,
     parse_warnings: parsed.warnings,
     totals: {
-      file_grand_total_gross: roundMoney2(parsed.grandTotalGross),
-      importable_gross: roundMoney2(attributed),
-      excluded_gross: roundMoney2(excluded.reduce((s, r) => s + r.amount_gross, 0)),
+      grand_total_cents: parsed.grandTotalCents,
+      grand_total_euros: centsToEuros(parsed.grandTotalCents),
     },
-    reconciliation,
-    mapping: preview,
-    excluded,
+    mapping: rows.map((r) => ({
+      boss_code: r.boss_code,
+      boss_name: r.boss_name,
+      staff_id: null,
+      amount_gross: r.amount_gross,
+      amount_cents: r.amount_cents,
+      match_status: "historical",
+    })),
     mode: dryRun ? "dry-run" : "commit",
   };
 
@@ -263,74 +144,72 @@ async function main() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const previewPath = join(outDir, `preview-${stamp}.json`);
   writeFileSync(previewPath, JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ preview_path: previewPath, summary: {
-    collaborators: preview.length,
-    importable: importable.length,
-    excluded: excluded.length,
-    file_total: report.totals.file_grand_total_gross,
-    salon_legacy_total: reconciliation.salon_gross,
-    unattributed: reconciliation.unattributed_gross,
-    period_in_file: false,
-    mode: report.mode,
-  }}, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        preview_path: previewPath,
+        summary: {
+          collaborators: rows.length,
+          grand_total_cents: parsed.grandTotalCents,
+          grand_total_euros: centsToEuros(parsed.grandTotalCents),
+          staff_id_all_null: true,
+          period_confirmed: false,
+          mode: report.mode,
+        },
+      },
+      null,
+      2,
+    ),
+  );
 
   if (dryRun) {
     console.log("Dry-run: nessuna scrittura DB. Rilancia con --commit per importare.");
     return;
   }
 
-  // Backup existing batch rows
+  const supabase = createServiceClient();
+
   const { data: existing, error: exErr } = await supabase
     .from("legacy_staff_turnover")
     .select("*")
     .eq("salon_id", SALON_ID)
-    .eq("source_batch", sourceBatch);
+    .in("source_batch", [sourceBatch, "boss_lav002_roma_20220101_20261031"]);
   if (exErr) throw new Error(`backup select: ${exErr.message}`);
-  const backupPath = join(outDir, `backup-${sourceBatch}-${stamp}.json`);
+  const backupPath = join(outDir, `backup-fix-${stamp}.json`);
   writeFileSync(backupPath, JSON.stringify(existing ?? [], null, 2));
 
-  const upsertRows = importable.map((r) => ({
-    salon_id: SALON_ID,
-    period_from: periodFrom,
-    period_to: periodTo,
-    boss_name: r.boss_name,
-    boss_code: r.boss_code,
-    staff_id: r.match.staffId,
-    amount_gross: r.amount_gross,
-    services_gross: r.services_gross,
-    products_gross: r.products_gross,
-    qty_total: 0,
-    match_status: r.match.status,
-    source_batch: sourceBatch,
-    source_file: sourceFile,
-    period_note: periodNote,
+  // Rimuovi batch legacy con periodo inventato (stesso salone).
+  const { error: delErr } = await supabase
+    .from("legacy_staff_turnover")
+    .delete()
+    .eq("salon_id", SALON_ID)
+    .eq("source_batch", "boss_lav002_roma_20220101_20261031");
+  if (delErr) throw new Error(`delete old batch: ${delErr.message}`);
+
+  const upsertRows = rows.map(({ amount_cents: _c, ...row }) => ({
+    ...row,
     updated_at: new Date().toISOString(),
   }));
-
-  // attach qty from blocks
-  const byCode = new Map(parsed.collaborators.map((c) => [c.bossCode, c]));
-  for (const row of upsertRows) {
-    const b = byCode.get(row.boss_code);
-    if (b) row.qty_total = roundMoney2(b.totalQty);
-  }
 
   const { data: upserted, error: upErr } = await supabase
     .from("legacy_staff_turnover")
     .upsert(upsertRows, { onConflict: "salon_id,source_batch,boss_code" })
-    .select("id, boss_code, boss_name, staff_id, amount_gross, match_status");
+    .select("id, boss_code, boss_name, staff_id, amount_gross, match_status, period_confirmed");
 
   if (upErr) throw new Error(`upsert: ${upErr.message}`);
 
   const { data: verify, error: vErr } = await supabase
     .from("legacy_staff_turnover")
-    .select("amount_gross, match_status, staff_id, boss_code")
+    .select("boss_code, boss_name, staff_id, amount_gross, match_status, period_from, period_to, period_confirmed")
     .eq("salon_id", SALON_ID)
     .eq("source_batch", sourceBatch);
   if (vErr) throw new Error(`verify: ${vErr.message}`);
 
-  const verifySum = roundMoney2(
-    (verify ?? []).reduce((s, r) => s + (Number(r.amount_gross) || 0), 0),
+  const verifyCents = (verify ?? []).reduce(
+    (s, r) => s + Math.round((Number(r.amount_gross) || 0) * 100),
+    0,
   );
+  const linked = (verify ?? []).filter((r) => r.staff_id != null);
 
   const resultPath = join(outDir, `import-result-${stamp}.json`);
   writeFileSync(
@@ -339,21 +218,13 @@ async function main() {
       {
         backup_path: backupPath,
         imported: upserted?.length ?? 0,
-        excluded: excluded.length,
-        excluded_rows: excluded,
         verify_count: verify?.length ?? 0,
-        verify_sum: verifySum,
-        expected_sum: roundMoney2(attributed),
-        scraps: excluded.map((e) => ({
-          boss_code: e.boss_code,
-          boss_name: e.boss_name,
-          amount_gross: e.amount_gross,
-          reason: e.exclude_reason,
-        })),
-        reconciliation,
-        quadratura: false,
-        quadratura_note:
-          "Nessuna quadratura dichiarata: LAV002 senza mesi/giorni; scarto vs legacy_turnover_daily non ridistribuito.",
+        verify_cents: verifyCents,
+        expected_cents: parsed.grandTotalCents,
+        cents_match: verifyCents === parsed.grandTotalCents,
+        staff_id_linked: linked.length,
+        period_confirmed_any: (verify ?? []).some((r) => r.period_confirmed),
+        rows: verify,
       },
       null,
       2,
@@ -364,9 +235,9 @@ async function main() {
     JSON.stringify(
       {
         imported: upserted?.length ?? 0,
-        excluded: excluded.length,
-        verify_sum: verifySum,
-        unattributed: reconciliation.unattributed_gross,
+        verify_cents: verifyCents,
+        expected_cents: parsed.grandTotalCents,
+        staff_id_linked: linked.length,
         result_path: resultPath,
         backup_path: backupPath,
       },

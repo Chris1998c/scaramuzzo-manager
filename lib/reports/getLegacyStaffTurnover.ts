@@ -5,35 +5,35 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export type LegacyStaffTurnoverRow = {
   id: number;
   salon_id: number;
-  period_from: string;
-  period_to: string;
+  period_from: string | null;
+  period_to: string | null;
+  period_confirmed: boolean;
   boss_name: string;
   boss_code: string;
   staff_id: number | null;
   amount_gross: number;
   services_gross: number;
   products_gross: number;
-  match_status: "matched_active" | "matched_inactive" | "unmatched";
+  match_status: "historical";
   source_batch: string;
   period_note: string;
-  staff_name: string | null;
-  staff_active: boolean | null;
 };
 
 export type LegacyStaffTurnoverBundle = {
   rows: LegacyStaffTurnoverRow[];
   period_from: string | null;
   period_to: string | null;
+  period_confirmed: boolean;
   total_gross: number;
-  attributed_matched_gross: number;
-  unmatched_gross: number;
   source_batch: string | null;
   period_note: string | null;
 };
 
 /**
- * Storico BOSS LAV002 per salone, se il periodo filtri interseca il periodo importato.
- * Non mescola i totali nelle vendite live.
+ * Storico BOSS LAV002 per salone.
+ * - period_confirmed=false → storico da verificare (sempre visibile, mai nei totali data).
+ * - period_confirmed=true → solo se il filtro date interseca period_from/to.
+ * Mai collega staff operativo (staff_id deve restare null).
  */
 export async function getLegacyStaffTurnover(params: {
   salonId: number;
@@ -45,9 +45,8 @@ export async function getLegacyStaffTurnover(params: {
     rows: [],
     period_from: null,
     period_to: null,
+    period_confirmed: false,
     total_gross: 0,
-    attributed_matched_gross: 0,
-    unmatched_gross: 0,
     source_batch: null,
     period_note: null,
   };
@@ -56,11 +55,9 @@ export async function getLegacyStaffTurnover(params: {
   const { data, error } = await supabaseAdmin
     .from("legacy_staff_turnover")
     .select(
-      "id, salon_id, period_from, period_to, boss_name, boss_code, staff_id, amount_gross, services_gross, products_gross, match_status, source_batch, period_note, staff:staff_id(name, active)",
+      "id, salon_id, period_from, period_to, period_confirmed, boss_name, boss_code, staff_id, amount_gross, services_gross, products_gross, match_status, source_batch, period_note",
     )
     .eq("salon_id", salonId)
-    .lte("period_from", params.dateTo)
-    .gte("period_to", params.dateFrom)
     .order("amount_gross", { ascending: false });
 
   if (error) {
@@ -68,42 +65,39 @@ export async function getLegacyStaffTurnover(params: {
     return empty;
   }
 
-  const rows: LegacyStaffTurnoverRow[] = (data ?? []).map((r) => {
-    const staffJoin = r.staff as { name?: string; active?: boolean } | null;
-    return {
-      id: Number(r.id),
-      salon_id: Number(r.salon_id),
-      period_from: String(r.period_from),
-      period_to: String(r.period_to),
-      boss_name: String(r.boss_name),
-      boss_code: String(r.boss_code),
-      staff_id: r.staff_id == null ? null : Number(r.staff_id),
-      amount_gross: Number(r.amount_gross) || 0,
-      services_gross: Number(r.services_gross) || 0,
-      products_gross: Number(r.products_gross) || 0,
-      match_status: r.match_status as LegacyStaffTurnoverRow["match_status"],
-      source_batch: String(r.source_batch),
-      period_note: String(r.period_note ?? ""),
-      staff_name: staffJoin?.name != null ? String(staffJoin.name) : null,
-      staff_active: staffJoin?.active == null ? null : !!staffJoin.active,
-    };
+  const mapped: LegacyStaffTurnoverRow[] = (data ?? []).map((r) => ({
+    id: Number(r.id),
+    salon_id: Number(r.salon_id),
+    period_from: r.period_from == null ? null : String(r.period_from),
+    period_to: r.period_to == null ? null : String(r.period_to),
+    period_confirmed: !!r.period_confirmed,
+    boss_name: String(r.boss_name),
+    boss_code: String(r.boss_code),
+    staff_id: r.staff_id == null ? null : Number(r.staff_id),
+    amount_gross: Number(r.amount_gross) || 0,
+    services_gross: Number(r.services_gross) || 0,
+    products_gross: Number(r.products_gross) || 0,
+    match_status: "historical",
+    source_batch: String(r.source_batch),
+    period_note: String(r.period_note ?? ""),
+  }));
+
+  const rows = mapped.filter((r) => {
+    if (!r.period_confirmed) return true;
+    if (!r.period_from || !r.period_to) return false;
+    return r.period_from <= params.dateTo && r.period_to >= params.dateFrom;
   });
 
   if (!rows.length) return empty;
 
-  const total = rows.reduce((s, r) => s + r.amount_gross, 0);
-  const unmatched = rows
-    .filter((r) => r.match_status === "unmatched")
-    .reduce((s, r) => s + r.amount_gross, 0);
-  const matched = total - unmatched;
+  const totalCents = rows.reduce((s, r) => s + Math.round(r.amount_gross * 100), 0);
 
   return {
     rows,
     period_from: rows[0]?.period_from ?? null,
     period_to: rows[0]?.period_to ?? null,
-    total_gross: Math.round(total * 100) / 100,
-    attributed_matched_gross: Math.round(matched * 100) / 100,
-    unmatched_gross: Math.round(unmatched * 100) / 100,
+    period_confirmed: rows.every((r) => r.period_confirmed),
+    total_gross: totalCents / 100,
     source_batch: rows[0]?.source_batch ?? null,
     period_note: rows[0]?.period_note ?? null,
   };

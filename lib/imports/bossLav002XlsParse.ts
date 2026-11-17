@@ -1,13 +1,12 @@
 /**
  * Parsing export Boss LAV002 (Lavoranti — dettagli servizi e vendita).
  * Granularità: totale periodo per collaboratore (niente giorno/mese nel foglio).
- * Importi: Valore (€) colonna Vendita Diretta — IVA inclusa lato report Boss.
- * Lettura file .xls resta nello script di import (xlsx).
+ * Importi: Valore (€) Vendita Diretta → centesimi esatti (Math.round).
+ * Nessun match verso staff operativo: solo boss_name + boss_code.
  */
 
 export const BOSS_LAV002_SOURCE = "boss_lav002";
-
-export type BossLav002LineKind = "SERVIZI" | "PRODOTTI" | "TOTALI";
+export const BOSS_LAV002_ROMA_UNCONFIRMED_BATCH = "boss_lav002_roma_unconfirmed";
 
 export type BossLav002CollaboratorBlock = {
   /** Riga 0-based del nominativo nel foglio. */
@@ -17,19 +16,20 @@ export type BossLav002CollaboratorBlock = {
   bossCode: string;
   salonLabel: string | null;
   servicesQty: number;
-  servicesGross: number;
   productsQty: number;
-  productsGross: number;
-  /** Valore da riga "Totali collaboratore" (IVA inclusa, vendita diretta). */
-  totalGross: number;
   totalQty: number;
+  /** Centesimi IVA inclusa. */
+  servicesGrossCents: number;
+  productsGrossCents: number;
+  totalGrossCents: number;
 };
 
 export type BossLav002ParseResult = {
   sheetName: string;
   rowCount: number;
   collaborators: BossLav002CollaboratorBlock[];
-  grandTotalGross: number;
+  /** Somma centesimi dei totali collaboratore. */
+  grandTotalCents: number;
   warnings: string[];
 };
 
@@ -61,6 +61,15 @@ function cellNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Float Boss → centesimi interi (evita scarto €0,01 sulla somma). */
+export function eurosToCents(value: unknown): number {
+  return Math.round(cellNum(value) * 100);
+}
+
+export function centsToEuros(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
 /** "Nome Cognome 86" / "ENRICO VOLA  47 " → name + code (ultima token numerica). */
 export function parseBossCollaboratorHeader(raw: string): {
   bossName: string;
@@ -70,8 +79,8 @@ export function parseBossCollaboratorHeader(raw: string): {
   if (!cleaned) return null;
   const m = cleaned.match(/^(.*?)(?:\s+)(\d+)\s*$/);
   if (!m) return null;
-  const bossName = m[1].replace(/\s+/g, " ").trim();
-  const bossCode = m[2];
+  const bossName = m[1]!.replace(/\s+/g, " ").trim();
+  const bossCode = m[2]!;
   if (!bossName || !bossCode) return null;
   return { bossName, bossCode };
 }
@@ -111,11 +120,11 @@ export function parseBossLav002Sheet(
     const sourceRow = i;
     let salonLabel: string | null = null;
     let servicesQty = 0;
-    let servicesGross = 0;
     let productsQty = 0;
-    let productsGross = 0;
-    let totalGross = 0;
     let totalQty = 0;
+    let servicesGrossCents = 0;
+    let productsGrossCents = 0;
+    let totalGrossCents = 0;
     let sawCollaboratorTotal = false;
 
     i += 1;
@@ -124,7 +133,6 @@ export function parseBossLav002Sheet(
       const a = cellStr(row[0]);
       if (!a) {
         i += 1;
-        // blank row: keep scanning within block until next header-ish content
         continue;
       }
       if (isCollaboratorHeader(a) && i > sourceRow) {
@@ -137,19 +145,19 @@ export function parseBossLav002Sheet(
       }
       if (/^servizi$/i.test(a)) {
         servicesQty = cellNum(row[1]);
-        servicesGross = cellNum(row[3]);
+        servicesGrossCents = eurosToCents(row[3]);
         i += 1;
         continue;
       }
       if (/^prodotti$/i.test(a)) {
         productsQty = cellNum(row[1]);
-        productsGross = cellNum(row[3]);
+        productsGrossCents = eurosToCents(row[3]);
         i += 1;
         continue;
       }
       if (/^totali collaboratore$/i.test(a)) {
         totalQty = cellNum(row[1]);
-        totalGross = cellNum(row[3]);
+        totalGrossCents = eurosToCents(row[3]);
         sawCollaboratorTotal = true;
         i += 1;
         continue;
@@ -175,24 +183,20 @@ export function parseBossLav002Sheet(
       bossCode: parsed.bossCode,
       salonLabel,
       servicesQty,
-      servicesGross,
       productsQty,
-      productsGross,
-      totalGross,
       totalQty,
+      servicesGrossCents,
+      productsGrossCents,
+      totalGrossCents,
     });
   }
 
-  const grandTotalGross = collaborators.reduce((s, c) => s + c.totalGross, 0);
+  const grandTotalCents = collaborators.reduce((s, c) => s + c.totalGrossCents, 0);
   return {
     sheetName,
     rowCount: rows.length,
     collaborators,
-    grandTotalGross,
+    grandTotalCents,
     warnings,
   };
-}
-
-export function roundMoney2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
