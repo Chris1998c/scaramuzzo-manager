@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { DirectionReport } from "@/lib/reports/getDirectionReport";
+import type { LegacyOverview } from "@/lib/reports/legacyTurnover";
 import ReportVatToggle from "@/components/reports/ReportVatToggle";
 import { useReportVatModeUrl } from "@/components/reports/useReportVatModeUrl";
 import ReportCrmCustomerActions from "@/components/reports/ReportCrmCustomerActions";
@@ -14,6 +15,8 @@ import {
 type Props = {
   data: DirectionReport;
   salonLabel?: string | null;
+  salonId: number;
+  historicalOverview: LegacyOverview | null;
 };
 
 function GrowthBadge({ value }: { value: number | null }) {
@@ -36,7 +39,7 @@ function HeroKpi({ label, value, sub }: { label: string; value: string; sub?: st
  );
 }
 
-export default function ReportDirectionView({ data, salonLabel }: Props) {
+export default function ReportDirectionView({ data, salonLabel, salonId, historicalOverview }: Props) {
  const [vatMode, setVatMode] = useReportVatModeUrl();
 
  const money = vatMode === "gross" ? data.today.money.gross : data.today.money.net;
@@ -80,6 +83,30 @@ export default function ReportDirectionView({ data, salonLabel }: Props) {
         </div>
         <ReportVatToggle mode={vatMode} onChange={setVatMode} />
       </div>
+
+      {historicalOverview ? (
+        <div className="rounded-2xl border border-scz-gold/35 bg-scz-gold/10 p-6 md:p-8">
+          <p className="text-xs font-bold uppercase tracking-wider text-scz-gold/80">Storico incassi · IVA inclusa</p>
+          <p className="mt-2 text-3xl font-extrabold text-scz-gold md:text-4xl">
+            {formatReportMoney(historicalOverview.totalGross)}
+          </p>
+          <p className="mt-2 text-sm text-white/55">
+            {salonLabel} · {historicalOverview.firstDay} → {historicalOverview.lastDay} · {historicalOverview.days} giornate registrate
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {historicalOverview.years.map(({ year, totalGross }) => (
+              <Link
+                key={year}
+                href={`/dashboard/report?salon_id=${salonId}&date_from=${year}-01-01&date_to=${year === Number(historicalOverview.lastDay.slice(0, 4)) ? historicalOverview.lastDay : `${year}-12-31`}&tab=vendite&subtab=giorni`}
+                className="rounded-xl border border-scz-gold/30 bg-black/25 px-3 py-2 text-sm font-bold text-white/80 hover:bg-black/40"
+              >
+                {year} · {formatReportMoney(totalGross)}
+              </Link>
+            ))}
+          </div>
+          <p className="mt-4 text-xs text-white/45">Apri un anno per consultare gli incassi giorno per giorno. I dati storici non includono scontrini, imponibile o IVA separata.</p>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-scz-gold/35 bg-gradient-to-br from-scz-gold/10 via-black/20 to-transparent p-6 md:p-8">
         <p className="text-xs font-medium text-white/40">

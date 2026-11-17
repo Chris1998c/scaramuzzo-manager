@@ -1,4 +1,34 @@
 export type LegacyDay = { day: string; total_gross: number };
+export type LegacyOverview = {
+  firstDay: string;
+  lastDay: string;
+  days: number;
+  totalGross: number;
+  years: Array<{ year: number; days: number; totalGross: number }>;
+};
+
+export function summarizeLegacyTurnover(rows: LegacyDay[]): LegacyOverview | null {
+  if (!rows.length) return null;
+  const ordered = [...rows].sort((a, b) => a.day.localeCompare(b.day));
+  const years = new Map<number, { days: number; cents: number }>();
+  let cents = 0;
+  for (const row of ordered) {
+    const value = Math.round(row.total_gross * 100);
+    cents += value;
+    const year = Number(row.day.slice(0, 4));
+    const tally = years.get(year) ?? { days: 0, cents: 0 };
+    tally.days += 1;
+    tally.cents += value;
+    years.set(year, tally);
+  }
+  return {
+    firstDay: ordered[0].day,
+    lastDay: ordered[ordered.length - 1].day,
+    days: ordered.length,
+    totalGross: cents / 100,
+    years: [...years].map(([year, value]) => ({ year, days: value.days, totalGross: value.cents / 100 })),
+  };
+}
 
 /** Server only. No staff, payment, receipt or VAT detail exists in RIC011. */
 export async function fetchLegacyTurnoverDays(salonId: number, from: string, to: string): Promise<LegacyDay[]> {

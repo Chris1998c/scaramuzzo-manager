@@ -32,6 +32,7 @@ import { getDirectionReport } from "@/lib/reports/getDirectionReport";
 import { getDirectionCrmActions } from "@/lib/reports/getDirectionCrmActions";
 import { getColorAbsentCustomers } from "@/lib/reports/getColorAbsentCustomers";
 import { buildStaffDrillDownPayloadServer } from "@/lib/reports/buildStaffDrillDownPayloadServer";
+import { fetchLegacyTurnoverDays, summarizeLegacyTurnover } from "@/lib/reports/legacyTurnover";
 
 import ReportSalonSync from "./ReportSalonSync";
 import ReportFilters from "@/components/reports/ReportFilters";
@@ -370,6 +371,9 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
 
  const directionReport =
  salonId && macro === "riepilogo" ? await getDirectionReport(salonId) : null;
+ const historicalOverview = salonId && macro === "riepilogo"
+   ? summarizeLegacyTurnover(await fetchLegacyTurnoverDays(salonId, "2022-01-01", "9999-12-31"))
+   : null;
 
  const { totals, rows, daily, topItems, staffPerformance, previousTotals, previousStaffPerformance, customerBySaleId } =
  salesAnalytics;
@@ -440,7 +444,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
  ) : null}
 
  {macro === "riepilogo" && salonId > 0 && directionReport ? (
- <ReportDirectionView data={directionReport} salonLabel={reportSalonLabel} />
+ <ReportDirectionView data={directionReport} salonLabel={reportSalonLabel} salonId={salonId} historicalOverview={historicalOverview} />
  ) : null}
 
  {macro === "team" && salonId > 0 && (
