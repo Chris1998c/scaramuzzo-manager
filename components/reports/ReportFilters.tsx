@@ -182,11 +182,11 @@ export default function ReportFilters({
 
       {macroTab === "riepilogo" ? (
         <p className="text-xs text-white/45">
-          Il riepilogo usa oggi e mese corrente. Le date sotto valgono per Vendite, Team e Clienti.
+          Il riepilogo usa oggi e mese corrente. Per altre date apri Vendite.
         </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
- <input
+ {macroTab !== "vendite" && <><input
  type="date"
  value={dateFrom}
  onChange={(e) => updateParam("date_from", e.target.value)}
@@ -198,7 +198,7 @@ export default function ReportFilters({
  value={dateTo}
  onChange={(e) => updateParam("date_to", e.target.value)}
           className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
- />
+ /></>}
 
  <select
  value={staffId ?? ""}
