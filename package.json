@@ -33,7 +33,8 @@
     "report:boss-customers-analysis": "node --experimental-strip-types scripts/imports/report-boss-customers-analysis.ts",
     "import:boss-customers:ready": "node --experimental-strip-types scripts/imports/import-boss-customers-ready.ts",
     "import:boss-staff-turnover:roma": "node --experimental-strip-types scripts/imports/import-boss-staff-turnover-roma.ts",
-    "import:boss-ric011:cosenza": "node --experimental-strip-types scripts/imports/import-boss-ric011-cosenza.ts"
+    "import:boss-ric011:cosenza": "node --experimental-strip-types scripts/imports/import-boss-ric011-salon.ts --preset cosenza",
+    "import:boss-ric011:corigliano": "node --experimental-strip-types scripts/imports/import-boss-ric011-salon.ts --preset corigliano"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",

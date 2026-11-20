@@ -15,7 +15,7 @@ describe("italianMoneyToCents", () => {
   });
 });
 
-describe("parseBossRic011PdfText", () => {
+describe("parseBossRic011PdfText layout 8 (Cosenza)", () => {
   const sample = `
 Riepilogo Incassi per Linee Cosenza (4)
 dal 01/01/2022 al 31/10/2026
@@ -27,6 +27,7 @@ RIC011 - INCASSI PER LINEE
 
   it("estrae sede, periodo e giorni escludendo il totale", () => {
     const p = parseBossRic011PdfText(sample);
+    expect(p.columnLayout).toBe(8);
     expect(p.salonLabel).toBe("Cosenza");
     expect(p.salonCode).toBe(4);
     expect(p.periodFrom).toBe("2022-01-01");
@@ -35,28 +36,41 @@ RIC011 - INCASSI PER LINEE
     expect(p.days[0]).toMatchObject({
       day: "2022-01-03",
       total_cents: 83100,
+      serv_payback_cents: 0,
       folded: { prod_salone_cents: 2400, serv_salone_cents: 68900, total_cents: 83100 },
     });
     expect(p.controlTotalCents).toBe(118500);
     expect(centsToEuros(p.days.reduce((s, d) => s + d.total_cents, 0))).toBe(1185);
   });
+});
 
-  it("fold prod_altro e solarium nelle colonne legacy", () => {
-    const text = `
-Riepilogo Incassi per Linee Cosenza (4)
-dal 01/01/2022 al 31/01/2022
+describe("parseBossRic011PdfText layout 9 (Corigliano + PAYBACK)", () => {
+  const sample = `
+Riepilogo Incassi per Linee Corigliano (2)
+dal 01/01/2022 al 31/10/2026
+SERV_PAYBACK
 RIC011
-  01/01/2022                      0,00        17,00      10,00        0,00          0,00      100,00        5,00      132,00
+  03/01/2022                      0,00         0,00        0,00       0,00          0,00        0,00        42,00        0,00       42,00
+  04/01/2022                      0,00         0,00      83,00        0,00         50,00       10,00      607,00         0,00      750,00
+        Totale                 0,00         0,00       83,00        0,00         50,00       10,00      649,00         0,00      792,00
 `;
-    const p = parseBossRic011PdfText(text);
-    expect(p.days[0]!.folded).toEqual({
-      viacard_cents: 0,
-      prod_salone_cents: 2700,
-      serv_altro_cents: 0,
-      serv_estetica_cents: 0,
-      serv_salone_cents: 10500,
-      total_cents: 13200,
+
+  it("fold payback in serv_salone e riconcilia il totale", () => {
+    const p = parseBossRic011PdfText(sample);
+    expect(p.columnLayout).toBe(9);
+    expect(p.salonCode).toBe(2);
+    expect(p.days).toHaveLength(2);
+    expect(p.days[1]).toMatchObject({
+      day: "2022-01-04",
+      serv_payback_cents: 1000,
+      total_cents: 75000,
+      folded: {
+        prod_salone_cents: 8300,
+        serv_salone_cents: 61700, // 607 + 10 payback
+        total_cents: 75000,
+      },
     });
+    expect(p.controlTotalCents).toBe(79200);
   });
 });
 
@@ -65,9 +79,9 @@ describe("helpers", () => {
     expect(dmyToIso("31/10/2026")).toBe("2026-10-31");
   });
 
-  it("parseRic011ControlTotalCents", () => {
+  it("parseRic011ControlTotalCents 8 linee (Corigliano)", () => {
     const line =
-      "        Totale                 870,00         17,00   67.562,27   13.574,50     82.803,16 1.202.815,79      375,00 1.368.017,72";
-    expect(parseRic011ControlTotalCents(line)).toBe(136801772);
+      "        Totale                 653,00        180,00   120.639,08   7.375,00    162.717,40       30,00   922.562,54       66,00 1.214.223,02";
+    expect(parseRic011ControlTotalCents(line, 8)).toBe(121422302);
   });
 });
