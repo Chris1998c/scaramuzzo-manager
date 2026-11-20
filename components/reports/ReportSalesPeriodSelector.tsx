@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { resolveClientReportSalonId } from "@/lib/reports/reportSalonQuerySync";
 
 type Props = { salonId: number; dateFrom: string; dateTo: string };
 
@@ -11,6 +12,10 @@ export default function ReportSalesPeriodSelector({ salonId, dateFrom, dateTo }:
   const [from, setFrom] = useState(dateFrom);
   const [to, setTo] = useState(dateTo);
   const [isPending, startTransition] = useTransition();
+  const effectiveSalonId = resolveClientReportSalonId(
+    searchParams.get("salon_id"),
+    salonId,
+  );
 
   useEffect(() => {
     setFrom(dateFrom);
@@ -21,11 +26,14 @@ export default function ReportSalesPeriodSelector({ salonId, dateFrom, dateTo }:
     event.preventDefault();
     if (!from || !to || from > to) return;
     const params = new URLSearchParams(searchParams.toString());
-    params.set("salon_id", String(salonId));
+    if (effectiveSalonId > 0) params.set("salon_id", String(effectiveSalonId));
     params.set("tab", "vendite");
     params.set("date_from", from);
     params.set("date_to", to);
-    startTransition(() => router.push(`/dashboard/report?${params.toString()}`));
+    startTransition(() => {
+      router.push(`/dashboard/report?${params.toString()}`);
+      router.refresh();
+    });
   }
 
   return (

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { filenameFromContentDisposition } from "@/lib/reports/exportDownload";
 import { reportExportPeriodError } from "@/lib/reports/reportDateRange";
+import { resolveClientReportSalonId } from "@/lib/reports/reportSalonQuerySync";
 
 type StaffOption = { id: number; name: string };
 
@@ -38,40 +40,36 @@ export default function ReportFilters({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const { activeSalonId, allowedSalons } = useActiveSalon();
+
+  /** Sede effettiva: URL (dopo cambio header) ha priorità sul prop RSC ancora “vecchio”. */
+  const effectiveSalonId = resolveClientReportSalonId(
+    searchParams.get("salon_id") ?? (activeSalonId != null ? String(activeSalonId) : null),
+    salonId,
+  );
+  const effectiveSalonLabel =
+    allowedSalons.find((s) => s.id === effectiveSalonId)?.name?.trim() ||
+    salonLabel?.trim() ||
+    null;
 
   function go(params: URLSearchParams, mode: "push" | "replace" = "push") {
     const url = `/dashboard/report?${params.toString()}`;
     startTransition(() => {
       if (mode === "replace") router.replace(url);
       else router.push(url);
-      router.refresh(); // 🔥 forza server re-render con nuovi searchParams
+      router.refresh();
     });
   }
 
   function updateParam(key: string, value: string | null) {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("salon_id", String(salonId));
+    if (effectiveSalonId > 0) params.set("salon_id", String(effectiveSalonId));
 
     if (!value) params.delete(key);
     else params.set(key, value);
 
     go(params, "push");
   }
-
-  // 🔥 quando cambia il salone globale: scrivi salon_id nuovo, reset staff_id, refresh server
-  useEffect(() => {
-    if (!salonId || salonId <= 0) return;
-
-    const params = new URLSearchParams(searchParams.toString());
-    const currentSalon = params.get("salon_id");
-
-    if (currentSalon !== String(salonId)) {
-      params.set("salon_id", String(salonId));
-      params.delete("staff_id"); // reset filtro staff quando cambi salone
-      go(params, "replace");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salonId]);
 
   function assertExportPeriodAllowed(): boolean {
     if (macroTab === "riepilogo") return true;
@@ -86,7 +84,7 @@ export default function ReportFilters({
   function exportPdf() {
     if (!assertExportPeriodAllowed()) return;
     const params = new URLSearchParams(searchParams.toString());
-    params.set("salon_id", String(salonId));
+    if (effectiveSalonId > 0) params.set("salon_id", String(effectiveSalonId));
     if (macroTab === "riepilogo") {
       params.set("tab", "direzione");
     } else if (!exportTab) {
@@ -105,7 +103,7 @@ export default function ReportFilters({
       return;
     }
     const params = new URLSearchParams(searchParams.toString());
-    params.set("salon_id", String(salonId));
+    if (effectiveSalonId > 0) params.set("salon_id", String(effectiveSalonId));
     params.set("tab", exportTab);
     void downloadExport("csv", `/api/reports/export/csv?${params.toString()}`);
   }
@@ -148,11 +146,11 @@ export default function ReportFilters({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="min-w-0">
           <div className="text-lg font-semibold text-[#f3d8b6]">Report</div>
-          {salonId > 0 ? (
+          {effectiveSalonId > 0 ? (
             <p className="mt-0.5 text-xs text-white/50 truncate">
               Sede:{" "}
               <span className="font-medium text-white/75">
-                {salonLabel?.trim() || `ID ${salonId}`}
+                {effectiveSalonLabel || `ID ${effectiveSalonId}`}
               </span>
             </p>
           ) : (
