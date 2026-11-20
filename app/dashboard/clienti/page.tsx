@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabaseServer";
-import { getUserAccess, type RoleName } from "@/lib/getUserAccess";
+import { type RoleName } from "@/lib/getUserAccess";
+import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
 import { canAccessClientiWeb } from "@/lib/clientiWebAccess";
 import { fetchCustomersBrowse } from "@/lib/customers/clientiListQuery";
 import ClientiView from "./ClientiView";
@@ -25,13 +26,7 @@ export default async function ClientiPage() {
 
   try {
     const supabase = await createServerSupabase();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) redirect("/login");
-
-    const access = await getUserAccess();
+    const access = await requireDashboardAccess();
     role = access.role;
     defaultSalonId = access.defaultSalonId;
     staffSalonId = access.staffSalonId;

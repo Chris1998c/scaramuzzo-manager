@@ -6,9 +6,10 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { nextReportSalonQueryId } from "@/lib/reports/reportSalonQuerySync";
 
 /**
- * Header ActiveSalon → ?salon_id + refresh RSC.
+ * Header ActiveSalon → ?salon_id (soft navigation RSC via searchParams).
  * Conserva date/tab/subtab; reset solo staff_id (filtro sede-specifico).
  * Non deve essere contrastato da ReportFilters (niente sync inverso prop→URL).
+ * Nessun router.refresh() extra: replace con nuova query già rifetcha la page.
  */
 export default function ReportSalonSync() {
   const router = useRouter();
@@ -26,7 +27,6 @@ export default function ReportSalonSync() {
     params.set("salon_id", next);
     params.delete("staff_id");
     router.replace(`/dashboard/report?${params.toString()}`, { scroll: false });
-    router.refresh();
   }, [isReady, canChooseSalon, activeSalonId, router, searchParams]);
 
   return null;

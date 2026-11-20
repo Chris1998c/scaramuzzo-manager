@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Suspense, type ComponentType } from "react";
 import {
   CalendarDays,
@@ -13,7 +12,7 @@ import {
 } from "lucide-react";
 
 import { createServerSupabase } from "@/lib/supabaseServer";
-import { getUserAccess } from "@/lib/getUserAccess";
+import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
 import {
   SALES_LEDGER_OPERATION_TYPE,
   SALES_LEDGER_STATUS,
@@ -118,13 +117,7 @@ export default async function DashboardPage({
   searchParams?: Promise<DashboardSearchParams>;
 }) {
   const supabase = await createServerSupabase();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const access = await getUserAccess();
+  const access = await requireDashboardAccess();
   const sp = (await searchParams) ?? {};
   const rawSalon = sp.salon_id;
   const querySalon =
@@ -181,81 +174,106 @@ export default async function DashboardPage({
   const { getOperationalBaselineTs } = await import("@/lib/ops/operationalBaseline");
   const baselineTs = await getOperationalBaselineTs();
 
-  const incassoBaseQuery = supabase
-    .from("sales")
-    .select("total_amount")
-    .eq("status", SALES_LEDGER_STATUS)
-    .eq("operation_type", SALES_LEDGER_OPERATION_TYPE);
-
   let totaleIncasso = 0;
   let incassoUnavailable = false;
-  try {
-    let incassoQuery = incassoBaseQuery.gte("date", startOfDayLocal).lt("date", endOfDayLocal);
-    if (baselineTs) incassoQuery = incassoQuery.gte("date", baselineTs);
-    if (activeSalonId) incassoQuery = incassoQuery.eq("salon_id", activeSalonId);
-
-    const { data: incassoData, error: incassoErr } = await incassoQuery;
-    if (incassoErr) throw incassoErr;
-
-    totaleIncasso = (incassoData ?? []).reduce(
-      (acc, curr) => acc + (Number((curr as { total_amount?: unknown })?.total_amount) || 0),
-      0,
-    );
-  } catch (e) {
-    console.error("[dashboard] Incasso Giornaliero query error", e);
-    incassoUnavailable = true;
-  }
-
   let totalApp = 0;
   let completedApp = 0;
   let agendaUnavailable = false;
-  try {
-    let appQuery = supabase
+  let alertStock = 0;
+  let stockUnavailable = false;
+
+  const buildIncassoQuery = () => {
+    let q = supabase
+      .from("sales")
+      .select("total_amount")
+      .eq("status", SALES_LEDGER_STATUS)
+      .eq("operation_type", SALES_LEDGER_OPERATION_TYPE)
+      .gte("date", startOfDayLocal)
+      .lt("date", endOfDayLocal);
+    if (baselineTs) q = q.gte("date", baselineTs);
+    if (activeSalonId) q = q.eq("salon_id", activeSalonId);
+    return q;
+  };
+
+  const buildAppCountQuery = (status?: string) => {
+    let q = supabase
       .from("appointments")
       .select("*", { count: "exact", head: true })
       .gte("start_time", startOfDayLocal)
       .lt("start_time", endOfDayLocal);
-    if (baselineTs) appQuery = appQuery.gte("start_time", baselineTs);
+    if (baselineTs) q = q.gte("start_time", baselineTs);
+    if (activeSalonId) q = q.eq("salon_id", activeSalonId);
+    if (status) q = q.eq("status", status);
+    return q;
+  };
 
-    if (activeSalonId) appQuery = appQuery.eq("salon_id", activeSalonId);
+  const [incassoSettled, totalAppSettled, doneAppSettled, stockSettled] = await Promise.all([
+    buildIncassoQuery().then(
+      (r) => ({ ok: true as const, r }),
+      (e) => ({ ok: false as const, e }),
+    ),
+    buildAppCountQuery().then(
+      (r) => ({ ok: true as const, r }),
+      (e) => ({ ok: false as const, e }),
+    ),
+    buildAppCountQuery("done").then(
+      (r) => ({ ok: true as const, r }),
+      (e) => ({ ok: false as const, e }),
+    ),
+    activeSalonId
+      ? Promise.all([
+          supabase.from("products").select("id, low_stock").eq("active", true),
+          supabase.from("product_stock").select("product_id, quantity").eq("salon_id", activeSalonId),
+        ]).then(
+          (r) => ({ ok: true as const, r }),
+          (e) => ({ ok: false as const, e }),
+        )
+      : Promise.resolve({ ok: true as const, r: null }),
+  ]);
 
-    const { count: totalCount, error: totalErr } = await appQuery;
-    if (totalErr) throw totalErr;
-    totalApp = totalCount ?? 0;
+  if (incassoSettled.ok) {
+    const { data: incassoData, error: incassoErr } = incassoSettled.r;
+    if (incassoErr) {
+      console.error("[dashboard] Incasso Giornaliero query error", incassoErr);
+      incassoUnavailable = true;
+    } else {
+      totaleIncasso = (incassoData ?? []).reduce(
+        (acc, curr) => acc + (Number((curr as { total_amount?: unknown })?.total_amount) || 0),
+        0,
+      );
+    }
+  } else {
+    console.error("[dashboard] Incasso Giornaliero query error", incassoSettled.e);
+    incassoUnavailable = true;
+  }
 
-    let compQuery = supabase
-      .from("appointments")
-      .select("*", { count: "exact", head: true })
-      .gte("start_time", startOfDayLocal)
-      .lt("start_time", endOfDayLocal)
-      .eq("status", "done");
-    if (baselineTs) compQuery = compQuery.gte("start_time", baselineTs);
-
-    if (activeSalonId) compQuery = compQuery.eq("salon_id", activeSalonId);
-
-    const { count: doneCount, error: doneErr } = await compQuery;
-    if (doneErr) throw doneErr;
-    completedApp = doneCount ?? 0;
-  } catch (e) {
-    console.error("[dashboard] Stato Agenda query error", e);
+  if (totalAppSettled.ok && doneAppSettled.ok) {
+    const { count: totalCount, error: totalErr } = totalAppSettled.r;
+    const { count: doneCount, error: doneErr } = doneAppSettled.r;
+    if (totalErr || doneErr) {
+      console.error("[dashboard] Stato Agenda query error", totalErr ?? doneErr);
+      agendaUnavailable = true;
+    } else {
+      totalApp = totalCount ?? 0;
+      completedApp = doneCount ?? 0;
+    }
+  } else {
+    console.error(
+      "[dashboard] Stato Agenda query error",
+      totalAppSettled.ok ? doneAppSettled : totalAppSettled,
+    );
     agendaUnavailable = true;
   }
 
-  let alertStock = 0;
-  let stockUnavailable = false;
-  try {
-    if (!activeSalonId) {
-      alertStock = 0;
+  if (!activeSalonId) {
+    alertStock = 0;
+  } else if (stockSettled.ok && stockSettled.r) {
+    const [{ data: productMeta, error: productErr }, { data: stockRows, error: stockErr }] =
+      stockSettled.r;
+    if (productErr || stockErr) {
+      console.error("[dashboard] Alert Stock query error", productErr ?? stockErr);
+      stockUnavailable = true;
     } else {
-      const [{ data: productMeta, error: productErr }, { data: stockRows, error: stockErr }] =
-        await Promise.all([
-          supabase.from("products").select("id, low_stock").eq("active", true),
-          supabase.from("product_stock").select("product_id, quantity").eq("salon_id", activeSalonId),
-        ]);
-
-      if (productErr) throw productErr;
-      if (stockErr) throw stockErr;
-
       const minByProductId = new Map<number, number>();
       for (const row of productMeta ?? []) {
         const id = Number((row as { id?: unknown }).id);
@@ -263,7 +281,6 @@ export default async function DashboardPage({
         const min = Number((row as { low_stock?: unknown }).low_stock);
         minByProductId.set(id, Number.isFinite(min) ? Math.max(0, min) : 2);
       }
-
       let lowCount = 0;
       for (const row of stockRows ?? []) {
         const productId = Number((row as { product_id?: unknown }).product_id);
@@ -274,8 +291,8 @@ export default async function DashboardPage({
       }
       alertStock = lowCount;
     }
-  } catch (e) {
-    console.error("[dashboard] Alert Stock query error", e);
+  } else if (!stockSettled.ok) {
+    console.error("[dashboard] Alert Stock query error", stockSettled.e);
     stockUnavailable = true;
   }
 

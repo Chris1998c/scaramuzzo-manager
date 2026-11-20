@@ -3,7 +3,7 @@
 import { Suspense, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabaseServer";
-import { getUserAccess } from "@/lib/getUserAccess";
+import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import {
   CASSA_AUDIT_SUBTAB_KEYS,
@@ -155,9 +155,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
  const sp = (await searchParams) ?? {};
 
  const supabase = await createServerSupabase();
- const { data: authData } = await supabase.auth.getUser();
- if (!authData?.user) redirect("/login");
- const access = await getUserAccess();
+ const access = await requireDashboardAccess();
  if (access.role !== "coordinator") redirect("/dashboard");
 
  const dateRange = resolveReportDateRange({

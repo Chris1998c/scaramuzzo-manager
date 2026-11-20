@@ -213,10 +213,16 @@ export default function Sidebar() {
  const active = isActivePath(pathname, item.href);
  const Icon = item.icon;
 
+ const heavyPrefetch =
+ item.href === "/dashboard/report" ||
+ item.href === "/dashboard/impostazioni" ||
+ item.href === "/dashboard/fiscale";
+
  return (
  <Link
  key={item.name}
  href={item.href}
+ prefetch={heavyPrefetch ? false : undefined}
  onClick={handleNavClick}
  className={[
  "group relative flex items-center justify-between gap-3 px-2.5 py-2 rounded-xl transition-premium",

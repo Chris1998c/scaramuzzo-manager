@@ -158,7 +158,7 @@ export default function ImpostazioniShell({
   const { activeSalonId, isReady, allowedSalons, canChooseSalon } = useActiveSalon();
   const [section, setSection] = useState<SectionKey>("servizi");
 
-  // Coordinator/magazzino: allinea ?salon_id= al salone header così il server carica listino/fiscale coerenti al refresh.
+  // Coordinator/magazzino: allinea ?salon_id= al salone header (replace rifetcha RSC; niente refresh doppio).
   useEffect(() => {
     if (!isReady || !canChooseSalon || activeSalonId == null) return;
     if (typeof window === "undefined") return;
@@ -166,7 +166,6 @@ export default function ImpostazioniShell({
     if (p.get("salon_id") === String(activeSalonId)) return;
     p.set("salon_id", String(activeSalonId));
     router.replace(`/dashboard/impostazioni?${p.toString()}`);
-    router.refresh();
   }, [isReady, canChooseSalon, activeSalonId, router]);
 
   const [serviceRows, setServiceRows] = useState<ServiceSettingsRow[]>(initialServices);

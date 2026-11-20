@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import {
   createSupabaseClientForRequest,
   parseAuthorizationBearer,
@@ -22,14 +23,16 @@ function roleIdToName(roleId: number | null | undefined): RoleName {
   }
 }
 
-export async function getUserAccess(req?: Request): Promise<{
+type UserAccess = {
   role: RoleName;
   allowedSalonIds: number[];
   allowedSalons: { id: number; name: string }[];
   defaultSalonId: number | null;
   staffId: number | null;
   staffSalonId: number | null;
-}> {
+};
+
+async function loadUserAccess(req?: Request): Promise<UserAccess> {
   const supabase = req
     ? await createSupabaseClientForRequest(req)
     : await createServerSupabase();
@@ -56,13 +59,13 @@ export async function getUserAccess(req?: Request): Promise<{
   let u = u0;
 
   if (!u) {
-    const payload: any = { id: userId, role_id: 4 };
+    const payload: Record<string, unknown> = { id: userId, role_id: 4 };
 
     if (auth.user.email) payload.email = auth.user.email;
     if (auth.user.phone) payload.phone = auth.user.phone;
 
     payload.full_name =
-      (auth.user.user_metadata as any)?.full_name ??
+      (auth.user.user_metadata as { full_name?: string } | undefined)?.full_name ??
       auth.user.email ??
       "User";
 
@@ -78,94 +81,73 @@ export async function getUserAccess(req?: Request): Promise<{
 
   const role = roleIdToName(u.role_id);
 
-  // 2.5) staff context (collaboratori / stylist in public.staff)
-  // - reception: salone da user_salons (role_id=2), tipicamente assente da staff — non richiedere staff
-  // - coordinator/magazzino: opzionale (può non essere in staff)
-  // - cliente: opzionale
-  const { data: staff, error: staffErr } = await supabase
-    .from("staff")
-    .select("id, salon_id")
-    .eq("user_id", userId)
-    .maybeSingle();
+  // 3) staff + user_salons in parallelo (indipendenti dopo userId)
+  const [staffRes, usRes] = await Promise.all([
+    supabase.from("staff").select("id, salon_id").eq("user_id", userId).maybeSingle(),
+    supabase.from("user_salons").select("salon_id").eq("user_id", userId),
+  ]);
 
-  if (staffErr) {
-    // se RLS blocca o altro errore reale: logga ma non crashare a prescindere
-    console.error("staff lookup error", { userId, staffErr });
+  if (staffRes.error) {
+    console.error("staff lookup error", { userId, staffErr: staffRes.error });
   }
+  if (usRes.error) throw usRes.error;
 
-  // 3) user_salons assegnati
-  const { data: us, error: usErr } = await supabase
-    .from("user_salons")
-    .select("salon_id")
-    .eq("user_id", userId);
-
-  if (usErr) throw usErr;
-
-  const assignedSalonIds = (us ?? [])
+  const staff = staffRes.data;
+  const assignedSalonIds = (usRes.data ?? [])
     .map((x) => x.salon_id)
     .filter((x): x is number => typeof x === "number");
 
-  // 4) allowed salons + nomi
+  // 4) allowed salons + staff_salons in parallelo quando possibile
+  const salonsPromise =
+    role === "coordinator"
+      ? supabase.from("salons").select("id, name").order("id", { ascending: true })
+      : assignedSalonIds.length
+        ? supabase
+            .from("salons")
+            .select("id, name")
+            .in("id", assignedSalonIds)
+            .order("id", { ascending: true })
+        : Promise.resolve({ data: [] as { id: number; name: string }[], error: null });
+
+  const staffSalonPromise = staff?.id
+    ? supabase
+        .from("staff_salons")
+        .select("salon_id")
+        .eq("staff_id", staff.id)
+        .order("salon_id", { ascending: true })
+        .limit(1)
+    : Promise.resolve({ data: null as { salon_id: number }[] | null, error: null });
+
+  const [salonsRes, staffSalonRes] = await Promise.all([salonsPromise, staffSalonPromise]);
+
+  if (salonsRes.error) throw salonsRes.error;
+
+  const all = (salonsRes.data ?? []).map((s) => ({ id: s.id, name: s.name }));
   let allowedSalons: { id: number; name: string }[] = [];
 
   if (role === "coordinator") {
-    const { data: salons, error: sErr } = await supabase
-      .from("salons")
-      .select("id, name")
-      .order("id", { ascending: true });
-
-    if (sErr) throw sErr;
-
-    const all = (salons ?? []).map((s) => ({ id: s.id, name: s.name }));
-
-    // tieni centrale prima se esiste, poi reali
-    const centrale = all.filter((s) =>
-      String(s.name).toLowerCase().includes("magazzino")
-    );
-    const reali = all.filter(
-      (s) => !String(s.name).toLowerCase().includes("magazzino")
-    );
-
+    const centrale = all.filter((s) => String(s.name).toLowerCase().includes("magazzino"));
+    const reali = all.filter((s) => !String(s.name).toLowerCase().includes("magazzino"));
     allowedSalons = [...centrale, ...reali];
   } else {
-    // reception/magazzino/cliente: SOLO assegnati
-    if (assignedSalonIds.length) {
-      const { data: salons, error: sErr } = await supabase
-        .from("salons")
-        .select("id, name")
-        .in("id", assignedSalonIds)
-        .order("id", { ascending: true });
-
-      if (sErr) throw sErr;
-
-      allowedSalons = (salons ?? []).map((s) => ({ id: s.id, name: s.name }));
-    }
+    allowedSalons = all;
   }
 
   const allowedSalonIds = allowedSalons.map((s) => s.id);
   const defaultSalonId = allowedSalonIds.length ? allowedSalonIds[0] : null;
 
-  // ✅ fallback: se non hai staff ma hai saloni assegnati, usa quello come “staffSalonId”
   const staffId = staff?.id ?? null;
 
   let staffSalonId: number | null = null;
-  if (staff?.id) {
-    const { data: staffSalonLinks, error: sslErr } = await supabase
-      .from("staff_salons")
-      .select("salon_id")
-      .eq("staff_id", staff.id)
-      .order("salon_id", { ascending: true })
-      .limit(1);
-
-    if (!sslErr && staffSalonLinks?.[0]) {
-      const sid = Number(staffSalonLinks[0].salon_id);
-      if (Number.isFinite(sid) && sid > 0) staffSalonId = sid;
-    }
+  if (!staffSalonRes.error && staffSalonRes.data?.[0]) {
+    const sid = Number(staffSalonRes.data[0].salon_id);
+    if (Number.isFinite(sid) && sid > 0) staffSalonId = sid;
   }
 
   if (staffSalonId === null) {
     const legacy = staff?.salon_id != null ? Number(staff.salon_id) : NaN;
-    staffSalonId = Number.isFinite(legacy) && legacy > 0 ? legacy : (defaultSalonId ?? null);
+    staffSalonId =
+      Number.isFinite(legacy) && legacy > 0 ? legacy : (defaultSalonId ?? null);
   }
 
   return {
@@ -176,4 +158,17 @@ export async function getUserAccess(req?: Request): Promise<{
     staffId,
     staffSalonId,
   };
+}
+
+/** Dedup per richiesta RSC (layout + page + nested layout). */
+const getUserAccessCached = cache(() => loadUserAccess());
+
+/**
+ * Accesso utente + sedi consentite.
+ * Senza `req`: dedupe React.cache nella stessa render request.
+ * Con `req` (API Bearer/cookie): nessuna cache cross-request.
+ */
+export async function getUserAccess(req?: Request): Promise<UserAccess> {
+  if (req) return loadUserAccess(req);
+  return getUserAccessCached();
 }

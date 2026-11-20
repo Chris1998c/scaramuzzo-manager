@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 
-/** Allinea header ActiveSalon → ?salon_id e forza refresh RSC (come Report). */
+/** Allinea header ActiveSalon → ?salon_id (soft nav RSC; senza refresh doppio). */
 export default function PresenzeSalonSync({ canChooseSalon }: { canChooseSalon: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -23,7 +23,6 @@ export default function PresenzeSalonSync({ canChooseSalon }: { canChooseSalon: 
       params.set("salon_id", String(activeSalonId));
       params.delete("staff_id");
       router.replace(`/dashboard/presenze?${params.toString()}`);
-      router.refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, activeSalonId, canChooseSalon]);

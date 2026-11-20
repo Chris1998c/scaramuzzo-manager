@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabaseServer";
-import { getUserAccess } from "@/lib/getUserAccess";
+import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
 import { canAccessClientiWeb } from "@/lib/clientiWebAccess";
 import { ArrowLeft } from "lucide-react";
 import ClienteProfile from "./cliente-profile";
@@ -33,13 +33,7 @@ export default async function ClientePage({
   const { id } = await params;
   const sp = (await searchParams) ?? {};
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const access = await getUserAccess();
+  const access = await requireDashboardAccess();
   if (!canAccessClientiWeb(access.role)) {
     redirect("/dashboard");
   }

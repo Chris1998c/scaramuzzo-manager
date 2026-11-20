@@ -32,7 +32,6 @@ export default function ReportSalesPeriodSelector({ salonId, dateFrom, dateTo }:
     params.set("date_to", to);
     startTransition(() => {
       router.push(`/dashboard/report?${params.toString()}`);
-      router.refresh();
     });
   }
 

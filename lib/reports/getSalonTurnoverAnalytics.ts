@@ -26,11 +26,27 @@ function n(v: any) {
 }
 
 export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
-  const { totals, rows } = await getSalonTurnover(filters);
   const unfiltered = !filters.staffId && !filters.paymentMethod && !filters.itemType;
-  const legacy = unfiltered
-    ? await fetchLegacyTurnoverDays(filters.salonId, filters.dateFrom, filters.dateTo)
-    : [];
+  const { prevFrom, prevTo } = shiftPeriod(filters.dateFrom, filters.dateTo);
+
+  // Periodo corrente + precedente + legacy in parallelo (prima erano in serie).
+  const [current, previous, legacy, previousLegacy] = await Promise.all([
+    getSalonTurnover(filters),
+    getSalonTurnover({
+      ...filters,
+      dateFrom: prevFrom,
+      dateTo: prevTo,
+    }),
+    unfiltered
+      ? fetchLegacyTurnoverDays(filters.salonId, filters.dateFrom, filters.dateTo)
+      : Promise.resolve([]),
+    unfiltered
+      ? fetchLegacyTurnoverDays(filters.salonId, prevFrom, prevTo)
+      : Promise.resolve([]),
+  ]);
+
+  const { totals, rows } = current;
+  const { totals: previousTotals, rows: previousRows } = previous;
   const combined = combineLegacyTurnover(rows, legacy);
 
   // =========================
@@ -167,26 +183,9 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
     }));
 
   // =========================
-  // STAFF PERFORMANCE (enterprise KPI)
+  // STAFF + CONFRONTO PERIODO PRECEDENTE
   // =========================
 
-  const customerBySale = await fetchCustomerIdsForRows(rows);
-  const staffPerformance = buildStaffKpiFromRows(rows, customerBySale);
-
-  // =========================
-  // CONFRONTO PERIODO PRECEDENTE
-  // =========================
-
-  const { prevFrom, prevTo } = shiftPeriod(filters.dateFrom, filters.dateTo);
-
-  const { totals: previousTotals, rows: previousRows } = await getSalonTurnover({
-    ...filters,
-    dateFrom: prevFrom,
-    dateTo: prevTo,
-  });
-  const previousLegacy = unfiltered
-    ? await fetchLegacyTurnoverDays(filters.salonId, prevFrom, prevTo)
-    : [];
   const previousCombined = combineLegacyTurnover(previousRows, previousLegacy);
   const combinedPreviousTotals = previousLegacy.length
     ? {
@@ -197,8 +196,15 @@ export async function getSalonTurnoverAnalytics(filters: TurnoverFilters) {
       }
     : previousTotals;
 
-  const previousCustomerBySale = await fetchCustomerIdsForRows(previousRows);
-  const previousStaffPerformance = buildStaffKpiFromRows(previousRows, previousCustomerBySale);
+  const [customerBySale, previousCustomerBySale] = await Promise.all([
+    fetchCustomerIdsForRows(rows),
+    fetchCustomerIdsForRows(previousRows),
+  ]);
+  const staffPerformance = buildStaffKpiFromRows(rows, customerBySale);
+  const previousStaffPerformance = buildStaffKpiFromRows(
+    previousRows,
+    previousCustomerBySale,
+  );
 
   const customerBySaleId: Record<string, string> = {};
   for (const [saleId, cid] of customerBySale.entries()) {

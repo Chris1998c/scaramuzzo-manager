@@ -57,7 +57,6 @@ export default function ReportFilters({
     startTransition(() => {
       if (mode === "replace") router.replace(url);
       else router.push(url);
-      router.refresh();
     });
   }
 

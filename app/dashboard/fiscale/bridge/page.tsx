@@ -12,7 +12,7 @@ import {
 import { canPickSalonFilterOnFiscalJobs } from "@/lib/fiscalJobsWebAccess";
 import { canActOnFiscalJobsWeb } from "@/lib/fiscalJobsWebAccessShared";
 import { createServerSupabase } from "@/lib/supabaseServer";
-import { getUserAccess } from "@/lib/getUserAccess";
+import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -23,10 +23,7 @@ type PageProps = {
 export default async function BridgeMonitorPage({ searchParams }: PageProps) {
   const sp = (await searchParams) ?? {};
   const supabase = await createServerSupabase();
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData?.user) redirect("/login");
-
-  const access = await getUserAccess();
+  const access = await requireDashboardAccess();
   if (!canViewBridgeDashboard(access.role)) redirect("/dashboard");
 
   const rawSalon = sp.salon_id;

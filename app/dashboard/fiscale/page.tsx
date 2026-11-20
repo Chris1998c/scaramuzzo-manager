@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Radio } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabaseServer";
-import { getUserAccess } from "@/lib/getUserAccess";
+import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
 import {
   canAccessFiscalJobsWeb,
   canPickSalonFilterOnFiscalJobs,
@@ -47,10 +47,7 @@ export default async function FiscalePage({ searchParams }: PageProps) {
   const sp = (await searchParams) ?? {};
 
   const supabase = await createServerSupabase();
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData?.user) redirect("/login");
-
-  const access = await getUserAccess();
+  const access = await requireDashboardAccess();
   if (!canAccessFiscalJobsWeb(access.role)) redirect("/dashboard");
 
   const rawSalon = sp.salon_id;

@@ -37,7 +37,6 @@ export default function PresenzeFilters({
   function go(params: URLSearchParams) {
     startTransition(() => {
       router.push(`/dashboard/presenze?${params.toString()}`);
-      router.refresh();
     });
   }
 

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
 
 import { createServerSupabase } from "@/lib/supabaseServer";
-import { getUserAccess } from "@/lib/getUserAccess";
+import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
 import { fetchServicesForSettings } from "@/lib/servicesCatalog";
 import { fetchProductsForSettings } from "@/lib/productsSettings";
 import { fetchStaffForSettings } from "@/lib/staffSettingsServer";
@@ -25,10 +25,7 @@ export default async function ImpostazioniPage({
   searchParams?: Promise<ImpostazioniSearchParams>;
 }) {
   const supabase = await createServerSupabase();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth?.user) redirect("/login");
-
-  const access = await getUserAccess();
+  const access = await requireDashboardAccess();
   // Coerenza accessi enterprise: il ruolo "cliente" non deve vedere il centro di controllo.
   if (access.role === "cliente") redirect("/dashboard");
 
@@ -56,83 +53,17 @@ export default async function ImpostazioniPage({
   const salonMeta =
     dataSalonId != null ? access.allowedSalons.find((s) => s.id === dataSalonId) : null;
 
-  let services: Awaited<ReturnType<typeof fetchServicesForSettings>> = [];
-  let servicesUnavailable = false;
-  try {
-    services = await fetchServicesForSettings(supabase, dataSalonId ?? 0);
-  } catch (e) {
-    console.error("Impostazioni: caricamento servizi", e);
-    services = [];
-    servicesUnavailable = true;
-  }
-
-  const { data: catRows } = await supabase
-    .from("service_categories")
-    .select("id, name")
-    .order("name");
-
-  const categories = (catRows ?? []).map((c: { id: number; name: string }) => ({
-    id: Number(c.id),
-    name: String(c.name ?? ""),
-  }));
-
   const canManageServices = access.role === "coordinator";
   const canManageProducts = access.role === "coordinator";
   const canManageStaff = access.role === "coordinator";
   const canManageOperationalCalendar = access.role === "coordinator";
-
-  let products: Awaited<ReturnType<typeof fetchProductsForSettings>> = [];
-  let productsUnavailable = false;
-  try {
-    products = await fetchProductsForSettings(supabase);
-  } catch (e) {
-    console.error("Impostazioni: caricamento prodotti", e);
-    products = [];
-    productsUnavailable = true;
-  }
-
-  let staff: Awaited<ReturnType<typeof fetchStaffForSettings>> = [];
-  let staffUnavailable = false;
-  try {
-    staff = await fetchStaffForSettings(supabase);
-  } catch (e) {
-    console.error("Impostazioni: caricamento staff", e);
-    staff = [];
-    staffUnavailable = true;
-  }
-
-  let salons: Awaited<ReturnType<typeof fetchSalonsForSettings>> = [];
-  let salonsUnavailable = false;
-  try {
-    salons = await fetchSalonsForSettings(supabase);
-  } catch (e) {
-    console.error("Impostazioni: caricamento saloni", e);
-    salons = [];
-    salonsUnavailable = true;
-  }
-
-  let fiscalSnapshot: Awaited<ReturnType<typeof fetchFiscalSettingsSnapshot>> = null;
-  let fiscalUnavailable = false;
-  try {
-    fiscalSnapshot = await fetchFiscalSettingsSnapshot(supabase, dataSalonId);
-  } catch (e) {
-    console.error("Impostazioni: snapshot fiscale", e);
-    fiscalSnapshot = null;
-    fiscalUnavailable = true;
-  }
-
   const canUseSessionPrinter = ["reception", "coordinator", "magazzino"].includes(
     access.role,
   );
 
-  let customersDomainSnapshot: CustomersDomainSnapshot;
-  let customersDomainUnavailable = false;
-  try {
-    customersDomainSnapshot = await fetchCustomersDomainSnapshot(supabase);
-  } catch (e) {
-    console.error("Impostazioni: dominio clienti", e);
+  const emptyCustomersSnapshot = (): CustomersDomainSnapshot => {
     const t = new Date().toISOString();
-    customersDomainSnapshot = {
+    return {
       fetchedAt: t,
       counts: {
         customers: null,
@@ -144,8 +75,85 @@ export default async function ImpostazioniPage({
         customer_service_cards: null,
       },
     };
-    customersDomainUnavailable = true;
-  }
+  };
+
+  const [
+    servicesSettled,
+    categoriesSettled,
+    productsSettled,
+    staffSettled,
+    salonsSettled,
+    fiscalSettled,
+    customersSettled,
+  ] = await Promise.all([
+    fetchServicesForSettings(supabase, dataSalonId ?? 0)
+      .then((data) => ({ ok: true as const, data }))
+      .catch((e) => {
+        console.error("Impostazioni: caricamento servizi", e);
+        return { ok: false as const, data: [] as Awaited<ReturnType<typeof fetchServicesForSettings>> };
+      }),
+    Promise.resolve(
+      supabase.from("service_categories").select("id, name").order("name"),
+    )
+      .then(({ data: catRows }) =>
+        (catRows ?? []).map((c: { id: number; name: string }) => ({
+          id: Number(c.id),
+          name: String(c.name ?? ""),
+        })),
+      )
+      .then((data) => ({ ok: true as const, data }))
+      .catch((e: unknown) => {
+        console.error("Impostazioni: categorie servizi", e);
+        return { ok: false as const, data: [] as { id: number; name: string }[] };
+      }),
+    fetchProductsForSettings(supabase)
+      .then((data) => ({ ok: true as const, data }))
+      .catch((e) => {
+        console.error("Impostazioni: caricamento prodotti", e);
+        return { ok: false as const, data: [] as Awaited<ReturnType<typeof fetchProductsForSettings>> };
+      }),
+    fetchStaffForSettings(supabase)
+      .then((data) => ({ ok: true as const, data }))
+      .catch((e) => {
+        console.error("Impostazioni: caricamento staff", e);
+        return { ok: false as const, data: [] as Awaited<ReturnType<typeof fetchStaffForSettings>> };
+      }),
+    fetchSalonsForSettings(supabase)
+      .then((data) => ({ ok: true as const, data }))
+      .catch((e) => {
+        console.error("Impostazioni: caricamento saloni", e);
+        return { ok: false as const, data: [] as Awaited<ReturnType<typeof fetchSalonsForSettings>> };
+      }),
+    fetchFiscalSettingsSnapshot(supabase, dataSalonId)
+      .then((data) => ({ ok: true as const, data }))
+      .catch((e) => {
+        console.error("Impostazioni: snapshot fiscale", e);
+        return {
+          ok: false as const,
+          data: null as Awaited<ReturnType<typeof fetchFiscalSettingsSnapshot>>,
+        };
+      }),
+    fetchCustomersDomainSnapshot(supabase)
+      .then((data) => ({ ok: true as const, data }))
+      .catch((e) => {
+        console.error("Impostazioni: dominio clienti", e);
+        return { ok: false as const, data: emptyCustomersSnapshot() };
+      }),
+  ]);
+
+  const services = servicesSettled.data;
+  const servicesUnavailable = !servicesSettled.ok;
+  const categories = categoriesSettled.data;
+  const products = productsSettled.data;
+  const productsUnavailable = !productsSettled.ok;
+  const staff = staffSettled.data;
+  const staffUnavailable = !staffSettled.ok;
+  const salons = salonsSettled.data;
+  const salonsUnavailable = !salonsSettled.ok;
+  const fiscalSnapshot = fiscalSettled.data;
+  const fiscalUnavailable = !fiscalSettled.ok;
+  const customersDomainSnapshot = customersSettled.data;
+  const customersDomainUnavailable = !customersSettled.ok;
   const hasUnavailableData =
     servicesUnavailable ||
     productsUnavailable ||

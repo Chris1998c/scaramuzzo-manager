@@ -58,7 +58,6 @@ export default function FiscalJobsFilters({
     }
     startTransition(() => {
       router.push(`/dashboard/fiscale?${params.toString()}`);
-      router.refresh();
     });
   }
 
