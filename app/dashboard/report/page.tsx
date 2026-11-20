@@ -153,9 +153,15 @@ type ReportPageProps = {
 
 export default async function ReportPage({ searchParams }: ReportPageProps) {
  const sp = (await searchParams) ?? {};
+ const showPerf =
+ typeof sp.perf === "string"
+ ? sp.perf === "1" || sp.perf === "true"
+ : Array.isArray(sp.perf) && (sp.perf[0] === "1" || sp.perf[0] === "true");
 
+ const tPage0 = performance.now();
  const supabase = await createServerSupabase();
  const access = await requireDashboardAccess();
+ const authMs = Math.round(performance.now() - tPage0);
  if (access.role !== "coordinator") redirect("/dashboard");
 
  const dateRange = resolveReportDateRange({
@@ -223,16 +229,6 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
  ? access.allowedSalons.find((s) => s.id === salonId)?.name ?? null
  : null;
 
- const staffRows = salonId ? await fetchActiveStaffForSalon(supabaseAdmin, salonId, "id, name") : [];
-
- const staffOptions =
- (staffRows ?? [])
- .filter((s: any) => s?.id != null)
- .map((s: any) => ({
- id: Number(s.id),
- name: String(s.name ?? `Staff ${s.id}`),
- }));
-
  const baseParams: Record<string, string> = {
  ...(salonId ? { salon_id: String(salonId) } : {}),
  date_from: dateFrom,
@@ -253,16 +249,7 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
  venditeSubtab === "giorni" ||
  venditeSubtab === "dettaglio")));
 
- const salesAnalytics = needSalesAnalytics
- ? await getSalonTurnoverAnalytics({
- salonId,
- dateFrom,
- dateTo,
- staffId,
- paymentMethod,
- itemType,
- })
- : {
+ const emptySalesAnalytics = {
  totals: {
  receipts_count: 0,
  gross_total: 0,
@@ -280,6 +267,36 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
  previousStaffPerformance: [],
  customerBySaleId: {},
  };
+
+ const directionTimings = { total_ms: 0, today_ready_ms: 0 };
+ const tQueries0 = performance.now();
+
+ const [staffRows, salesAnalytics, directionReportEarly] = await Promise.all([
+ salonId
+ ? fetchActiveStaffForSalon(supabaseAdmin, salonId, "id, name")
+ : Promise.resolve([] as { id: number; name: string }[]),
+ needSalesAnalytics
+ ? getSalonTurnoverAnalytics({
+ salonId,
+ dateFrom,
+ dateTo,
+ staffId,
+ paymentMethod,
+ itemType,
+ })
+ : Promise.resolve(emptySalesAnalytics),
+ salonId && macro === "riepilogo"
+ ? getDirectionReport(salonId, directionTimings)
+ : Promise.resolve(null),
+ ]);
+
+ const staffOptions =
+ (staffRows ?? [])
+ .filter((s: any) => s?.id != null)
+ .map((s: any) => ({
+ id: Number(s.id),
+ name: String(s.name ?? `Staff ${s.id}`),
+ }));
 
  const cashReport =
  salonId && macro === "cassa_audit" && cassaAuditSubtab === "cassa"
@@ -368,8 +385,19 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
  },
  };
 
- const directionReport =
- salonId && macro === "riepilogo" ? await getDirectionReport(salonId) : null;
+ const directionReport = directionReportEarly;
+ const queriesMs = Math.round(performance.now() - tQueries0);
+ const pageTotalMs = Math.round(performance.now() - tPage0);
+ const reportPerf = {
+ auth_ms: authMs,
+ queries_ms: queriesMs,
+ direction_total_ms: directionTimings.total_ms,
+ direction_today_ready_ms: directionTimings.today_ready_ms,
+ page_total_ms: pageTotalMs,
+ salon_id: salonId,
+ macro,
+ };
+ console.info("[report.perf]", JSON.stringify(reportPerf));
 
  const { totals, rows, daily, topItems, staffPerformance, previousTotals, previousStaffPerformance, customerBySaleId } =
  salesAnalytics;
@@ -409,6 +437,12 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
       <Suspense fallback={null}>
         <ReportSalonSync />
       </Suspense>
+
+      {showPerf ? (
+        <pre className="overflow-x-auto rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-xs text-amber-100/90">
+          {`report.perf auth_ms=${reportPerf.auth_ms} queries_ms=${reportPerf.queries_ms} direction_today_ready_ms=${reportPerf.direction_today_ready_ms} direction_total_ms=${reportPerf.direction_total_ms} page_total_ms=${reportPerf.page_total_ms} salon_id=${reportPerf.salon_id} macro=${reportPerf.macro}`}
+        </pre>
+      ) : null}
 
       <ReportFilters
         salonId={salonId}

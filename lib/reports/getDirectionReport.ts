@@ -153,25 +153,41 @@ function buildSnapshot(
 }
 
 
-/** Riepilogo: più snapshot turnover in parallelo; resta fan-out CRM/operativo separato. */
-export async function getDirectionReport(salonId: number): Promise<DirectionReport> {
+export type DirectionReportTimings = {
+  /** ms totali dentro getDirectionReport (solo query, no auth). */
+  total_ms: number;
+  /** ms fino a completamento dello snapshot «oggi» (Incasso reale). */
+  today_ready_ms: number;
+};
+
+/** Riepilogo: CRM/ops + turnover/agenda in un’unica wave (Incasso reale non aspetta il CRM). */
+export async function getDirectionReport(
+  salonId: number,
+  timingsOut?: DirectionReportTimings,
+): Promise<DirectionReport> {
+  const t0 = performance.now();
   const todayIso = todayISO();
   const monthStart = startOfMonthISO();
   const yesterday = yesterdayISO(todayIso);
   const lastWeekSame = sameWeekdayLastWeek(todayIso);
   const weekStart = startOfWeekISO(todayIso);
-
-  const crmBase = await getDirectionCrmActions(salonId);
-  const [colorAbsent, openCashHours, lowStockCount] = await Promise.all([
-    getColorAbsentCustomers(salonId),
-    getOpenCashSessionHours(salonId),
-    getSalonLowStockCount(salonId),
-  ]);
-  const crm = { ...crmBase, colorAbsent };
-
   const { prevFrom, prevTo } = shiftPeriod(monthStart, todayIso);
 
+  let todayReadyMs = 0;
+  const todayTurnoverPromise = getSalonTurnover({
+    salonId,
+    dateFrom: todayIso,
+    dateTo: todayIso,
+  }).then((r) => {
+    todayReadyMs = Math.round(performance.now() - t0);
+    return r;
+  });
+
   const [
+    crmBase,
+    colorAbsent,
+    openCashHours,
+    lowStockCount,
     todayTurnover,
     monthTurnover,
     yesterdayTurnover,
@@ -180,7 +196,11 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
     agendaToday,
     agendaWeek,
   ] = await Promise.all([
-    getSalonTurnover({ salonId, dateFrom: todayIso, dateTo: todayIso }),
+    getDirectionCrmActions(salonId),
+    getColorAbsentCustomers(salonId),
+    getOpenCashSessionHours(salonId),
+    getSalonLowStockCount(salonId),
+    todayTurnoverPromise,
     getSalonTurnover({ salonId, dateFrom: monthStart, dateTo: todayIso }),
     getSalonTurnover({ salonId, dateFrom: yesterday, dateTo: yesterday }),
     getSalonTurnover({ salonId, dateFrom: lastWeekSame, dateTo: lastWeekSame }),
@@ -188,6 +208,8 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
     getAgendaReport({ salonId, dateFrom: todayIso, dateTo: todayIso }),
     getAgendaReport({ salonId, dateFrom: weekStart, dateTo: todayIso }),
   ]);
+
+  const crm = { ...crmBase, colorAbsent };
 
   const [todayCustomers, monthCustomers] = await Promise.all([
     fetchCustomerIdsForRows(todayTurnover.rows),
@@ -235,6 +257,11 @@ export async function getDirectionReport(salonId: number): Promise<DirectionRepo
     lowStockCount,
     colorAbsentCount: colorAbsent.length,
   });
+
+  if (timingsOut) {
+    timingsOut.today_ready_ms = todayReadyMs;
+    timingsOut.total_ms = Math.round(performance.now() - t0);
+  }
 
   return {
     today: todaySnap,

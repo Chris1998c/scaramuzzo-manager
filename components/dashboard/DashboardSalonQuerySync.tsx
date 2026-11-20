@@ -3,10 +3,12 @@
 import { useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
+import { nextDashboardSalonQueryId } from "@/lib/dashboard/dashboardSalonQuerySync";
 
 /**
- * Allinea ?salon_id sulla home con la Vista (provider / localStorage) quando manca o è invalido.
- * Solo coordinator/magazzino; server legge poi lo stesso param per i KPI.
+ * Header ActiveSalon → ?salon_id sulla home (KPI server).
+ * Se l’URL manca o diverge (es. ritorno da Report senza query, o default Magazzino),
+ * riscrive la query; replace con nuova query rifetcha la RSC.
  */
 export default function DashboardSalonQuerySync() {
   const pathname = usePathname();
@@ -18,17 +20,16 @@ export default function DashboardSalonQuerySync() {
     if (pathname !== "/dashboard") return;
     if (!isReady || !canChooseSalon) return;
 
-    const raw = searchParams.get("salon_id");
-    const q = raw ? Number(raw) : NaN;
-    const queryOk = Number.isFinite(q) && allowedSalonIds.includes(q);
+    const next = nextDashboardSalonQueryId(
+      activeSalonId,
+      searchParams.get("salon_id"),
+      allowedSalonIds,
+    );
+    if (!next) return;
 
-    if (queryOk) return;
-
-    if (activeSalonId != null && allowedSalonIds.includes(activeSalonId)) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("salon_id", String(activeSalonId));
-      router.replace(`/dashboard?${params.toString()}`, { scroll: false });
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("salon_id", next);
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false });
   }, [pathname, isReady, canChooseSalon, allowedSalonIds, activeSalonId, router, searchParams]);
 
   return null;

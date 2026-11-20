@@ -218,10 +218,23 @@ export default function Sidebar() {
  item.href === "/dashboard/impostazioni" ||
  item.href === "/dashboard/fiscale";
 
+ // Porta la sede attiva nell’URL al primo paint (evita KPI Magazzino dopo Report→Dashboard).
+ const hrefWithSalon =
+ canChooseSalon &&
+ isReady &&
+ activeSalonId != null &&
+ (item.href === "/dashboard" ||
+ item.href === "/dashboard/report" ||
+ item.href === "/dashboard/impostazioni" ||
+ item.href === "/dashboard/presenze" ||
+ item.href === "/dashboard/fiscale")
+ ? `${item.href}?salon_id=${activeSalonId}`
+ : item.href;
+
  return (
  <Link
  key={item.name}
- href={item.href}
+ href={hrefWithSalon}
  prefetch={heavyPrefetch ? false : undefined}
  onClick={handleNavClick}
  className={[

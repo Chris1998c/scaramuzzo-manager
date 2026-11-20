@@ -18,7 +18,7 @@ import {
   SALES_LEDGER_STATUS,
 } from "@/lib/reports/ledgerSalesFilter";
 import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
-import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { pickDefaultSalonIdForReport } from "@/lib/reportSalonResolve";
 import DashboardSalonQuerySync from "@/components/dashboard/DashboardSalonQuerySync";
 import { StatCard } from "@/components/dasboard/StatCard";
 
@@ -101,16 +101,6 @@ const SECONDARY_LINKS: Shortcut[] = [
 
 type DashboardSearchParams = Record<string, string | string[] | undefined>;
 
-function pickKpiSalonForChooser(
-  allowedSalonIds: number[],
-  defaultSalonId: number | null | undefined,
-): number | null {
-  if (!allowedSalonIds.length) return null;
-  if (allowedSalonIds.includes(MAGAZZINO_CENTRALE_ID)) return MAGAZZINO_CENTRALE_ID;
-  if (defaultSalonId != null && allowedSalonIds.includes(defaultSalonId)) return defaultSalonId;
-  return allowedSalonIds[0] ?? null;
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -140,7 +130,8 @@ export default async function DashboardPage({
     ) {
       activeSalonId = querySalon;
     } else {
-      activeSalonId = pickKpiSalonForChooser(
+      // Stesso default operativo del Report (mai Magazzino Centrale come KPI home).
+      activeSalonId = pickDefaultSalonIdForReport(
         access.allowedSalonIds,
         access.defaultSalonId ?? null,
       );
