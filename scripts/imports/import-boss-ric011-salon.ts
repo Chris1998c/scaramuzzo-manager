@@ -36,6 +36,12 @@ const PRESETS: Record<
     slug: "corigliano",
     defaultFile: "data/imports/turnover-boss-corigliano/RIC011-Corigliano.pdf",
   },
+  castrovillari: {
+    salonId: 3,
+    salonCode: 3,
+    slug: "castrovillari",
+    defaultFile: "data/imports/turnover-boss-castrovillari/RIC011-Castrovillari.pdf",
+  },
 };
 
 function loadEnvLocal() {
@@ -95,7 +101,9 @@ function resolveConfig() {
   const slug = argValue("--slug") ?? `salon-${salonId}`;
   const file = argValue("--file");
   if (!Number.isFinite(salonId) || salonId <= 0 || !file) {
-    throw new Error("Usa --preset cosenza|corigliano oppure --salon-id N --file path.pdf");
+    throw new Error(
+      "Usa --preset cosenza|corigliano|castrovillari oppure --salon-id N --file path.pdf",
+    );
   }
   return {
     salonId,

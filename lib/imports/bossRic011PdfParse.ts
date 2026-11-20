@@ -1,6 +1,9 @@
 /**
  * Parser BOSS RIC011 (Incassi per linee) da testo pdftotext -layout.
- * Supporta layout 8 colonne (es. Cosenza) e 9 colonne con SERV_PAYBACK (es. Corigliano).
+ * Layout supportati:
+ * - 6 colonne (Castrovillari): VIACARD PROD_SALONE SERV_ALTRO SERV_ESTETICA SERV_SALONE Totale
+ * - 8 colonne (Cosenza): + PROD_ALTRO + SERV_SOLARIUM
+ * - 9 colonne (Corigliano): + SERV_PAYBACK
  * Righe giornaliere dd/mm/yyyy + N importi; ignora subtotali/totale generale.
  * Importi → centesimi esatti (segno preservato).
  */
@@ -36,7 +39,7 @@ export type BossRic011ParseResult = {
   salonCode: number | null;
   periodFrom: string | null;
   periodTo: string | null;
-  columnLayout: 8 | 9;
+  columnLayout: 6 | 8 | 9;
   days: BossRic011DayRow[];
   controlTotalCents: number | null;
   warnings: string[];
@@ -44,7 +47,7 @@ export type BossRic011ParseResult = {
 
 const MONEY = String.raw`(-?\d{1,3}(?:\.\d{3})*,\d{2}|-?\d+,\d{2})`;
 
-function dayLineRegex(amountCount: 8 | 9): RegExp {
+function dayLineRegex(amountCount: 6 | 8 | 9): RegExp {
   const amounts = Array.from({ length: amountCount }, () => MONEY).join(String.raw`\s+`);
   return new RegExp(String.raw`^\s*(\d{2}/\d{2}/\d{4})\s+${amounts}\s*$`, "gm");
 }
@@ -88,12 +91,14 @@ function foldForLegacyTable(row: Omit<BossRic011DayRow, "folded">): BossRic011Da
   };
 }
 
-function detectColumnLayout(text: string): 8 | 9 {
+function detectColumnLayout(text: string): 6 | 8 | 9 {
   if (/SERV_PAYBAC/i.test(text) || /SERV_PAYBACK/i.test(text)) return 9;
-  const nine = [...text.matchAll(dayLineRegex(9))];
-  const eight = [...text.matchAll(dayLineRegex(8))];
-  if (nine.length > eight.length) return 9;
-  return 8;
+  const nine = [...text.matchAll(dayLineRegex(9))].length;
+  const eight = [...text.matchAll(dayLineRegex(8))].length;
+  const six = [...text.matchAll(dayLineRegex(6))].length;
+  if (nine >= eight && nine >= six && nine > 0) return 9;
+  if (eight >= six && eight > 0) return 8;
+  return 6;
 }
 
 /**
@@ -102,7 +107,7 @@ function detectColumnLayout(text: string): 8 | 9 {
  */
 export function parseRic011ControlTotalCents(
   text: string,
-  lineCount: 7 | 8 = 7,
+  lineCount: 5 | 7 | 8 = 7,
 ): number | null {
   const lineMoneys = Array.from({ length: lineCount }, () => MONEY).join(String.raw`\s+`);
   const reFull = new RegExp(
@@ -131,9 +136,26 @@ export function parseRic011ControlTotalCents(
 function parseDayRow(
   dmy: string,
   vals: number[],
-  layout: 8 | 9,
+  layout: 6 | 8 | 9,
 ): Omit<BossRic011DayRow, "folded"> | null {
   const day = dmyToIso(dmy);
+  if (layout === 6) {
+    const [viacard, prodSalone, servAltro, servEstetica, servSalone, total] = vals;
+    const sumComps = viacard! + prodSalone! + servAltro! + servEstetica! + servSalone!;
+    if (sumComps !== total) return null;
+    return {
+      day,
+      viacard_cents: viacard!,
+      prod_altro_cents: 0,
+      prod_salone_cents: prodSalone!,
+      serv_altro_cents: servAltro!,
+      serv_estetica_cents: servEstetica!,
+      serv_payback_cents: 0,
+      serv_salone_cents: servSalone!,
+      serv_solarium_cents: 0,
+      total_cents: total!,
+    };
+  }
   if (layout === 9) {
     const [
       viacard,
@@ -239,7 +261,7 @@ export function parseBossRic011PdfText(text: string): BossRic011ParseResult {
   }
 
   days.sort((a, b) => a.day.localeCompare(b.day));
-  const lineCount = columnLayout === 9 ? 8 : 7;
+  const lineCount = columnLayout === 9 ? 8 : columnLayout === 8 ? 7 : 5;
   const controlTotalCents = parseRic011ControlTotalCents(text, lineCount);
   const extracted = days.reduce((s, d) => s + d.total_cents, 0);
   if (controlTotalCents != null && controlTotalCents !== extracted) {

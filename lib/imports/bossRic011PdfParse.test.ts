@@ -44,6 +44,33 @@ RIC011 - INCASSI PER LINEE
   });
 });
 
+describe("parseBossRic011PdfText layout 6 (Castrovillari)", () => {
+  const sample = `
+Riepilogo Incassi per Linee Castrovillari (3)
+dal 01/01/2022 al 31/10/2026
+RIC011
+  03/01/2022                      0,00          0,00       0,00         26,00      170,00      196,00
+  04/01/2022                      0,00         52,00       0,00         37,00      816,00      905,00
+        Totale                0,00         52,00       0,00         63,00      986,00    1.101,00
+`;
+
+  it("estrae 6 colonne senza inventare linee assenti", () => {
+    const p = parseBossRic011PdfText(sample);
+    expect(p.columnLayout).toBe(6);
+    expect(p.salonCode).toBe(3);
+    expect(p.days).toHaveLength(2);
+    expect(p.days[0]).toMatchObject({
+      day: "2022-01-03",
+      prod_altro_cents: 0,
+      serv_payback_cents: 0,
+      serv_solarium_cents: 0,
+      total_cents: 19600,
+      folded: { total_cents: 19600, serv_salone_cents: 17000 },
+    });
+    expect(p.controlTotalCents).toBe(110100);
+  });
+});
+
 describe("parseBossRic011PdfText layout 9 (Corigliano + PAYBACK)", () => {
   const sample = `
 Riepilogo Incassi per Linee Corigliano (2)
