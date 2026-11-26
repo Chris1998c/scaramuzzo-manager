@@ -329,7 +329,6 @@ export default function MovimentiPage() {
         }
       />
 
-      {/* FILTRI */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
         <div className="text-xs font-medium text-white/50">
           Filtri
@@ -407,7 +406,6 @@ export default function MovimentiPage() {
         </div>
       </div>
 
-      {/* TABELLA */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
         {loadingMovements && (
           <p className="px-4 py-3 text-sm text-white/50 border-b border-white/10">Caricamento…</p>
