@@ -384,3 +384,32 @@ Rollback: ripristinare alias produzione su `dpl_6rDidULiCVvVwfcodHKDSbKwHccc` e/
 **Nota:** se si attende il sync post-cambio (URL + href `salon_id` aggiornati) il percorso Dashboard→Report è corretto (§9.2). Il bug è solo sul clic *immediato* prima del re-seed dei link.
 
 **Azione:** promote **bloccato**. Prod resta `25768fb` / `dpl_6rDidULi…`. Job **#18** fermo.
+
+### 10.4 Fix race + retest Preview (2026-11-26 16:12 CET)
+
+**SHA fix:** **`8152b96`** (`8152b965bc57763e25667d7d091bcc6eae23d6a0`)  
+**Preview:** https://scaramuzzo-manager-b4j7f5ybj-christians-projects-a583a48c.vercel.app · `dpl_3w699w1CbnbfpEB2gDrVmrk2Pw8i` Ready  
+**Prod:** sola lettura (`25768fb` / `dpl_6rDidULi…`) · Job **#18** fermo  
+**Migrazioni:** non toccate
+
+**Causa:** i link secondari Dashboard erano SSR (`withActiveSalon` sul `activeSalonId` del render) → dopo `setActiveSalonId` restavano con `?salon_id=` precedente finché `DashboardSalonQuerySync` / RSC non aggiornavano l’URL.
+
+**Patch (isolata):**
+- `DashboardSecondaryLinks` (client) riusa ActiveSalon + storage sync (`sm_activeSalonId` già scritto da `setActiveSalonId`)
+- al clic: `resolveDashboardLinkNavigationSalonId(stored → context → href)` + `router.push(/dashboard/report?salon_id=…)` senza attese fisse
+- server Report invariato (ACL su `allowedSalonIds` + `salon_id` query)
+- test regressione: `resolveDashboardLinkNavigationSalonId` riproduce clic pre-sync (storage nuova sede, context/href stale)
+
+**CI locale su `8152b96`:** `npm run lint` (=tsc) **PASS** · vitest pertinenti **31/31 PASS**
+
+**Retest Preview — clic immediato senza attesa (coordinator):**
+
+| Prova | early `salon_id` | switcher | Sede / CRM | Esito |
+|-------|------------------|----------|------------|-------|
+| Roma → Castrovillari | `3` | `3` | Castrovillari · CRM vuoto | **PASS** |
+| Castrovillari → Roma | `1` | `1` | Roma · CARMEN MURACA | **PASS** |
+| Doppio rapido (3→2) → Report | `2` | `2` | Corigliano · GINA ROMIO | **PASS** |
+
+In tutte le prove early URL Report, switcher e dati coincidono con l’**ultima** sede scelta già in caricamento.
+
+**Candidato aggiornato:** tip branch con codice ≥ **`8152b96`** (include `5024152` + fix race). Promote ancora **non** eseguito in questo passo.
