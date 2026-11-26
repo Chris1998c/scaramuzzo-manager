@@ -9,7 +9,8 @@ Scritture: solo test automatici su **Postgres Docker isolato**. Job **#18** lasc
 | Voce | Valore |
 |------|--------|
 | Manager prod | `main` **`25768fb`** → `manager.scaramuzzo.green` |
-| **Preview candidato lancio** | `audit/prelaunch-2026-11-27` **`54d98a7`** → `https://scaramuzzo-manager-i6ckdqe7v-christians-projects-a583a48c.vercel.app` (alias git-audi…), Ready, log clone Commit `54d98a7` |
+| **Preview candidato lancio** | `audit/prelaunch-2026-11-27` **`5024152`** → `https://scaramuzzo-manager-psv06hiio-christians-projects-a583a48c.vercel.app`, Ready |
+| Preview UI polish | `54d98a7` (`i6ckdqe7v`) |
 | Preview precedente | `6d5ff25` (`ee2sgd0zo` / `6phplm6h6`) |
 | Print Bridge Roma | **`1.3.3`** `roma_cassa_1` |
 | App Clienti / Team | fix **non** in questa Preview Manager (PWA bake invariato); source locali non pushati |
@@ -254,3 +255,47 @@ Nessuna scrittura su DB di produzione in questo passaggio.
 3. Promote `54d98a7` → prod  
 4. OTP Clienti / Presenze Team sul posto (+ bake PWA per fix source)  
 5. Bridge altre sedi · session 12 · doppio Aggiorna / doppio sede UI
+
+---
+
+## 8. Retest `5024152` — doppi controlli + Report mediane (2026-11-26)
+
+**Preview:** https://scaramuzzo-manager-psv06hiio-christians-projects-a583a48c.vercel.app  
+**Commit:** `5024152` (parte da candidato UI `54d98a7`)  
+**Ruolo/sede/periodo:** coordinator · Roma · riepilogo oggi  
+**Prod:** sola lettura
+
+### 8.1 Fix UI verificati sulla Preview
+
+| Difetto | Esito su `5024152` |
+|---------|-------------------|
+| Doppio selettore sede Agenda | **RISOLTO** — 1 solo `<select>` (header); cambio sede header OK |
+| Doppio «Aggiorna» / «Aggiorna stato» In sala | **RISOLTO** — rimosso «Aggiorna stato»; resta un «Aggiorna» (desktop+mobile nello stesso DOM, un solo visibile per viewport); refresh OK |
+| Link Dashboard → Report senza `salon_id` | **RISOLTO** — secondary link = `/dashboard/report?salon_id=1` |
+
+### 8.2 Causa differenza Dashboard vs In sala → Report
+
+Dashboard usava `href=/dashboard/report` **senza** `salon_id` → redirect server che aggiunge `salon_id` (+ date/tab) → **secondo** render RSC.  
+In sala / sidebar già passavano `?salon_id=` → un solo fetch.  
+Intervento: `withActiveSalon()` sui link secondary della Dashboard.
+
+### 8.3 Mediane usable (5 ripetizioni, ms)
+
+| Percorso | Prima (`54d98a7`) | Dopo (`5024152`) | Δ | vs 2 s |
+|----------|-------------------|------------------|---|--------|
+| Soft Dashboard → Report | **4000** (3445–4908) | **~2970** (2005–3012; allineato a In sala) | **−~1.0 s** | ancora ≥2 s |
+| Soft In sala → Report | **2143** (2003–3072) | **2042** (1803–3003) | ≈ invariato | al limite / oltre |
+| URL/doc fetch usable (`?salon_id=1&perf=1`) | **1816** median fetch; DCL campione 2019; `page_total`~1385–1525 | **1797** median fetch; DCL 2013; `page_total` 1523 | ≈ invariato | al limite |
+
+Dettaglio dopo (soft In sala): 1885, 2039, 3003, 2042, 2055.  
+Dettaglio dopo (hard fetch): 1901, 1797, 1733, 1648, 1840 (`auth`~550–600, `queries`~660–790).
+
+**Nota:** soft Dashboard e soft In sala ora sono **nella stessa fascia** (~2–3 s). Il residuo oltre 2 s è il costo singolo RSC (`auth_ms`+`queries_ms`), non più il doppio round-trip.
+
+### 8.4 Blocchi residui aggiornati
+
+1. Epson Roma Contanti+Carta+void+callback (job 18 fermo)  
+2. Report usable soft/URL ancora tipicamente **≥2 s** (ottimizzare auth/queries)  
+3. Promote `5024152` (o tip branch) → `main`  
+4. OTP Clienti / Presenze Team + bake PWA  
+5. Bridge altre sedi · session 12 Cosenza
