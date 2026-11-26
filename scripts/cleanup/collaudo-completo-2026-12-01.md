@@ -2,21 +2,30 @@
 
 Punto di partenza: `scripts/cleanup/verdetto-lancio-2026-12-01.md`.  
 Ambiente sotto test: **sola lettura** su Preview (DB = prod) e prod.  
-Scritture isolate: **non eseguite** (Docker daemon assente). Job **#18** lasciato `failed`.
+Scritture: solo test automatici su **Postgres Docker isolato**. Job **#18** lasciato `failed`.
 
 ## 0. Commit / ambiente / ruolo
 
 | Voce | Valore |
 |------|--------|
 | Manager prod | `main` **`25768fb`** → `manager.scaramuzzo.green` |
-| Manager Preview collaudata | `audit/prelaunch-2026-11-27` **`6d5ff25`** (deploy `ee2sgd0zo` / `6phplm6h6`) |
-| Fix UI di questa sessione | **solo locali** su `audit/prelaunch-2026-11-27` (non ancora push/deploy) |
-| Print Bridge Roma | **`1.3.3`** `roma_cassa_1` online (heartbeat fresco); MacBook stale `1.2.0` |
-| App Clienti | repo `main` `ee845b1` + fix locali book padding/subtitle; PWA `/app-clienti` |
-| App Team | repo `main` `c3e21c0` + fix locale errore Presenze; PWA `/team` |
+| **Preview candidato lancio** | `audit/prelaunch-2026-11-27` **`54d98a7`** → `https://scaramuzzo-manager-i6ckdqe7v-christians-projects-a583a48c.vercel.app` (alias git-audi…), Ready, log clone Commit `54d98a7` |
+| Preview precedente | `6d5ff25` (`ee2sgd0zo` / `6phplm6h6`) |
+| Print Bridge Roma | **`1.3.3`** `roma_cassa_1` |
+| App Clienti / Team | fix **non** in questa Preview Manager (PWA bake invariato); source locali non pushati |
 | Ruolo browser | **coordinator**, sede **Roma (1)** |
-| Reception | non rieseguita in browser oggi; prove API sede 26/11 ancora valide |
-| Job #18 | `failed`, sale 63 — **fermo** |
+| Job #18 | `failed` — **fermo** |
+
+### Fix contenuti in `54d98a7` (Preview)
+
+- Agenda: overlay loading scoped (`absolute`), title refresh → «Aggiorna»
+- EditAppointmentModal: rimozione `#id`, CTA `text-xs`
+- Cassa: «Caricamento cassa…», errore con Torna in sala/Riprova, senza emoji, senza colonna Operatore
+- In sala: skeleton boot, badge «In sala» rimosso, label modal contrasto ↑
+- Report: filtri `sczField` + Suspense «Caricamento…»
+- Impostazioni: CTA `sczBtnSuccess`; copy fallback operativa
+- Docs: verdetto + collaudo 1/12
+- (già sul branch, pre-esistenti) `b978d4f` guard requeue/no-show; migrazioni allineate
 
 ---
 
@@ -161,7 +170,7 @@ Legenda: **Prod** = già in `25768fb`/campo · **Branch** = solo audit/local · 
 **NO-GO** cassa fiscale completa e multi-sede finché Epson Contanti+Carta non è collaudata.  
 **NO-GO** Presenze finché non c’è una timbratura device.
 
-Fix UI di questa sessione e guard `b978d4f` restano **fuori produzione** finché non si fa merge/deploy esplicito.
+Fix UI + guard `b978d4f` sono sulla **Preview `54d98a7`**, ancora **fuori produzione** finché non si fa merge esplicito su `main`.
 
 ---
 
@@ -170,10 +179,78 @@ Fix UI di questa sessione e guard `b978d4f` restano **fuori produzione** finché
 | Blocco | Prossimo intervento |
 |--------|---------------------|
 | Epson Contanti+Carta+void+callback | Finestra post-BOSS `docs/ROMA_PAYMENT_VERIFY.md`; job 18 fermo |
-| Deploy fix UI + guard audit | Push branch → Preview → review → main |
-| Report hard >2 s | Ridurre `auth_ms` / parallelizzare `queries_ms`; retest `?perf=1` |
-| Docker isolato | Avviare Docker; rieseguire test booking/attendance/cassa void |
-| App Clienti/Team device | 1 OTP + 1 prenota; 1 ingresso/uscita |
+| Promote Preview → prod | Review `54d98a7` + merge `audit/prelaunch…` → `main` |
+| Report apertura URL >2 s | Ridurre `auth_ms` / `queries_ms`; retest `?perf=1` |
+| App Clienti/Team device + bake PWA | Push fix source; rebuild `public/app-clienti` e `public/team` |
 | Bridge altre sedi | Install 1.3.3 |
 | Session 12 Cosenza | Chiusura ops |
-| Doppio «Aggiorna» In sala | Cleanup CTA residuo sul branch |
+| Doppio «Aggiorna» In sala | Cleanup CTA residuo |
+
+---
+
+## 7. Retest Preview `54d98a7` (2026-11-26 pomeriggio)
+
+Ruolo: **coordinator** · Sede: **Roma** · URL: `…-i6ckdqe7v-…` · DB: prod (sola lettura UI)
+
+### 7.1 Difetti grafici su schermate distribuite
+
+| Difetto | Desktop | Mobile 390×844 | Esito |
+|---------|---------|----------------|-------|
+| Agenda «Refresh» EN | titolo pulsante «Aggiorna» | «Aggiorna» | **RISOLTO** |
+| Overlay Agenda `fixed` full-app | nessun `.fixed.inset-0` overlay; classi `absolute inset-0` presenti | — | **RISOLTO** (struttura) |
+| In sala boot `null` | mostra «Caricamento…» poi empty | — | **RISOLTO** |
+| Badge «In sala» su card | lista vuota (N/A card) | — | N/A oggi; codice deployato |
+| Cassa errore senza CTA | `/cassa/999999` → «Torna in sala» + «Riprova»; no jargon check-out | — | **RISOLTO** |
+| Report filtri contrasto | Vendite: `text-white` / `sczField`, color `rgb(255,255,255)` | — | **RISOLTO** |
+| Impostazioni CTA `#0FA958` | «Nuovo servizio» = `sczBtnSuccess` emerald | — | **RISOLTO** |
+| Doppio selettore sede Agenda | ancora presente | ancora presente | **APERTO** |
+| Doppio «Aggiorna» In sala | Aggiorna + Aggiorna stato | — | **APERTO** |
+
+### 7.2 Report Roma — usable vs target 2 s
+
+Condizioni: coordinator, Roma, riepilogo oggi.
+
+| Modalità | Misura | vs 2 s |
+|----------|--------|--------|
+| **Navigazione interna** In sala → Report | usable **701 ms** | **OK** |
+| **Navigazione interna** Dashboard → Report | usable **3612 ms** | **oltre** (RSC refetch pesante) |
+| **Apertura da URL** `?salon_id=1&perf=1` freddo | DCL **2475 ms**; `page_total_ms=2000` (`auth=1010`, `queries=990`) | **al limite / oltre** sul browser |
+| **Apertura da URL** caldo | DCL **3067 ms**; `page_total_ms=2559` (`auth=1224`, `queries=1334`) | **oltre** |
+
+Target 2 s: **raggiunto in soft-nav leggera**; **non raggiunto** su hard URL e su soft-nav che rifetcha il server component completo. Collo di bottiglia: `auth_ms` + `queries_ms`.
+
+### 7.3 Test Docker isolati (i 17 prima falliti)
+
+Prima run parallela: 14 pass / 3 fail per race container in shutdown.  
+Rerun seriale (`--maxWorkers=1`) dei 3: **pass**.  
+**Esito complessivo: 17/17 PASS** su Postgres isolato.
+
+| File | Esito |
+|------|-------|
+| `lib/agenda/appointmentAuditRpcMigrationOrder.test.ts` | PASS |
+| `lib/agenda/appointmentCancelAuditRpc.test.ts` | PASS |
+| `lib/agenda/patchAppointmentServiceLinesAtomic.test.ts` | PASS |
+| `lib/cassa/closeCashSessionLedgerPostedOnly.test.ts` | PASS |
+| `lib/cassa/closeSaleAppointmentIdempotency.test.ts` | PASS |
+| `lib/cassa/p0CashSalesBypassMigration.test.ts` | PASS |
+| `lib/customer-app/customerBookingAuthzIsolated.test.ts` | PASS |
+| `lib/customer-app/customerBookingConcurrentIsolated.test.ts` | PASS |
+| `lib/customers/schedeTecnicheIsolatedSave.test.ts` | PASS |
+| `lib/datetime/romeBusinessDateIsolated.test.ts` | PASS |
+| `lib/fiscal/cancelVoidReceiptSafety.test.ts` | PASS (dopo rerun seriale) |
+| `lib/fiscal/resolveUncertainFiscalVoid.test.ts` | PASS |
+| `lib/fiscal/uncertainFiscalVoidRace.test.ts` | PASS |
+| `lib/magazzino/stockE2eConsistency.test.ts` | PASS (dopo rerun seriale) |
+| `lib/magazzino/transferMultiLineAtomic.test.ts` | PASS |
+| `lib/mobile/mobileAttendanceClockInsert.test.ts` | PASS (dopo rerun seriale) |
+| `lib/reports/reportCassaVoidLedgerIsolated.test.ts` | PASS |
+
+Nessuna scrittura su DB di produzione in questo passaggio.
+
+### 7.4 Blocchi residui (post-Preview)
+
+1. Epson Roma Contanti+Carta+void+callback  
+2. Report hard/URL spesso >2 s  
+3. Promote `54d98a7` → prod  
+4. OTP Clienti / Presenze Team sul posto (+ bake PWA per fix source)  
+5. Bridge altre sedi · session 12 · doppio Aggiorna / doppio sede UI
