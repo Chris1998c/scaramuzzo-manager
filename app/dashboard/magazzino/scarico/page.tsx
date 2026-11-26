@@ -2,9 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
 import {
-  ArrowLeft,
   PackageMinus,
   ShieldAlert,
   AlertTriangle,
@@ -14,6 +12,10 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
 import { applyProductSearchOr } from "@/lib/magazzino/productSearch";
+import {
+  MagazzinoBackLink,
+  MagazzinoHero,
+} from "@/components/magazzino/ui/magazzinoUi";
 
 type Role = "coordinator" | "magazzino" | "reception" | "cliente" | string;
 
@@ -308,45 +310,17 @@ function ScaricoInner() {
   const showPicker = !productId || productId <= 0;
 
   return (
-    <div className="min-h-[calc(100vh-64px)] w-full space-y-6">
-      {/* HERO */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7 backdrop-blur-md"
-      >
-        <div className="flex items-start gap-4">
-          <div className="shrink-0 rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
-            <PackageMinus className="text-[#f3d8b6]" size={26} strokeWidth={1.7} />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="text-sm text-[#c9b299]">Magazzino</div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                  Scarico — {titleSalon}
-                </h1>
-                <p className="text-[#c9b299] mt-2 max-w-2xl">
- {role === "magazzino" || role === "coordinator"
- ? "Scarica quantità dalla giacenza del salone attualmente in vista (header)."
- : "Scarica quantità dalla giacenza del tuo salone."}
-                </p>
-              </div>
-
-              <button
-                onClick={() => router.back()}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
- bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
- hover:border-[var(--accent)] transition"
-              >
-                <ArrowLeft size={18} />
-                Indietro
-              </button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
+    <div className="min-h-[calc(100vh-64px)] w-full space-y-4 px-1">
+      <MagazzinoHero
+        icon={PackageMinus}
+        compact
+        subtitle={
+          role === "magazzino" || role === "coordinator"
+            ? `Uscita merce · ${titleSalon}`
+            : `Uscita merce dal tuo salone · ${titleSalon}`
+        }
+        actions={<MagazzinoBackLink href="/dashboard/magazzino" />}
+      />
 
       {/* CONTENT */}
       <div className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/40 p-4 md:p-6 backdrop-blur-md">

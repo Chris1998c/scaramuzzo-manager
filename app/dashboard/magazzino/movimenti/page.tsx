@@ -304,44 +304,30 @@ export default function MovimentiPage() {
     allowedSalons.find((s) => s.id === ctxSalonId)?.name ?? salonLabel(ctxSalonId);
 
   return (
-    <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white space-y-6">
-      {/* HERO */}
-      <div className="rounded-3xl border border-white/10 bg-scz-dark overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 md:p-7 bg-black/20 border-b border-white/10">
-          <div className="flex items-start gap-4">
-            <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
-              <History className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-medium text-white/50 mb-1">
-                Magazzino
-              </div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                Movimenti
-              </h1>
-              <p className="text-white/60 mt-1">
-                Storico per <span className="font-semibold text-white/90">{salonName}</span>
-              </p>
-              <p className="text-white/50 text-sm mt-1">
- {isWarehouse
- ? null
- : "Storico del tuo salone."}
- </p>
- </div>
- </div>
- <button
- type="button"
-            className="shrink-0 self-start sm:self-center inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
+    <MagazzinoPageShell>
+      <MagazzinoHero
+        icon={History}
+        compact
+        subtitle={
+          <>
+            Storico per <span className="font-medium text-white/85">{salonName}</span>
+            {!isWarehouse ? " · salone operativo" : null}
+          </>
+        }
+        actions={
+          <button
+            type="button"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-[#f3d8b6]/90 hover:bg-white/[0.06]"
             onClick={() =>
               ctxSalonId != null &&
               fetchMovements(ctxSalonId, search, typeFilter, page, dateFrom, dateTo)
             }
           >
-            <RefreshCw size={18} />
-            Aggiorna pagina
+            <RefreshCw size={16} />
+            Aggiorna
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* FILTRI */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
@@ -544,6 +530,6 @@ export default function MovimentiPage() {
           </div>
         )}
       </div>
-    </div>
+    </MagazzinoPageShell>
   );
 }

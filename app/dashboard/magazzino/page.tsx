@@ -53,7 +53,6 @@ export default function MagazzinoPage() {
   return (
     <MagazzinoPageShell>
       <MagazzinoHero
-        title="Magazzino"
         icon={Package}
         compact
         subtitle={ctx.contextLabel}

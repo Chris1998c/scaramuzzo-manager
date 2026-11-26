@@ -149,11 +149,11 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
   return (
     <div className="space-y-6">
       {/* TOP BAR */}
-      <div className="flex flex-col xl:flex-row gap-4 xl:items-center xl:justify-between">
-        <div className="relative max-w-xl w-full">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-xl min-w-0">
           <Search
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50"
             aria-hidden
           />
           <input
@@ -161,13 +161,13 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cerca per nome, cognome, telefono o email…"
             aria-label="Cerca cliente per nome, cognome, telefono o email"
-            className={`${sczField} rounded-xl pl-11 pr-11 py-3`}
+            className={`${sczField} pl-10 pr-10`}
           />
           {query.trim() ? (
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-white/50 hover:text-white"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-white/50 hover:text-white"
               aria-label="Cancella ricerca"
             >
               <X size={16} />
@@ -175,12 +175,11 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
           ) : null}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-wrap gap-2 shrink-0">
           <button type="button" onClick={exportCSV} className={sczBtnGhost}>
             <Download size={16} />
             Esporta CSV
           </button>
-
           <button type="button" onClick={() => setOpen(true)} className={sczBtnPrimary}>
             <Plus size={16} />
             Nuovo cliente

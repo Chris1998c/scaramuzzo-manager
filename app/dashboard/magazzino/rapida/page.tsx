@@ -1,13 +1,17 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { toast } from "sonner";
-import { Zap, ArrowLeft, Search, PackageMinus, AlertCircle } from "lucide-react";
+import { Zap, Search, PackageMinus, AlertCircle } from "lucide-react";
 import { MAGAZZINO_CENTRALE_ID, salonLabel } from "@/lib/constants";
 import { applyProductSearchOr } from "@/lib/magazzino/productSearch";
+import {
+  MagazzinoBackLink,
+  MagazzinoHero,
+  MagazzinoPageShell,
+} from "@/components/magazzino/ui/magazzinoUi";
 
 interface Product {
   product_id: number;
@@ -115,41 +119,18 @@ export default function RapidaPage() {
   }
 
   return (
-    <div className="px-6 py-10 bg-[#1A0F0A] min-h-screen text-white space-y-6">
-      {/* HERO */}
-      <div className="rounded-3xl border border-white/10 bg-scz-dark overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 md:p-7 bg-black/20 border-b border-white/10">
-          <div className="flex items-start gap-4">
-            <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
-              <Zap className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-medium text-white/50 mb-1">
-                Magazzino
-              </div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                Scarico rapido
-              </h1>
-              <p className="text-white/60 mt-1">
- Cerca e scarica −1 dalla giacenza di{" "}
-                <span className="font-semibold text-white/90">{salonName}</span>
-              </p>
-              <p className="text-white/50 text-sm mt-1">
- {isWarehouse
- ? null
- : "Scarico dal tuo salone."}
- </p>
- </div>
- </div>
- <Link
- href="/dashboard/magazzino"
-            className="shrink-0 self-start sm:self-center inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-black/30 border border-white/10 text-[#f3d8b6] font-semibold hover:bg-black/40 transition"
-          >
-            <ArrowLeft size={18} />
-            Indietro
-          </Link>
-        </div>
-      </div>
+    <MagazzinoPageShell>
+      <MagazzinoHero
+        icon={Zap}
+        compact
+        subtitle={
+          <>
+            −1 dalla giacenza di{" "}
+            <span className="font-medium text-white/85">{salonName}</span>
+          </>
+        }
+        actions={<MagazzinoBackLink href="/dashboard/magazzino" />}
+      />
 
       {/* SEARCH */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
@@ -261,6 +242,6 @@ export default function RapidaPage() {
           )}
         </div>
       </div>
-    </div>
+    </MagazzinoPageShell>
   );
 }
