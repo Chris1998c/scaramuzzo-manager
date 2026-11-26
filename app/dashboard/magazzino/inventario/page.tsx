@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import Link from "next/link";
-import { ChevronUp, ChevronDown, MoreHorizontal } from "lucide-react";
+import { ChevronUp, ChevronDown, MoreHorizontal, LayoutList } from "lucide-react";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
 import { useMagazzinoSalonContext } from "@/hooks/useMagazzinoSalonContext";
 import {
@@ -14,14 +14,14 @@ import {
   INVENTARIO_SOTTOSORTA_THRESHOLD,
   type InventarioProductRow,
 } from "@/lib/magazzino/inventarioCatalog";
+import {
+  MagazzinoHero,
+  MagazzinoLoading,
+  MagazzinoPageShell,
+} from "@/components/magazzino/ui/magazzinoUi";
+import { sczBtnGhost, sczField } from "@/components/ui/PageHeader";
 
 type Product = InventarioProductRow;
-
-const fieldClass =
-  "w-full min-w-0 rounded-lg bg-black/25 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-white/35 focus:border-[#f3d8b6]/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f3d8b6]/35";
-
-const ghostBtn =
-  "inline-flex items-center justify-center rounded-lg border border-white/10 bg-transparent px-3 py-2 text-sm text-[#f3d8b6]/90 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 disabled:opacity-40 transition";
 
 export default function InventarioPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -188,56 +188,64 @@ export default function InventarioPage() {
   }
 
   if (!isReady || loading) {
-    return <div className="px-4 py-6 md:px-6 text-white/70 text-sm">Caricamento…</div>;
+    return <MagazzinoLoading />;
   }
 
   if (errMsg) {
     return (
-      <div className="px-4 py-6 md:px-6 text-white space-y-2">
-        <h1 className="text-xl font-semibold text-[#f3d8b6]">Inventario</h1>
-        <p className="text-sm text-white/70">{errMsg}</p>
-      </div>
+      <MagazzinoPageShell>
+        <MagazzinoHero icon={LayoutList} compact subtitle={salonName} />
+        <p className="text-sm text-white/70" role="alert">
+          {errMsg}
+        </p>
+      </MagazzinoPageShell>
     );
   }
 
   return (
-    <div className="px-3 py-4 md:px-5 md:py-5 text-white space-y-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h1 className="text-xl md:text-2xl font-semibold text-[#f3d8b6] tracking-tight">
-            Inventario
-          </h1>
-          <p className="text-sm text-white/50 truncate">{salonName}</p>
-          <p className="text-sm text-white/70 tabular-nums">
-            <span className="text-[#f3d8b6] font-semibold">{totalCount}</span>
-            {" prodotti"}
+    <MagazzinoPageShell>
+      <MagazzinoHero
+        icon={LayoutList}
+        compact
+        subtitle={
+          <span className="tabular-nums">
+            {salonName}
             <span className="mx-2 text-white/25" aria-hidden>
               ·
             </span>
-            <span className={sottoscortaCount > 0 ? "text-red-400 font-semibold" : "text-white/70"}>
+            <span className="text-[#f3d8b6] font-semibold">{totalCount}</span> prodotti
+            <span className="mx-2 text-white/25" aria-hidden>
+              ·
+            </span>
+            <span
+              className={
+                sottoscortaCount > 0 ? "text-red-400 font-semibold" : undefined
+              }
+            >
               {sottoscortaCount}
             </span>
             {` sottoscorta (≤${INVENTARIO_SOTTOSORTA_THRESHOLD})`}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2 shrink-0">
-          <button type="button" className={ghostBtn} onClick={() => window.print()}>
-            Stampa
-          </button>
-          <button
-            type="button"
-            title={`CSV della pagina ${page}`}
-            className={ghostBtn}
-            onClick={handleExportCsv}
-          >
-            CSV pagina
-          </button>
-          <button type="button" className={ghostBtn} onClick={handleRefresh}>
-            Aggiorna
-          </button>
-        </div>
-      </div>
+          </span>
+        }
+        actions={
+          <>
+            <button type="button" className={sczBtnGhost} onClick={() => window.print()}>
+              Stampa
+            </button>
+            <button
+              type="button"
+              title={`CSV della pagina ${page}`}
+              className={sczBtnGhost}
+              onClick={handleExportCsv}
+            >
+              CSV pagina
+            </button>
+            <button type="button" className={sczBtnGhost} onClick={handleRefresh}>
+              Aggiorna
+            </button>
+          </>
+        }
+      />
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 rounded-xl border border-white/[0.08] bg-scz-dark/80 p-2.5">
         <label className="sr-only" htmlFor="inv-search">
@@ -245,7 +253,7 @@ export default function InventarioPage() {
         </label>
         <input
           id="inv-search"
-          className={`${fieldClass} sm:flex-1 sm:min-w-[12rem]`}
+          className={`${sczField} sm:flex-1 sm:min-w-[12rem]`}
           placeholder="Cerca nome o barcode…"
           value={filter}
           onChange={(e) => {
@@ -258,7 +266,7 @@ export default function InventarioPage() {
         </label>
         <select
           id="inv-category"
-          className={`${fieldClass} sm:w-48`}
+          className={`${sczField} sm:w-48`}
           value={category}
           onChange={(e) => {
             setCategory(e.target.value);
@@ -422,17 +430,17 @@ export default function InventarioPage() {
           </p>
           {pageCount > 1 ? (
             <div className="flex items-center gap-2">
-              <button type="button" disabled={page <= 1} className={ghostBtn} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              <button type="button" disabled={page <= 1} className={sczBtnGhost} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 Precedente
               </button>
-              <button type="button" disabled={page >= pageCount} className={ghostBtn} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
+              <button type="button" disabled={page >= pageCount} className={sczBtnGhost} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
                 Successiva
               </button>
             </div>
           ) : null}
         </div>
       ) : null}
-    </div>
+    </MagazzinoPageShell>
   );
 }
 
