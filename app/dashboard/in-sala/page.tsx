@@ -337,7 +337,14 @@ export default function InSalaPage() {
     }
   }, [pathname]);
 
-  if (!isReady) return null;
+  if (!isReady)
+    return (
+      <div className="px-3 py-4 pb-24 sm:pb-4 md:px-5 md:py-5 text-white max-w-6xl mx-auto">
+        <div className="text-sm font-medium text-[#f3d8b6]/80 animate-pulse">
+          Caricamento…
+        </div>
+      </div>
+    );
 
   const isCassaOpen = Boolean(cash?.is_open);
   const salonName = cash?.salon?.name ?? null;
@@ -578,9 +585,6 @@ export default function InSalaPage() {
                         </div>
                       </div>
                       <div className="flex items-end gap-2 flex-wrap">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
- In sala
- </span>
  {a?.source === "walk_in" && (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-500/30">
                             Walk-In
@@ -654,7 +658,7 @@ export default function InSalaPage() {
             </div>
 
             <div className="mt-4 space-y-2">
-              <label className="text-[10px] text-white/30 uppercase font-black tracking-widest">
+              <label className="text-[10px] text-white/60 uppercase font-black tracking-widest">
  Fondo cassa (€)
  </label>
  <input
@@ -701,7 +705,7 @@ export default function InSalaPage() {
             </div>
 
             <div className="mt-4 space-y-2">
-              <label className="text-[10px] text-white/30 uppercase font-black tracking-widest">
+              <label className="text-[10px] text-white/60 uppercase font-black tracking-widest">
  Contante in cassetto (€)
  </label>
  <input
@@ -717,7 +721,7 @@ export default function InSalaPage() {
             </div>
 
             <div className="mt-3 space-y-2">
-              <label className="text-[10px] text-white/30 uppercase font-black tracking-widest">
+              <label className="text-[10px] text-white/60 uppercase font-black tracking-widest">
                 Note (opzionale)
               </label>
               <textarea

@@ -662,7 +662,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
 
 
   return (
-    <div className="flex flex-col h-full w-full bg-scz-darker text-[#f3d8b6] overflow-hidden p-3 md:p-5">
+    <div className="relative flex flex-col h-full w-full bg-scz-darker text-[#f3d8b6] overflow-hidden p-3 md:p-5">
       {/* TOOLBAR */}
       <div className="flex flex-shrink-0 flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-3 mb-2.5 md:mb-4">
         <div className="min-w-0">
@@ -730,7 +730,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
               void loadOperationalCalendar();
             }}
             className="p-2.5 rounded-xl text-white/50 hover:text-[#f3d8b6] hover:bg-white/10 transition-colors"
- title="Refresh"
+ title="Aggiorna"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
@@ -1118,7 +1118,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
 
       {/* LOADING OVERLAY */}
       {loading && (
-        <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-[2px] pointer-events-none flex items-center justify-center">
+        <div className="absolute inset-0 z-[40] bg-black/30 backdrop-blur-[2px] pointer-events-none flex items-center justify-center">
           <div className="rounded-2xl border border-white/10 bg-scz-dark px-5 py-4 flex items-center gap-3">
             <Loader2 className="animate-spin text-[#f3d8b6]" size={20} />
             <span className="text-xs font-medium text-white/70">

@@ -33,6 +33,7 @@ import AspettoPanel from "@/components/settings/AspettoPanel";
 import ClientiImpostazioniPanel from "@/components/settings/ClientiImpostazioniPanel";
 import CanaliWhatsAppPanel from "@/components/settings/CanaliWhatsAppPanel";
 import CalendarioOperativoPanel from "@/components/settings/CalendarioOperativoPanel";
+import { sczBtnSuccess } from "@/components/ui/PageHeader";
 
 type SectionKey =
   | "servizi"
@@ -373,10 +374,9 @@ export default function ImpostazioniShell({
           <SaloniPanel rows={initialSalons} />
         ) : (
           <div className="rounded-2xl border border-dashed border-white/15 bg-black/20 px-6 py-12 text-center">
-            <p className="text-lg font-bold text-[#f3d8b6]">Sezione in arrivo</p>
+            <p className="text-lg font-bold text-[#f3d8b6]">Sezione non disponibile</p>
             <p className="mt-2 text-sm text-[#c9b299] max-w-md mx-auto leading-relaxed">
-              Struttura pronta: qui verranno collegati i flussi reali (database e permessi) senza
-              stravolgere questa impalcatura.
+              Questa area non è attiva per il tuo account o non è ancora configurata.
             </p>
           </div>
         )}
@@ -449,7 +449,7 @@ function ServiziPrezziPanel({
  <button
  type="button"
             onClick={onCreate}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#0FA958] px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/25 hover:bg-[#0da052]"
+            className={sczBtnSuccess}
           >
             <Plus size={18} />
             Nuovo servizio
@@ -558,7 +558,7 @@ function ProdottiPanel({
  <button
  type="button"
             onClick={onCreate}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#0FA958] px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/25 hover:bg-[#0da052]"
+            className={sczBtnSuccess}
           >
             <Plus size={18} />
             Nuovo prodotto
@@ -668,7 +668,7 @@ function CollaboratoriPanel({
  <button
  type="button"
             onClick={onCreate}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#0FA958] px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-emerald-900/25 hover:bg-[#0da052]"
+            className={sczBtnSuccess}
           >
             <Plus size={18} />
             Nuovo collaboratore

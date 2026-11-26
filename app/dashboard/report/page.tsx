@@ -434,7 +434,9 @@ export default async function ReportPage({ searchParams }: ReportPageProps) {
 
   return (
     <div className="space-y-6">
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={<div className="text-xs text-white/50">Caricamento…</div>}
+      >
         <ReportSalonSync />
       </Suspense>
 
