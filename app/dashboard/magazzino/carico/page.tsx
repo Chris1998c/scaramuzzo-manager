@@ -560,7 +560,6 @@ function CaricoInner() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* LEFT: product info */}
             <div className="lg:col-span-1 rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">
               <div className="text-[#f3d8b6] font-extrabold text-lg leading-tight">
                 {product.name}
@@ -604,7 +603,6 @@ function CaricoInner() {
               )}
             </div>
 
-            {/* RIGHT: form */}
             <div className="lg:col-span-2 rounded-2xl bg-[#FFF9F4] border border-black/5 p-6 text-[#341A09]">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {isReception ? (

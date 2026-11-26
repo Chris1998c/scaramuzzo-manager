@@ -132,7 +132,6 @@ export default function RapidaPage() {
         actions={<MagazzinoBackLink href="/dashboard/magazzino" />}
       />
 
-      {/* SEARCH */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
         <div className="text-xs font-medium text-white/50">
           Cerca prodotto
@@ -167,7 +166,6 @@ export default function RapidaPage() {
         )}
       </div>
 
-      {/* RESULTS */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="p-4 md:p-5 border-b border-white/10">
           <div className="text-xs font-medium text-white/50">

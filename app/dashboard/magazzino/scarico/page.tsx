@@ -322,7 +322,6 @@ function ScaricoInner() {
         actions={<MagazzinoBackLink href="/dashboard/magazzino" />}
       />
 
-      {/* CONTENT */}
       <div className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/40 p-4 md:p-6 backdrop-blur-md">
         {loading ? (
           <div className="rounded-2xl bg-black/15 border border-[#5c3a21]/50 p-6 text-[#c9b299]">
@@ -406,7 +405,6 @@ function ScaricoInner() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* LEFT */}
             <div className="lg:col-span-1 rounded-2xl bg-black/20 border border-[#5c3a21]/60 p-5">
               <div className="text-[#f3d8b6] font-extrabold text-lg leading-tight">
                 {product.name}
@@ -440,7 +438,6 @@ function ScaricoInner() {
               )}
             </div>
 
-            {/* RIGHT */}
             <div className="lg:col-span-2 rounded-2xl bg-[#FFF9F4] border border-black/5 p-6 text-[#341A09]">
               <div>
                 <label className="font-extrabold block mb-2">Quantità da scaricare</label>

@@ -423,7 +423,6 @@ export default function TrasferimentiPage() {
         actions={<MagazzinoBackLink href="/dashboard/magazzino" />}
       />
 
-      {/* DA / A */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark p-4 md:p-5 space-y-4">
         <div className="text-xs font-medium text-white/50">
           Percorso
@@ -477,7 +476,6 @@ export default function TrasferimentiPage() {
         </div>
       </div>
 
-      {/* DISPONIBILI + TRASFERITI */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
           <div className="p-4 border-b border-white/10 space-y-3">
@@ -595,7 +593,6 @@ export default function TrasferimentiPage() {
         </div>
       </div>
 
-      {/* STORICO TRASFERIMENTI */}
       <div className="rounded-2xl border border-white/10 bg-scz-dark overflow-hidden">
         <div className="p-4 border-b border-white/10 flex items-center gap-2">
           <History className="text-[#f3d8b6]" size={20} strokeWidth={1.7} />
