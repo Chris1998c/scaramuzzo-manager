@@ -432,14 +432,7 @@ export default function InSalaPage() {
             </span>
           )}
           <div className="flex flex-wrap gap-2 sm:ml-auto">
-            <button
-              type="button"
-              onClick={() => void loadCashStatus({ silent: true })}
-              className="h-9 px-3 rounded-lg border border-white/10 text-sm text-white/75 hover:bg-white/[0.06] disabled:opacity-50"
-              disabled={cashLoading}
-            >
-              Aggiorna stato
-            </button>
+            {/* Un solo refresh: «Aggiorna» in header richiama già lista + cassa */}
             <button
               type="button"
               onClick={async () => {

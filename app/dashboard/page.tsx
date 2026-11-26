@@ -291,6 +291,19 @@ export default async function DashboardPage({
   const opening = OPENING_SHORTCUTS.filter((s) => s.visibleFor(role));
   const secondary = SECONDARY_LINKS.filter((s) => s.visibleFor(role));
 
+  /** Evita redirect/RSC doppio sul Report (e peer) quando manca ?salon_id. */
+  const withActiveSalon = (href: string) => {
+    if (activeSalonId == null || activeSalonId <= 0) return href;
+    if (
+      href === "/dashboard/report" ||
+      href === "/dashboard/impostazioni" ||
+      href === "/dashboard/presenze"
+    ) {
+      return `${href}?salon_id=${activeSalonId}`;
+    }
+    return href;
+  };
+
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 md:space-y-7 pb-10">
       {access.role === "coordinator" || access.role === "magazzino" ? (
@@ -405,7 +418,7 @@ export default async function DashboardPage({
                     </span>
                   ) : null}
                   <Link
-                    href={item.href}
+                    href={withActiveSalon(item.href)}
                     className="text-sm text-white/50 hover:text-[#f3d8b6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded px-0.5 transition"
                   >
                     {item.title}
