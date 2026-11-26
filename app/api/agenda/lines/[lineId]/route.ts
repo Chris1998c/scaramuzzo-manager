@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import {
@@ -56,13 +55,9 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ lineId: string }> }
 ) {
+  const t0 = performance.now();
   try {
-    const supabase = await createServerSupabase();
-    const { data: authData, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !authData?.user) {
-      return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
-    }
-
+    // Auth una sola volta (evita doppio getUser).
     const access = await getUserAccess();
     const role = access.role;
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
@@ -205,7 +200,14 @@ export async function PATCH(
       return NextResponse.json({ error: synced.error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(
+      { ok: true },
+      {
+        headers: {
+          "Server-Timing": `total;dur=${Math.max(0, Math.round(performance.now() - t0))}`,
+        },
+      },
+    );
   } catch (e) {
     if (isStaffScheduleConflictError(e) || isStaffSlotConflictOrDbError(e)) {
       return NextResponse.json(

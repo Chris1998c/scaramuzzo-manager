@@ -1,0 +1,132 @@
+{
+  "label": "after",
+  "baseUrl": "http://localhost:3010",
+  "at": "2026-11-26T17:18:24.582Z",
+  "save": {
+    "n": 5,
+    "request_ms": [
+      388,
+      325,
+      333,
+      332,
+      324
+    ],
+    "click_to_agenda_ms": [
+      395,
+      333,
+      340,
+      339,
+      329
+    ],
+    "median_request_ms": 332,
+    "median_click_to_agenda_ms": 339,
+    "samples": [
+      {
+        "i": 0,
+        "appointment_id": 17,
+        "request_ms": 388,
+        "reload_ms": 8,
+        "click_to_agenda_ms": 395,
+        "serverTiming": "auth;dur=62, customer;dur=2, resolve_staff;dur=11, schedule;dur=5, overlap;dur=3, insert;dur=6, sync;dur=5, total;dur=94"
+      },
+      {
+        "i": 1,
+        "appointment_id": 18,
+        "request_ms": 325,
+        "reload_ms": 7,
+        "click_to_agenda_ms": 333,
+        "serverTiming": "auth;dur=56, customer;dur=2, resolve_staff;dur=15, schedule;dur=7, overlap;dur=4, insert;dur=7, sync;dur=5, total;dur=96"
+      },
+      {
+        "i": 2,
+        "appointment_id": 19,
+        "request_ms": 333,
+        "reload_ms": 7,
+        "click_to_agenda_ms": 340,
+        "serverTiming": "auth;dur=57, customer;dur=2, resolve_staff;dur=11, schedule;dur=6, overlap;dur=3, insert;dur=6, sync;dur=4, total;dur=88"
+      },
+      {
+        "i": 3,
+        "appointment_id": 20,
+        "request_ms": 332,
+        "reload_ms": 7,
+        "click_to_agenda_ms": 339,
+        "serverTiming": "auth;dur=62, customer;dur=2, resolve_staff;dur=11, schedule;dur=4, overlap;dur=2, insert;dur=5, sync;dur=3, total;dur=89"
+      },
+      {
+        "i": 4,
+        "appointment_id": 21,
+        "request_ms": 324,
+        "reload_ms": 5,
+        "click_to_agenda_ms": 329,
+        "serverTiming": "auth;dur=56, customer;dur=2, resolve_staff;dur=10, schedule;dur=5, overlap;dur=4, insert;dur=5, sync;dur=3, total;dur=86"
+      }
+    ]
+  },
+  "modify": {
+    "n": 5,
+    "request_ms": [
+      341,
+      290,
+      282,
+      290,
+      284
+    ],
+    "click_to_agenda_ms": [
+      346,
+      296,
+      287,
+      296,
+      289
+    ],
+    "median_request_ms": 290,
+    "median_click_to_agenda_ms": 296,
+    "samples": [
+      {
+        "i": 0,
+        "appointment_id": 17,
+        "line_id": 17,
+        "request_ms": 341,
+        "reload_ms": 5,
+        "click_to_agenda_ms": 346,
+        "serverTiming": "total;dur=56"
+      },
+      {
+        "i": 1,
+        "appointment_id": 18,
+        "line_id": 18,
+        "request_ms": 290,
+        "reload_ms": 6,
+        "click_to_agenda_ms": 296,
+        "serverTiming": "total;dur=66"
+      },
+      {
+        "i": 2,
+        "appointment_id": 19,
+        "line_id": 19,
+        "request_ms": 282,
+        "reload_ms": 5,
+        "click_to_agenda_ms": 287,
+        "serverTiming": "total;dur=52"
+      },
+      {
+        "i": 3,
+        "appointment_id": 20,
+        "line_id": 20,
+        "request_ms": 290,
+        "reload_ms": 6,
+        "click_to_agenda_ms": 296,
+        "serverTiming": "total;dur=67"
+      },
+      {
+        "i": 4,
+        "appointment_id": 21,
+        "line_id": 21,
+        "request_ms": 284,
+        "reload_ms": 5,
+        "click_to_agenda_ms": 289,
+        "serverTiming": "total;dur=55"
+      }
+    ]
+  }
+}

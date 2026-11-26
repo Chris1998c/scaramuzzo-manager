@@ -1,0 +1,8 @@
+{
+  "http_status": 500,
+  "error": "Errore creazione appuntamento",
+  "appointment_id_returned": null,
+  "leftover_appointments": [],
+  "leftover_lines_for_returned_id": [],
+  "pass": true
+}

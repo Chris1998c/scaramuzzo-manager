@@ -526,6 +526,39 @@ Log: `exports/receptionist-collaudo-2026-11-26/isolated-vitest-timed.log` — **
 
 1. Soft Report ~2.4 s.  
 2. KPI basso contrasto.  
-3. Salvataggio Preview API lento a freddo (**~6.8 s**) — da riosservare a caldo su staging.  
-4. OTP / Team / Epson device: **da provare**.  
-5. Job **#18** fermo.
+3. OTP WhatsApp (profilo test), timbratura Team, Epson Roma post-BOSS: **da collaudare sul posto** (paralleli a questo lavoro tempi).  
+4. Job **#18** fermo.
+
+### 12.7 Tempi Agenda — salvataggio / modifica (chiusura patch)
+
+**Staging Supabase remoto isolato dalla produzione:** **non verificata**.  
+Progetti org: `jrqhfnvtdaiutquksgxd` = prod ACTIVE (DB condiviso Preview); `zncyrqdhutcysyzehnob` («scaramuzzo green») = **INACTIVE**. Nessun terzo progetto staging remoto disponibile → confronto `dc0123d` vs patch su remoto isolato **non eseguito**.
+
+**Ambiente chiuso in locale:** Supabase local `127.0.0.1:54321` + Next `localhost:3010` (`.env.local.isolated`). Prod/Preview condivise = **sola lettura**. Job **#18** fermo.  
+**Ruolo / dati:** reception sintetica, salone «Scaramuzzo- Roma Isolato», multi-servizio Taglio+Piega sintetici.  
+**Misura locale:** `request_ms` HTTP; `click→agenda` = request + reload lista fino a riga aggiornata (**n=5**). Artefatti in `exports/.../agenda-timing/`.
+
+| Azione (locale) | Mediana request before (`dc0123d`) | Mediana click→agenda before | Mediana request after (patch) | Mediana click→agenda after |
+|-----------------|------------------------------------|-----------------------------|-------------------------------|----------------------------|
+| Salvataggio 1 servizio | 344 ms | 352 ms | 332 ms | 339 ms |
+| Modifica slot | 320 ms | 325 ms | 290 ms | 296 ms |
+| Salvataggio **multi-servizio (2 linee)** | **349 ms** | — | **335 ms** | — |
+
+**Chiamate Supabase (path create multi-servizio, 2 linee, stesso staff) — conteggio dal codice, non da APM remoto:**
+
+| Fase | `dc0123d` | patch |
+|------|-----------|-------|
+| Auth `getUser` | **2** (route + `getUserAccess`) | **1** (`getUserAccess` only) |
+| `fetchActiveStaffIdsForSalon` | **2** (1× servizio) | **1** |
+| `appointment_services` INSERT | **2** (seriale) | **1** (batch) |
+| Altri (customer, resolve servizi/prezzi, schedule, operational, overlap×2, insert header, sync) | invariati | invariati |
+| **Delta tipico** | — | **≈ −3 round-trip** dati/auth sul create a 2 servizi (più al crescere di N servizi) |
+
+**Causa:** RTT remoto × N (staff membership + insert linee) + doppio auth; in locale `Server-Timing` after: `total≈90 ms` di cui `auth≈56–65 ms`.
+
+**Fix:** `appointments/route.ts` + `lines/[lineId]/route.ts` — un auth, staff una volta, insert batch, `Server-Timing`; su fallimento righe **rollback header** prima di rispondere (anche 409).
+
+**Atomicità (locale):** trigger forzato `SCZ_FORCED_LINE_INSERT_FAIL` su INSERT linee → HTTP **500**, **0** appuntamenti/`ATOMICITY_FORCE_FAIL` residui (`agenda-timing/atomicity-line-fail.json`) — **PASS**.
+
+**Regressione locale dopo fix:** overlap **409**, orari **409**, doppio invio **200+409** — PASS.  
+**Gate:** `npm run lint` / `tsc` PASS; vitest agenda pertinenti **56/56 PASS**.

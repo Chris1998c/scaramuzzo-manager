@@ -1,0 +1,132 @@
+{
+  "label": "before",
+  "baseUrl": "http://localhost:3010",
+  "at": "2026-11-26T17:17:57.257Z",
+  "save": {
+    "n": 5,
+    "request_ms": [
+      365,
+      319,
+      347,
+      310,
+      344
+    ],
+    "click_to_agenda_ms": [
+      374,
+      324,
+      355,
+      316,
+      352
+    ],
+    "median_request_ms": 344,
+    "median_click_to_agenda_ms": 352,
+    "samples": [
+      {
+        "i": 0,
+        "appointment_id": 12,
+        "request_ms": 365,
+        "reload_ms": 8,
+        "click_to_agenda_ms": 374,
+        "serverTiming": ""
+      },
+      {
+        "i": 1,
+        "appointment_id": 13,
+        "request_ms": 319,
+        "reload_ms": 5,
+        "click_to_agenda_ms": 324,
+        "serverTiming": ""
+      },
+      {
+        "i": 2,
+        "appointment_id": 14,
+        "request_ms": 347,
+        "reload_ms": 9,
+        "click_to_agenda_ms": 355,
+        "serverTiming": ""
+      },
+      {
+        "i": 3,
+        "appointment_id": 15,
+        "request_ms": 310,
+        "reload_ms": 6,
+        "click_to_agenda_ms": 316,
+        "serverTiming": ""
+      },
+      {
+        "i": 4,
+        "appointment_id": 16,
+        "request_ms": 344,
+        "reload_ms": 7,
+        "click_to_agenda_ms": 352,
+        "serverTiming": ""
+      }
+    ]
+  },
+  "modify": {
+    "n": 5,
+    "request_ms": [
+      333,
+      325,
+      320,
+      311,
+      296
+    ],
+    "click_to_agenda_ms": [
+      339,
+      331,
+      325,
+      316,
+      301
+    ],
+    "median_request_ms": 320,
+    "median_click_to_agenda_ms": 325,
+    "samples": [
+      {
+        "i": 0,
+        "appointment_id": 12,
+        "line_id": 12,
+        "request_ms": 333,
+        "reload_ms": 6,
+        "click_to_agenda_ms": 339,
+        "serverTiming": ""
+      },
+      {
+        "i": 1,
+        "appointment_id": 13,
+        "line_id": 13,
+        "request_ms": 325,
+        "reload_ms": 6,
+        "click_to_agenda_ms": 331,
+        "serverTiming": ""
+      },
+      {
+        "i": 2,
+        "appointment_id": 14,
+        "line_id": 14,
+        "request_ms": 320,
+        "reload_ms": 5,
+        "click_to_agenda_ms": 325,
+        "serverTiming": ""
+      },
+      {
+        "i": 3,
+        "appointment_id": 15,
+        "line_id": 15,
+        "request_ms": 311,
+        "reload_ms": 5,
+        "click_to_agenda_ms": 316,
+        "serverTiming": ""
+      },
+      {
+        "i": 4,
+        "appointment_id": 16,
+        "line_id": 16,
+        "request_ms": 296,
+        "reload_ms": 5,
+        "click_to_agenda_ms": 301,
+        "serverTiming": ""
+      }
+    ]
+  }
+}

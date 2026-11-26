@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
 import {
@@ -9,10 +8,7 @@ import {
   syncAppointmentHeaderFromDb,
   toNoZ,
 } from "@/lib/agenda/agendaContract";
-import {
-  assertStaffBelongsToSalon,
-  resolveAgendaServiceLines,
-} from "@/lib/agenda/appointmentServerValidation";
+import { resolveAgendaServiceLines } from "@/lib/agenda/appointmentServerValidation";
 import {
   assertStaffScheduledForStartTime,
   isoDateFromAgendaStartTime,
@@ -28,9 +24,16 @@ import {
 } from "@/lib/agenda/assertStaffSlotFree";
 import { buildContiguousAgendaLines } from "@/lib/agenda/buildContiguousAgendaLines";
 import { fetchStaffScheduleForSalon } from "@/lib/staffSchedule";
+import { fetchActiveStaffIdsForSalon } from "@/lib/staffForSalon";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function serverTimingHeader(parts: Array<[string, number]>): string {
+  return parts
+    .map(([name, ms]) => `${name};dur=${Math.max(0, Math.round(ms))}`)
+    .join(", ");
+}
 
 type ServiceInput = {
   service_id: number;
@@ -66,14 +69,16 @@ function errMsg(e: unknown): string {
 
 export async function POST(req: Request) {
   let appointmentIdCreated: number | null = null;
+  const t0 = performance.now();
+  const marks: Array<[string, number]> = [];
+  const mark = (name: string, since: number) => {
+    marks.push([name, performance.now() - since]);
+  };
   try {
-    const supabase = await createServerSupabase();
-    const { data: authData, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !authData?.user) {
-      return NextResponse.json({ error: "Non autenticato" }, { status: 401 });
-    }
-
+    // Auth una sola volta via getUserAccess (evita doppio getUser + createServerSupabase).
+    let t = performance.now();
     const access = await getUserAccess();
+    mark("auth", t);
     const role = access.role;
     if (!["reception", "coordinator", "magazzino"].includes(role)) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 });
@@ -107,6 +112,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "salon_id non consentito" }, { status: 403 });
     }
 
+    t = performance.now();
     const { data: customerRow, error: customerErr } = await supabaseAdmin
       .from("customers")
       .select("id")
@@ -114,16 +120,22 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (customerErr) return NextResponse.json({ error: customerErr.message }, { status: 500 });
     if (!customerRow) return NextResponse.json({ error: "Cliente non trovato" }, { status: 404 });
+    mark("customer", t);
 
     const serviceIds = services.map((s) => toInt(s.service_id)).filter((id): id is number => !!id && id > 0);
     if (serviceIds.length !== services.length) {
       return NextResponse.json({ error: "service_id non valido" }, { status: 400 });
     }
 
+    t = performance.now();
     const resolvedServices = await resolveAgendaServiceLines(supabaseAdmin, salonId, serviceIds);
     if (!resolvedServices.ok) {
       return NextResponse.json({ error: resolvedServices.error }, { status: resolvedServices.status });
     }
+
+    // Una sola fetch staff del salone (prima: N× fetchActiveStaffIdsForSalon per servizio).
+    const allowedStaffIds = new Set(await fetchActiveStaffIdsForSalon(supabaseAdmin, salonId));
+    mark("resolve_staff", t);
 
     const normalizedLines: Array<{
       service_id: number;
@@ -144,9 +156,11 @@ export async function POST(req: Request) {
       }
 
       const staffId = normalizeStaffId(s.staff_id);
-      const staffGate = await assertStaffBelongsToSalon(supabaseAdmin, staffId, salonId);
-      if (!staffGate.ok) {
-        return NextResponse.json({ error: staffGate.error }, { status: staffGate.status });
+      if (staffId != null && !allowedStaffIds.has(staffId)) {
+        return NextResponse.json(
+          { error: "Il collaboratore selezionato non è disponibile per questo salone." },
+          { status: 403 },
+        );
       }
 
       normalizedLines.push({
@@ -164,6 +178,7 @@ export async function POST(req: Request) {
     const snappedStart = toNoZ(snapToAgendaSlot(parseLocal(String(body.start_time))));
     const firstServiceStaff = normalizedLines[0]?.staff_id ?? null;
 
+    t = performance.now();
     const scheduleMap = await fetchStaffScheduleForSalon(supabaseAdmin, salonId);
     const opIsoDate = isoDateFromAgendaStartTime(snappedStart);
     const staffIdsForOp = [
@@ -182,6 +197,7 @@ export async function POST(req: Request) {
             staffIdsForOp,
           )
         : undefined;
+    mark("schedule", t);
 
     const timedLines = buildContiguousAgendaLines(snappedStart, normalizedLines);
     const batchLines = timedLines.map((line) => ({
@@ -202,6 +218,7 @@ export async function POST(req: Request) {
       throw e;
     }
 
+    t = performance.now();
     for (const line of timedLines) {
       if (line.staff_id != null) {
         await assertStaffScheduledForStartTime({
@@ -227,7 +244,9 @@ export async function POST(req: Request) {
         });
       }
     }
+    mark("overlap", t);
 
+    t = performance.now();
     const { data: appData, error: appErr } = await supabaseAdmin
       .from("appointments")
       .insert({
@@ -249,34 +268,47 @@ export async function POST(req: Request) {
     }
     appointmentIdCreated = appointmentId;
 
-    for (const line of timedLines) {
-      const row = {
-        appointment_id: appointmentId,
-        service_id: line.service_id,
-        staff_id: line.staff_id,
-        start_time: line.start_time,
-        duration_minutes: line.duration_minutes,
-        duration_active: line.duration_active,
-        duration_processing: line.duration_processing,
-        need_processing: line.need_processing,
-        price: line.price,
-        vat_rate: line.vat_rate,
-      };
-
-      const { error: lineErr } = await supabaseAdmin.from("appointment_services").insert(row);
-      if (lineErr) {
-        if (isStaffSlotConflictFromDbError(lineErr)) {
-          return NextResponse.json({ error: STAFF_SLOT_CONFLICT_MESSAGE }, { status: 409 });
-        }
-        throw new Error(lineErr.message);
+    const lineRows = timedLines.map((line) => ({
+      appointment_id: appointmentId,
+      service_id: line.service_id,
+      staff_id: line.staff_id,
+      start_time: line.start_time,
+      duration_minutes: line.duration_minutes,
+      duration_active: line.duration_active,
+      duration_processing: line.duration_processing,
+      need_processing: line.need_processing,
+      price: line.price,
+      vat_rate: line.vat_rate,
+    }));
+    const { error: lineErr } = await supabaseAdmin.from("appointment_services").insert(lineRows);
+    if (lineErr) {
+      // Throw: il catch fa sempre rollback dell'header se le righe falliscono.
+      if (isStaffSlotConflictFromDbError(lineErr)) {
+        throw new Error(STAFF_SLOT_CONFLICT_MESSAGE);
       }
+      throw new Error(lineErr.message);
     }
+    mark("insert", t);
 
+    t = performance.now();
     const synced = await syncAppointmentHeaderFromDb(supabaseAdmin, appointmentId);
     if (!synced.ok) throw synced.error;
+    mark("sync", t);
+    marks.push(["total", performance.now() - t0]);
 
-    return NextResponse.json({ ok: true, appointment_id: appointmentId });
+    return NextResponse.json(
+      { ok: true, appointment_id: appointmentId },
+      { headers: { "Server-Timing": serverTimingHeader(marks) } },
+    );
   } catch (e) {
+    if (appointmentIdCreated != null) {
+      try {
+        await supabaseAdmin.from("appointment_services").delete().eq("appointment_id", appointmentIdCreated);
+      } catch {}
+      try {
+        await supabaseAdmin.from("appointments").delete().eq("id", appointmentIdCreated);
+      } catch {}
+    }
     if (isStaffScheduleConflictError(e) || isStaffSlotConflictOrDbError(e)) {
       return NextResponse.json(
         {
@@ -286,14 +318,6 @@ export async function POST(req: Request) {
         },
         { status: 409 },
       );
-    }
-    if (appointmentIdCreated != null) {
-      try {
-        await supabaseAdmin.from("appointment_services").delete().eq("appointment_id", appointmentIdCreated);
-      } catch {}
-      try {
-        await supabaseAdmin.from("appointments").delete().eq("id", appointmentIdCreated);
-      } catch {}
     }
     return NextResponse.json(
       { error: "Errore creazione appuntamento", details: errMsg(e) },

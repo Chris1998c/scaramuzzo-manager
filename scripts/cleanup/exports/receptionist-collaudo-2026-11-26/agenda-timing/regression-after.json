@@ -1,0 +1,33 @@
+{
+  "multi_after_request_ms": [
+    341,
+    344,
+    335,
+    329,
+    333
+  ],
+  "multi_after_median": 335,
+  "multi_after_server_timing": [
+    "auth;dur=65, customer;dur=2, resolve_staff;dur=10, schedule;dur=5, overlap;dur=5, insert;dur=6, sync;dur=5, total;dur=99",
+    "auth;dur=56, customer;dur=2, resolve_staff;dur=10, schedule;dur=16, overlap;dur=7, insert;dur=5, sync;dur=3, total;dur=100",
+    "auth;dur=59, customer;dur=2, resolve_staff;dur=10, schedule;dur=4, overlap;dur=4, insert;dur=5, sync;dur=3, total;dur=88",
+    "auth;dur=56, customer;dur=2, resolve_staff;dur=11, schedule;dur=5, overlap;dur=5, insert;dur=4, sync;dur=4, total;dur=89",
+    "auth;dur=56, customer;dur=3, resolve_staff;dur=10, schedule;dur=6, overlap;dur=7, insert;dur=6, sync;dur=4, total;dur=92"
+  ],
+  "overlap": {
+    "first": 200,
+    "second": 409,
+    "error": "Collaboratore già impegnato in questa fascia oraria",
+    "pass": true
+  },
+  "hours": {
+    "status": 409,
+    "error": "Collaboratore non disponibile in questa fascia oraria",
+    "pass": true
+  },
+  "double_submit": {
+    "s1": 200,
+    "s2": 409,
+    "pass": 1
+  }
+}
