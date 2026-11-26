@@ -78,4 +78,8 @@ Cartella: `scripts/cleanup/exports/ui-usability-review-2026-11-26/screenshots/`
 
 ## Preview
 
-_(URL compilato al deploy)_
+- **URL:** https://scaramuzzo-manager-fx2ewsq00-christians-projects-a583a48c.vercel.app  
+- **Deploy:** `dpl_6XmYPgpA91FPoXdXBfTTkAzJngLN` · commit `d23d1f8` · branch `audit/ui-usability-review-2026-11-26`  
+- **Inspector:** https://vercel.com/christians-projects-a583a48c/scaramuzzo-manager/6XmYPgpA91FPoXdXBfTTkAzJngLN  
+
+> Preview condivide il DB di produzione: **sola lettura** / niente scritture operative su questa Preview.
