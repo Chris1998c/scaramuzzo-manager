@@ -97,9 +97,13 @@ export default function PresenzeFilters({
       a.click();
       a.remove();
       URL.revokeObjectURL(href);
-      toast.success(`Export ${kind.toUpperCase()} scaricato.`);
+      toast.success(kind === "pdf" ? "PDF scaricato." : "CSV scaricato.");
     } catch {
-      toast.error(`Errore di rete durante export ${kind.toUpperCase()}`);
+      toast.error(
+        kind === "pdf"
+          ? "Errore di rete durante il download del PDF."
+          : "Errore di rete durante il download del CSV.",
+      );
     }
   }
 

@@ -20,13 +20,13 @@ export function buildFiscalHealthWarnings(
       severity: "amber",
       code: "bridge_not_configured",
       message:
-        "Print Bridge non configurato sul server (PRINT_BRIDGE_HEALTH_URL).",
+        "Bridge stampa non configurato sul server (manca PRINT_BRIDGE_HEALTH_URL).",
     });
   } else if (!bridge.online) {
     warnings.push({
       severity: "red",
       code: "bridge_offline",
-      message: `Print Bridge offline: ${bridge.error ?? "non raggiungibile"}.`,
+      message: `Bridge stampa offline: ${bridge.error ?? "non raggiungibile"}.`,
     });
   }
 
@@ -38,7 +38,7 @@ export function buildFiscalHealthWarnings(
     warnings.push({
       severity: "red",
       code: "processing_stuck",
-      message: `Job in processing da oltre ${metrics.oldestProcessingAgeMinutes} min (soglia ${stuckMin} min).`,
+      message: `Job in elaborazione da oltre ${metrics.oldestProcessingAgeMinutes} min (soglia ${stuckMin} min).`,
     });
   }
 
@@ -50,7 +50,7 @@ export function buildFiscalHealthWarnings(
     warnings.push({
       severity: "amber",
       code: "pending_stuck",
-      message: `Job pending in coda da oltre ${metrics.oldestPendingAgeMinutes} min (soglia ${stuckMin} min).`,
+      message: `Job in attesa da oltre ${metrics.oldestPendingAgeMinutes} min (soglia ${stuckMin} min).`,
     });
   }
 

@@ -18,7 +18,7 @@ describe("cassaCloseSuccessToast", () => {
       printerEnabled: true,
     });
     expect(t.description).toMatch(/job n\. 12/);
-    expect(t.description).toMatch(/Print Bridge/);
+    expect(t.description).toMatch(/Bridge stampa/);
   });
 
   it("says session printer off without 'nel sistema'", () => {

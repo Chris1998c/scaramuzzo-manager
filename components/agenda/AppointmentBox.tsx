@@ -33,7 +33,7 @@ function statusMeta(status: string | null | undefined) {
     return { label: "IN SALA", cls: "bg-[#f3d8b6] text-[#1A0F0A]" };
   if (s === "done")
     return {
-      label: "DONE",
+      label: "CHIUSO",
       cls: "bg-white/10 text-white/70 border border-white/10",
     };
   if (s === "cancelled")
@@ -385,14 +385,14 @@ export default function AppointmentBox({
               disabled={checkingIn || isInSala || isDone}
               className="w-full px-4 py-2.5 text-left text-xs text-white hover:bg-white/5 border-b border-white/5 disabled:opacity-50"
  >
- {isDone
- ? "✅ Già chiuso"
- : isInSala
- ? "👤 Già in sala"
- : checkingIn
- ? "..."
- : "👤 Porta in sala"}
- </button>
+              {isDone
+                ? "Già chiuso"
+                : isInSala
+                  ? "Già in sala"
+                  : checkingIn
+                    ? "Attendere…"
+                    : "Porta in sala"}
+            </button>
  <button
  onClick={async () => {
  setOpenActions(false);

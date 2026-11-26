@@ -13,11 +13,11 @@ function getTitleFromPath(pathname: string): string {
  if (pathname.startsWith("/dashboard/agenda")) return "Agenda";
  if (pathname.startsWith("/dashboard/in-sala")) return "In sala";
  if (pathname.startsWith("/dashboard/presenze")) return "Presenze";
- if (pathname.startsWith("/dashboard/marketing")) return "WhatsApp manuale";
- if (pathname.startsWith("/dashboard/report")) return "Report & KPI";
+ if (pathname.startsWith("/dashboard/marketing")) return "WhatsApp";
+ if (pathname.startsWith("/dashboard/report")) return "Report";
  if (pathname.startsWith("/dashboard/clienti")) return "Clienti";
  if (pathname.startsWith("/dashboard/impostazioni")) return "Impostazioni";
- if (pathname.startsWith("/dashboard/cassa")) return "Check-out cassa";
+ if (pathname.startsWith("/dashboard/cassa")) return "Cassa";
  if (pathname.startsWith("/dashboard/fiscale/bridge")) return "Bridge stampa";
  if (pathname.startsWith("/dashboard/fiscale")) return "Job fiscali";
  if (pathname === "/dashboard/magazzino") return "Magazzino";

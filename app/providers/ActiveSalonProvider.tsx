@@ -52,11 +52,11 @@ export function ActiveSalonProvider({
   defaultSalonId = null,
   staffSalonId = null,
 }: Props) {
-  // ✅ MAGAZZINO + COORDINATOR possono cambiare salone
+  // Magazzino e coordinator possono cambiare salone.
   const canChooseSalon = role === "coordinator" || role === "magazzino";
 
-  // ✅ Reception: salone operativo = staffSalonId (stesso usato da getUserAccess e API es. porta-in-sala), non allowedSalonIds[0].
-  // ✅ Cliente: primo salone consentito come prima.
+  // Reception: salone operativo = staffSalonId (allineato a getUserAccess / porta-in-sala), non allowedSalonIds[0].
+  // Cliente: primo salone consentito.
   const forcedSalonId = !canChooseSalon
     ? role === "reception"
       ? (staffSalonId ?? allowedSalonIds[0] ?? null)

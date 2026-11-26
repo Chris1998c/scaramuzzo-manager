@@ -16,7 +16,7 @@ export function cassaCloseSuccessToast(input: {
   if (input.fiscalPrintJobId != null && Number.isFinite(input.fiscalPrintJobId)) {
     return {
       title: "Vendita registrata",
-      description: `Stampa fiscale in coda (job n. ${input.fiscalPrintJobId}). Il Print Bridge locale elabora la coda verso Epson FP81 RT; lo stato si aggiorna al callback.`,
+      description: `Stampa fiscale in coda (job n. ${input.fiscalPrintJobId}). Il Bridge stampa locale elabora la coda verso Epson FP81 RT; lo stato si aggiorna al callback.`,
       tone: "success",
     };
   }

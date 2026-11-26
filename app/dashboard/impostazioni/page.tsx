@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { Sparkles } from "lucide-react";
 
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
@@ -10,11 +9,12 @@ import { fetchSalonsForSettings } from "@/lib/salonsSettings";
 import { fetchFiscalSettingsSnapshot } from "@/lib/fiscalSettings";
 import { fetchCustomersDomainSnapshot } from "@/lib/customersDomainSnapshot";
 import type { CustomersDomainSnapshot } from "@/lib/customersDomainTypes";
+import { PageHeader } from "@/components/ui/PageHeader";
 import ImpostazioniShell from "@/components/settings/ImpostazioniShell";
 
 export const metadata = {
   title: "Impostazioni | Scaramuzzo Manager",
-  description: "Centro di controllo del gestionale",
+  description: "Listini, collaboratori, saloni e parametri operativi",
 };
 
 type ImpostazioniSearchParams = Record<string, string | string[] | undefined>;
@@ -26,7 +26,7 @@ export default async function ImpostazioniPage({
 }) {
   const supabase = await createServerSupabase();
   const access = await requireDashboardAccess();
-  // Coerenza accessi enterprise: il ruolo "cliente" non deve vedere il centro di controllo.
+  // Il ruolo "cliente" non accede alle impostazioni.
   if (access.role === "cliente") redirect("/dashboard");
 
   const sp = (await searchParams) ?? {};
@@ -163,21 +163,8 @@ export default async function ImpostazioniPage({
     customersDomainUnavailable;
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-8 pb-12">
-      <header className="relative overflow-hidden rounded-[2.5rem] border border-[#5c3a21]/50 bg-[#24140e]/60 p-8 md:p-10 backdrop-blur-xl shadow-2xl">
-        <div className="relative z-10 space-y-4 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f3d8b6]/10 border border-[#f3d8b6]/20 text-[#f3d8b6] text-xs font-bold tracking-widest uppercase">
-            <Sparkles size={14} /> Centro di controllo
-          </div>
-          <h1 className="text-3xl md:text-4xl font-black text-[#f3d8b6] tracking-tight">
-            Impostazioni
-          </h1>
-          <p className="text-[#c9b299] text-base md:text-lg leading-relaxed">
-            Configura listini, collaboratori, saloni e parametri operativi da un unico punto.
-          </p>
-        </div>
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#f3d8b6]/10 blur-[120px] rounded-full pointer-events-none" />
-      </header>
+    <div className="max-w-[1600px] mx-auto space-y-6 pb-12">
+      <PageHeader meta="Listini, collaboratori, saloni e parametri operativi" />
 
       {hasUnavailableData ? (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200/90">

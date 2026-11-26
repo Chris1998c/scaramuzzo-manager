@@ -84,7 +84,7 @@ const SECTIONS: Array<{
   {
     key: "clienti",
     label: "Clienti",
-    hint: "Gestione anagrafiche nel modulo Clienti",
+    hint: "Anagrafiche e schede clienti",
     icon: Users,
     ready: true,
   },

@@ -237,7 +237,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
  const headerRef = useRef<HTMLDivElement>(null);
  const masterRef = useRef<HTMLDivElement>(null);
 
- // ✅ misura reale colonna (quando NON c’è scrollX e le colonne sono flex)
+  // Misura reale colonna (quando non c’è scrollX e le colonne sono flex).
  const dayProbeRef = useRef<HTMLDivElement>(null);
  const [colWidthRealDay, setColWidthRealDay] = useState<number | null>(null);
 
@@ -475,7 +475,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
  const shouldScrollX = contentWidth > masterWidth;
 
  /**
- * ✅ LARGHEZZA COLONNA REALE in DAY:
+ * Larghezza colonna reale in vista giorno:
  * - se scrollX: colWidth è reale
  * - se NO scrollX: usiamo una MISURA reale dal DOM (ResizeObserver su dayProbeRef)
  */
@@ -493,7 +493,7 @@ function AgendaGridInner({ currentDate, highlightAppointmentId, onHighlightHandl
  return Math.floor(available / dayGridStaff.length);
  }, [view, shouldScrollX, colWidth, dayGridStaff.length, colWidthRealDay, layoutTick]);
 
- // ✅ misura colonna reale con ResizeObserver (solo day + no scrollX)
+  // Misura colonna reale con ResizeObserver (solo day + no scrollX).
  useEffect(() => {
  if (view !== "day") {
  setColWidthRealDay(null);

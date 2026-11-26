@@ -1303,7 +1303,7 @@ export default function MarketingWhatsAppClient({
             >
               {selectedContactWarnings.today > 0 ? (
                 <div className="space-y-0.5">
-                  <div>⚠️ Alcuni clienti sono già stati contattati oggi.</div>
+                  <div>Alcuni clienti sono già stati contattati oggi.</div>
                   <div className="text-[11px] text-amber-100/80">
                     Consigliato non inviare nuovamente.
                   </div>
@@ -1311,7 +1311,7 @@ export default function MarketingWhatsAppClient({
               ) : null}
               {selectedContactWarnings.recent > 0 ? (
                 <div className="space-y-0.5">
-                  <div>⚠️ Alcuni clienti sono stati contattati recentemente.</div>
+                  <div>Alcuni clienti sono stati contattati recentemente.</div>
                   <div className="text-[11px] text-amber-100/80">
                     Valuta la frequenza per evitare spam.
                   </div>

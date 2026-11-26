@@ -163,7 +163,7 @@ function BridgeCard({ bridge }: { bridge: PrintBridgeHealthProbe }) {
       <div className="flex items-center gap-2 mb-4">
         <Server className="text-[#f3d8b6]/80" size={18} />
         <span className="text-xs font-medium text-white/40">
-          Print Bridge
+          Bridge stampa
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-3">
