@@ -298,3 +298,44 @@ Dettaglio dopo (hard fetch): 1901, 1797, 1733, 1648, 1840 (`auth`~550–600, `qu
 3. Promote `5024152` (o tip branch) → `main`  
 4. OTP Clienti / Presenze Team + bake PWA  
 5. Bridge altre sedi · session 12 Cosenza
+
+---
+
+## 9. Verifica candidato lancio `5024152` (2026-11-26 15:47 CET)
+
+**Preview:** https://scaramuzzo-manager-psv06hiio-christians-projects-a583a48c.vercel.app  
+**Commit da promuovere:** **`5024152`** (`502415209a6d6938a00a41ff3d98f631982f9388`)  
+**Base UI:** `54d98a7` · tip branch docs `5512851` (non codice)  
+**Prod:** sola lettura (`main` `25768fb`) — nessun merge/deploy
+
+### 9.1 CI locale (post-`54d98a7`, su tip branch)
+
+| Check | Comando | Esito |
+|-------|---------|-------|
+| Lint / typecheck | `npm run lint` (= `tsc --noEmit`) | **PASS** |
+| Build | `npm run build` | **PASS** |
+| Test pertinenti | `vitest` su `reportSalonQuerySync`, `dashboardSalonQuerySync`, `reportDateRange`, `reportSalonResolve` | **25/25 PASS** |
+
+Scope test: sync `salon_id` Dashboard/Report + resolve range/sede — allineati alle modifiche `5024152` (`withActiveSalon` + dedupe controlli).
+
+### 9.2 Preview — cambio sede → Dashboard → Report
+
+Ruolo **coordinator**. Percorso: switcher sede → attesa sync URL/link → Dashboard secondary **Report** (`?salon_id=` seeded).
+
+| Sede | `salon_id` URL | Label «Sede:» | Prova dati appartengono alla sede |
+|------|----------------|---------------|-----------------------------------|
+| Corigliano | `2` | Scaramuzzo - Corigliano | CRM **GINA ROMIO** (1 da richiamare); **non** liste Roma |
+| Castrovillari | `3` | Scaramuzzo - Castrovillari | CRM **Nessuna azione urgente**; link Dashboard pre-click `?salon_id=3` |
+| Roma | `1` | Scaramuzzo- Roma | CRM **CARMEN MURACA** + Clienti da richiamare (8) |
+
+**Esito percorso:** **PASS** — dopo cambio sede i dati Report (label + CRM) coincidono con la sede selezionata; i link Dashboard → Report portano `salon_id` corretto post-sync.
+
+### 9.3 Verdetto promote
+
+| Voce | Valore |
+|------|--------|
+| Candidato | **`5024152`** |
+| Gate CI/locale | PASS (lint, build, 25 unit) |
+| Gate Preview multi-sede Report | PASS |
+| Blocchi non in scope (non bloccano questo gate) | Epson fiscali · Report ≥2 s RSC · bake PWA Clienti/Team · Bridge altre sedi |
+| Azione successiva | Review + merge `audit/prelaunch-2026-11-27` @ **`5024152`** → `main` (esplicito; prod resta read-only finché non richiesto) |
