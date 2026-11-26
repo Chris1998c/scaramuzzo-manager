@@ -1,0 +1,4 @@
+sep=;
+"TYPE";"tab";"salon_id";"date_from";"date_to";"vat_mode";"visualizzazione";"staff_id";"payment_method";"item_type";"sessions";"gross_total";"gross_cash";"gross_card"
+"META";"cassa";"1";"•••";"•••";"gross";"Valori con IVA";"";"";"";"";"";"";""
+"TOTALS";"";"";"";"";"";"";"";"";"";"0";"0";"0";"0"

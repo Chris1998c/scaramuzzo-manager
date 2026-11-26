@@ -16,7 +16,8 @@ export type ClientiListRow = {
   notes: string | null;
 };
 
-const BROWSE_LIMIT = 200;
+/** Browse iniziale: pochi recenti — la reception cerca, non scorre 200 schede. */
+const BROWSE_LIMIT = 24;
 const SEARCH_LIMIT = 100;
 
 const SELECT_COLUMNS =

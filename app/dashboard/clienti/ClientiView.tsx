@@ -153,15 +153,27 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
           <Search
             size={18}
             className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50"
- />
- <input
- value={query}
- onChange={(e) => setQuery(e.target.value)}
- placeholder="Cerca per nome, cognome, telefono o email…"
+            aria-hidden
+          />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Cerca per nome, cognome, telefono o email…"
+            aria-label="Cerca cliente per nome, cognome, telefono o email"
             className="w-full rounded-2xl bg-[#24140e]/70 border border-[#5c3a21]/60
- pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/40
+ pl-11 pr-11 py-3 text-sm text-white placeholder:text-white/40
  backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
           />
+          {query.trim() ? (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-white/50 hover:text-white"
+              aria-label="Cancella ricerca"
+            >
+              <X size={16} />
+            </button>
+          ) : null}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -189,13 +201,20 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
       </div>
 
       {(searching || searchError) && (
-        <p className="text-sm text-[#c9b299]">
- {searching ? "Ricerca sul database…" : null}
+        <p className="text-sm text-[#c9b299]" role="status" aria-live="polite">
+          {searching ? "Ricerca sul database…" : null}
           {searchError ? (
             <span className="text-red-400"> Errore ricerca: {searchError}</span>
           ) : null}
         </p>
       )}
+
+      {!query.trim() && !searching ? (
+        <p className="text-sm text-white/45">
+          Ultimi clienti creati. Usa la ricerca per nome, telefono o codice — non
+          scorrere l&apos;intero elenco.
+        </p>
+      ) : null}
 
       {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
@@ -225,10 +244,10 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
                   ) : (
                     <div className="text-xs text-[#c9b299]/75 mt-0.5 tracking-wide">Cliente</div>
                   )}
-                  <div className="text-sm text-[#c9b299] mt-1">📞 {c.phone}</div>
+                  <div className="text-sm text-[#c9b299] mt-1">{c.phone}</div>
                   {c.address && (
                     <div className="text-xs text-[#c9b299]/80 mt-1 truncate">
-                      📍 {c.address}
+                      {c.address}
                     </div>
                   )}
 
@@ -241,9 +260,11 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
           );
         })}
 
-        {filtered.length === 0 && (
+        {filtered.length === 0 && !searching && (
           <div className="col-span-full text-center text-white/60 py-16">
-            Nessun cliente trovato.
+            {query.trim()
+              ? "Nessun cliente trovato. Prova un altro nome o telefono."
+              : "Nessun cliente in elenco."}
           </div>
         )}
       </div>

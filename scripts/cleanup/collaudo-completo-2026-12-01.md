@@ -447,3 +447,85 @@ In tutte le prove early URL Report, switcher e dati coincidono con l’**ultima*
 | Dashboard → cambio sede → clic immediato Report (Roma→Castrovillari) | **PASS** — early URL `?salon_id=3`, switcher `3`, «Sede: Scaramuzzo - Castrovillari», CRM vuoto (non Roma) |
 
 **Regressione:** nessuna → rollback **non** eseguito. Job **#18** fermo.
+
+---
+
+## 12. Collaudo receptionist Roma — flusso operativo (2026-11-26 17:25 CET, aggiornato 17:55)
+
+**Riferimento prod:** codice collaudato **`f420ff3` / `8152b96`** (tip docs **`45a686a`**).  
+**Branch lavoro / Preview UI fix:** `audit/prelaunch-2026-11-27` → Preview `dpl_6cVoGkC…`.  
+**Ruolo primario:** reception Roma (`romascaramuzzo@…`, sede 1, senza switcher / senza Report).  
+**Job #18:** fermo. **Cambio sede:** non ripetuto (§10–11).  
+**Artefatti:** `scripts/cleanup/exports/receptionist-collaudo-2026-11-26/` (screenshot redatti, export redatti, log vitest).  
+**PII:** screenshot/export committati con nomi/recapiti mascherati.
+
+### 12.1 Percorso reception — UI + tempi clic→utilizzabile
+
+| # | Azione | Ambiente | Viewport | Tempo | Esito | Prova |
+|---|--------|----------|----------|-------|-------|-------|
+| 1 | Login → Dashboard Roma | prod RO | desktop | — | **PASS** | `01-…` |
+| 2 | KPI contrasto | prod RO | desktop | — | **difetto** | `02-…` |
+| 3 | Nav → Clienti (post-fix browse 24) | Preview | desktop | — | **PASS** | `06-…` (blur PII) |
+| 4 | **Cerca nome+cognome fuori dalle 24** | Preview | desktop | **1987 ms** | **PASS** | non in browse; **1** risultato = id target; `08-…redacted` |
+| 4b | Stessa ricerca | Preview | mobile 390×844 | — | **PASS** | `09-…redacted` |
+| 5 | Nav → Agenda | prod RO | desktop | **~1072 ms** | **PASS** | `03-…` |
+| 6 | Clic slot → modal utilizzabile | Preview | desktop | **1041 ms** | **PASS** | «Nuovo appuntamento» / «Orario di inizio»; `10-…redacted` |
+| 6b | Modal appuntamento | Preview | mobile | — | **PASS** | `11-…redacted` |
+| 7a | Salvataggio appt (POST `/api/agenda/appointments`) | Preview API + **cleanup** | — | **6816 ms** | **PASS** | appt creato poi rimosso (id 147 assente in DB) |
+| 7b | Modifica slot (PATCH line) | Preview API + cleanup | — | **4229 ms** | **PASS** | stesso appt |
+| 7c | Porta In sala | Preview API + cleanup | — | **1842 ms** | **PASS** | `status=in_sala` |
+| 7d | Annullo (`status=cancelled`) | Preview API + cleanup | — | **2031 ms** | **PASS** | poi DELETE lines/appt |
+| 7e | Vendita (close_sale) | **Docker isolato** | — | **2652 ms** (suite) | **PASS** | niente vendita su DB condiviso |
+| 8 | Nav → In sala | prod RO | desktop | **~915 ms** | **PASS** | — |
+| 9 | Report reception | — | — | — | **N/A ruolo** | — |
+| 10 | Soft Dashboard→Report | prod RO coord | desktop | **~2357 ms** | **PASS** | oltre 2 s soft |
+| 11 | Hard Report `perf=1` | prod RO coord | desktop | DCL **~2060**; `page_total_ms=1734` | **PASS server** | `04-…` (blur) |
+
+**Nota scritture Preview:** 7a–7d usano le stesse route Next della UI reception su Preview (DB condiviso con prod) con **cleanup immediato verificato**. Vendita/magazzino/void restano solo §12.2.
+
+### 12.2 Prove isolate (Docker Postgres) — esiti + tempi suite
+
+Log: `exports/receptionist-collaudo-2026-11-26/isolated-vitest-timed.log` — **25/25 PASS** (file rieseguiti).
+
+| Area | Suite | Tempo suite | Esito |
+|------|-------|-------------|-------|
+| Annullo / void receipt safety | `cancelVoidReceiptSafety` | **3054 ms** | **PASS** |
+| Magazzino carico/scarico/transfer/sale/void | `stockE2eConsistency` | **3311 ms** | **PASS** |
+| Trasferimento multi-linea atomico | `transferMultiLineAtomic` | **3021 ms** | **PASS** |
+| Prenotazione App Clienti (race + idempotency) | `customerBookingConcurrentIsolated` | **2419 ms** | **PASS** |
+| Prenotazione App Clienti (authz + slot race) | `customerBookingAuthzIsolated` | **2217 ms** | **PASS** |
+| Vendita appt idempotente | `closeSaleAppointmentIdempotency` (isolato) | **2652 ms** | **PASS** |
+| Lifecycle UI guards | `appointmentLifecycle` | <10 ms | **PASS** |
+
+### 12.3 Export Report — download + contenuto
+
+| Prova | Tempo | Esito | Contenuto verificato |
+|-------|-------|-------|----------------------|
+| CSV `tab=cassa` salon 1 oggi (prod RO, coordinator) | **1235 ms** | **PASS** | `Content-Type: text/csv`; filename `report-cassa-1-…csv`; META+TOTALS (`sessions=0`, gross 0); sample redattato in `exports/report-cassa-roma-2026-11-26.csv.redacted.txt` |
+| PDF `tab=cassa` stesso periodo | **2324 ms** | **PASS** | magic `%PDF`; testo: «Scaramuzzo- Roma», «Report Cassa», «Nessuna sessione nel periodo»; sample `exports/…pdftotext-redacted.txt` |
+
+### 12.4 Fix sul branch (prima → dopo)
+
+| Difetto | Prima (prod) | Dopo (Preview) |
+|---------|--------------|----------------|
+| Clienti 200 card | `05-…` (blur) — 200 | `06-…` (blur) — **24** + hint ricerca |
+| Emoji a11y / clear search | 📞, no clear | testo pulito + X |
+| Modal jargon | Planning / slot griglia | `07`/`10`/`11` — Nuovo appuntamento / Orario di inizio |
+| Ricerca fuori browse | — | **PASS** §12.1#4 (`08`/`09`) |
+
+### 12.5 Device / Epson — ancora da provare sul posto
+
+| Prova | Punto di partenza | Successo = |
+|-------|-------------------|------------|
+| OTP WhatsApp App Clienti | PWA `/app-clienti` → OTP | OTP + claim OK |
+| Prenotazione App Clienti (device) | post-claim → conferma slot | appt in Agenda; **logica isolata già PASS** §12.2 |
+| Timbratura Team | PWA `/team` in sede Roma | `attendance_logs` ok / geofence |
+| Epson Contanti / Carta + void | Cassa + Bridge **1.3.3** | scontrino/callback; **job 18 fermo** |
+
+### 12.6 Residui
+
+1. Soft Report ~2.4 s.  
+2. KPI basso contrasto.  
+3. Salvataggio Preview API lento a freddo (**~6.8 s**) — da riosservare a caldo su staging.  
+4. OTP / Team / Epson device: **da provare**.  
+5. Job **#18** fermo.

@@ -334,7 +334,7 @@ useEffect(() => {
         <div className="px-8 py-6 border-b border-white/10 flex justify-between items-center bg-black/20">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#f3d8b6]/50 font-black">
-              Planning Agenda
+              Nuovo appuntamento
             </p>
             <h2 className="text-2xl font-black text-[#f3d8b6] mt-0.5">
               {currentDate}
@@ -342,7 +342,7 @@ useEffect(() => {
               {selectedStartTime}
             </h2>
             <label className="mt-3 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
-              Orario inizio (slot griglia)
+              Orario di inizio
               <select
                 value={selectedStartTime}
                 disabled={saving}

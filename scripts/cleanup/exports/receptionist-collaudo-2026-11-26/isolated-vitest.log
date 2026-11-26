@@ -1,0 +1,111 @@
+
+ RUN  v3.2.4 /Users/christian/Developer/scaramuzzo-manager
+
+ERROR:  negative stock not allowed (product 8, salon 5, qty -4)
+CONTEXT:  PL/pgSQL function stock_move(integer,numeric,integer,integer,text,text,uuid,bigint,bigint,bigint,bigint,uuid,uuid,text) line 184 at RAISE
+SQL statement "SELECT public.stock_move(
+    p_product_id => ti.product_id,
+    p_qty => ti.qty::numeric,
+    p_from_salon => v_from_int,
+    p_to_salon => v_to_int,
+    p_movement_type => 'transfer',
+    p_reason => 'transfer_id=' || p_transfer_id::text,
+    p_transfer_id => p_transfer_id,
+    p_transfer_item_id => ti.id,
+    p_created_by => v_actor,
+    p_movement_group_id => v_movement_group,
+    p_source => 'transfer'
+  )
+  FROM public.transfer_items ti
+  WHERE ti.transfer_id = p_transfer_id"
+PL/pgSQL function execute_transfer(bigint,uuid) line 74 at PERFORM
+SQL statement "SELECT public.execute_transfer(v_transfer_id, v_actor)"
+PL/pgSQL function create_and_execute_transfer(integer,integer,jsonb,uuid,uuid,date,text,text,boolean) line 115 at PERFORM
+ERROR:  negative stock not allowed (product 8, salon 5, qty -4)
+CONTEXT:  PL/pgSQL function stock_move(integer,numeric,integer,integer,text,text,uuid,bigint,bigint,bigint,bigint,uuid,uuid,text) line 184 at RAISE
+SQL statement "SELECT public.stock_move(
+    p_product_id => ti.product_id,
+    p_qty => ti.qty::numeric,
+    p_from_salon => v_from_int,
+    p_to_salon => v_to_int,
+    p_movement_type => 'transfer',
+    p_reason => 'transfer_id=' || p_transfer_id::text,
+    p_transfer_id => p_transfer_id,
+    p_transfer_item_id => ti.id,
+    p_created_by => v_actor,
+    p_movement_group_id => v_movement_group,
+    p_source => 'transfer'
+  )
+  FROM public.transfer_items ti
+  WHERE ti.transfer_id = p_transfer_id"
+PL/pgSQL function execute_transfer(bigint,uuid) line 74 at PERFORM
+SQL statement "SELECT public.execute_transfer(v_transfer_id, v_actor)"
+PL/pgSQL function create_and_execute_transfer(integer,integer,jsonb,uuid,uuid,date,text,text,boolean) line 115 at PERFORM
+ ✓ lib/magazzino/transferMultiLineAtomic.test.ts (1 test) 2265ms
+   ✓ create_and_execute_transfer multi-line atomicity (isolated) > fails all lines on insufficient stock; retry same client_request_id stays clean then idempotent success  2264ms
+NOTICE:  function public.patch_appointment_service_lines_atomic(pg_catalog.int8,jsonb,jsonb) does not exist, skipping
+ERROR:  permission denied for function patch_appointment_service_lines_atomic
+ERROR:  invalid input syntax for type timestamp: "not-a-timestamp"
+CONTEXT:  SQL statement "UPDATE public.appointments AS a
+    SET
+      customer_id = CASE
+        WHEN p_header ? 'customer_id' THEN NULLIF(p_header->>'customer_id', '')::uuid
+        ELSE a.customer_id
+      END,
+      notes = CASE
+        WHEN NOT (p_header ? 'notes') THEN a.notes
+        WHEN p_header->'notes' IS NULL OR jsonb_typeof(p_header->'notes') = 'null' THEN NULL
+        WHEN NULLIF(p_header->>'notes', '') IS NULL THEN NULL
+        ELSE p_header->>'notes'
+      END,
+      start_time = CASE
+        WHEN p_header ? 'start_time' THEN NULLIF(p_header->>'start_time', '')::timestamp without time zone
+        ELSE a.start_time
+      END,
+      end_time = CASE
+        WHEN p_header ? 'end_time' THEN NULLIF(p_header->>'end_time', '')::timestamp without time zone
+        ELSE a.end_time
+      END,
+      staff_id = CASE
+        WHEN NOT (p_header ? 'staff_id') THEN a.staff_id
+        WHEN p_header->'staff_id' IS NULL OR jsonb_typeof(p_header->'staff_id') = 'null' THEN NULL
+        ELSE NULLIF(p_header->>'staff_id', '')::integer
+      END
+    WHERE a.id = p_appointment_id"
+PL/pgSQL function patch_appointment_service_lines_atomic(bigint,jsonb,jsonb) line 75 at SQL statement
+ ✓ lib/agenda/patchAppointmentServiceLinesAtomic.test.ts (1 test) 1874ms
+   ✓ patch_appointment_service_lines_atomic harden (isolated Postgres) > revokes anon/authenticated; rolls back header+lines on post-header failure; success applies both  1874ms
+ ✓ lib/cassa/closeSaleAppointmentIdempotency.test.ts (3 tests) 1910ms
+   ✓ close_sale_atomic appointment idempotency (isolated Postgres) > replay and concurrent checkout share one sale/stock/job  1905ms
+ ✓ lib/agenda/appointmentCancelAuditRpc.test.ts (2 tests) 1813ms
+   ✓ appointment cancel/hard_delete audit (isolated Postgres) > soft-cancel customer_app preserva riga+servizi; hard-delete bloccato; ordinario cancellabile  1812ms
+NOTICE:  trigger "trg_slot" for relation "public.appointment_services" does not exist, skipping
+ ✓ lib/customer-app/customerBookingConcurrentIsolated.test.ts (1 test) 1722ms
+   ✓ customer booking concurrent POST + idempotency (isolated Postgres) > due POST concorrenti → un solo appt + 409; complete fail → retry replay; payload diverso → 409  1721ms
+ERROR:  negative stock not allowed (product 7, salon 1, qty -987)
+CONTEXT:  PL/pgSQL function stock_move(integer,numeric,integer,integer,text,text,uuid,bigint,bigint,bigint,bigint,uuid,uuid,text) line 184 at RAISE
+ ✓ lib/magazzino/stockE2eConsistency.test.ts (2 tests) 2364ms
+   ✓ stock e2e consistency (isolated Postgres) > carico/scarico/transfer/sale/retry/void cancel/void reverse  2363ms
+ERROR:  create_void_receipt_job_atomic: vendita non annullabile (status=fiscal_void_pending)
+CONTEXT:  PL/pgSQL function create_void_receipt_job_atomic(bigint,uuid,text) line 12 at RAISE
+ERROR:  cancel_fiscal_print_job: job 4 completed non annullabile
+CONTEXT:  PL/pgSQL function cancel_fiscal_print_job(bigint,text) line 35 at RAISE
+ ✓ lib/fiscal/cancelVoidReceiptSafety.test.ts (2 tests) 2189ms
+   ✓ cancel void_receipt safety (isolated Postgres) > pending restores; processing stale blocks second void; completed refused  2188ms
+ERROR:  Collaboratore già impegnato in questa fascia oraria
+CONTEXT:  PL/pgSQL function enforce_slot() line 18 at RAISE
+ ✓ lib/customer-app/customerBookingAuthzIsolated.test.ts (1 test) 1636ms
+   ✓ customer booking authz + slot race (isolated Postgres) > due clienti due sedi: ownership + race stesso slot  1636ms
+ERROR:  mobile_attendance_clock_insert: troppo presto (too_soon)
+CONTEXT:  PL/pgSQL function mobile_attendance_clock_insert(integer,integer,numeric,numeric,numeric,text,text,integer) line 34 at RAISE
+ ✓ lib/mobile/mobileAttendanceClockInsert.test.ts (2 tests) 1934ms
+   ✓ mobile_attendance_clock_insert (isolated Postgres, due sedi) > race legacy produce doppio in; RPC serializza e rifiuta too_soon; staff B isolato  1933ms
+ ✓ lib/reports/reportCassaVoidLedgerIsolated.test.ts (1 test) 1488ms
+   ✓ report/cassa void ledger (isolated Postgres) > posted incluso; fiscally_voided escluso da Σ total_amount (sessione chiusa)  1487ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts (15 tests) 1ms
+
+ Test Files  11 passed (11)
+      Tests  31 passed (31)
+   Start at  17:21:55
+   Duration  20.60s (transform 64ms, setup 0ms, collect 86ms, tests 19.20s, environment 1ms, prepare 216ms)
+

@@ -1,0 +1,83 @@
+
+ RUN  v3.2.4 /Users/christian/Developer/scaramuzzo-manager
+
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > blocca con vendita 1ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > blocca done 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > no-show non su in_sala 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > annulla da scheduled ok 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canShowLifecycleActions nasconde terminali 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canModifyAppointmentAgendaLine blocca terminali 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canModifyAppointmentAgendaLine blocca sale_id 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canModifyAppointmentAgendaLine consente scheduled senza vendita 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canModifyAppointmentHeader (PATCH appointments/[id]) > done bloccato 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canModifyAppointmentHeader (PATCH appointments/[id]) > cancelled bloccato 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canModifyAppointmentHeader (PATCH appointments/[id]) > no_show bloccato 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canModifyAppointmentHeader (PATCH appointments/[id]) > sale_id bloccato 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canModifyAppointmentHeader (PATCH appointments/[id]) > scheduled senza sale_id modificabile 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canPortaInSala > blocca no_show e terminali 0ms
+ ✓ lib/agenda/appointmentLifecycle.test.ts > appointmentLifecycle > canPortaInSala > consente scheduled / in_progress e tratta in_sala come idempotente 0ms
+NOTICE:  trigger "trg_slot" for relation "public.appointment_services" does not exist, skipping
+ERROR:  Collaboratore già impegnato in questa fascia oraria
+CONTEXT:  PL/pgSQL function enforce_slot() line 18 at RAISE
+ERROR:  negative stock not allowed (product 8, salon 5, qty -4)
+CONTEXT:  PL/pgSQL function stock_move(integer,numeric,integer,integer,text,text,uuid,bigint,bigint,bigint,bigint,uuid,uuid,text) line 184 at RAISE
+SQL statement "SELECT public.stock_move(
+    p_product_id => ti.product_id,
+    p_qty => ti.qty::numeric,
+    p_from_salon => v_from_int,
+    p_to_salon => v_to_int,
+    p_movement_type => 'transfer',
+    p_reason => 'transfer_id=' || p_transfer_id::text,
+    p_transfer_id => p_transfer_id,
+    p_transfer_item_id => ti.id,
+    p_created_by => v_actor,
+    p_movement_group_id => v_movement_group,
+    p_source => 'transfer'
+  )
+  FROM public.transfer_items ti
+  WHERE ti.transfer_id = p_transfer_id"
+PL/pgSQL function execute_transfer(bigint,uuid) line 74 at PERFORM
+SQL statement "SELECT public.execute_transfer(v_transfer_id, v_actor)"
+PL/pgSQL function create_and_execute_transfer(integer,integer,jsonb,uuid,uuid,date,text,text,boolean) line 115 at PERFORM
+ ✓ lib/cassa/closeSaleAppointmentIdempotency.test.ts > close_sale_atomic appointment idempotency migration (static) > reuses walk-in idempotency_key path for appointments 1ms
+ ✓ lib/customer-app/customerBookingAuthzIsolated.test.ts > customer booking authz + slot race (isolated Postgres) > due clienti due sedi: ownership + race stesso slot 2217ms
+ERROR:  negative stock not allowed (product 8, salon 5, qty -4)
+CONTEXT:  PL/pgSQL function stock_move(integer,numeric,integer,integer,text,text,uuid,bigint,bigint,bigint,bigint,uuid,uuid,text) line 184 at RAISE
+SQL statement "SELECT public.stock_move(
+    p_product_id => ti.product_id,
+    p_qty => ti.qty::numeric,
+    p_from_salon => v_from_int,
+    p_to_salon => v_to_int,
+    p_movement_type => 'transfer',
+    p_reason => 'transfer_id=' || p_transfer_id::text,
+    p_transfer_id => p_transfer_id,
+    p_transfer_item_id => ti.id,
+    p_created_by => v_actor,
+    p_movement_group_id => v_movement_group,
+    p_source => 'transfer'
+  )
+  FROM public.transfer_items ti
+  WHERE ti.transfer_id = p_transfer_id"
+PL/pgSQL function execute_transfer(bigint,uuid) line 74 at PERFORM
+SQL statement "SELECT public.execute_transfer(v_transfer_id, v_actor)"
+PL/pgSQL function create_and_execute_transfer(integer,integer,jsonb,uuid,uuid,date,text,text,boolean) line 115 at PERFORM
+ERROR:  negative stock not allowed (product 7, salon 1, qty -987)
+CONTEXT:  PL/pgSQL function stock_move(integer,numeric,integer,integer,text,text,uuid,bigint,bigint,bigint,bigint,uuid,uuid,text) line 184 at RAISE
+ ✓ lib/customer-app/customerBookingConcurrentIsolated.test.ts > customer booking concurrent POST + idempotency (isolated Postgres) > due POST concorrenti → un solo appt + 409; complete fail → retry replay; payload diverso → 409 2419ms
+ERROR:  create_void_receipt_job_atomic: vendita non annullabile (status=fiscal_void_pending)
+CONTEXT:  PL/pgSQL function create_void_receipt_job_atomic(bigint,uuid,text) line 12 at RAISE
+ ✓ lib/cassa/closeSaleAppointmentIdempotency.test.ts > close_sale_atomic appointment idempotency (isolated Postgres) > replay and concurrent checkout share one sale/stock/job 2652ms
+ ✓ lib/cassa/closeSaleAppointmentIdempotency.test.ts > appointmentCheckoutIdempotencyKey > matches RPC canonical key 3ms
+ERROR:  cancel_fiscal_print_job: job 4 completed non annullabile
+CONTEXT:  PL/pgSQL function cancel_fiscal_print_job(bigint,text) line 35 at RAISE
+ ✓ lib/magazzino/transferMultiLineAtomic.test.ts > create_and_execute_transfer multi-line atomicity (isolated) > fails all lines on insufficient stock; retry same client_request_id stays clean then idempotent success 3021ms
+ ✓ lib/fiscal/cancelVoidReceiptSafety.test.ts > cancel_void_receipt restore-only-pending migration (static) > restores sale ledger only when prior status was pending 1ms
+ ✓ lib/fiscal/cancelVoidReceiptSafety.test.ts > cancel void_receipt safety (isolated Postgres) > pending restores; processing stale blocks second void; completed refused 3054ms
+ ✓ lib/magazzino/stockE2eConsistency.test.ts > stock e2e consistency (isolated Postgres) > carico/scarico/transfer/sale/retry/void cancel/void reverse 3311ms
+ ✓ lib/magazzino/stockE2eConsistency.test.ts > cancel void_receipt migration (static) > restores posted/printed only for pending, without reverse_sale_stock 0ms
+
+ Test Files  7 passed (7)
+      Tests  25 passed (25)
+   Start at  17:50:44
+   Duration  3.55s (transform 142ms, setup 0ms, collect 211ms, tests 16.69s, environment 1ms, prepare 323ms)
+
