@@ -8,8 +8,9 @@ Scritture: solo test automatici su **Postgres Docker isolato**. Job **#18** lasc
 
 | Voce | Valore |
 |------|--------|
-| Manager prod | `main` **`25768fb`** → `manager.scaramuzzo.green` |
-| **Preview candidato lancio** | `audit/prelaunch-2026-11-27` **`5024152`** → `https://scaramuzzo-manager-psv06hiio-christians-projects-a583a48c.vercel.app`, Ready |
+| Manager prod | `main` **`f420ff3`** (merge; codice collaudato **`8152b96`**) → `manager.scaramuzzo.green` · `dpl_4KtnrFvQY86Xz38VXYRX5XsecdfC` |
+| Rollback prod | **`25768fb`** / `dpl_6rDidULiCVvVwfcodHKDSbKwHccc` (qlzq17fe3) — ancora Ready in Vercel |
+| **Preview candidato lancio** | `audit/prelaunch-2026-11-27` **`8152b96`** / tip docs `5b09c21` → Preview race-fix `b4j7f5ybj` |
 | Preview UI polish | `54d98a7` (`i6ckdqe7v`) |
 | Preview precedente | `6d5ff25` (`ee2sgd0zo` / `6phplm6h6`) |
 | Print Bridge Roma | **`1.3.3`** `roma_cassa_1` |
@@ -413,3 +414,36 @@ Rollback: ripristinare alias produzione su `dpl_6rDidULiCVvVwfcodHKDSbKwHccc` e/
 In tutte le prove early URL Report, switcher e dati coincidono con l’**ultima** sede scelta già in caricamento.
 
 **Candidato aggiornato:** tip branch con codice ≥ **`8152b96`** (include `5024152` + fix race). Promote ancora **non** eseguito in questo passo.
+
+---
+
+## 11. Promote produzione `8152b96` (2026-11-26 16:22 CET)
+
+### 11.1 Pre-check
+
+| Check | Esito |
+|-------|-------|
+| `8152b96...5b09c21` | **Solo** `scripts/cleanup/collaudo-completo-2026-12-01.md` |
+| Rollback `25768fb` / `dpl_6rDidULiCVvVwfcodHKDSbKwHccc` | **Disponibile** (Ready) |
+| Job #18 | **fermo** — non toccato |
+
+### 11.2 Deploy
+
+| Voce | Valore |
+|------|--------|
+| Merge | `main` **`f420ff3`** (`f420ff37f34b9798b59535f689738e57ae98e871`) ← audit @ `5b09c21` (codice = `8152b96`) |
+| Deploy Vercel | **`dpl_4KtnrFvQY86Xz38VXYRX5XsecdfC`** · `scaramuzzo-manager-3cosseobx-…` Ready |
+| Log clone | `Branch: main, Commit: f420ff3` |
+| Alias | `manager.scaramuzzo.green` punta al nuovo deploy |
+| SHA servito | **`f420ff3`** (include tree collaudato `8152b96`) |
+
+### 11.3 Verify sola lettura su prod (coordinator)
+
+| Prova | Esito |
+|-------|-------|
+| Login | **PASS** → `/dashboard?salon_id=1` |
+| Agenda | **PASS** — griglia giorno, 1 switcher header, CTA «Aggiorna» |
+| In sala | **PASS** — cassa chiusa, walk-in, **senza** «Aggiorna stato» |
+| Dashboard → cambio sede → clic immediato Report (Roma→Castrovillari) | **PASS** — early URL `?salon_id=3`, switcher `3`, «Sede: Scaramuzzo - Castrovillari», CRM vuoto (non Roma) |
+
+**Regressione:** nessuna → rollback **non** eseguito. Job **#18** fermo.
