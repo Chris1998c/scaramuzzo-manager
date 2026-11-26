@@ -339,3 +339,48 @@ Ruolo **coordinator**. Percorso: switcher sede → attesa sync URL/link → Dash
 | Gate Preview multi-sede Report | PASS |
 | Blocchi non in scope (non bloccano questo gate) | Epson fiscali · Report ≥2 s RSC · bake PWA Clienti/Team · Bridge altre sedi |
 | Azione successiva | Review + merge `audit/prelaunch-2026-11-27` @ **`5024152`** → `main` (esplicito; prod resta read-only finché non richiesto) |
+
+---
+
+## 10. Promote produzione — prep (2026-11-26)
+
+### 10.1 Diff vs prod `25768fb`
+
+| Range | Contenuto |
+|-------|-----------|
+| `25768fb...5024152` | Codice collaudato: UI Agenda/In sala/Cassa/Report/Impostazioni, `withActiveSalon` Dashboard, guard fiscal requeue / porta-in-sala (`b978d4f`), rename migrazioni push già applicate, docs collaudo |
+| `5024152...43bb191` | **Solo** `scripts/cleanup/collaudo-completo-2026-12-01.md` (4a8524b, 5512851, 43bb191) — nessun codice app |
+
+**Scelta promote:** tip branch **`43bb191`** (codice = `5024152` + registro). Alternativa equivalente runtime: merge `5024152` e tenere docs sul branch.
+
+### 10.2 Riferimento rollback (pre-deploy)
+
+| Voce | Valore |
+|------|--------|
+| GitHub `main` pre-promote | **`25768fb`** (`25768fb1a60cc392d21533c024c9b393c4e5af7f`) |
+| Deploy Vercel produzione | **`dpl_6rDidULiCVvVwfcodHKDSbKwHccc`** |
+| URL deployment | https://scaramuzzo-manager-qlzq17fe3-christians-projects-a583a48c.vercel.app |
+| Alias | `manager.scaramuzzo.green` |
+| Log clone | `Branch: main, Commit: 25768fb` (2026-11-20) |
+| Job #18 | **fermo** — non toccare |
+
+Rollback: ripristinare alias produzione su `dpl_6rDidULiCVvVwfcodHKDSbKwHccc` e/o `git revert`/`reset` `main` a `25768fb` + redeploy.
+
+### 10.3 Preview race — clic immediato Report durante cambio sede
+
+**Ambiente:** Preview `psv06hiio` @ codice `5024152` · coordinator · **STOP promote**
+
+**Riproduzione (FAIL):**
+
+1. Apri `/dashboard?salon_id=1` e attendi sync completo (switcher=Roma, heading «Oggi · Scaramuzzo- Roma», link Report `?salon_id=1`).
+2. Nello stesso tick: imposta switcher → **Castrovillari (3)** e clicca subito **Report** (senza attendere sync URL/link).
+3. Osservato:
+   - mid: switcher=`3`, URL ancora `?salon_id=1`, `clickedHref=/dashboard/report?salon_id=1`
+   - after: URL `…/dashboard/report?salon_id=1`, label **«Sede: Scaramuzzo- Roma»**, CRM **CARMEN MURACA**
+   - switcher header resta **Castrovillari**
+
+**Esito:** dati della **sede precedente (Roma)** mentre la sede attiva UI è già **Castrovillari** → **sede sbagliata rispetto allo switcher**.
+
+**Nota:** se si attende il sync post-cambio (URL + href `salon_id` aggiornati) il percorso Dashboard→Report è corretto (§9.2). Il bug è solo sul clic *immediato* prima del re-seed dei link.
+
+**Azione:** promote **bloccato**. Prod resta `25768fb` / `dpl_6rDidULi…`. Job **#18** fermo.
