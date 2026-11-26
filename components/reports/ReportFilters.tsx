@@ -135,9 +135,13 @@ export default function ReportFilters({
       a.click();
       a.remove();
       URL.revokeObjectURL(href);
-      toast.success(`Export ${kind.toUpperCase()} scaricato.`);
+      toast.success(kind === "pdf" ? "PDF scaricato." : "CSV scaricato.");
     } catch {
-      toast.error(`Errore di rete durante export ${kind.toUpperCase()}`);
+      toast.error(
+        kind === "pdf"
+          ? "Errore di rete durante il download del PDF."
+          : "Errore di rete durante il download del CSV.",
+      );
     }
   }
 
@@ -145,7 +149,7 @@ export default function ReportFilters({
     <div className="rounded-xl border border-white/[0.08] bg-scz-dark p-3.5 md:p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="min-w-0">
-          <div className="text-lg font-semibold text-[#f3d8b6]">Report</div>
+          <div className="text-sm font-semibold text-[#f3d8b6]">Filtri e export</div>
           {effectiveSalonId > 0 ? (
             <p className="mt-0.5 text-xs text-white/50 truncate">
               Sede:{" "}

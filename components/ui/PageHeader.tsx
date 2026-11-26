@@ -7,7 +7,8 @@ export function PageHeader({
   actions,
   children,
 }: {
-  title: string;
+  /** Se assente, il titolo resta solo nel chrome Header (evita doppioni). */
+  title?: string;
   meta?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
@@ -16,9 +17,11 @@ export function PageHeader({
     <header className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-1">
-          <h1 className="text-xl md:text-2xl font-semibold text-[#f3d8b6] tracking-tight truncate">
-            {title}
-          </h1>
+          {title ? (
+            <h1 className="text-xl md:text-2xl font-semibold text-[#f3d8b6] tracking-tight truncate">
+              {title}
+            </h1>
+          ) : null}
           {meta ? <div className="text-sm text-white/50">{meta}</div> : null}
         </div>
         {actions ? (

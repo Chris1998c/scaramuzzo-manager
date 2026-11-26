@@ -11,7 +11,7 @@ export type ServiceRow = {
   category_id: number | null;
   service_categories?: { name: string } | null;
 
-  // ✅ prezzo per salone (service_prices)
+  // Prezzo per salone (service_prices).
   price: number;
 };
 
@@ -52,7 +52,7 @@ async function attachPrices(
   })) as ServiceRow[];
 }
 
-// ✅ Per Agenda: solo attivi + visibili in agenda + prezzo del salone
+// Agenda: solo attivi + visibili in agenda + prezzo del salone.
 export async function fetchAgendaServices(
   supabase: SupabaseClient,
   salonId: number,
@@ -70,7 +70,7 @@ export async function fetchAgendaServices(
   return attachPrices(supabase, salonId, base);
 }
 
-// ✅ Per Cassa: solo attivi + visibili in cassa + prezzo del salone
+// Cassa: solo attivi + visibili in cassa + prezzo del salone.
 export async function fetchCashServices(
   supabase: SupabaseClient,
   salonId: number,

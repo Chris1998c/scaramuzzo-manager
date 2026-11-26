@@ -501,7 +501,7 @@ setProducts(cashProducts);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Errore apertura cassa");
       await refreshCassaStatus(salonId);
-      toast.success("Cassa aperta ✅");
+      toast.success("Cassa aperta");
     } catch (e: any) {
       toast.error(e?.message || "Errore apertura cassa");
     } finally {

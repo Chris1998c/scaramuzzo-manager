@@ -25,7 +25,7 @@ export async function probePrintBridgeHealth(
       responseTimeMs: null,
       checkedAt,
       error:
-        "Print Bridge non configurato (manca PRINT_BRIDGE_HEALTH_URL sul server)",
+        "Bridge stampa non configurato (manca PRINT_BRIDGE_HEALTH_URL sul server)",
       configured: false,
     };
   }

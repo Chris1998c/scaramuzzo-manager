@@ -78,7 +78,7 @@ export default function ClienteProfile({ customerId }: { customerId: string }) {
       .upsert(payload, { onConflict: "customer_id" });
 
     if (error) setMsg(error.message);
-    else setMsg("Salvato ✅");
+    else setMsg("Profilo salvato");
 
     setSaving(false);
     setTimeout(() => setMsg(""), 1500);

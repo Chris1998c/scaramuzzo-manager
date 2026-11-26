@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { ClipboardList } from "lucide-react";
 import { getUserAccess } from "@/lib/getUserAccess";
 import { salonLabel } from "@/lib/constants";
 import { formatRomeDateTime } from "@/lib/datetime/formatRomeInstant";
@@ -14,6 +13,7 @@ import { loadAttendanceDailySummary } from "@/lib/attendance/loadAttendanceDaily
 import { resolveAttendanceQuery } from "@/lib/attendance/resolveAttendanceQuery";
 import { fetchActiveStaffForSalon } from "@/lib/staffForSalon";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { PageHeader, StatChip } from "@/components/ui/PageHeader";
 import PresenzeSalonSync from "./PresenzeSalonSync";
 import PresenzeFilters from "./PresenzeFilters";
 
@@ -136,30 +136,17 @@ export default async function PresenzePage({
         <PresenzeSalonSync canChooseSalon={resolved.canChooseSalon} />
       </Suspense>
 
-      <section className="rounded-3xl border border-white/10 bg-scz-dark overflow-hidden">
-        <div className="flex flex-col gap-5 p-5 md:p-7 bg-black/20 border-b border-white/10 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4 min-w-0">
-            <div className="shrink-0 rounded-2xl p-3 bg-black/30 border border-white/10">
-              <ClipboardList className="text-[#f3d8b6]" size={28} strokeWidth={1.7} />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-                Presenze
-              </h1>
-              <p className="text-[#c9b299] mt-1 text-sm md:text-base leading-relaxed">
-                Timbrature Team App · giorno operativo Europe/Rome
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 sm:justify-end">
-            <StatChip label="Righe" value={rows.length} variant="neutral" />
-            <StatChip label="OK" value={okCount} variant="ok" />
-            <StatChip label="Incomplete" value={incompleteCount} variant="warn" />
-            <StatChip label="Dentro ora" value={insideNowCount} variant="live" />
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        meta="Timbrature Team App · giorno operativo"
+        actions={
+          <>
+            <StatChip label="Righe" value={rows.length} />
+            <StatChip label="OK" value={okCount} tone="ok" />
+            <StatChip label="Incomplete" value={incompleteCount} tone="warn" />
+            <StatChip label="Dentro ora" value={insideNowCount} tone="ok" />
+          </>
+        }
+      />
 
       <Suspense fallback={null}>
         <PresenzeFilters
@@ -286,31 +273,5 @@ export default async function PresenzePage({
         </div>
       </section>
     </div>
-  );
-}
-
-function StatChip({
-  label,
-  value,
-  variant,
-}: {
-  label: string;
-  value: number;
-  variant: "neutral" | "ok" | "warn" | "live";
-}) {
-  const styles = {
-    neutral: "border-[#5c3a21]/50 bg-black/25 text-[#c9b299]",
-    ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200/95",
-    warn: "border-amber-500/30 bg-amber-500/10 text-amber-200/95",
-    live: "border-[#f3d8b6]/30 bg-[#f3d8b6]/10 text-[#f3d8b6]",
-  } as const;
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold ${styles[variant]}`}
-    >
-      <span className="opacity-80">{label}:</span>
-      <span className="tabular-nums">{value}</span>
-    </span>
   );
 }

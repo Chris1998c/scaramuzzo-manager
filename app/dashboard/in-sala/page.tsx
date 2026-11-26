@@ -10,6 +10,7 @@ import WalkInModal from "@/components/in-sala/WalkInModal";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { LogOut } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/ui/ConfirmActionDialog";
+import { sczBtnGhost, sczBtnSuccess } from "@/components/ui/PageHeader";
 import { formatRomeTimeHHmm } from "@/lib/datetime/formatRomeInstant";
 
 type CashStatus = {
@@ -225,7 +226,7 @@ export default function InSalaPage() {
 
     let msg = "Sessione cassa chiusa.";
     if (jobId != null) {
-      msg += ` Chiusura giornata (Z) accodata per la stampante fiscale — job ${jobId}. Verificare Print Bridge e Epson FP81 RT.`;
+      msg += ` Chiusura giornata (Z) accodata per la stampante fiscale — job ${jobId}. Verificare Bridge stampa e Epson FP81 RT.`;
     }
     toast.success(msg, { duration: jobId != null ? 9_000 : 5_000 });
   }
@@ -357,12 +358,9 @@ export default function InSalaPage() {
 
   return (
     <div className="px-3 py-4 pb-24 sm:pb-4 md:px-5 md:py-5 text-white max-w-6xl mx-auto space-y-3">
-      {/* Titolo pagina + azioni (un solo walk-in, sticky su mobile) */}
+      {/* Titolo già nel chrome Header; qui meta sede + azioni. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-semibold text-[#f3d8b6] tracking-tight">
-            In sala
-          </h1>
           {salonName ? (
             <p className="text-sm text-white/50 truncate">{salonName}</p>
           ) : null}
@@ -371,23 +369,22 @@ export default function InSalaPage() {
           <button
             type="button"
             onClick={() => setWalkInOpen(true)}
-            className="h-10 px-4 rounded-lg bg-emerald-500/90 text-black text-sm font-semibold hover:opacity-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+            className={sczBtnSuccess}
           >
             Nuovo walk-in
           </button>
           <button
             type="button"
             onClick={() => void refreshAll({ silent: true })}
-            className="h-10 px-4 rounded-lg border border-white/10 text-[#f3d8b6] text-sm font-semibold hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50"
+            className={sczBtnGhost}
           >
             Aggiorna
           </button>
         </div>
-        {/* Mobile: Aggiorna in header; walk-in fisso in basso */}
         <button
           type="button"
           onClick={() => void refreshAll({ silent: true })}
-          className="sm:hidden h-10 px-4 rounded-lg border border-white/10 text-[#f3d8b6] text-sm font-semibold hover:bg-white/[0.06] self-start"
+          className={`sm:hidden self-start ${sczBtnGhost}`}
         >
           Aggiorna
         </button>

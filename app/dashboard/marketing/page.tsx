@@ -8,8 +8,7 @@ export default async function MarketingPage() {
   const access = await getUserAccess();
   if (!canAccessMarketingWeb(access.role)) redirect("/dashboard");
 
-  // Lancio: AI off anche se OPENAI_API_KEY è presente, finché non si setta
-  // SCARAMUZZO_AI_FEATURES_ENABLED=true.
+  // Assistenza bozze disattivata al lancio finché SCARAMUZZO_AI_FEATURES_ENABLED=true.
   const aiCopyAssistAvailable =
     isAiFeaturesEnabled() && Boolean(process.env.OPENAI_API_KEY?.trim());
 

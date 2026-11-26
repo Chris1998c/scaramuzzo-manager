@@ -23,13 +23,11 @@ export function StatCard({ label, value, description, trend, variant = "default"
  : "border-white/[0.08] bg-white/[0.03]"}`}
  >
  <div className="relative flex flex-col gap-1">
- <span className="text-xs font-medium text-white/50">
- {label}
- </span>
- <div className="flex items-end gap-2">
- <span className="text-2xl md:text-[1.65rem] font-semibold text-[#f3d8b6] tracking-tight tabular-nums">
- {value}
- </span>
+      <span className="text-xs font-medium text-white/60">{label}</span>
+      <div className="flex items-end gap-2">
+        <span className="text-2xl md:text-[1.65rem] font-semibold text-[#f3d8b6] tracking-tight tabular-nums">
+          {value}
+        </span>
  {trend ? (
  <div
  className={`mb-0.5 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-md
@@ -48,7 +46,7 @@ export function StatCard({ label, value, description, trend, variant = "default"
  </div>
  ) : null}
  </div>
- <p className="text-xs text-white/45 leading-snug">{description}</p>
+        <p className="text-xs text-white/55 leading-snug">{description}</p>
  </div>
  </motion.div>
  );

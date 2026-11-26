@@ -65,7 +65,7 @@ export default function ReportDirectionView({ data, salonLabel }: Props) {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs font-medium text-scz-gold/80">
-            Cockpit di oggi e mese corrente
+            Riepilogo di oggi e mese corrente
           </p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-white md:text-3xl">
             Riepilogo

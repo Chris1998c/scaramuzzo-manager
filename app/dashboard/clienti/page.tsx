@@ -4,6 +4,7 @@ import { type RoleName } from "@/lib/getUserAccess";
 import { requireDashboardAccess } from "@/lib/requireDashboardAccess";
 import { canAccessClientiWeb } from "@/lib/clientiWebAccess";
 import { fetchCustomersBrowse } from "@/lib/customers/clientiListQuery";
+import { PageShell } from "@/components/ui/PageHeader";
 import ClientiView from "./ClientiView";
 
 export const dynamic = "force-dynamic";
@@ -43,20 +44,13 @@ export default async function ClientiPage() {
     }
 
     return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
-            Clienti
-          </h1>
-          <p className="text-[#c9b299] mt-2">
- Anagrafiche globali condivise tra tutti i saloni
- </p>
- </div>
-
- <ClientiView initial={initial} />
- </div>
- );
- } catch (e) {
+      <PageShell className="space-y-5">
+        {/* Titolo già nel chrome DashboardShell: solo meta operativa. */}
+        <p className="text-sm text-white/50">Anagrafiche condivise tra i saloni</p>
+        <ClientiView initial={initial} />
+      </PageShell>
+    );
+  } catch (e) {
  if (isNextRedirect(e)) throw e;
  const err = e instanceof Error ? e : new Error(String(e));
  const cause = err.cause;

@@ -50,6 +50,16 @@ interface Props {
   onCreated?: () => void;
 }
 
+function formatAgendaModalDate(ymd: string): string {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  return new Intl.DateTimeFormat("it-IT", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(y, m - 1, d));
+}
+
 /* ================= COMPONENT ================= */
 
 export default function AgendaModal({
@@ -337,8 +347,8 @@ useEffect(() => {
               Nuovo appuntamento
             </p>
             <h2 className="text-2xl font-black text-[#f3d8b6] mt-0.5">
-              {currentDate}
-              <span className="text-white/20 mx-2 font-light">/</span>
+              {formatAgendaModalDate(currentDate)}
+              <span className="text-white/20 mx-2 font-light">·</span>
               {selectedStartTime}
             </h2>
             <label className="mt-3 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
@@ -572,7 +582,10 @@ useEffect(() => {
         </div>
 
         {err && (
-          <div className="bg-red-500 text-white text-xs font-black text-center py-3 uppercase">
+          <div
+            role="alert"
+            className="bg-red-500/95 text-white text-sm font-semibold text-center py-3 px-4"
+          >
             {err}
           </div>
         )}

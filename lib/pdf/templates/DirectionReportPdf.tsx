@@ -18,7 +18,7 @@ function Header({ p }: { p: Props }) {
       <View style={s.headerBody}>
         <View>
           <Text style={s.brandTitle}>SCARAMUZZO MANAGER</Text>
-          <Text style={s.brandSub}>Riepilogo direzionale · Cockpit stampabile</Text>
+          <Text style={s.brandSub}>Riepilogo direzionale · stampa operativa</Text>
           <Text style={s.brandSub}>{pdfSafeStr(p.salonName)} · {p.generatedAt}</Text>
         </View>
         <View style={s.metaBlock}>

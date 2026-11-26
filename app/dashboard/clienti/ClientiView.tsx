@@ -9,6 +9,7 @@ import {
 } from "@/lib/customers/clientiListQuery";
 import { insertCustomerWithAllocatedCode } from "@/lib/nextCustomerCode";
 import { Plus, Search, X, Users, Download } from "lucide-react";
+import { sczBtnGhost, sczBtnPrimary, sczField } from "@/components/ui/PageHeader";
 
 type Customer = ClientiListRow;
 
@@ -160,9 +161,7 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cerca per nome, cognome, telefono o email…"
             aria-label="Cerca cliente per nome, cognome, telefono o email"
-            className="w-full rounded-2xl bg-[#24140e]/70 border border-[#5c3a21]/60
- pl-11 pr-11 py-3 text-sm text-white placeholder:text-white/40
- backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-[#f3d8b6]/30"
+            className={`${sczField} rounded-xl pl-11 pr-11 py-3`}
           />
           {query.trim() ? (
             <button
@@ -177,24 +176,13 @@ export default function ClientiView({ initial }: { initial: Customer[] }) {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={exportCSV}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
- border border-[#5c3a21]/60 text-[#f3d8b6]
- hover:bg-white/5 transition"
-          >
-            <Download size={18} />
+          <button type="button" onClick={exportCSV} className={sczBtnGhost}>
+            <Download size={16} />
             Esporta CSV
           </button>
 
-          <button
-            onClick={() => setOpen(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
- bg-[#f3d8b6] text-black font-semibold
- shadow-[0_10px_35px_rgba(243,216,182,0.25)]
- hover:brightness-110 transition"
-          >
-            <Plus size={18} />
+          <button type="button" onClick={() => setOpen(true)} className={sczBtnPrimary}>
+            <Plus size={16} />
             Nuovo cliente
           </button>
         </div>

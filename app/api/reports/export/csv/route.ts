@@ -84,7 +84,7 @@ function isIsoDate(v: string | null): v is string {
 }
 
 async function createRouteSupabase() {
-  const cookieStore = await cookies(); // ✅ FIX
+  const cookieStore = await cookies();
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;

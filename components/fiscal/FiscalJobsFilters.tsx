@@ -81,7 +81,7 @@ export default function FiscalJobsFilters({
  <option value="">Tutti</option>
               {salonOptions.map((s) => (
                 <option key={s.id} value={String(s.id)}>
-                  {s.name} (#{s.id})
+                  {s.name}
                 </option>
               ))}
             </select>

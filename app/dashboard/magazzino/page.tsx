@@ -74,7 +74,7 @@ export default function MagazzinoPage() {
         <MagazzinoKpiCard
           label="Valore stock stimato"
           value={stockValueLabel}
-          hint="Σ giacenza × costo"
+          hint="Giacenza × costo"
         />
         <MagazzinoKpiCard
           label="Sottoscorta"
@@ -131,13 +131,13 @@ export default function MagazzinoPage() {
           href="/dashboard/magazzino/inventario"
           icon={LayoutList}
           title="Inventario"
-          subtitle={`${kpiValue(kpis.totalProducts)} prodotti (filtri attivi)`}
+          subtitle={`${kpiValue(kpis.totalProducts)} prodotti in elenco`}
         />
         <MagazzinoNavCard
           href="/dashboard/magazzino/movimenti"
           icon={History}
           title="Movimenti"
-          subtitle="Audit ledger paginato"
+          subtitle="Storico carichi, scarichi e trasferimenti"
         />
       </div>
     </MagazzinoPageShell>

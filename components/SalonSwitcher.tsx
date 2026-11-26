@@ -12,7 +12,7 @@ export default function SalonSwitcher() {
 
  if (!isReady) return null;
 
- // ✅ coordinator + magazzino (deciso nel provider)
+  // Visibile a coordinator e magazzino (deciso nel provider).
  if (!canChooseSalon) return null;
 
  return (

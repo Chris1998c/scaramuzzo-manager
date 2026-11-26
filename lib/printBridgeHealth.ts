@@ -12,7 +12,7 @@ export async function checkPrintBridgeReachable(): Promise<
     return {
       ok: false,
       error:
-        "Print Bridge non configurato (manca PRINT_BRIDGE_HEALTH_URL sul server)",
+        "Bridge stampa non configurato (manca PRINT_BRIDGE_HEALTH_URL sul server)",
     };
   }
 
@@ -28,7 +28,7 @@ export async function checkPrintBridgeReachable(): Promise<
     if (!res.ok) {
       return {
         ok: false,
-        error: `Print Bridge non risponde correttamente (HTTP ${res.status})`,
+        error: `Bridge stampa non risponde correttamente (HTTP ${res.status})`,
       };
     }
     return { ok: true };
@@ -36,7 +36,7 @@ export async function checkPrintBridgeReachable(): Promise<
     clearTimeout(t);
     return {
       ok: false,
-      error: "Print Bridge non raggiungibile dalla rete del server",
+      error: "Bridge stampa non raggiungibile dalla rete del server",
     };
   }
 }
