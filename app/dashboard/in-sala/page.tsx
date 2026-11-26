@@ -337,7 +337,14 @@ export default function InSalaPage() {
     }
   }, [pathname]);
 
-  if (!isReady) return null;
+  if (!isReady)
+    return (
+      <div className="px-3 py-4 pb-24 sm:pb-4 md:px-5 md:py-5 text-white max-w-6xl mx-auto">
+        <div className="text-sm font-medium text-[#f3d8b6]/80 animate-pulse">
+          Caricamento…
+        </div>
+      </div>
+    );
 
   const isCassaOpen = Boolean(cash?.is_open);
   const salonName = cash?.salon?.name ?? null;
@@ -425,14 +432,7 @@ export default function InSalaPage() {
             </span>
           )}
           <div className="flex flex-wrap gap-2 sm:ml-auto">
-            <button
-              type="button"
-              onClick={() => void loadCashStatus({ silent: true })}
-              className="h-9 px-3 rounded-lg border border-white/10 text-sm text-white/75 hover:bg-white/[0.06] disabled:opacity-50"
-              disabled={cashLoading}
-            >
-              Aggiorna stato
-            </button>
+            {/* Un solo refresh: «Aggiorna» in header richiama già lista + cassa */}
             <button
               type="button"
               onClick={async () => {
@@ -578,9 +578,6 @@ export default function InSalaPage() {
                         </div>
                       </div>
                       <div className="flex items-end gap-2 flex-wrap">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
- In sala
- </span>
  {a?.source === "walk_in" && (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-500/30">
                             Walk-In
@@ -654,7 +651,7 @@ export default function InSalaPage() {
             </div>
 
             <div className="mt-4 space-y-2">
-              <label className="text-[10px] text-white/30 uppercase font-black tracking-widest">
+              <label className="text-[10px] text-white/60 uppercase font-black tracking-widest">
  Fondo cassa (€)
  </label>
  <input
@@ -701,7 +698,7 @@ export default function InSalaPage() {
             </div>
 
             <div className="mt-4 space-y-2">
-              <label className="text-[10px] text-white/30 uppercase font-black tracking-widest">
+              <label className="text-[10px] text-white/60 uppercase font-black tracking-widest">
  Contante in cassetto (€)
  </label>
  <input
@@ -717,7 +714,7 @@ export default function InSalaPage() {
             </div>
 
             <div className="mt-3 space-y-2">
-              <label className="text-[10px] text-white/30 uppercase font-black tracking-widest">
+              <label className="text-[10px] text-white/60 uppercase font-black tracking-widest">
                 Note (opzionale)
               </label>
               <textarea

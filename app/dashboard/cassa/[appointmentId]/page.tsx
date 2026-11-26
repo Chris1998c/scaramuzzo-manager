@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { fetchCashServices } from "@/lib/servicesCatalog";
 import { agendaVisualFromServiceRow } from "@/lib/agendaServiceVisual";
 import Link from "next/link";
+import { sczBtnGhost, sczBtnPrimary } from "@/components/ui/PageHeader";
 import {
   CASSA_STOCK_INSUFFICIENT_CODE,
   formatCassaStockInsufficientMessage,
@@ -610,14 +611,26 @@ setProducts(cashProducts);
   if (loading)
     return (
       <div className="p-8 text-[#f3d8b6] animate-pulse font-bold">
-        Inizializzazione check-out...
+        Caricamento cassa…
       </div>
     );
 
   if (error)
     return (
       <div className="p-8 text-red-400 bg-red-500/10 rounded-2xl m-6 border border-red-500/20">
- {error}
+ <div>{error}</div>
+ <div className="mt-4 flex flex-wrap items-center gap-2">
+ <Link href="/dashboard/in-sala" className={sczBtnGhost}>
+ Torna in sala
+ </Link>
+ <button
+ type="button"
+ onClick={() => window.location.reload()}
+ className={sczBtnPrimary}
+ >
+ Riprova
+ </button>
+ </div>
  </div>
  );
 
@@ -864,7 +877,6 @@ setProducts(cashProducts);
               <tr className="bg-black/30">
                 <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-left text-white/90 w-[90px]">Tipo</th>
                 <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-left text-white/90 min-w-[160px]">Nome</th>
-                <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-left text-white/50 min-w-[80px]">Operatore</th>
                 <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-right text-white/90 w-[70px]">Qtà</th>
                 <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-right text-white/90 w-[100px]">Prezzo unit.</th>
                 <th className="px-4 py-3 text-xs font-medium border-b border-white/10 text-right text-white/90 w-[90px]">Sconto €</th>
@@ -875,8 +887,7 @@ setProducts(cashProducts);
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center">
-                    <div className="text-4xl opacity-20 mb-3">🛒</div>
+                  <td colSpan={7} className="px-4 py-16 text-center">
                     <div className="text-white/40 text-sm font-medium">Nessuna riga nel conto</div>
  </td>
  </tr>
@@ -973,7 +984,6 @@ setProducts(cashProducts);
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-white/40 text-xs align-middle">—</td>
                       <td className="px-4 py-3 text-right align-middle">
  <input
  type="number"

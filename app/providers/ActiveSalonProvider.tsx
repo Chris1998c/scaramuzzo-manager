@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { MAGAZZINO_CENTRALE_ID } from "@/lib/constants";
+import { ACTIVE_SALON_STORAGE_KEY } from "@/lib/dashboard/dashboardSalonQuerySync";
 
 export type RoleName = "coordinator" | "reception" | "magazzino" | "cliente";
 export type AllowedSalon = { id: number; name: string };
@@ -79,7 +80,7 @@ export function ActiveSalonProvider({
     }
 
     // coordinator/magazzino: prova a ripristinare da localStorage
-    const saved = window.localStorage.getItem("sm_activeSalonId");
+    const saved = window.localStorage.getItem(ACTIVE_SALON_STORAGE_KEY);
     const savedNum = saved ? Number(saved) : NaN;
 
     let initial: number | null = null;
@@ -114,7 +115,7 @@ export function ActiveSalonProvider({
 
       // salva solo se può scegliere
       if (canChooseSalon && fallback != null) {
-        window.localStorage.setItem("sm_activeSalonId", String(fallback));
+        window.localStorage.setItem(ACTIVE_SALON_STORAGE_KEY, String(fallback));
       }
     }
   }, [isReady, activeSalonId, forcedSalonId, allowedSalonIds, canChooseSalon, defaultSalonId, role, staffSalonId]);
@@ -124,7 +125,7 @@ export function ActiveSalonProvider({
     if (!allowedSalonIds.includes(id)) return;   // guardrail
 
     _setActiveSalonId(id);
-    window.localStorage.setItem("sm_activeSalonId", String(id));
+    window.localStorage.setItem(ACTIVE_SALON_STORAGE_KEY, String(id));
   };
 
   const value = useMemo<ActiveSalonContextValue>(

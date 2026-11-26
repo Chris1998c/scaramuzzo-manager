@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserAccess } from "@/lib/getUserAccess";
+import { canPortaInSala } from "@/lib/agenda/appointmentLifecycle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,21 +78,6 @@ export async function POST(req: Request) {
 
     const currentStatus = String((appt as any).status || "").trim();
 
-    // DONE: non tocchiamo
-    if (currentStatus === "done") {
-      return NextResponse.json(
-        { error: "Appuntamento già chiuso (done): transizione verso in_sala non consentita" },
-        { status: 409 }
-      );
-    }
-
-    if (currentStatus === "cancelled") {
-      return NextResponse.json(
-        { error: "Appuntamento cancellato: transizione verso in_sala non consentita" },
-        { status: 409 }
-      );
-    }
-
     // già in_sala: idempotente
     if (currentStatus === "in_sala") {
       return NextResponse.json(
@@ -100,13 +86,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // UPDATE -> in_sala (safe vs race: aggiorna solo se non è già done/in_sala)
+    const portaGate = canPortaInSala({ status: currentStatus });
+    if (!portaGate.allowed) {
+      return NextResponse.json({ error: portaGate.error }, { status: 409 });
+    }
+
+    // UPDATE -> in_sala (safe vs race: non revive terminali / non doppia scrittura)
     const { data: updated, error: updErr } = await supabaseAdmin
       .from("appointments")
       .update({ status: "in_sala" })
       .eq("id", appointmentId)
       .neq("status", "done")
       .neq("status", "cancelled")
+      .neq("status", "no_show")
+      .neq("status", "noshow")
       .neq("status", "in_sala")
       .select("id, salon_id, status")
       .maybeSingle();
@@ -133,6 +126,12 @@ export async function POST(req: Request) {
       if (s2 === "cancelled") {
         return NextResponse.json(
           { error: "Appuntamento cancellato: transizione verso in_sala non consentita" },
+          { status: 409 }
+        );
+      }
+      if (s2 === "no_show" || s2 === "noshow") {
+        return NextResponse.json(
+          { error: "Appuntamento no-show: transizione verso in_sala non consentita" },
           { status: 409 }
         );
       }

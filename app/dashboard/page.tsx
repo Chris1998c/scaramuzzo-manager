@@ -20,6 +20,7 @@ import {
 import { canAccessMarketingWeb } from "@/lib/marketingWebAccessShared";
 import { pickDefaultSalonIdForReport } from "@/lib/reportSalonResolve";
 import DashboardSalonQuerySync from "@/components/dashboard/DashboardSalonQuerySync";
+import DashboardSecondaryLinks from "@/components/dashboard/DashboardSecondaryLinks";
 import { StatCard } from "@/components/dasboard/StatCard";
 
 type StaffRole = "coordinator" | "reception" | "magazzino" | "cliente";
@@ -393,26 +394,9 @@ export default async function DashboardPage({
           </div>
 
           {secondary.length > 0 ? (
-            <nav
-              className="flex flex-wrap items-center gap-x-1 gap-y-1 pt-1 px-0.5"
-              aria-label="Altre sezioni"
-            >
-              {secondary.map((item, idx) => (
-                <span key={item.href} className="inline-flex items-center">
-                  {idx > 0 ? (
-                    <span className="mx-2 text-white/20" aria-hidden>
-                      ·
-                    </span>
-                  ) : null}
-                  <Link
-                    href={item.href}
-                    className="text-sm text-white/50 hover:text-[#f3d8b6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6]/50 rounded px-0.5 transition"
-                  >
-                    {item.title}
-                  </Link>
-                </span>
-              ))}
-            </nav>
+            <DashboardSecondaryLinks
+              items={secondary.map((item) => ({ title: item.title, href: item.href }))}
+            />
           ) : null}
         </section>
       ) : null}

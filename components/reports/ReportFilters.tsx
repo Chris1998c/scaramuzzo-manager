@@ -7,6 +7,7 @@ import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { filenameFromContentDisposition } from "@/lib/reports/exportDownload";
 import { reportExportPeriodError } from "@/lib/reports/reportDateRange";
 import { resolveClientReportSalonId } from "@/lib/reports/reportSalonQuerySync";
+import { sczField } from "@/components/ui/PageHeader";
 
 type StaffOption = { id: number; name: string };
 
@@ -187,20 +188,20 @@ export default function ReportFilters({
  type="date"
  value={dateFrom}
  onChange={(e) => updateParam("date_from", e.target.value)}
-          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className={`${sczField} [color-scheme:dark]`}
  />
 
  <input
  type="date"
  value={dateTo}
  onChange={(e) => updateParam("date_to", e.target.value)}
-          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className={`${sczField} [color-scheme:dark]`}
  /></>}
 
  <select
  value={staffId ?? ""}
  onChange={(e) => updateParam("staff_id", e.target.value || null)}
-          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className={`${sczField} [color-scheme:dark]`}
  >
  <option value="">Tutti Staff</option>
  {staffOptions.map((s) => (
@@ -213,7 +214,7 @@ export default function ReportFilters({
  <select
  value={paymentMethod ?? ""}
  onChange={(e) => updateParam("payment_method", e.target.value || null)}
-          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className={`${sczField} [color-scheme:dark]`}
  >
  <option value="">Pagamento</option>
  <option value="cash">Contanti</option>
@@ -223,7 +224,7 @@ export default function ReportFilters({
  <select
  value={itemType ?? ""}
  onChange={(e) => updateParam("item_type", e.target.value || null)}
-          className="min-w-0 px-3 py-2 rounded-xl bg-black/30 border border-white/10"
+          className={`${sczField} [color-scheme:dark]`}
  >
  <option value="">Tipo</option>
  <option value="service">Servizi</option>

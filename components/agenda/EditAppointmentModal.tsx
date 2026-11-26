@@ -498,10 +498,6 @@ export default function EditAppointmentModal({
                 {selectedDay} · {headerTime}
               </span>
               <span className="w-px h-2.5 bg-white/20" />
- <span>
- #{appointment?.id ?? "-"}
-              </span>
-              <span className="w-px h-2.5 bg-white/20" />
               <span
                 className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide ${headerStatus.cls}`}
               >
@@ -527,7 +523,7 @@ export default function EditAppointmentModal({
             <button
               onClick={portaInSala}
               disabled={saving || disablePortaInSalaAndCassa}
-              className="inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 rounded-lg px-2 py-1.5 text-[10px] sm:text-[11px] leading-tight
+              className="inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 rounded-lg px-2 py-1.5 text-xs leading-tight
  bg-[#0FA958] text-white font-bold
  shadow-[0_6px_20px_rgba(15,169,88,0.18)]
  hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -545,7 +541,7 @@ export default function EditAppointmentModal({
  ? "Apri scheda cliente e schede tecniche"
  : "Collega un cliente all’appuntamento per aprire le schede"
               }
-              className="inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 rounded-lg px-2 py-1.5 text-[10px] sm:text-[11px] font-bold bg-black/35 border border-white/12 text-[#f3d8b6] hover:bg-black/45 transition disabled:opacity-50 disabled:cursor-not-allowed leading-tight"
+              className="inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 rounded-lg px-2 py-1.5 text-xs font-bold bg-black/35 border border-white/12 text-[#f3d8b6] hover:bg-black/45 transition disabled:opacity-50 disabled:cursor-not-allowed leading-tight"
             >
               <FlaskConical size={14} className="shrink-0" />
               <span className="text-center">Scheda</span>
@@ -554,7 +550,7 @@ export default function EditAppointmentModal({
             <button
               onClick={goToCash}
               disabled={saving || disablePortaInSalaAndCassa}
-              className="inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 rounded-lg px-2 py-1.5 text-[10px] sm:text-[11px] font-bold bg-[#f3d8b6] text-[#1A0F0A] hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed leading-tight"
+              className="inline-flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 rounded-lg px-2 py-1.5 text-xs font-bold bg-[#f3d8b6] text-[#1A0F0A] hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed leading-tight"
             >
               <Banknote size={14} className="shrink-0" />
               <span className="text-center">Cassa</span>

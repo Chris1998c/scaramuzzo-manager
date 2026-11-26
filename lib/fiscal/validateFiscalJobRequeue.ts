@@ -1,4 +1,5 @@
 import type { FiscalPrintJobActionRecord } from "@/lib/fiscal/fetchFiscalPrintJobById";
+import { isReconcileRequiredJob } from "@/lib/fiscal/fiscalJobCriticalList";
 
 export function validateRequeueFiscalJob(
   job: FiscalPrintJobActionRecord,
@@ -40,6 +41,30 @@ export function validateRequeueFiscalJob(
   }
 
   if (status === "failed") {
+    // Allinea API a canManualRequeueJob: niente ristampa se serve riconciliazione Epson.
+    if (
+      isReconcileRequiredJob({
+        id: job.id,
+        created_at: "",
+        salon_id: job.salon_id,
+        kind: job.kind,
+        status: job.status,
+        sale_id: job.sale_id,
+        cash_session_id: job.cash_session_id,
+        attempts: 0,
+        error_message: job.error_message,
+        locked_at: job.locked_at,
+        completed_at: null,
+        document: null,
+      })
+    ) {
+      return {
+        ok: false,
+        status: 409,
+        message:
+          "Riconciliazione richiesta: verificare stampante/documento prima di rimettere in coda.",
+      };
+    }
     return { ok: true, force: false };
   }
 
