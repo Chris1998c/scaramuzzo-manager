@@ -180,12 +180,11 @@ Fix UI + guard `b978d4f` sono sulla **Preview `54d98a7`**, ancora **fuori produz
 | Blocco | Prossimo intervento |
 |--------|---------------------|
 | Epson Contanti+Carta+void+callback | Finestra post-BOSS `docs/ROMA_PAYMENT_VERIFY.md`; job 18 fermo |
-| Promote Preview → prod | Review `54d98a7` + merge `audit/prelaunch…` → `main` |
-| Report apertura URL >2 s | Ridurre `auth_ms` / `queries_ms`; retest `?perf=1` |
+| Promote `5024152` → prod | Review + merge `audit/prelaunch…` → `main` |
+| Report soft/URL ≥2 s | Ridurre `auth_ms` / `queries_ms`; retest `?perf=1` |
 | App Clienti/Team device + bake PWA | Push fix source; rebuild `public/app-clienti` e `public/team` |
 | Bridge altre sedi | Install 1.3.3 |
 | Session 12 Cosenza | Chiusura ops |
-| Doppio «Aggiorna» In sala | Cleanup CTA residuo |
 
 ---
 
