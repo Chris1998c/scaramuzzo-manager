@@ -101,3 +101,35 @@ export function canShowLifecycleActions(input: {
   if (s === "done" || s === "cancelled" || s === "no_show" || s === "noshow") return false;
   return true;
 }
+
+/**
+ * Porta in sala: solo da stati operativi aperti.
+ * no_show / done / cancelled restano terminali (API + UI).
+ */
+export function canPortaInSala(input: {
+  status: unknown;
+}): { allowed: true } | { allowed: false; error: string } {
+  const s = normalizeAgendaStatus(input.status);
+  if (s === "in_sala") {
+    return { allowed: true }; // idempotente a valle
+  }
+  if (s === "done") {
+    return {
+      allowed: false,
+      error: "Appuntamento già chiuso (done): transizione verso in_sala non consentita",
+    };
+  }
+  if (s === "cancelled") {
+    return {
+      allowed: false,
+      error: "Appuntamento cancellato: transizione verso in_sala non consentita",
+    };
+  }
+  if (s === "no_show" || s === "noshow") {
+    return {
+      allowed: false,
+      error: "Appuntamento no-show: transizione verso in_sala non consentita",
+    };
+  }
+  return { allowed: true };
+}

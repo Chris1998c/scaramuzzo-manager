@@ -10,6 +10,7 @@ export type FiscalPrintJobActionRecord = {
   locked_at: string | null;
   sale_id: number | null;
   cash_session_id: number | null;
+  error_message: string | null;
 };
 
 export async function fetchFiscalPrintJobById(
@@ -17,7 +18,9 @@ export async function fetchFiscalPrintJobById(
 ): Promise<FiscalPrintJobActionRecord | null> {
   const { data, error } = await supabaseAdmin
     .from("fiscal_print_jobs")
-    .select("id, salon_id, kind, status, locked_at, sale_id, cash_session_id")
+    .select(
+      "id, salon_id, kind, status, locked_at, sale_id, cash_session_id, error_message",
+    )
     .eq("id", jobId)
     .maybeSingle();
 
@@ -34,5 +37,7 @@ export async function fetchFiscalPrintJobById(
     sale_id: raw.sale_id != null ? Number(raw.sale_id) : null,
     cash_session_id:
       raw.cash_session_id != null ? Number(raw.cash_session_id) : null,
+    error_message:
+      raw.error_message != null ? String(raw.error_message) : null,
   };
 }

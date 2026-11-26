@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canModifyAppointmentAgendaLine,
   canModifyAppointmentHeader,
+  canPortaInSala,
   canSetAppointmentLifecycleStatus,
   canShowLifecycleActions,
 } from "./appointmentLifecycle";
@@ -85,6 +86,21 @@ describe("appointmentLifecycle", () => {
     it("scheduled senza sale_id modificabile", () => {
       expect(canModifyAppointmentHeader({ status: "scheduled" }).allowed).toBe(true);
       expect(canModifyAppointmentHeader({ status: "in_sala" }).allowed).toBe(true);
+    });
+  });
+
+  describe("canPortaInSala", () => {
+    it("blocca no_show e terminali", () => {
+      for (const status of ["no_show", "noshow", "done", "cancelled"] as const) {
+        const r = canPortaInSala({ status });
+        expect(r.allowed).toBe(false);
+      }
+    });
+
+    it("consente scheduled / in_progress e tratta in_sala come idempotente", () => {
+      expect(canPortaInSala({ status: "scheduled" }).allowed).toBe(true);
+      expect(canPortaInSala({ status: "in_progress" }).allowed).toBe(true);
+      expect(canPortaInSala({ status: "in_sala" }).allowed).toBe(true);
     });
   });
 });
