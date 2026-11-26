@@ -2,9 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
 import {
-  ArrowLeft,
   PackagePlus,
   ShieldAlert,
   AlertTriangle,
@@ -14,6 +12,10 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveSalon } from "@/app/providers/ActiveSalonProvider";
 import { MAGAZZINO_CENTRALE_ID, SALONS } from "@/lib/constants";
 import { applyProductSearchOr } from "@/lib/magazzino/productSearch";
+import {
+  MagazzinoBackLink,
+  MagazzinoHero,
+} from "@/components/magazzino/ui/magazzinoUi";
 
 interface ProductRow {
   product_id?: number;
@@ -386,76 +388,45 @@ function CaricoInner() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] w-full space-y-6">
-      {/* HERO */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/60 p-5 md:p-7 backdrop-blur-md"
-      >
-        <div className="flex items-start gap-4">
-          <div className="shrink-0 rounded-2xl p-3 bg-black/20 border border-[#5c3a21]/60">
-            <PackagePlus className="text-[#f3d8b6]" size={26} strokeWidth={1.7} />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="text-sm text-[#c9b299]">Magazzino</div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-[#f3d8b6] tracking-tight">
- {isReception ? "Carico in ingresso" : "Carico dal Magazzino Centrale"}
-                </h1>
-                <p className="text-[#c9b299] mt-2 max-w-2xl">
- {isReception
- ? "Registra merce arrivata al tuo salone. La destinazione è il tuo salone."
- : "Prelievo dalla giacenza del Magazzino Centrale (ID 5). Il salone che riceve la merce è sempre quello che scegli nel campo «Destinazione del carico»."}
-                </p>
-                {!isReception && isWarehouseUi && (
-                  <div
-                    className={`mt-4 max-w-2xl rounded-xl border px-4 py-3 text-sm leading-relaxed ${
-                      vistaIsHub
-                        ? "border-amber-400/35 bg-amber-500/10 text-amber-100/95"
-                        : "border-white/10 bg-black/25 text-[#c9b299]"
-                    }`}
-                  >
-                    {vistaIsHub ? (
-                      <>
-                        <span className="font-extrabold text-[#f3d8b6]">Vista: {vistaLabel} (hub).</span>{" "}
- Qui stai lavorando sull’origine della merce.{" "}
-                        <strong className="text-white/90">Non</strong> coincide con il salone di arrivo: quello è
-                        sempre il valore nel menu &quot;Destinazione del carico&quot; sotto.
-                      </>
-                    ) : vistaSalonOperativo ? (
-                      <>
-                        <span className="font-extrabold text-[#f3d8b6]">Vista: {vistaLabel}.</span> La destinazione
-                        del carico è stata allineata a questo salone; cambiala dal menu se serve inviare altrove.
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-extrabold text-[#f3d8b6]">Vista: {vistaLabel}.</span> Scegli con cura la
-                        destinazione del carico nel menu dedicato (salone che riceve la merce dal centrale).
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={() => router.back()}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3
- bg-black/20 border border-[#5c3a21]/60 text-[#f3d8b6]
- hover:border-[var(--accent)] transition"
-              >
-                <ArrowLeft size={18} />
-                Indietro
-              </button>
-            </div>
-          </div>
+    <div className="min-h-[calc(100vh-64px)] w-full space-y-4 px-1">
+      <MagazzinoHero
+        icon={PackagePlus}
+        compact
+        subtitle={
+          isReception
+            ? "Ingresso merce nel tuo salone"
+            : "Prelievo dal Magazzino Centrale → destinazione sotto"
+        }
+        actions={<MagazzinoBackLink href="/dashboard/magazzino" />}
+      />
+      {!isReception && isWarehouseUi ? (
+        <div
+          className={`max-w-2xl rounded-xl border px-4 py-3 text-sm leading-relaxed ${
+            vistaIsHub
+              ? "border-amber-400/35 bg-amber-500/10 text-amber-100/95"
+              : "border-white/10 bg-black/25 text-[#c9b299]"
+          }`}
+        >
+          {vistaIsHub ? (
+            <>
+              <span className="font-semibold text-[#f3d8b6]">Vista: {vistaLabel} (hub).</span>{" "}
+              Origine merce — la destinazione è il menu sotto.
+            </>
+          ) : vistaSalonOperativo ? (
+            <>
+              <span className="font-semibold text-[#f3d8b6]">Vista: {vistaLabel}.</span> Destinazione
+              allineata a questo salone; puoi cambiarla dal menu.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold text-[#f3d8b6]">Vista: {vistaLabel}.</span> Scegli la
+              destinazione del carico nel menu dedicato.
+            </>
+          )}
         </div>
-      </motion.div>
+      ) : null}
 
-      {/* CONTENT */}
-      <div className="rounded-3xl border border-[#5c3a21]/50 bg-[#24140e]/40 p-4 md:p-6 backdrop-blur-md">
+      <div className="rounded-xl border border-white/10 bg-scz-dark p-4 md:p-5">
         {loading ? (
           <div className="rounded-2xl bg-black/15 border border-[#5c3a21]/50 p-6 text-[#c9b299]">
             Caricamento…

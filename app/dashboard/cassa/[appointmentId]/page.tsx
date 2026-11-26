@@ -7,7 +7,11 @@ import { createClient } from "@/lib/supabaseClient";
 import { fetchCashServices } from "@/lib/servicesCatalog";
 import { agendaVisualFromServiceRow } from "@/lib/agendaServiceVisual";
 import Link from "next/link";
-import { sczBtnGhost, sczBtnPrimary } from "@/components/ui/PageHeader";
+import {
+  sczBtnGhost,
+  sczBtnPrimary,
+  sczField,
+} from "@/components/ui/PageHeader";
 import {
   CASSA_STOCK_INSUFFICIENT_CODE,
   formatCassaStockInsufficientMessage,
@@ -610,7 +614,7 @@ setProducts(cashProducts);
 
   if (loading)
     return (
-      <div className="p-8 text-[#f3d8b6] animate-pulse font-bold">
+      <div className="p-6 text-sm text-[#f3d8b6]/90 animate-pulse" role="status">
         Caricamento cassa…
       </div>
     );
@@ -642,7 +646,7 @@ setProducts(cashProducts);
   const salonName = cassa?.salon?.name ?? null;
 
   return (
-    <div className="min-h-screen px-3 py-4 md:px-5 md:py-5 pb-10 text-white max-w-6xl mx-auto space-y-3 animate-in fade-in duration-500">
+    <div className="min-h-screen px-3 py-4 md:px-5 md:py-5 pb-28 sm:pb-10 text-white max-w-6xl mx-auto space-y-3 animate-in fade-in duration-500">
       {isNotInSala && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 space-y-2">
           <p className="text-sm font-semibold text-red-200">Appuntamento non in sala</p>
@@ -666,7 +670,7 @@ setProducts(cashProducts);
         </div>
       )}
 
-      {/* Contesto + totale (titolo pagina già nell’header: Check-out cassa) */}
+      {/* Contesto + totale (titolo già nel chrome Header). */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 space-y-1">
           <Link
@@ -736,7 +740,7 @@ setProducts(cashProducts);
                   : "bg-amber-500/15 text-amber-200"
               }`}
             >
-              {printerEnabled ? "Abilitata (sessione)" : "Disabilitata (sessione)"}
+              {printerEnabled ? "Attiva" : "Spenta"}
             </span>
             <label className="flex cursor-pointer items-center gap-2 text-sm text-white/85">
               <input
@@ -745,7 +749,7 @@ setProducts(cashProducts);
                 checked={printerEnabled}
                 onChange={(e) => void setPrinterEnabledPersist(e.target.checked)}
               />
-              Usa stampante alla registrazione
+              Stampa allo scontrino
             </label>
           </div>
         ) : (
@@ -852,7 +856,7 @@ setProducts(cashProducts);
         <div className="border-b border-white/10 bg-black/20 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="text-xs font-medium text-white/40">
-              Riepilogo Prestazioni e Vendite
+              Righe in scontrino
             </div>
             <div className="mt-1 text-sm text-white/50">
               Servizi e prodotti in scontrino
@@ -1040,46 +1044,98 @@ setProducts(cashProducts);
         </div>
       </div>
 
-      {/* SUMMARY / PAYMENT PANEL */}
-      <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-scz-dark">
-        <div className="border-b border-white/[0.06] px-3 py-2.5 md:px-4">
-          <h2 className="text-sm font-semibold text-white/85">Pagamento e conferma</h2>
+      {/* Riepilogo → pagamento → conferma */}
+      <div
+        id="cassa-riepilogo"
+        className="overflow-hidden rounded-xl border border-[#f3d8b6]/25 bg-scz-dark"
+      >
+        <div className="border-b border-white/[0.06] px-3 py-2.5 md:px-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[#f3d8b6]">Riepilogo e pagamento</h2>
+          <p className="text-xs text-white/45">
+            {items.length} {items.length === 1 ? "riga" : "righe"} ·{" "}
+            {paymentMethod === "cash" ? "Contanti" : "Carta / POS"}
+          </p>
         </div>
 
         <div className="p-3 md:p-4 space-y-4">
-          {/* Riga totali: subtotale, sconto, totale */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:p-5">
-              <div className="text-xs font-medium text-white/40">Subtotale</div>
-              <div className="mt-1 text-xl font-extrabold text-white/90">€ {subtotal.toFixed(2)}</div>
+          <div className="rounded-lg border border-[#f3d8b6]/40 bg-[#f3d8b6]/10 px-4 py-3.5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-xs font-medium text-[#f3d8b6]/85">
+                Totale da pagare
+              </div>
+              <div className="mt-0.5 text-3xl font-semibold tabular-nums text-[#f3d8b6]">
+                € {total.toFixed(2)}
+              </div>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4 md:p-5">
-              <div className="text-xs font-medium text-white/40">Sconto cassa (€)</div>
- <input
- type="number"
- min={0}
- step="0.5"
-                value={globalDiscountEur}
-                onChange={(e) =>
-                  setGlobalDiscountEur(Math.max(0, Number(e.target.value) || 0))
-                }
-                className="mt-1 w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 font-bold text-white focus:border-[#f3d8b6]/50 outline-none"
- placeholder="0,00"
-              />
-              {globalDiscountEur > subtotal && (
-                <p className="mt-1.5 text-[11px] font-medium text-amber-400/90">
-                  Ridotto a € {globalDisc.toFixed(2)}
-                </p>
-              )}
+            <div className="text-sm text-white/55 tabular-nums">
+              Subtotale € {subtotal.toFixed(2)}
+              {globalDisc > 0 ? ` · sconto € ${globalDisc.toFixed(2)}` : null}
             </div>
-            <div className="rounded-xl border border-[#f3d8b6]/30 bg-[#f3d8b6]/5 p-4 md:p-5">
-              <div className="text-xs font-medium text-[#f3d8b6]/80">Totale da pagare</div>
-              <div className="mt-1 text-xl md:text-2xl font-semibold text-[#f3d8b6]">€ {total.toFixed(2)}</div>
+          </div>
+          <div className="max-w-xs">
+            <label
+              htmlFor="cassa-sconto"
+              className="text-xs text-white/50 block"
+            >
+              Sconto cassa (€)
+            </label>
+            <input
+              id="cassa-sconto"
+              type="number"
+              min={0}
+              step="0.5"
+              value={globalDiscountEur}
+              onChange={(e) =>
+                setGlobalDiscountEur(Math.max(0, Number(e.target.value) || 0))
+              }
+              className={`${sczField} mt-1 font-semibold tabular-nums`}
+              placeholder="0,00"
+            />
+            {globalDiscountEur > subtotal ? (
+              <p className="mt-1 text-xs text-amber-300/90">
+                Limitato a € {globalDisc.toFixed(2)}
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-white/50 mb-2">
+              Metodo di pagamento
+            </div>
+            <div
+              className="grid grid-cols-2 gap-2"
+              role="group"
+              aria-label="Metodo di pagamento"
+            >
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("cash")}
+                aria-pressed={paymentMethod === "cash"}
+                className={`min-h-12 rounded-lg px-3 py-3 text-sm font-semibold border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6] ${
+                  paymentMethod === "cash"
+                    ? "bg-[#f3d8b6] text-[#1c0f0a] border-[#f3d8b6]"
+                    : "bg-black/25 border-white/10 text-white/70 hover:bg-white/[0.06]"
+                }`}
+              >
+                Contanti
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("card")}
+                aria-pressed={paymentMethod === "card"}
+                className={`min-h-12 rounded-lg px-3 py-3 text-sm font-semibold border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6] ${
+                  paymentMethod === "card"
+                    ? "bg-[#f3d8b6] text-[#1c0f0a] border-[#f3d8b6]"
+                    : "bg-black/25 border-white/10 text-white/70 hover:bg-white/[0.06]"
+                }`}
+              >
+                Carta / POS
+              </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 md:px-4">
-            <span className="text-sm text-white/55">Stampante in chiusura</span>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2">
+            <span className="text-xs text-white/50">Stampante</span>
             <span
               className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
                 printerEnabled
@@ -1087,74 +1143,34 @@ setProducts(cashProducts);
                   : "bg-amber-500/15 text-amber-200"
               }`}
             >
-              {cassa?.is_open
-                ? printerEnabled
-                  ? "Abilitata (sessione)"
-                  : "Disabilitata (sessione)"
-                : printerEnabled
-                  ? "Predefinita: abilitata"
-                  : "Predefinita: disabilitata"}
+              {printerEnabled ? "Attiva" : "Spenta"}
             </span>
             {cassa?.is_open ? (
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-white/85">
+              <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-white/85">
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-white/20 bg-black/40"
                   checked={printerEnabled}
                   onChange={(e) => void setPrinterEnabledPersist(e.target.checked)}
                 />
-                Usa alla registrazione
+                Stampa allo scontrino
               </label>
             ) : (
-              <span className="text-xs text-white/45">
-                Preferenza di stampa; non è lo stato cassa. Si conferma all’apertura.
+              <span className="ml-auto text-xs text-white/45">
+                Si conferma all’apertura cassa
               </span>
             )}
           </div>
 
-          {/* Metodi di pagamento */}
-          <div>
-            <div className="text-xs font-medium text-white/40 mb-3">
-              Metodo di pagamento
-            </div>
-            <div className="flex flex-wrap gap-3">
- <button
- type="button"
- onClick={() => setPaymentMethod("cash")}
-                className={`min-w-[140px] py-4 px-6 rounded-xl font-bold text-sm border transition-all ${
-                  paymentMethod === "cash"
-                    ? "bg-[#f3d8b6] text-black border-[#f3d8b6] shadow-lg shadow-[#f3d8b6]/20"
-                    : "bg-black/20 border-white/10 text-white/60 hover:bg-black/30 hover:text-white/80"
-                }`}
-              >
-                <span className="block text-lg mb-0.5">💵</span>
- Contanti
- </button>
- <button
- type="button"
- onClick={() => setPaymentMethod("card")}
-                className={`min-w-[140px] py-4 px-6 rounded-xl font-bold text-sm border transition-all ${
-                  paymentMethod === "card"
-                    ? "bg-[#f3d8b6] text-black border-[#f3d8b6] shadow-lg shadow-[#f3d8b6]/20"
-                    : "bg-black/20 border-white/10 text-white/60 hover:bg-black/30 hover:text-white/80"
-                }`}
-              >
-                <span className="block text-lg mb-0.5">💳</span>
-                Carta / POS
-              </button>
-            </div>
-          </div>
-
-          {/* CTA + messaggio stato */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-1">
- <button
- type="button"
+          <div className="space-y-2 pt-1">
+            <button
+              type="button"
               disabled={!canClose}
               onClick={handleClose}
-              className={`flex-1 min-h-[56px] sm:min-h-[64px] rounded-2xl text-sm sm:text-base font-semibold transition-all flex items-center justify-center ${
+              className={`w-full min-h-14 rounded-lg text-base font-semibold transition flex items-center justify-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f3d8b6] ${
                 !canClose
-                  ? "bg-black/20 text-white/30 cursor-not-allowed border border-white/10"
-                  : "bg-[#f3d8b6] text-black border-2 border-[#f3d8b6] hover:opacity-95 active:scale-[0.99] shadow-[0_20px_40px_-12px_rgba(243,216,182,0.35)]"
+                  ? "bg-black/20 text-white/35 cursor-not-allowed border border-white/10"
+                  : sczBtnPrimary.replace("px-3.5 py-2", "px-4 py-3.5 w-full")
               }`}
               title={
                 closeBlockReason ??
@@ -1166,30 +1182,79 @@ setProducts(cashProducts);
               }
             >
               {closing ? (
-                <span className="flex items-center justify-center gap-3">
-                  <svg className="animate-spin h-5 w-5 text-black" viewBox="0 0 24 24" aria-hidden>
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
- </svg>
- Elaborazione...
- </span>
- ) : cassa?.is_open ? (
- printerEnabled ? "Registra e stampa" : "Registra"
- ) : (
- "Apri cassa per chiudere"
+                <>
+                  <svg
+                    className="animate-spin h-5 w-5"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Registrazione…
+                </>
+              ) : cassa?.is_open ? (
+                printerEnabled ? (
+                  <>Conferma · € {total.toFixed(2)} · stampa</>
+                ) : (
+                  <>Conferma · € {total.toFixed(2)}</>
+                )
+              ) : (
+                "Apri cassa per confermare"
               )}
             </button>
-            {!canClose && (
-              <p className="text-xs text-white/50 font-medium max-w-[280px]">
- {closeBlockReason ??
- (!cassa?.is_open
- ? "Apri la cassa dalla barra sopra per abilitare la chiusura."
- : items.length === 0
- ? "Aggiungi almeno una riga al riepilogo per chiudere."
+            {!canClose ? (
+              <p className="text-sm text-amber-200/90" role="status">
+                {closeBlockReason ??
+                  (!cassa?.is_open
+                    ? "Apri la cassa dalla barra sopra, poi conferma qui."
+                    : items.length === 0
+                      ? "Aggiungi almeno una riga al riepilogo."
                       : null)}
+              </p>
+            ) : (
+              <p className="text-sm text-white/50">
+                {paymentMethod === "cash" ? "Contanti" : "Carta / POS"} · totale €{" "}
+                {total.toFixed(2)}
+                {printerEnabled ? " · con stampa" : " · senza stampa"}
               </p>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Barra sticky telefono: totale + conferma sempre raggiungibili */}
+      <div className="sm:hidden fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.08] bg-[#1A0F0A]/95 backdrop-blur-sm px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] text-white/45 truncate">
+              {paymentMethod === "cash" ? "Contanti" : "Carta"} ·{" "}
+              {items.length} {items.length === 1 ? "riga" : "righe"}
+            </div>
+            <div className="text-lg font-semibold tabular-nums text-[#f3d8b6]">
+              € {total.toFixed(2)}
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={!canClose || closing}
+            onClick={handleClose}
+            className={`ml-auto shrink-0 ${sczBtnPrimary} min-h-11 px-4`}
+          >
+            {closing ? "…" : canClose ? "Conferma" : "Bloccato"}
+          </button>
         </div>
       </div>
     </div>

@@ -28,7 +28,8 @@ export function MagazzinoHero({
   eyebrow: _eyebrow,
 }: {
   eyebrow?: string;
-  title: string;
+  /** Se assente, resta solo il titolo nel chrome Header. */
+  title?: string;
   subtitle?: ReactNode;
   icon: LucideIcon;
   actions?: ReactNode;
