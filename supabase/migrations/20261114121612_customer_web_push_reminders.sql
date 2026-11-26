@@ -80,3 +80,4 @@ REVOKE ALL ON FUNCTION public.appointments_for_customer_push_v1() FROM PUBLIC, a
 GRANT EXECUTE ON FUNCTION public.appointments_for_customer_push_v1() TO service_role;
 
 COMMIT;
+
